@@ -1,0 +1,10 @@
+[package]
+name = "grnok"
+version = "0.1.0"
+edition = "2018"
+
+
+[dependencies]
+audiotags = "0.2.7182"
+itertools = "0.10.1"
+jwalk = "0.6.0"
