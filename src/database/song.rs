@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use audiotags::Tag;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Song {
     pub title: String,
     pub number: u16,

@@ -1,16 +1,13 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    path::Path,
-};
+use std::{collections::HashMap, path::Path};
 
-use itertools::Itertools;
 use jwalk::WalkDir;
 
 mod database;
+use database::album::Album;
 use database::song::Song;
 
 fn main() {
-    let path = Path::new(r"D:\OneDrive\Music\BadBadNotGood");
+    let path = Path::new(r"D:\OneDrive\Music\");
 
     let mut songs = Vec::new();
 
@@ -26,13 +23,27 @@ fn main() {
         }
     }
 
-    let mut albums = Vec::new();
+    //create a hashmap of albums
+    //todo change to hashbrown
+    let mut map: HashMap<String, Album> = HashMap::new();
 
     for song in songs {
-        albums.push(song.album);
+        let a = song.album.as_str();
+
+        if map.get(a).is_some() {
+            map.get_mut(a).unwrap().songs.push(song);
+        } else {
+            let mut v = Vec::new();
+            v.push(song.clone());
+            let album = map.insert(
+                a.to_string(),
+                Album {
+                    title: String::from(a),
+                    songs: v,
+                },
+            );
+        }
     }
 
-    let albums = albums.into_iter().unique().collect_vec();
-
-    dbg!(albums);
+    dbg!(&map);
 }
