@@ -1,5 +1,7 @@
 use crate::database::album::Album;
+
+#[derive(Debug, Clone)]
 pub struct Artist {
-    name: String,
-    albums: Vec<Album>,
+    pub name: String,
+    pub albums: Vec<Album>,
 }
