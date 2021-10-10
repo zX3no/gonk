@@ -1,6 +1,7 @@
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::collections::HashMap;
 use std::io::stdout;
+use std::thread;
 use std::time::Duration;
 use tui::backend::CrosstermBackend;
 use tui::layout::Rect;
@@ -30,6 +31,7 @@ pub struct App<'a> {
     mode: Mode,
     album: String,
     artist: String,
+    //this is very dumb
     selected: usize,
     list_size: usize,
     quit: bool,
@@ -106,8 +108,11 @@ impl<'a> App<'a> {
             .unwrap()
             .path;
 
-        //this needs to be in a different thread
-        Player::play(path);
+        let p = path.clone();
+
+        thread::spawn(move || {
+            Player::play(&p);
+        });
     }
     pub fn change_mode(&mut self) {
         match self.mode {
@@ -119,33 +124,52 @@ impl<'a> App<'a> {
             }
         }
         self.update_mode();
+        self.selected = 0;
     }
     pub fn update_mode(&mut self) {
         match self.mode {
             Mode::Artist => {
+                //get artists
                 let list: Vec<ListItem> = self
                     .music
                     .iter()
                     .map(|(_, v)| ListItem::new(v.name.clone()))
                     .collect();
+                self.list_size = list.len() - 1;
                 self.list = list;
             }
             Mode::Album => {
-                let mut i = 0;
-                for (_, v) in &self.music {
-                    if i == self.selected {
-                        self.artist = v.name.clone();
-                        let list: Vec<ListItem> = v
-                            .albums
-                            .iter()
-                            .map(|album| ListItem::new(album.title.clone()))
-                            .collect();
-                        self.list = list;
+                //get album from artist
+                if !self.artist.is_empty() {
+                    let list: Vec<ListItem> = self
+                        .music
+                        .get(&self.artist)
+                        .unwrap()
+                        .albums
+                        .iter()
+                        .map(|album| ListItem::new(album.title.clone()))
+                        .collect();
+                    self.list_size = list.len() - 1;
+                    self.list = list;
+                } else {
+                    let mut i = 0;
+                    for (_, v) in &self.music {
+                        if i == self.selected {
+                            self.artist = v.name.clone();
+                            let list: Vec<ListItem> = v
+                                .albums
+                                .iter()
+                                .map(|album| ListItem::new(album.title.clone()))
+                                .collect();
+                            self.list_size = list.len() - 1;
+                            self.list = list;
+                        }
+                        i += 1;
                     }
-                    i += 1;
                 }
             }
             Mode::Track => {
+                //get tracks from album
                 let album = self
                     .music
                     .get(&self.artist)
@@ -161,6 +185,7 @@ impl<'a> App<'a> {
                     .map(|song| ListItem::new(song.title.clone()))
                     .collect();
 
+                self.list_size = list.len() - 1;
                 self.list = list;
             }
         }
@@ -172,6 +197,7 @@ impl<'a> App<'a> {
             Mode::Track => self.mode = Mode::Album,
         }
         self.update_mode();
+        self.selected = 0;
     }
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(100))? {
