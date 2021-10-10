@@ -13,7 +13,7 @@ fn main() {
     let path = &artists["Badbadnotgood"]
         .album("Talk Memory")
         .unwrap()
-        .at(2)
+        .track(3)
         .unwrap()
         .path;
 

@@ -7,7 +7,12 @@ pub struct Album {
     pub songs: Vec<Song>,
 }
 impl Album {
-    pub fn at(&self, track_number: usize) -> Option<&Song> {
-        self.songs.get(track_number)
+    pub fn track(&self, track_number: u16) -> Option<&Song> {
+        for song in &self.songs {
+            if song.number == track_number {
+                return Some(song);
+            }
+        }
+        None
     }
 }
