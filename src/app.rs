@@ -185,7 +185,12 @@ impl<'a> App<'a> {
                 let list: Vec<ListItem> = album
                     .songs
                     .iter()
-                    .map(|song| ListItem::new(song.title.clone()))
+                    .map(|song| {
+                        let mut item = song.number.to_string();
+                        item.push_str(" ");
+                        item.push_str(&song.title);
+                        ListItem::new(item)
+                    })
                     .collect();
 
                 self.list_size = list.len() - 1;
