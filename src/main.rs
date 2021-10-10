@@ -10,7 +10,7 @@ use player::Player;
 fn main() {
     let mut app = App::new();
     app.run().unwrap();
-    // let artists = get_artists();
+    let artists = get_artists();
 
     // let path = &artists["Badbadnotgood"]
     //     .album("Talk Memory")

@@ -1,4 +1,5 @@
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
+use std::collections::HashMap;
 use std::io::stdout;
 use std::time::Duration;
 use tui::backend::CrosstermBackend;
@@ -12,19 +13,48 @@ use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, LeaveAlternateS
 
 use crate::database::Artist;
 use crate::index::get_artists;
+use crate::player::Player;
 
 type Result = crossterm::Result<()>;
 
-pub struct App {
+#[derive(PartialEq)]
+enum Mode {
+    Artist,
+    Album,
+    Track,
+}
+
+pub struct App<'a> {
+    music: HashMap<String, Artist>,
+    list: Vec<ListItem<'a>>,
+    mode: Mode,
+    album: String,
+    artist: String,
     selected: usize,
+    list_size: usize,
     quit: bool,
 }
-impl App {
+impl<'a> App<'a> {
     pub fn new() -> Self {
         execute!(stdout(), EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
+        let music = get_artists();
+
+        let list: Vec<ListItem> = music
+            .iter()
+            .map(|(_, v)| ListItem::new(v.name.clone()))
+            .collect();
+
+        let list_size = list.clone().len() - 1;
+
         Self {
+            music,
+            list,
+            mode: Mode::Artist,
+            album: String::new(),
+            artist: String::new(),
             selected: 0,
+            list_size,
             quit: false,
         }
     }
@@ -33,10 +63,7 @@ impl App {
             Terminal::new(CrosstermBackend::new(stdout())).expect("couldn't create terminal");
 
         terminal.clear().unwrap();
-        let artists: Vec<ListItem> = get_artists()
-            .iter()
-            .map(|(_, v)| ListItem::new(v.name.clone()))
-            .collect();
+
         let mut state = ListState::default();
         loop {
             terminal
@@ -44,7 +71,7 @@ impl App {
                     let size = f.size();
                     let b = Block::default().title("Block").borders(Borders::ALL);
 
-                    let l = List::new(artists.clone())
+                    let l = List::new(self.list.clone())
                         .block(Block::default().title("Artists").borders(Borders::ALL))
                         .style(Style::default().fg(Color::White))
                         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
@@ -68,6 +95,84 @@ impl App {
 
         Ok(())
     }
+    pub fn play(&mut self) {
+        let path = &self
+            .music
+            .get(&self.artist)
+            .unwrap()
+            .album(&self.album)
+            .unwrap()
+            .track(self.selected as u16 + 1)
+            .unwrap()
+            .path;
+
+        //this needs to be in a different thread
+        Player::play(path);
+    }
+    pub fn change_mode(&mut self) {
+        match self.mode {
+            Mode::Artist => self.mode = Mode::Album,
+            Mode::Album => self.mode = Mode::Track,
+            Mode::Track => {
+                self.play();
+                return;
+            }
+        }
+        self.update_mode();
+    }
+    pub fn update_mode(&mut self) {
+        match self.mode {
+            Mode::Artist => {
+                let list: Vec<ListItem> = self
+                    .music
+                    .iter()
+                    .map(|(_, v)| ListItem::new(v.name.clone()))
+                    .collect();
+                self.list = list;
+            }
+            Mode::Album => {
+                let mut i = 0;
+                for (_, v) in &self.music {
+                    if i == self.selected {
+                        self.artist = v.name.clone();
+                        let list: Vec<ListItem> = v
+                            .albums
+                            .iter()
+                            .map(|album| ListItem::new(album.title.clone()))
+                            .collect();
+                        self.list = list;
+                    }
+                    i += 1;
+                }
+            }
+            Mode::Track => {
+                let album = self
+                    .music
+                    .get(&self.artist)
+                    .unwrap()
+                    .albums
+                    .get(self.selected)
+                    .unwrap();
+
+                self.album = album.title.clone();
+                let list: Vec<ListItem> = album
+                    .songs
+                    .iter()
+                    .map(|song| ListItem::new(song.title.clone()))
+                    .collect();
+
+                self.list = list;
+            }
+        }
+    }
+    pub fn exit_mode(&mut self) {
+        match self.mode {
+            Mode::Artist => return,
+            Mode::Album => self.mode = Mode::Artist,
+            Mode::Track => self.mode = Mode::Album,
+        }
+        self.update_mode();
+    }
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(100))? {
             match read()? {
@@ -83,7 +188,11 @@ impl App {
                     KeyEvent {
                         code: KeyCode::Down,
                         modifiers: KeyModifiers::NONE,
-                    } => self.selected += 1,
+                    } => {
+                        if self.selected != self.list_size {
+                            self.selected += 1;
+                        }
+                    }
                     KeyEvent {
                         code: KeyCode::Up,
                         modifiers: KeyModifiers::NONE,
@@ -92,6 +201,14 @@ impl App {
                             self.selected -= 1;
                         }
                     }
+                    KeyEvent {
+                        code: KeyCode::Enter,
+                        modifiers: KeyModifiers::NONE,
+                    } => self.change_mode(),
+                    KeyEvent {
+                        code: KeyCode::Backspace,
+                        modifiers: KeyModifiers::NONE,
+                    } => self.exit_mode(),
                     _ => (),
                 },
                 Event::Mouse(_) => (),
@@ -102,7 +219,7 @@ impl App {
     }
 }
 
-impl Drop for App {
+impl<'a> Drop for App<'a> {
     fn drop(&mut self) {
         execute!(stdout(), LeaveAlternateScreen).unwrap();
     }
