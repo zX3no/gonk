@@ -18,7 +18,8 @@ impl Player {
 
         sink.append(source);
         sink.set_volume(0.01);
-        sink.play();
-        thread::sleep(Duration::from_secs(20));
+        sink.sleep_until_end();
+        // sink.play();
+        // thread::sleep(Duration::from_secs(20));
     }
 }

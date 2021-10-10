@@ -137,6 +137,9 @@ impl<'a> App<'a> {
                     .collect();
                 self.list_size = list.len() - 1;
                 self.list = list;
+
+                self.artist = String::new();
+                self.album = String::new();
             }
             Mode::Album => {
                 //get album from artist
@@ -217,6 +220,8 @@ impl<'a> App<'a> {
                     } => {
                         if self.selected != self.list_size {
                             self.selected += 1;
+                        } else {
+                            self.selected = 0;
                         }
                     }
                     KeyEvent {
@@ -225,6 +230,8 @@ impl<'a> App<'a> {
                     } => {
                         if self.selected != 0 {
                             self.selected -= 1;
+                        } else {
+                            self.selected = self.list_size;
                         }
                     }
                     KeyEvent {
