@@ -34,7 +34,7 @@ pub fn get_artists() -> HashMap<String, Artist> {
             albums.insert(
                 song.album.to_string(),
                 Album {
-                    title: song.title.clone(),
+                    title: song.album.clone(),
                     artist: song.album_artist.clone(),
                     songs: vec![song],
                 },

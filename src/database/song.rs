@@ -9,6 +9,7 @@ pub struct Song {
     pub album_artist: String,
     pub duration: u32,
     pub year: i32,
+    pub path: PathBuf,
 }
 
 impl Song {
@@ -33,6 +34,7 @@ impl Song {
             //todo
             duration: 0,
             year: tag.year().unwrap(),
+            path,
         }
     }
 }

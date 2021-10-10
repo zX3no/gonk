@@ -6,3 +6,8 @@ pub struct Album {
     pub artist: String,
     pub songs: Vec<Song>,
 }
+impl Album {
+    pub fn at(&self, track_number: usize) -> Option<&Song> {
+        self.songs.get(track_number)
+    }
+}
