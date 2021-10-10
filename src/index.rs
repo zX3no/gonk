@@ -2,9 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use jwalk::WalkDir;
 
-use crate::database::album::Album;
-use crate::database::artist::Artist;
-use crate::database::song::Song;
+use crate::database::{Album, Artist, Song};
 
 pub fn get_artists() -> HashMap<String, Artist> {
     let path = Path::new(r"D:\OneDrive\Music");

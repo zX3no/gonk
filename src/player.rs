@@ -3,6 +3,8 @@ use rodio::{Decoder, OutputStream};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::thread;
+use std::time::Duration;
 
 pub struct Player {}
 impl Player {
@@ -17,7 +19,6 @@ impl Player {
         sink.append(source);
         sink.set_volume(0.01);
         sink.play();
-
-        std::thread::sleep(std::time::Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(20));
     }
 }

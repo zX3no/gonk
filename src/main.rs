@@ -2,8 +2,6 @@ mod database;
 mod index;
 mod player;
 
-use std::path::PathBuf;
-
 use index::get_artists;
 use player::Player;
 
@@ -13,7 +11,7 @@ fn main() {
     let path = &artists["Badbadnotgood"]
         .album("Talk Memory")
         .unwrap()
-        .track(3)
+        .track(7)
         .unwrap()
         .path;
 

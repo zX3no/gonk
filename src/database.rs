@@ -1,6 +1,47 @@
-use std::path::PathBuf;
-
 use audiotags::Tag;
+use std::path::PathBuf;
+///
+///
+///
+#[derive(Debug, Clone)]
+pub struct Artist {
+    pub name: String,
+    pub albums: Vec<Album>,
+}
+
+impl Artist {
+    pub fn album(&self, name: &str) -> Option<&Album> {
+        let mut out = None;
+        for album in &self.albums {
+            if album.title == name {
+                out = Some(album);
+            }
+        }
+        return out;
+    }
+}
+///
+///
+///
+#[derive(Debug, Clone)]
+pub struct Album {
+    pub title: String,
+    pub artist: String,
+    pub songs: Vec<Song>,
+}
+impl Album {
+    pub fn track(&self, track_number: u16) -> Option<&Song> {
+        for song in &self.songs {
+            if song.number == track_number {
+                return Some(song);
+            }
+        }
+        None
+    }
+}
+///
+///
+///
 #[derive(Debug, Clone)]
 pub struct Song {
     pub title: String,
