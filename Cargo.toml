@@ -6,6 +6,8 @@ edition = "2018"
 
 [dependencies]
 audiotags = "0.2.7182"
+crossterm = "0.21.0"
 itertools = "0.10.1"
 jwalk = "0.6.0"
 rodio = { git = "https://github.com/aschey/rodio", branch = "seek"}
+tui = { version = "0.16", default-features = false, features = ['crossterm'] }
