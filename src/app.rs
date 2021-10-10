@@ -217,6 +217,10 @@ impl<'a> App<'a> {
                     KeyEvent {
                         code: KeyCode::Down,
                         modifiers: KeyModifiers::NONE,
+                    }
+                    | KeyEvent {
+                        code: KeyCode::Char('j'),
+                        modifiers: KeyModifiers::NONE,
                     } => {
                         if self.selected != self.list_size {
                             self.selected += 1;
@@ -226,6 +230,10 @@ impl<'a> App<'a> {
                     }
                     KeyEvent {
                         code: KeyCode::Up,
+                        modifiers: KeyModifiers::NONE,
+                    }
+                    | KeyEvent {
+                        code: KeyCode::Char('k'),
                         modifiers: KeyModifiers::NONE,
                     } => {
                         if self.selected != 0 {
@@ -237,9 +245,17 @@ impl<'a> App<'a> {
                     KeyEvent {
                         code: KeyCode::Enter,
                         modifiers: KeyModifiers::NONE,
+                    }
+                    | KeyEvent {
+                        code: KeyCode::Char('l'),
+                        modifiers: KeyModifiers::NONE,
                     } => self.change_mode(),
                     KeyEvent {
                         code: KeyCode::Backspace,
+                        modifiers: KeyModifiers::NONE,
+                    }
+                    | KeyEvent {
+                        code: KeyCode::Char('h'),
                         modifiers: KeyModifiers::NONE,
                     } => self.exit_mode(),
                     _ => (),
