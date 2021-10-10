@@ -27,13 +27,14 @@ enum Mode {
 
 pub struct App<'a> {
     music: HashMap<String, Artist>,
-    list: Vec<ListItem<'a>>,
+    //this needs to change
+    list: Vec<String>,
+    list_old: Vec<ListItem<'a>>,
     mode: Mode,
     album: String,
     artist: String,
     //this is very dumb
     selected: usize,
-    list_size: usize,
     quit: bool,
 }
 impl<'a> App<'a> {
@@ -42,21 +43,21 @@ impl<'a> App<'a> {
         enable_raw_mode().unwrap();
         let music = get_artists();
 
-        let list: Vec<ListItem> = music
+        let list_old: Vec<ListItem> = music
             .iter()
             .map(|(_, v)| ListItem::new(v.name.clone()))
             .collect();
 
-        let list_size = list.clone().len() - 1;
+        let list: Vec<String> = music.iter().map(|(_, v)| v.name.clone()).collect();
 
         Self {
             music,
             list,
+            list_old,
             mode: Mode::Artist,
             album: String::new(),
             artist: String::new(),
             selected: 0,
-            list_size,
             quit: false,
         }
     }
@@ -73,7 +74,13 @@ impl<'a> App<'a> {
                     let size = f.size();
                     let b = Block::default().title("Block").borders(Borders::ALL);
 
-                    let l = List::new(self.list.clone())
+                    let list: Vec<ListItem> = self
+                        .list
+                        .iter()
+                        .map(|item| ListItem::new(item.clone()))
+                        .collect();
+
+                    let l = List::new(list)
                         .block(Block::default().title("Artists").borders(Borders::ALL))
                         .style(Style::default().fg(Color::White))
                         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
@@ -130,45 +137,49 @@ impl<'a> App<'a> {
         match self.mode {
             Mode::Artist => {
                 //get artists
-                let list: Vec<ListItem> = self
-                    .music
-                    .iter()
-                    .map(|(_, v)| ListItem::new(v.name.clone()))
-                    .collect();
-                self.list_size = list.len() - 1;
-                self.list = list;
+                self.list = self.music.iter().map(|(_, v)| v.name.clone()).collect();
+
+                let mut i = 0;
+                for artist in &self.list {
+                    if artist == &self.artist {
+                        self.selected = i;
+                        return;
+                    }
+                    i += 1;
+                }
 
                 self.artist = String::new();
                 self.album = String::new();
             }
             Mode::Album => {
                 //get album from artist
-                if !self.artist.is_empty() {
-                    let list: Vec<ListItem> = self
+                if self.artist.is_empty() {
+                    self.artist = self
                         .music
-                        .get(&self.artist)
+                        .get(self.list.get(self.selected).unwrap())
                         .unwrap()
-                        .albums
-                        .iter()
-                        .map(|album| ListItem::new(album.title.clone()))
-                        .collect();
-                    self.list_size = list.len() - 1;
-                    self.list = list;
+                        .name
+                        .clone();
                 } else {
-                    let mut i = 0;
-                    for (_, v) in &self.music {
-                        if i == self.selected {
-                            self.artist = v.name.clone();
-                            let list: Vec<ListItem> = v
-                                .albums
-                                .iter()
-                                .map(|album| ListItem::new(album.title.clone()))
-                                .collect();
-                            self.list_size = list.len() - 1;
-                            self.list = list;
-                        }
-                        i += 1;
+                    self.artist = self.list.get(self.selected).unwrap().clone();
+                }
+
+                self.list = self
+                    .music
+                    .get(&self.artist)
+                    .unwrap()
+                    .albums
+                    .iter()
+                    .map(|album| album.title.clone())
+                    .collect();
+
+                let mut i = 0;
+                for album in &self.list {
+                    if album == &self.album {
+                        self.selected = i;
+                        return;
                     }
+                    i += 1;
                 }
             }
             Mode::Track => {
@@ -182,19 +193,16 @@ impl<'a> App<'a> {
                     .unwrap();
 
                 self.album = album.title.clone();
-                let list: Vec<ListItem> = album
+                self.list = album
                     .songs
                     .iter()
                     .map(|song| {
                         let mut item = song.number.to_string();
                         item.push_str(" ");
                         item.push_str(&song.title);
-                        ListItem::new(item)
+                        return item;
                     })
                     .collect();
-
-                self.list_size = list.len() - 1;
-                self.list = list;
             }
         }
     }
@@ -205,8 +213,8 @@ impl<'a> App<'a> {
             Mode::Track => self.mode = Mode::Album,
         }
         self.update_mode();
-        self.selected = 0;
     }
+    pub fn search(&mut self) {}
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(100))? {
             match read()? {
@@ -227,7 +235,7 @@ impl<'a> App<'a> {
                         code: KeyCode::Char('j'),
                         modifiers: KeyModifiers::NONE,
                     } => {
-                        if self.selected != self.list_size {
+                        if self.selected != self.list.len() - 1 {
                             self.selected += 1;
                         } else {
                             self.selected = 0;
@@ -244,7 +252,7 @@ impl<'a> App<'a> {
                         if self.selected != 0 {
                             self.selected -= 1;
                         } else {
-                            self.selected = self.list_size;
+                            self.selected = self.list.len() - 1;
                         }
                     }
                     KeyEvent {
