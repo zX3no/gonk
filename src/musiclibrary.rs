@@ -75,9 +75,6 @@ impl MusicLibrary {
             }
         }
     }
-    pub fn set_mode(&mut self, mode: Mode) {
-        self.mode = mode;
-    }
     pub fn selection(&self) -> Option<usize> {
         match self.mode {
             Mode::Artist => Some(self.artist.selection),

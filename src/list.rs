@@ -35,9 +35,6 @@ impl List {
             self.selection = self.len;
         }
     }
-    pub fn empty(&self) -> bool {
-        self.items.is_empty()
-    }
     pub fn selected(&self) -> String {
         self.items.get(self.selection).unwrap().clone()
     }

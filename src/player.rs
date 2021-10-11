@@ -3,8 +3,6 @@ use rodio::{Decoder, OutputStream};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-use std::thread;
-use std::time::Duration;
 
 pub struct Player {}
 impl Player {

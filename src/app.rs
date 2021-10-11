@@ -83,6 +83,7 @@ impl App {
 
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(100))? {
+            //TODO wtf is this?
             match read()? {
                 Event::Key(event) => match event {
                     KeyEvent {
