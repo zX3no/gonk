@@ -38,10 +38,16 @@ impl Player {
         }
     }
     pub fn play(&mut self, path: &PathBuf) {
+        //kill any other song
+        self.stop();
+
         self.now_playing = path.file_name().unwrap().to_string_lossy().to_string();
         self.playing = true;
 
         let path = path.clone();
+
+        //reset the event
+        *self.event.write().unwrap() = Event::Empty;
         let event = self.event.clone();
 
         thread::spawn(move || {
