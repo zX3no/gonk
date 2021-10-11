@@ -78,6 +78,7 @@ impl App {
             }
         }
 
+        execute!(stdout(), LeaveAlternateScreen).unwrap();
         Ok(())
     }
 
@@ -129,11 +130,5 @@ impl App {
             }
         }
         Ok(())
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        execute!(stdout(), LeaveAlternateScreen).unwrap();
     }
 }

@@ -52,7 +52,7 @@ impl MusicLibrary {
             Mode::Track => {
                 let artist = self.artist.selected();
                 let album = self.album.selected();
-                let track = self.track.selection as u16;
+                let track = self.track.selection as u16 + 1;
                 self.play(&artist, &album, &track);
             }
         }
