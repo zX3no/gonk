@@ -4,8 +4,9 @@ use itertools::Itertools;
 use jwalk::WalkDir;
 use std::path::{Path, PathBuf};
 pub struct Database {
-    pub data: HashMap<String, Artist>,
+    artists: Vec<Artist>,
 }
+
 impl Database {
     pub fn create() -> Self {
         let path = Path::new(r"D:\OneDrive\Music");
@@ -17,7 +18,7 @@ impl Database {
                     if ex == "flac" {
                         let song = Song::from(e.path());
 
-                        songs.insert(song.title.clone(), song);
+                        songs.insert(song.name.clone(), song);
                     }
                 }
             }
@@ -32,7 +33,7 @@ impl Database {
                 albums.insert(
                     v.album.to_string(),
                     Album {
-                        title: v.album.clone(),
+                        name: v.album.clone(),
                         artist: v.album_artist.clone(),
                         songs: vec![v.clone()],
                         total_discs: v.total_disc,
@@ -59,45 +60,46 @@ impl Database {
             }
         }
 
-        Self { data: artists }
+        let artists = artists.values().map(|v| v.clone()).collect();
+
+        Self { artists }
     }
-    pub fn albums(&self, name: &String) -> Vec<String> {
-        self.data[name]
-            .albums
-            .iter()
-            .sorted_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
-            .map(|a| a.title.clone())
-            .collect()
+    pub fn get_albums_by_artist(&self, artist: &String) -> Vec<Album> {
+        let a = self.get_artist(artist);
+        a.albums
     }
-    pub fn tracks(&self, artist: &String, album: &String) -> Vec<String> {
-        //this will cause a crash
-        self.data[artist]
-            .album(album)
-            .unwrap()
-            .songs
-            .iter()
-            .sorted_by(|a, b| a.disc.cmp(&b.disc).then(a.number.cmp(&b.number)))
-            .map(|song| {
-                let mut out = song.number.to_string();
-                out.push_str(". ");
-                out.push_str(&song.title);
-                out.clone()
-            })
-            .collect()
+    pub fn get_artist(&self, artist: &String) -> Artist {
+        for a in &self.artists {
+            if &a.name == artist {
+                return a.clone();
+            }
+        }
+        panic!();
     }
-    pub fn path(&self, artist: &String, album: &String, track: &u16) -> PathBuf {
-        self.data[artist]
-            .album(album)
-            .unwrap()
-            .track(track)
-            .unwrap()
-            .path
-            .clone()
+    pub fn get_artists(&self) -> Vec<Artist> {
+        self.artists.clone()
+    }
+    pub fn get_album(&self, artist: &String, album: &String) -> Vec<Song> {
+        let artist = self.get_artist(artist);
+        for a in artist.albums {
+            if &a.name == album {
+                return a.songs;
+            }
+        }
+        panic!();
+    }
+    pub fn get_song(&self, artist: &String, album: &String, track: &u16) -> Song {
+        let a = self.get_album(artist, album);
+
+        for song in a {
+            if &song.track_number == track {
+                return song;
+            }
+        }
+        panic!();
     }
 }
-///
-///
-///
+
 #[derive(Debug, Clone)]
 pub struct Artist {
     pub name: String,
@@ -108,40 +110,37 @@ impl Artist {
     pub fn album(&self, name: &str) -> Option<&Album> {
         let mut out = None;
         for album in &self.albums {
-            if album.title == name {
+            if album.name == name {
                 out = Some(album);
             }
         }
         return out;
     }
 }
-///
-///
-///
+
 #[derive(Debug, Clone)]
 pub struct Album {
-    pub title: String,
+    pub name: String,
     pub artist: String,
     pub songs: Vec<Song>,
     pub total_discs: u16,
 }
 impl Album {
     pub fn track(&self, track_number: &u16) -> Option<&Song> {
-        for song in &self.songs {
-            if &song.number == track_number {
-                return Some(song);
+        for tracks in &self.songs {
+            if &tracks.track_number == track_number {
+                return Some(tracks);
             }
         }
         None
     }
 }
-///
-///
-///
+
 #[derive(Debug, Clone)]
 pub struct Song {
-    pub title: String,
-    pub number: u16,
+    pub name: String,
+    pub name_with_number: String,
+    pub track_number: u16,
     pub album: String,
     pub album_artist: String,
     pub duration: u32,
@@ -168,9 +167,18 @@ impl Song {
         let total_disc = tag.total_discs().unwrap_or(1);
         let disc = tag.disc_number().unwrap_or(1);
 
+        let track_number = tag.track_number().unwrap();
+        let name = tag.title().unwrap().to_string();
+
+        let mut name_with_number = String::new();
+        name_with_number.push_str(&track_number.to_string());
+        name_with_number.push_str(". ");
+        name_with_number.push_str(&name);
+
         Song {
-            title: tag.title().unwrap().to_string(),
-            number: tag.track_number().unwrap(),
+            name,
+            name_with_number,
+            track_number,
             album: tag.album_title().unwrap().to_string(),
             album_artist,
             //todo

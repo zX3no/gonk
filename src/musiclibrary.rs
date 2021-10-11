@@ -5,14 +5,14 @@ pub enum Mode {
     Track,
 }
 
-use std::{thread, time::Duration};
-
-use crossterm::style::Stylize;
-
-use crate::{database::Database, list::List, player::Player};
+use crate::{
+    database::{Album, Database, Song},
+    list::List,
+    player::Player,
+};
 
 pub struct MusicLibrary {
-    music: Database,
+    database: Database,
     mode: Mode,
     artist: List,
     album: List,
@@ -22,11 +22,12 @@ pub struct MusicLibrary {
 impl MusicLibrary {
     pub fn new() -> Self {
         let music = Database::create();
-        let a: Vec<String> = music.data.keys().map(|k| k.clone()).collect();
+        let mut a: Vec<String> = music.get_artists().iter().map(|a| a.name.clone()).collect();
+        a.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
 
         let artist = List::from_vec(a);
         Self {
-            music,
+            database: music,
             mode: Mode::Artist,
             artist,
             album: List::new(),
@@ -51,13 +52,17 @@ impl MusicLibrary {
                 //update the tracks
                 let artist = self.artist.selected();
                 let album = self.album.selected();
-                self.track = List::from_vec(self.get_tracks(&artist, &album));
+                self.track = List::from_vec(self.get_album(&artist, &album));
             }
             //play track
             Mode::Track => {
                 let artist = self.artist.selected();
                 let album = self.album.selected();
-                let track = self.track.selection as u16 + 1;
+
+                let selected = self.track.selected();
+                let num = selected.split_once('.').unwrap();
+                let track = num.0.parse::<u16>().unwrap();
+
                 self.play(&artist, &album, &track);
             }
         }
@@ -116,14 +121,25 @@ impl MusicLibrary {
         }
     }
     fn get_albums(&self, artist: &String) -> Vec<String> {
-        self.music.albums(artist)
+        self.database
+            .get_albums_by_artist(artist)
+            .iter()
+            .map(|a| a.name.clone())
+            .collect()
     }
-    fn get_tracks(&self, artist: &String, album: &String) -> Vec<String> {
-        self.music.tracks(artist, album)
+    fn get_album(&self, artist: &String, album: &String) -> Vec<String> {
+        let mut album: Vec<Song> = self.database.get_album(artist, album);
+
+        album.sort_by(|a, b| {
+            a.disc
+                .cmp(&b.disc)
+                .then(a.track_number.cmp(&b.track_number))
+        });
+
+        album.iter().map(|s| s.name_with_number.clone()).collect()
     }
     fn play(&mut self, artist: &String, album: &String, track: &u16) {
-        let p = self.music.path(artist, album, track);
-
-        self.player.play(&p);
+        self.player
+            .play(&self.database.get_song(artist, album, track).path);
     }
 }

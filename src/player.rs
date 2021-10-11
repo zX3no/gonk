@@ -42,7 +42,7 @@ impl Player {
     pub fn play(&mut self, path: &PathBuf) {
         //kill any other song
         self.stop();
-        thread::sleep(Duration::from_millis(101));
+        thread::sleep(Duration::from_millis(25));
 
         self.now_playing = path.file_name().unwrap().to_string_lossy().to_string();
         self.playing = true;
@@ -70,7 +70,7 @@ impl Player {
                     Event::Volume(v) => sink.set_volume(v),
                     Event::Empty => (),
                 }
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Duration::from_millis(16));
             }
         });
     }
