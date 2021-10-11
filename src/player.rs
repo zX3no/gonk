@@ -27,7 +27,7 @@ pub enum Event {
 pub struct Player {
     pub now_playing: String,
     playing: bool,
-    volume: f32,
+    pub volume: f32,
     pub event: Arc<RwLock<Event>>,
 }
 impl Player {
@@ -87,11 +87,17 @@ impl Player {
         self.playing = false;
     }
     pub fn increase_volume(&mut self) {
-        self.volume += 0.005;
+        self.volume += 0.002;
+        if self.volume > 0.05 {
+            self.volume = 0.05;
+        }
         *self.event.write().unwrap() = Event::Volume(self.volume);
     }
     pub fn decrease_volume(&mut self) {
-        self.volume -= 0.005;
+        self.volume -= 0.002;
+        if self.volume < 0.0 {
+            self.volume = 0.0;
+        }
         *self.event.write().unwrap() = Event::Volume(self.volume);
     }
 }

@@ -72,7 +72,9 @@ impl App {
                     };
 
                     let bottom_left = Rect::new(0, size.height - 3, size.width / 3, 3);
-                    let b = Block::default().title("Block").borders(Borders::ALL);
+                    let b = Block::default()
+                        .title(self.ml.player.volume.to_string())
+                        .borders(Borders::ALL);
                     let g = Gauge::default()
                         .block(Block::default().borders(Borders::ALL))
                         .gauge_style(
