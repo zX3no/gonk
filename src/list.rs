@@ -31,6 +31,7 @@ impl List {
                 None
             })
             .collect();
+        self.len = self.items.len().checked_sub(1).unwrap_or(0);
     }
     pub fn down(&mut self) {
         // dbg!(self.len, self.selection);

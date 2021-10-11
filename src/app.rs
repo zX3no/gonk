@@ -90,6 +90,7 @@ impl App {
         execute!(stdout(), LeaveAlternateScreen).unwrap();
         Ok(())
     }
+
     pub fn search(&mut self) -> Result {
         if poll(Duration::from_millis(16))? {
             if let Event::Key(KeyEvent { code, modifiers }) = read()? {
@@ -112,12 +113,14 @@ impl App {
                             self.ml.reset_filter();
                             self.ml.filter(&self.query);
                         }
-                        KeyCode::Esc | KeyCode::Enter => {
+                        KeyCode::Esc => {
                             self.search_mode = false;
                             self.query = String::new();
                             self.ml.reset_filter();
                         }
-
+                        KeyCode::Enter => {
+                            self.search_mode = false;
+                        }
                         KeyCode::Char(c) => {
                             self.query.push(c);
                             self.ml.filter(&self.query);
@@ -132,65 +135,28 @@ impl App {
     }
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(16))? {
-            //TODO wtf is this?
-            match read()? {
-                Event::Key(event) => match event {
-                    KeyEvent {
-                        code: KeyCode::Char('c'),
-                        modifiers: KeyModifiers::CONTROL,
-                    } => self.quit = true,
-                    KeyEvent {
-                        code: KeyCode::Down,
-                        modifiers: KeyModifiers::NONE,
+            if let Event::Key(KeyEvent { code, modifiers }) = read()? {
+                if modifiers == KeyModifiers::CONTROL {
+                    match code {
+                        KeyCode::Char('c') => {
+                            self.quit = true;
+                        }
+                        _ => (),
                     }
-                    | KeyEvent {
-                        code: KeyCode::Char('j'),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.down(),
-                    KeyEvent {
-                        code: KeyCode::Up,
-                        modifiers: KeyModifiers::NONE,
+                } else {
+                    match code {
+                        KeyCode::Char('c') => self.quit = true,
+                        KeyCode::Down | KeyCode::Char('j') => self.ml.down(),
+                        KeyCode::Up | KeyCode::Char('k') => self.ml.up(),
+                        KeyCode::Enter | KeyCode::Char('l') => self.ml.next_mode(),
+                        KeyCode::Backspace | KeyCode::Char('h') => self.ml.prev_mode(),
+                        KeyCode::Char(' ') => self.ml.player.toggle_playback(),
+                        KeyCode::Char('-') => self.ml.player.decrease_volume(),
+                        KeyCode::Char('=') => self.ml.player.increase_volume(),
+                        KeyCode::Char('/') => self.search_mode = true,
+                        _ => (),
                     }
-                    | KeyEvent {
-                        code: KeyCode::Char('k'),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.up(),
-                    KeyEvent {
-                        code: KeyCode::Enter,
-                        modifiers: KeyModifiers::NONE,
-                    }
-                    | KeyEvent {
-                        code: KeyCode::Char('l'),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.next_mode(),
-                    KeyEvent {
-                        code: KeyCode::Backspace,
-                        modifiers: KeyModifiers::NONE,
-                    }
-                    | KeyEvent {
-                        code: KeyCode::Char('h'),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.prev_mode(),
-                    KeyEvent {
-                        code: KeyCode::Char(' '),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.player.toggle_playback(),
-                    KeyEvent {
-                        code: KeyCode::Char('-'),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.player.decrease_volume(),
-                    KeyEvent {
-                        code: KeyCode::Char('='),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.ml.player.increase_volume(),
-                    KeyEvent {
-                        code: KeyCode::Char('/'),
-                        modifiers: KeyModifiers::NONE,
-                    } => self.search_mode = true,
-                    _ => (),
-                },
-                Event::Mouse(_) => (),
-                Event::Resize(_, _) => (),
+                }
             }
         }
         Ok(())
