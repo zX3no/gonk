@@ -1,6 +1,7 @@
 mod app;
 mod database;
 mod index;
+mod list;
 mod player;
 
 use app::App;

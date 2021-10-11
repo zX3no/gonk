@@ -1,4 +1,5 @@
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::io::stdout;
 use std::ops::Index;
@@ -7,7 +8,7 @@ use std::time::Duration;
 use tui::backend::CrosstermBackend;
 use tui::layout::Rect;
 use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Block, BorderType, Borders, List, ListItem, ListState};
+use tui::widgets::{Block, BorderType, Borders, ListItem, ListState};
 use tui::Terminal;
 
 use crossterm::execute;
@@ -15,6 +16,7 @@ use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, LeaveAlternateS
 
 use crate::database::Artist;
 use crate::index::get_artists;
+use crate::list::List;
 use crate::player::Player;
 
 type Result = crossterm::Result<()>;
@@ -30,34 +32,26 @@ pub struct App {
     music: HashMap<String, Artist>,
     //this needs to change
     mode: Mode,
-    artist_list: Vec<String>,
-    album_list: Vec<String>,
-    track_list: Vec<String>,
-    length: usize,
-
-    selected_artist: String,
-    selected_album: String,
+    artist_list: List,
+    album_list: List,
+    track_list: List,
     state: ListState,
-    //this is very dumb
-    selected: usize,
     quit: bool,
 }
 impl App {
     pub fn new() -> Self {
-        execute!(stdout(), EnterAlternateScreen).unwrap();
+        // execute!(stdout(), EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
         let music = get_artists();
+
+        let artist_list = List::from_vec(music.iter().map(|(_, v)| v.name.clone()).collect());
 
         Self {
             music,
             mode: Mode::Artist,
-            artist_list: Vec::new(),
-            album_list: Vec::new(),
-            track_list: Vec::new(),
-            length: 0,
-            selected_artist: String::new(),
-            selected_album: String::new(),
-            selected: 0,
+            artist_list,
+            album_list: List::new(),
+            track_list: List::new(),
             state: ListState::default(),
             quit: false,
         }
@@ -68,16 +62,24 @@ impl App {
 
         terminal.clear().unwrap();
 
-        self.update_lists();
         loop {
             terminal
                 .draw(|f| {
                     let size = f.size();
 
                     let list = match self.mode {
-                        Mode::Artist => &self.artist_list,
-                        Mode::Album => &self.album_list,
-                        Mode::Track => &self.track_list,
+                        Mode::Artist => {
+                            self.state.select(Some(self.artist_list.selection));
+                            &self.artist_list.items
+                        }
+                        Mode::Album => {
+                            self.state.select(Some(self.album_list.selection));
+                            &self.album_list.items
+                        }
+                        Mode::Track => {
+                            self.state.select(Some(self.track_list.selection));
+                            &self.track_list.items
+                        }
                     };
 
                     let list: Vec<ListItem> = list
@@ -85,7 +87,8 @@ impl App {
                         .map(|item| ListItem::new(item.clone()))
                         .collect();
 
-                    let l = List::new(list)
+                    //todo update the title for each page
+                    let l = tui::widgets::List::new(list)
                         .block(Block::default().title("Artists").borders(Borders::ALL))
                         .style(Style::default().fg(Color::White))
                         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
@@ -97,7 +100,6 @@ impl App {
                     let right =
                         Rect::new(size.width / 3, 0, size.width - size.width / 3, size.height);
 
-                    self.state.select(Some(self.selected));
                     f.render_stateful_widget(l, left, &mut self.state);
                     f.render_widget(b, right);
                 })
@@ -129,96 +131,69 @@ impl App {
         //     Player::play(&p);
         // });
     }
-    pub fn update_lists(&mut self) {
+    pub fn exit_mode(&mut self) {
         match self.mode {
-            Mode::Artist => {
-                self.artist_list = self.music.iter().map(|(_, v)| v.name.clone()).collect();
-                self.length = self.artist_list.len() - 1;
-
-                if !self.selected_artist.is_empty() {
-                    let index = self
-                        .artist_list
-                        .iter()
-                        .position(|a| a == &self.selected_artist)
-                        .unwrap();
-
-                    self.selected = index;
-                }
-                self.selected_artist = String::new();
-                self.selected_album = String::new();
-            }
+            Mode::Artist => {}
             Mode::Album => {
-                if self.selected_artist.is_empty() && self.selected_album.is_empty() {
-                    //we just came from the artist page and haven't selected an album yet
-                    //remember the artist we're selecting
-                    self.selected_artist = self.artist_list.get(self.selected).unwrap().clone();
-                    self.album_list = self
-                        .music
-                        .get(&self.selected_artist)
-                        .unwrap()
-                        .albums
-                        .iter()
-                        .map(|album| album.title.clone())
-                        .collect();
+                //exit to artist mode
+                self.mode = Mode::Artist;
 
-                    self.length = self.album_list.len() - 1;
-                    self.selected = 0;
-                } else if !self.selected_album.is_empty() {
-                    //we are returning from track mode
-                    //so just update the index
-                    let index = self
-                        .album_list
-                        .iter()
-                        .position(|a| a == &self.selected_album)
-                        .unwrap();
-
-                    self.selected = index;
-
-                    //remeber to remove the album we just selected
-                    self.selected_album = String::new();
-                } else {
-                    panic!();
-                }
+                //we want to be on album 0 next time we change modes
+                self.album_list.clear_selection();
             }
             Mode::Track => {
-                if self.selected_album.is_empty() {
-                    self.selected_album = self.album_list.get(self.selected).unwrap().clone();
-                }
-                self.track_list = self
-                    .music
-                    .get(&self.selected_artist)
-                    .unwrap()
-                    .album(&self.selected_album)
-                    .unwrap()
-                    .songs
-                    .iter()
-                    .map(|song| song.title.clone())
-                    .collect();
+                self.mode = Mode::Album;
 
-                self.selected_album = self.album_list.get(self.selected).unwrap().clone();
-                self.length = self.track_list.len() - 1;
-                self.selected = 0;
+                //we want to be on track 0 next time we change modes
+                self.track_list.clear_selection();
             }
         }
     }
-    pub fn exit_mode(&mut self) {
-        match self.mode {
-            Mode::Artist => return,
-            Mode::Album => self.mode = Mode::Artist,
-            Mode::Track => self.mode = Mode::Album,
-        }
-        self.update_lists();
+    pub fn get_albums(&self, artist: &String) -> Vec<String> {
+        self.music
+            .get(artist)
+            .unwrap()
+            .albums
+            .iter()
+            .map(|album| album.title.clone())
+            .collect()
+    }
+    pub fn get_tracks(&self, artist: &String, album: &String) -> Vec<String> {
+        self.music
+            .get(artist)
+            .unwrap()
+            .album(&album)
+            .unwrap()
+            .songs
+            .iter()
+            .map(|song| song.title.clone())
+            .collect()
     }
 
     pub fn select_item(&mut self) {
         //user pressed enter on item
         match self.mode {
-            Mode::Artist => self.mode = Mode::Album,
-            Mode::Album => self.mode = Mode::Track,
-            //todo move track onto player
+            //into album
+            Mode::Artist => {
+                //update renderer
+                self.mode = Mode::Album;
+
+                //update the albums
+                let artist = self.artist_list.selected();
+                self.album_list = List::from_vec(self.get_albums(&artist));
+            }
+            //track
+            Mode::Album => {
+                self.mode = Mode::Track;
+
+                //update the tracks
+                let artist = self.artist_list.selected();
+                let album = self.album_list.selected();
+                self.track_list = List::from_vec(self.get_tracks(&artist, &album));
+            }
+            //play track
             Mode::Track => return,
         }
-        self.update_lists();
     }
     pub fn search(&mut self) {}
     pub fn handle_input(&mut self) -> Result {
@@ -240,13 +215,11 @@ impl App {
                     | KeyEvent {
                         code: KeyCode::Char('j'),
                         modifiers: KeyModifiers::NONE,
-                    } => {
-                        if self.selected != self.length {
-                            self.selected += 1;
-                        } else {
-                            self.selected = 0;
-                        }
-                    }
+                    } => match self.mode {
+                        Mode::Artist => self.artist_list.down(),
+                        Mode::Album => self.album_list.down(),
+                        Mode::Track => self.track_list.down(),
+                    },
                     KeyEvent {
                         code: KeyCode::Up,
                         modifiers: KeyModifiers::NONE,
@@ -254,13 +227,11 @@ impl App {
                     | KeyEvent {
                         code: KeyCode::Char('k'),
                         modifiers: KeyModifiers::NONE,
-                    } => {
-                        if self.selected != 0 {
-                            self.selected -= 1;
-                        } else {
-                            self.selected = self.length;
-                        }
-                    }
+                    } => match self.mode {
+                        Mode::Artist => self.artist_list.up(),
+                        Mode::Album => self.album_list.up(),
+                        Mode::Track => self.track_list.up(),
+                    },
                     KeyEvent {
                         code: KeyCode::Enter,
                         modifiers: KeyModifiers::NONE,
