@@ -71,11 +71,23 @@ impl MusicLibrary {
                 //exit to artist mode
                 self.mode = Mode::Artist;
 
+                //update incase of search but keep previously selected
+                let s = self.artist.selected();
+                self.reset_filter();
+                self.artist.selection = self
+                    .artist
+                    .items
+                    .iter()
+                    .position(|item| item == &s)
+                    .unwrap();
+
                 //we want to be on album 0 next time we change modes
                 self.album.clear_selection();
             }
             Mode::Track => {
                 self.mode = Mode::Album;
+
+                // self.reset_filter();
 
                 //we want to be on track 0 next time we change modes
                 self.track.clear_selection();

@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct List {
     pub items: Vec<String>,
     //todo maybe remove
@@ -31,7 +32,10 @@ impl List {
                 None
             })
             .collect();
+
+        //reset the data
         self.len = self.items.len().checked_sub(1).unwrap_or(0);
+        self.selection = 0;
     }
     pub fn down(&mut self) {
         // dbg!(self.len, self.selection);
