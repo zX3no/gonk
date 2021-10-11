@@ -114,22 +114,22 @@ impl App {
 
         Ok(())
     }
-    pub fn play(&mut self) {
-        // let path = &self
-        //     .music
-        //     .get(&self.artist)
-        //     .unwrap()
-        //     .album(&self.album)
-        //     .unwrap()
-        //     .track(self.selected as u16 + 1)
-        //     .unwrap()
-        //     .path;
+    pub fn play(&mut self, artist: &String, album: &String, track: &u16) {
+        let path = &self
+            .music
+            .get(artist)
+            .unwrap()
+            .album(album)
+            .unwrap()
+            .track(track)
+            .unwrap()
+            .path;
 
-        // let p = path.clone();
+        let p = path.clone();
 
-        // thread::spawn(move || {
-        //     Player::play(&p);
-        // });
+        thread::spawn(move || {
+            Player::play(&p);
+        });
     }
     pub fn exit_mode(&mut self) {
         match self.mode {
@@ -192,7 +192,12 @@ impl App {
                 self.track_list = List::from_vec(self.get_tracks(&artist, &album));
             }
             //play track
-            Mode::Track => return,
+            Mode::Track => {
+                let artist = self.artist_list.selected();
+                let album = self.album_list.selected();
+                let track = self.track_list.selection as u16;
+                self.play(&artist, &album, &track);
+            }
         }
     }
     pub fn search(&mut self) {}
