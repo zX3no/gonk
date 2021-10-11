@@ -123,6 +123,10 @@ impl App {
                         code: KeyCode::Char('h'),
                         modifiers: KeyModifiers::NONE,
                     } => self.ml.prev_mode(),
+                    KeyEvent {
+                        code: KeyCode::Char(' '),
+                        modifiers: KeyModifiers::NONE,
+                    } => self.ml.player.toggle_playback(),
                     _ => (),
                 },
                 Event::Mouse(_) => (),

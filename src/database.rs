@@ -70,6 +70,7 @@ impl Database {
             .collect()
     }
     pub fn tracks(&self, artist: &String, album: &String) -> Vec<String> {
+        //this will cause a crash
         self.data[artist]
             .album(album)
             .unwrap()

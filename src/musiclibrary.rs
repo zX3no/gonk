@@ -5,7 +5,9 @@ pub enum Mode {
     Track,
 }
 
-use std::thread;
+use std::{thread, time::Duration};
+
+use crossterm::style::Stylize;
 
 use crate::{database::Database, list::List, player::Player};
 
@@ -15,6 +17,7 @@ pub struct MusicLibrary {
     artist: List,
     album: List,
     track: List,
+    pub player: Player,
 }
 impl MusicLibrary {
     pub fn new() -> Self {
@@ -28,6 +31,7 @@ impl MusicLibrary {
             artist,
             album: List::new(),
             track: List::new(),
+            player: Player::new(),
         }
     }
     pub fn next_mode(&mut self) {
@@ -120,8 +124,6 @@ impl MusicLibrary {
     fn play(&mut self, artist: &String, album: &String, track: &u16) {
         let p = self.music.path(artist, album, track);
 
-        thread::spawn(move || {
-            Player::play(&p);
-        });
+        self.player.play(&p);
     }
 }
