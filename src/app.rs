@@ -3,9 +3,9 @@ use std::io::stdout;
 use std::panic::panic_any;
 use std::time::Duration;
 use tui::backend::CrosstermBackend;
-use tui::layout::Rect;
+use tui::layout::{Alignment, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Block, Borders, ListItem, ListState};
+use tui::widgets::{Block, Borders, Gauge, ListItem, ListState, Paragraph, Wrap};
 use tui::Terminal;
 
 use crossterm::execute;
@@ -65,14 +65,48 @@ impl App {
                         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
                         .highlight_symbol(">>");
 
-                    let left = Rect::new(0, 0, size.width / 3, size.height);
+                    let left = if self.search_mode {
+                        Rect::new(0, 0, size.width / 3, size.height - 3)
+                    } else {
+                        Rect::new(0, 0, size.width / 3, size.height)
+                    };
 
+                    let bottom_left = Rect::new(0, size.height - 3, size.width / 3, 3);
                     let b = Block::default().title("Block").borders(Borders::ALL);
-                    let right =
-                        Rect::new(size.width / 3, 0, size.width - size.width / 3, size.height);
+                    let g = Gauge::default()
+                        .block(Block::default().borders(Borders::ALL))
+                        .gauge_style(
+                            Style::default()
+                                .fg(Color::White)
+                                .bg(Color::Black)
+                                .add_modifier(Modifier::ITALIC),
+                        )
+                        .percent(15)
+                        .label("0:35/2:59");
+                    let right = Rect::new(
+                        size.width / 3,
+                        0,
+                        size.width - size.width / 3,
+                        size.height - 3,
+                    );
+                    let bottom_right = Rect::new(
+                        size.width / 3,
+                        size.height - 3,
+                        size.width - size.width / 3,
+                        3,
+                    );
+
+                    let search = Paragraph::new(self.query.clone())
+                        .block(Block::default().title("Search").borders(Borders::ALL))
+                        .style(Style::default().fg(Color::White).bg(Color::Black))
+                        .wrap(Wrap { trim: true });
 
                     f.render_stateful_widget(l, left, &mut self.state);
+                    if self.search_mode {
+                        f.render_widget(search, bottom_left);
+                    }
                     f.render_widget(b, right);
+                    f.render_widget(g, bottom_right);
                 })
                 .unwrap();
 
@@ -120,6 +154,7 @@ impl App {
                         }
                         KeyCode::Enter => {
                             self.search_mode = false;
+                            self.query = String::new();
                         }
                         KeyCode::Char(c) => {
                             self.query.push(c);
@@ -150,10 +185,15 @@ impl App {
                         KeyCode::Up | KeyCode::Char('k') => self.ml.up(),
                         KeyCode::Enter | KeyCode::Char('l') => self.ml.next_mode(),
                         KeyCode::Backspace | KeyCode::Char('h') => self.ml.prev_mode(),
+                        KeyCode::Esc => self.ml.reset_filter(),
                         KeyCode::Char(' ') => self.ml.player.toggle_playback(),
                         KeyCode::Char('-') => self.ml.player.decrease_volume(),
                         KeyCode::Char('=') => self.ml.player.increase_volume(),
-                        KeyCode::Char('/') => self.search_mode = true,
+                        KeyCode::Char('/') => {
+                            self.search_mode = true;
+                            //reset the view everytime we enter search mode
+                            self.ml.reset_filter();
+                        }
                         _ => (),
                     }
                 }
