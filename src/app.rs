@@ -127,6 +127,14 @@ impl App {
                         code: KeyCode::Char(' '),
                         modifiers: KeyModifiers::NONE,
                     } => self.ml.player.toggle_playback(),
+                    KeyEvent {
+                        code: KeyCode::Char('-'),
+                        modifiers: KeyModifiers::NONE,
+                    } => self.ml.player.decrease_volume(),
+                    KeyEvent {
+                        code: KeyCode::Char('='),
+                        modifiers: KeyModifiers::NONE,
+                    } => self.ml.player.increase_volume(),
                     _ => (),
                 },
                 Event::Mouse(_) => (),
