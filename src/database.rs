@@ -70,17 +70,12 @@ impl Database {
             .collect()
     }
     pub fn tracks(&self, artist: &String, album: &String) -> Vec<String> {
-        //todo disk number?
         self.data[artist]
             .album(album)
             .unwrap()
             .songs
             .iter()
-            .sorted_by(|a, b| {
-                let x = a.number.cmp(&b.number);
-                let y = a.disc.cmp(&b.disc);
-                return x.cmp(&y);
-            })
+            .sorted_by(|a, b| a.disc.cmp(&b.disc).then(a.number.cmp(&b.number)))
             .map(|song| {
                 let mut out = song.number.to_string();
                 out.push_str(". ");
