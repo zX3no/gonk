@@ -1,5 +1,104 @@
 use audiotags::Tag;
-use std::path::PathBuf;
+use hashbrown::HashMap;
+use itertools::Itertools;
+use jwalk::WalkDir;
+use std::path::{Path, PathBuf};
+pub struct Database {
+    pub data: HashMap<String, Artist>,
+}
+impl Database {
+    pub fn create() -> Self {
+        let path = Path::new(r"D:\OneDrive\Music");
+
+        let mut songs: HashMap<String, Song> = HashMap::new();
+        for entry in WalkDir::new(path) {
+            if let Ok(e) = entry {
+                if let Some(ex) = e.path().extension() {
+                    if ex == "flac" {
+                        let song = Song::from(e.path());
+
+                        songs.insert(song.title.clone(), song);
+                    }
+                }
+            }
+        }
+
+        let mut albums: HashMap<String, Album> = HashMap::new();
+
+        for (_, v) in &songs {
+            if albums.get(&v.album).is_some() {
+                albums.get_mut(&v.album).unwrap().songs.push(v.clone());
+            } else {
+                albums.insert(
+                    v.album.to_string(),
+                    Album {
+                        title: v.album.clone(),
+                        artist: v.album_artist.clone(),
+                        songs: vec![v.clone()],
+                        total_discs: v.total_disc,
+                    },
+                );
+            }
+        }
+
+        let mut artists: HashMap<String, Artist> = HashMap::new();
+
+        for album in &albums {
+            let (_, v) = album;
+
+            if artists.get(&v.artist).is_some() {
+                artists.get_mut(&v.artist).unwrap().albums.push(v.clone());
+            } else {
+                artists.insert(
+                    v.artist.clone(),
+                    Artist {
+                        name: v.artist.clone(),
+                        albums: vec![v.clone()],
+                    },
+                );
+            }
+        }
+
+        Self { data: artists }
+    }
+    pub fn albums(&self, name: &String) -> Vec<String> {
+        self.data[name]
+            .albums
+            .iter()
+            .sorted_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+            .map(|a| a.title.clone())
+            .collect()
+    }
+    pub fn tracks(&self, artist: &String, album: &String) -> Vec<String> {
+        //todo disk number?
+        self.data[artist]
+            .album(album)
+            .unwrap()
+            .songs
+            .iter()
+            .sorted_by(|a, b| {
+                let x = a.number.cmp(&b.number);
+                let y = a.disc.cmp(&b.disc);
+                return x.cmp(&y);
+            })
+            .map(|song| {
+                let mut out = song.number.to_string();
+                out.push_str(". ");
+                out.push_str(&song.title);
+                out.clone()
+            })
+            .collect()
+    }
+    pub fn path(&self, artist: &String, album: &String, track: &u16) -> PathBuf {
+        self.data[artist]
+            .album(album)
+            .unwrap()
+            .track(track)
+            .unwrap()
+            .path
+            .clone()
+    }
+}
 ///
 ///
 ///
@@ -28,6 +127,7 @@ pub struct Album {
     pub title: String,
     pub artist: String,
     pub songs: Vec<Song>,
+    pub total_discs: u16,
 }
 impl Album {
     pub fn track(&self, track_number: &u16) -> Option<&Song> {
@@ -51,6 +151,8 @@ pub struct Song {
     pub duration: u32,
     pub year: i32,
     pub path: PathBuf,
+    pub disc: u16,
+    pub total_disc: u16,
 }
 
 impl Song {
@@ -67,6 +169,9 @@ impl Song {
             panic!("{}", exit);
         };
 
+        let total_disc = tag.total_discs().unwrap_or(1);
+        let disc = tag.disc_number().unwrap_or(1);
+
         Song {
             title: tag.title().unwrap().to_string(),
             number: tag.track_number().unwrap(),
@@ -76,6 +181,8 @@ impl Song {
             duration: 0,
             year: tag.year().unwrap(),
             path,
+            disc,
+            total_disc,
         }
     }
 }

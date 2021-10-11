@@ -1,6 +1,5 @@
 mod app;
 mod database;
-mod index;
 mod list;
 mod musiclibrary;
 mod player;

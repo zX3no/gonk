@@ -5,12 +5,12 @@ pub enum Mode {
     Track,
 }
 
-use std::{collections::HashMap, thread};
+use std::thread;
 
-use crate::{database::Artist, index::get_artists, list::List, player::Player};
+use crate::{database::Database, list::List, player::Player};
 
 pub struct MusicLibrary {
-    music: HashMap<String, Artist>,
+    music: Database,
     mode: Mode,
     artist: List,
     album: List,
@@ -18,9 +18,10 @@ pub struct MusicLibrary {
 }
 impl MusicLibrary {
     pub fn new() -> Self {
-        let music = get_artists();
+        let music = Database::create();
+        let a: Vec<String> = music.data.keys().map(|k| k.clone()).collect();
 
-        let artist = List::from_vec(music.iter().map(|(_, v)| v.name.clone()).collect());
+        let artist = List::from_vec(a);
         Self {
             music,
             mode: Mode::Artist,
@@ -111,42 +112,13 @@ impl MusicLibrary {
         }
     }
     fn get_albums(&self, artist: &String) -> Vec<String> {
-        self.music
-            .get(artist)
-            .unwrap()
-            .albums
-            .iter()
-            .map(|album| album.title.clone())
-            .collect()
+        self.music.albums(artist)
     }
     fn get_tracks(&self, artist: &String, album: &String) -> Vec<String> {
-        self.music
-            .get(artist)
-            .unwrap()
-            .album(&album)
-            .unwrap()
-            .songs
-            .iter()
-            .map(|song| {
-                let mut out = song.number.to_string();
-                out.push_str(". ");
-                out.push_str(&song.title);
-                out.clone()
-            })
-            .collect()
+        self.music.tracks(artist, album)
     }
     fn play(&mut self, artist: &String, album: &String, track: &u16) {
-        let path = &self
-            .music
-            .get(artist)
-            .unwrap()
-            .album(album)
-            .unwrap()
-            .track(track)
-            .unwrap()
-            .path;
-
-        let p = path.clone();
+        let p = self.music.path(artist, album, track);
 
         thread::spawn(move || {
             Player::play(&p);
