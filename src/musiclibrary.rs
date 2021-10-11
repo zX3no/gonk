@@ -127,7 +127,12 @@ impl MusicLibrary {
             .unwrap()
             .songs
             .iter()
-            .map(|song| song.title.clone())
+            .map(|song| {
+                let mut out = song.number.to_string();
+                out.push_str(". ");
+                out.push_str(&song.title);
+                out.clone()
+            })
             .collect()
     }
     fn play(&mut self, artist: &String, album: &String, track: &u16) {
