@@ -1,5 +1,6 @@
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::io::stdout;
+use std::panic::panic_any;
 use std::time::Duration;
 use tui::backend::CrosstermBackend;
 use tui::layout::Rect;
@@ -18,6 +19,8 @@ pub struct App {
     ml: MusicLibrary,
     state: ListState,
     quit: bool,
+    search_mode: bool,
+    query: String,
 }
 impl App {
     pub fn new() -> Self {
@@ -28,6 +31,8 @@ impl App {
             ml: MusicLibrary::new(),
             state: ListState::default(),
             quit: false,
+            search_mode: false,
+            query: String::new(),
         }
     }
     pub fn run(&mut self) -> Result {
@@ -71,7 +76,11 @@ impl App {
                 })
                 .unwrap();
 
-            self.handle_input()?;
+            if self.search_mode {
+                self.search()?;
+            } else {
+                self.handle_input()?;
+            }
 
             if self.quit {
                 break;
@@ -81,7 +90,46 @@ impl App {
         execute!(stdout(), LeaveAlternateScreen).unwrap();
         Ok(())
     }
+    pub fn search(&mut self) -> Result {
+        if poll(Duration::from_millis(16))? {
+            if let Event::Key(KeyEvent { code, modifiers }) = read()? {
+                if modifiers == KeyModifiers::CONTROL {
+                    match code {
+                        KeyCode::Backspace => {
+                            self.query = String::new();
+                            self.ml.reset_filter();
+                        }
+                        KeyCode::Char('w') => {
+                            self.query = String::new();
+                            self.ml.reset_filter();
+                        }
+                        _ => (),
+                    }
+                } else {
+                    match code {
+                        KeyCode::Backspace => {
+                            self.query.pop();
+                            self.ml.reset_filter();
+                            self.ml.filter(&self.query);
+                        }
+                        KeyCode::Esc | KeyCode::Enter => {
+                            self.search_mode = false;
+                            self.query = String::new();
+                            self.ml.reset_filter();
+                        }
 
+                        KeyCode::Char(c) => {
+                            self.query.push(c);
+                            self.ml.filter(&self.query);
+                        }
+
+                        _ => (),
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(16))? {
             //TODO wtf is this?
@@ -135,6 +183,10 @@ impl App {
                         code: KeyCode::Char('='),
                         modifiers: KeyModifiers::NONE,
                     } => self.ml.player.increase_volume(),
+                    KeyEvent {
+                        code: KeyCode::Char('/'),
+                        modifiers: KeyModifiers::NONE,
+                    } => self.search_mode = true,
                     _ => (),
                 },
                 Event::Mouse(_) => (),

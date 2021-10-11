@@ -20,6 +20,18 @@ impl List {
             len,
         }
     }
+    pub fn filter(&mut self, query: &String) {
+        self.items = self
+            .items
+            .iter()
+            .filter_map(|item| {
+                if item.to_lowercase().contains(query) {
+                    return Some(item.clone());
+                }
+                None
+            })
+            .collect();
+    }
     pub fn down(&mut self) {
         // dbg!(self.len, self.selection);
         if self.selection != self.len {

@@ -21,13 +21,10 @@ pub struct MusicLibrary {
 }
 impl MusicLibrary {
     pub fn new() -> Self {
-        let music = Database::create();
-        let mut a: Vec<String> = music.get_artists().iter().map(|a| a.name.clone()).collect();
-        a.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-
-        let artist = List::from_vec(a);
+        let database = Database::create();
+        let artist = List::from_vec(MusicLibrary::get_artists(&database));
         Self {
-            database: music,
+            database,
             mode: Mode::Artist,
             artist,
             album: List::new(),
@@ -119,6 +116,32 @@ impl MusicLibrary {
             Mode::Album => self.album.down(),
             Mode::Track => self.track.down(),
         }
+    }
+    pub fn filter(&mut self, query: &String) {
+        match self.mode {
+            Mode::Artist => self.artist.filter(query),
+            Mode::Album => self.album.filter(query),
+            Mode::Track => self.track.filter(query),
+        };
+    }
+    pub fn reset_filter(&mut self) {
+        match self.mode {
+            Mode::Artist => self.artist = List::from_vec(MusicLibrary::get_artists(&self.database)),
+            Mode::Album => self.album = List::from_vec(self.get_albums(&self.artist.selected())),
+            Mode::Track => {
+                self.track =
+                    List::from_vec(self.get_album(&self.artist.selected(), &self.album.selected()))
+            }
+        };
+    }
+    fn get_artists(database: &Database) -> Vec<String> {
+        let mut a: Vec<String> = database
+            .get_artists()
+            .iter()
+            .map(|a| a.name.clone())
+            .collect();
+        a.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        return a;
     }
     fn get_albums(&self, artist: &String) -> Vec<String> {
         self.database
