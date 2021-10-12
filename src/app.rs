@@ -1,3 +1,4 @@
+use crossterm::cursor::Hide;
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::io::stdout;
 use std::panic::panic_any;
@@ -24,7 +25,7 @@ pub struct App {
 }
 impl App {
     pub fn new() -> Self {
-        // execute!(stdout(), EnterAlternateScreen).unwrap();
+        execute!(stdout(), EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
 
         Self {
@@ -40,6 +41,7 @@ impl App {
             Terminal::new(CrosstermBackend::new(stdout())).expect("couldn't create terminal");
 
         terminal.clear().unwrap();
+        terminal.hide_cursor().unwrap();
 
         loop {
             terminal
@@ -75,19 +77,21 @@ impl App {
                     let b = Block::default()
                         .title(self.ml.player.volume.to_string())
                         .borders(Borders::ALL);
-                    let song_length = self.ml.player.get_length();
-                    let label = format!("0:00/{}", song_length);
 
                     let g = Gauge::default()
-                        .block(Block::default().borders(Borders::ALL))
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title(self.ml.player.progress_percent().to_string()),
+                        )
                         .gauge_style(
                             Style::default()
                                 .fg(Color::White)
                                 .bg(Color::Black)
                                 .add_modifier(Modifier::ITALIC),
                         )
-                        .percent(15)
-                        .label(label);
+                        .percent(self.ml.player.progress_percent())
+                        .label(self.ml.player.progress());
                     let right = Rect::new(
                         size.width / 3,
                         0,
@@ -131,7 +135,7 @@ impl App {
     }
 
     pub fn search(&mut self) -> Result {
-        if poll(Duration::from_millis(16))? {
+        if poll(Duration::from_millis(10))? {
             if let Event::Key(KeyEvent { code, modifiers }) = read()? {
                 if modifiers == KeyModifiers::CONTROL {
                     match code {

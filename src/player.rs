@@ -17,6 +17,7 @@ pub struct Player {
     handle: Arc<RwLock<Option<Handle>>>,
     thread_handle: Option<JoinHandle<()>>,
     song_length: Arc<RwLock<f64>>,
+    elapsed: Arc<RwLock<f64>>,
 
     pub volume: f32,
 }
@@ -27,6 +28,7 @@ impl Player {
             handle: Arc::new(RwLock::new(None)),
             thread_handle: None,
             song_length: Arc::new(RwLock::new(0.0)),
+            elapsed: Arc::new(RwLock::new(0.0)),
             now_playing: String::new(),
             volume: 0.01,
         }
@@ -41,6 +43,7 @@ impl Player {
         let handle = self.handle.clone();
         let sl = self.sl.clone();
         let length = self.song_length.clone();
+        let elapsed = self.elapsed.clone();
 
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
@@ -53,7 +56,14 @@ impl Player {
                 .set_volume(handle.read().unwrap().unwrap(), 0.02);
 
             //I sleep
-            thread::park();
+            loop {
+                thread::sleep(Duration::from_millis(25));
+                *elapsed.write().unwrap() = sl
+                    .read()
+                    .unwrap()
+                    .stream_position(handle.read().unwrap().unwrap());
+            }
+            // thread::park();
         }));
     }
     //this causes a memory leak
@@ -64,17 +74,43 @@ impl Player {
             }
         }
     }
-    pub fn get_length(&self) -> String {
+    pub fn progress(&self) -> String {
+        format!("{}/{}", self.get_elapsed(), self.get_length())
+    }
+    pub fn progress_percent(&self) -> u16 {
+        let len = *self.song_length.read().unwrap();
+        let el = *self.elapsed.read().unwrap();
+
+        let percent = (el / len * 100.0) as u16;
+        percent.clamp(0, 100)
+    }
+    fn get_length(&self) -> String {
         let secs = *self.song_length.read().unwrap();
 
         let mins = secs / 60.0;
         let rem = secs % 60.0;
-        format!("{}:{}", mins.trunc(), rem.trunc())
+        format!(
+            "{:0width$}:{:0width$}",
+            mins.trunc() as usize,
+            rem.trunc() as usize,
+            width = 2,
+        )
         // let a = Duration::from_secs(secs as u64);
         // if secs > 0.0 {
         //     panic!("{}, {}", mins.trunc(), rem.trunc());
         // }
         // return a;
+    }
+    fn get_elapsed(&self) -> String {
+        let e = *self.elapsed.read().unwrap();
+        let mins = e / 60.0;
+        let rem = e % 60.0;
+        format!(
+            "{:0width$}:{:0width$}",
+            mins.trunc() as usize,
+            rem.trunc() as usize,
+            width = 2,
+        )
     }
     pub fn toggle_playback(&mut self) {
         let paused = self
