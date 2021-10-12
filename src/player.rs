@@ -1,103 +1,99 @@
-use rodio::Sink;
-use rodio::{Decoder, OutputStream};
+use crossbeam_channel::{tick, unbounded, Receiver, Sender};
+use soloud::*;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::os::windows::prelude::AsRawHandle;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::Duration;
-
-pub struct Command {
-    playing: bool,
-}
-impl Command {
-    pub fn new() -> Self {
-        Self { playing: false }
-    }
-}
-#[derive(Clone)]
-pub enum Event {
-    Play,
-    Pause,
-    Stop,
-    Volume(f32),
-    Empty,
-}
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
+use std::{mem, thread};
+use winapi::um::processthreadsapi::TerminateThread;
 
 pub struct Player {
     pub now_playing: String,
-    playing: bool,
+    sl: Arc<RwLock<Soloud>>,
+    handle: Arc<RwLock<Option<Handle>>>,
+    thread_handle: Option<JoinHandle<()>>,
+
     pub volume: f32,
-    pub event: Arc<RwLock<Event>>,
 }
 impl Player {
     pub fn new() -> Self {
         Self {
+            sl: Arc::new(RwLock::new(Soloud::default().unwrap())),
+            handle: Arc::new(RwLock::new(None)),
+            thread_handle: None,
             now_playing: String::new(),
-            playing: false,
             volume: 0.01,
-            event: Arc::new(RwLock::new(Event::Empty)),
         }
     }
     pub fn play(&mut self, path: &PathBuf) {
-        //kill any other song
-        self.stop();
-        thread::sleep(Duration::from_millis(25));
-
-        self.now_playing = path.file_name().unwrap().to_string_lossy().to_string();
-        self.playing = true;
+        //stop the music and kill the thread
+        self.sl.write().unwrap().stop_all();
+        self.kill_thread();
 
         let path = path.clone();
 
-        //reset the event
-        *self.event.write().unwrap() = Event::Empty;
-        let event = self.event.clone();
-        let volume = self.volume.clone();
+        let handle = self.handle.clone();
+        let sl = self.sl.clone();
 
-        thread::spawn(move || {
-            let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-            let file = BufReader::new(File::open(path).unwrap());
-            let source = Decoder::new(file).unwrap();
-            let sink = Sink::try_new(&stream_handle).unwrap();
+        self.thread_handle = Some(thread::spawn(move || {
+            let mut wav = audio::Wav::default();
+            wav.load(path).unwrap();
+            *handle.write().unwrap() = Some(sl.read().unwrap().play(&wav));
 
-            sink.append(source);
-            sink.set_volume(volume);
-            loop {
-                match *event.read().unwrap() {
-                    Event::Play => sink.play(),
-                    Event::Pause => sink.pause(),
-                    Event::Stop => sink.stop(),
-                    Event::Volume(v) => sink.set_volume(v),
-                    Event::Empty => (),
-                }
-                thread::sleep(Duration::from_millis(16));
+            sl.write()
+                .unwrap()
+                .set_volume(handle.read().unwrap().unwrap(), 0.02);
+
+            //I sleep
+            thread::park();
+        }));
+    }
+    //this causes a memory leak
+    pub fn kill_thread(&mut self) {
+        if let Some(handle) = &self.thread_handle {
+            unsafe {
+                TerminateThread(handle.as_raw_handle(), 1);
             }
-        });
+        }
     }
     pub fn toggle_playback(&mut self) {
-        if self.playing {
-            *self.event.write().unwrap() = Event::Pause;
-        } else {
-            *self.event.write().unwrap() = Event::Play;
-        }
-        self.playing = !self.playing;
+        let paused = self
+            .sl
+            .read()
+            .unwrap()
+            .pause(self.handle.read().unwrap().unwrap());
+
+        self.sl
+            .write()
+            .unwrap()
+            .set_pause(self.handle.read().unwrap().unwrap(), !paused)
     }
     pub fn stop(&mut self) {
-        *self.event.write().unwrap() = Event::Stop;
-        self.playing = false;
+        self.sl.write().unwrap().stop_all();
     }
     pub fn increase_volume(&mut self) {
         self.volume += 0.002;
         if self.volume > 0.05 {
             self.volume = 0.05;
         }
-        *self.event.write().unwrap() = Event::Volume(self.volume);
+
+        self.sl
+            .write()
+            .unwrap()
+            .set_volume(self.handle.read().unwrap().unwrap(), self.volume);
     }
     pub fn decrease_volume(&mut self) {
         self.volume -= 0.002;
         if self.volume < 0.0 {
             self.volume = 0.0;
         }
-        *self.event.write().unwrap() = Event::Volume(self.volume);
+        self.sl
+            .write()
+            .unwrap()
+            .set_volume(self.handle.read().unwrap().unwrap(), self.volume);
     }
 }

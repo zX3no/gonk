@@ -1,6 +1,5 @@
 use audiotags::Tag;
 use hashbrown::HashMap;
-use itertools::Itertools;
 use jwalk::WalkDir;
 use std::path::{Path, PathBuf};
 pub struct Database {
