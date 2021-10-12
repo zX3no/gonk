@@ -162,6 +162,10 @@ impl App {
                         KeyCode::Enter => {
                             self.search_mode = false;
                             self.query = String::new();
+
+                            if self.ml.filter_len() == 0 {
+                                self.ml.reset_filter();
+                            }
                         }
                         KeyCode::Char(c) => {
                             self.query.push(c);

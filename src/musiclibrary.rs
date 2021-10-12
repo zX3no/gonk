@@ -146,6 +146,13 @@ impl MusicLibrary {
             }
         };
     }
+    pub fn filter_len(&mut self) -> usize {
+        match self.mode {
+            Mode::Artist => self.artist.len(),
+            Mode::Album => self.album.len(),
+            Mode::Track => self.track.len(),
+        }
+    }
     fn get_artists(database: &Database) -> Vec<String> {
         let mut a: Vec<String> = database
             .get_artists()

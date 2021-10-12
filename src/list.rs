@@ -38,7 +38,6 @@ impl List {
         self.selection = 0;
     }
     pub fn down(&mut self) {
-        // dbg!(self.len, self.selection);
         if self.selection != self.len {
             self.selection += 1;
         } else {
@@ -57,5 +56,8 @@ impl List {
     }
     pub fn clear_selection(&mut self) {
         self.selection = 0;
+    }
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 }
