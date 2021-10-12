@@ -1,11 +1,10 @@
 use soloud::*;
-use std::os::windows::prelude::AsRawHandle;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use winapi::um::processthreadsapi::TerminateThread;
 
 pub struct Player {
     pub now_playing: String,
@@ -14,11 +13,13 @@ pub struct Player {
     thread_handle: Option<JoinHandle<()>>,
     song_length: Arc<RwLock<f64>>,
     elapsed: Arc<RwLock<f64>>,
+    quit: Arc<AtomicBool>,
 
     pub volume: f32,
 }
 impl Player {
     pub fn new() -> Self {
+        //wtf?
         Self {
             sl: Arc::new(RwLock::new(Soloud::default().unwrap())),
             handle: Arc::new(RwLock::new(None)),
@@ -27,19 +28,27 @@ impl Player {
             elapsed: Arc::new(RwLock::new(0.0)),
             now_playing: String::new(),
             volume: 0.01,
+            quit: Arc::new(AtomicBool::new(false)),
         }
     }
     pub fn play(&mut self, path: &Path) {
-        //stop the music and kill the thread
-        self.stop();
-        self.kill_thread();
+        if self.thread_handle.is_some() {
+            //stop playback smoothly
+            self.stop();
+            //tell the thread to quit
+            self.quit.store(true, Ordering::SeqCst);
+            //wait for thread to quit
+            self.thread_handle.take().unwrap().join().unwrap();
+            //keep new thread alive
+            self.quit.store(false, Ordering::SeqCst);
+        }
 
         let path = path.to_path_buf();
-
         let handle = self.handle.clone();
         let sl = self.sl.clone();
         let length = self.song_length.clone();
         let elapsed = self.elapsed.clone();
+        let quit = self.quit.clone();
 
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
@@ -51,25 +60,16 @@ impl Player {
                 .unwrap()
                 .set_volume(handle.read().unwrap().unwrap(), 0.02);
 
-            //I sleep
-            loop {
+            while !quit.load(Ordering::SeqCst) {
                 thread::sleep(Duration::from_millis(25));
                 *elapsed.write().unwrap() = sl
                     .read()
                     .unwrap()
                     .stream_position(handle.read().unwrap().unwrap());
             }
-            // thread::park();
         }));
     }
-    //this causes a memory leak
-    pub fn kill_thread(&mut self) {
-        if let Some(handle) = &self.thread_handle {
-            unsafe {
-                TerminateThread(handle.as_raw_handle(), 1);
-            }
-        }
-    }
+
     pub fn progress(&self) -> String {
         format!("{}/{}", self.get_elapsed(), self.get_length())
     }
@@ -91,11 +91,6 @@ impl Player {
             rem.trunc() as usize,
             width = 2,
         )
-        // let a = Duration::from_secs(secs as u64);
-        // if secs > 0.0 {
-        //     panic!("{}, {}", mins.trunc(), rem.trunc());
-        // }
-        // return a;
     }
     fn get_elapsed(&self) -> String {
         let e = *self.elapsed.read().unwrap();
