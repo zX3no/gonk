@@ -13,7 +13,7 @@ impl Database {
         let mut songs: HashMap<String, Song> = HashMap::new();
         for entry in WalkDir::new(path).into_iter().flatten() {
             if let Some(ex) = entry.path().extension() {
-                if ex == "flac" {
+                if ex == "flac" || ex == "mp3" || ex == "m4a" || ex == "wav" {
                     let song = Song::from(entry.path());
 
                     songs.insert(song.name.clone(), song);
@@ -169,6 +169,8 @@ impl Song {
 
         let name_with_number = format!("{}. {}", track_number.to_string(), name);
 
+        let year = tag.year().unwrap_or(0);
+
         Song {
             name,
             name_with_number,
@@ -177,7 +179,7 @@ impl Song {
             album_artist,
             //todo
             duration: 0,
-            year: tag.year().unwrap(),
+            year,
             path,
             disc,
             total_disc,

@@ -53,6 +53,7 @@ impl Player {
 
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
+
             wav.load(path).unwrap();
             *length.write().unwrap() = wav.length();
             *handle.write().unwrap() = Some(sl.read().unwrap().play(&wav));
