@@ -7,7 +7,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub struct Player {
-    pub now_playing: String,
+    now_playing: String,
     sl: Arc<RwLock<Soloud>>,
     handle: Arc<RwLock<Option<Handle>>>,
     thread_handle: Option<JoinHandle<()>>,
@@ -43,6 +43,7 @@ impl Player {
             self.quit.store(false, Ordering::SeqCst);
         }
 
+        self.now_playing = path.file_stem().unwrap().to_string_lossy().to_string();
         let path = path.to_path_buf();
         let handle = self.handle.clone();
         let sl = self.sl.clone();
@@ -68,6 +69,9 @@ impl Player {
                     .stream_position(handle.read().unwrap().unwrap());
             }
         }));
+    }
+    pub fn now_playing(&self) -> String {
+        self.now_playing.clone()
     }
 
     pub fn progress(&self) -> String {

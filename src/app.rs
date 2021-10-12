@@ -80,7 +80,7 @@ impl App {
                         .block(
                             Block::default()
                                 .borders(Borders::ALL)
-                                .title(self.ml.player.progress_percent().to_string()),
+                                .title(self.ml.player.now_playing()),
                         )
                         .gauge_style(
                             Style::default()
@@ -90,6 +90,7 @@ impl App {
                         )
                         .percent(self.ml.player.progress_percent())
                         .label(self.ml.player.progress());
+
                     let right = Rect::new(
                         size.width / 3,
                         0,
@@ -163,6 +164,7 @@ impl App {
                             self.search_mode = false;
                             self.query = String::new();
 
+                            //if search is empty reset results
                             if self.ml.filter_len() == 0 {
                                 self.ml.reset_filter();
                             }
