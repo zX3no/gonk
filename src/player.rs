@@ -1,14 +1,10 @@
-use crossbeam_channel::{tick, unbounded, Receiver, Sender};
 use soloud::*;
-use std::fs::File;
-use std::io::BufReader;
 use std::os::windows::prelude::AsRawHandle;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::Path;
 use std::sync::{Arc, RwLock};
+use std::thread;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
-use std::{mem, thread};
+use std::time::Duration;
 use winapi::um::processthreadsapi::TerminateThread;
 
 pub struct Player {
@@ -33,12 +29,12 @@ impl Player {
             volume: 0.01,
         }
     }
-    pub fn play(&mut self, path: &PathBuf) {
+    pub fn play(&mut self, path: &Path) {
         //stop the music and kill the thread
-        self.sl.write().unwrap().stop_all();
+        self.stop();
         self.kill_thread();
 
-        let path = path.clone();
+        let path = path.to_path_buf();
 
         let handle = self.handle.clone();
         let sl = self.sl.clone();

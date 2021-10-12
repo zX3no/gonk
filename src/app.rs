@@ -1,10 +1,8 @@
-use crossterm::cursor::Hide;
 use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::io::stdout;
-use std::panic::panic_any;
 use std::time::Duration;
 use tui::backend::CrosstermBackend;
-use tui::layout::{Alignment, Rect};
+use tui::layout::Rect;
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Gauge, ListItem, ListState, Paragraph, Wrap};
 use tui::Terminal;

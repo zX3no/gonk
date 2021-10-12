@@ -14,14 +14,14 @@ impl List {
         }
     }
     pub fn from_vec(items: Vec<String>) -> Self {
-        let len = items.len().checked_sub(1).unwrap_or(0);
+        let len = items.len().saturating_sub(1);
         Self {
             items,
             selection: 0,
             len,
         }
     }
-    pub fn filter(&mut self, query: &String) {
+    pub fn filter(&mut self, query: &str) {
         self.items = self
             .items
             .iter()
@@ -34,7 +34,7 @@ impl List {
             .collect();
 
         //reset the data
-        self.len = self.items.len().checked_sub(1).unwrap_or(0);
+        self.len = self.items.len().saturating_sub(1);
         self.selection = 0;
     }
     pub fn down(&mut self) {

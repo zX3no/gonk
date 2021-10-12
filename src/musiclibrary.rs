@@ -6,7 +6,7 @@ pub enum Mode {
 }
 
 use crate::{
-    database::{Album, Database, Song},
+    database::{Database, Song},
     list::List,
     player::Player,
 };
@@ -129,7 +129,7 @@ impl MusicLibrary {
             Mode::Track => self.track.down(),
         }
     }
-    pub fn filter(&mut self, query: &String) {
+    pub fn filter(&mut self, query: &str) {
         match self.mode {
             Mode::Artist => self.artist.filter(query),
             Mode::Album => self.album.filter(query),
@@ -152,18 +152,21 @@ impl MusicLibrary {
             .iter()
             .map(|a| a.name.clone())
             .collect();
-        a.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        // a.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        a.sort_by_key(|a| a.to_lowercase());
         return a;
     }
-    fn get_albums(&self, artist: &String) -> Vec<String> {
+    fn get_albums(&self, artist: &str) -> Vec<String> {
         self.database
-            .get_albums_by_artist(artist)
+            .get_albums_by_artist(&artist.to_string())
             .iter()
             .map(|a| a.name.clone())
             .collect()
     }
-    fn get_album(&self, artist: &String, album: &String) -> Vec<String> {
-        let mut album: Vec<Song> = self.database.get_album(artist, album);
+    fn get_album(&self, artist: &str, album: &str) -> Vec<String> {
+        let mut album: Vec<Song> = self
+            .database
+            .get_album(&artist.to_string(), &album.to_string());
 
         album.sort_by(|a, b| {
             a.disc
@@ -173,8 +176,12 @@ impl MusicLibrary {
 
         album.iter().map(|s| s.name_with_number.clone()).collect()
     }
-    fn play(&mut self, artist: &String, album: &String, track: &u16) {
-        self.player
-            .play(&self.database.get_song(artist, album, track).path);
+    fn play(&mut self, artist: &str, album: &str, track: &u16) {
+        self.player.play(
+            &self
+                .database
+                .get_song(&artist.to_string(), &album.to_string(), track)
+                .path,
+        );
     }
 }

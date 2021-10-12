@@ -11,14 +11,12 @@ impl Database {
         let path = Path::new(r"D:\OneDrive\Music");
 
         let mut songs: HashMap<String, Song> = HashMap::new();
-        for entry in WalkDir::new(path) {
-            if let Ok(e) = entry {
-                if let Some(ex) = e.path().extension() {
-                    if ex == "flac" {
-                        let song = Song::from(e.path());
+        for entry in WalkDir::new(path).into_iter().flatten() {
+            if let Some(ex) = entry.path().extension() {
+                if ex == "flac" {
+                    let song = Song::from(entry.path());
 
-                        songs.insert(song.name.clone(), song);
-                    }
+                    songs.insert(song.name.clone(), song);
                 }
             }
         }
@@ -59,17 +57,17 @@ impl Database {
             }
         }
 
-        let artists = artists.values().map(|v| v.clone()).collect();
+        let artists = artists.values().cloned().collect();
 
         Self { artists }
     }
-    pub fn get_albums_by_artist(&self, artist: &String) -> Vec<Album> {
+    pub fn get_albums_by_artist(&self, artist: &str) -> Vec<Album> {
         let a = self.get_artist(artist);
         a.albums
     }
-    pub fn get_artist(&self, artist: &String) -> Artist {
+    pub fn get_artist(&self, artist: &str) -> Artist {
         for a in &self.artists {
-            if &a.name == artist {
+            if a.name == artist {
                 return a.clone();
             }
         }
@@ -78,16 +76,16 @@ impl Database {
     pub fn get_artists(&self) -> Vec<Artist> {
         self.artists.clone()
     }
-    pub fn get_album(&self, artist: &String, album: &String) -> Vec<Song> {
+    pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
         let artist = self.get_artist(artist);
         for a in artist.albums {
-            if &a.name == album {
+            if a.name == album {
                 return a.songs;
             }
         }
         panic!();
     }
-    pub fn get_song(&self, artist: &String, album: &String, track: &u16) -> Song {
+    pub fn get_song(&self, artist: &str, album: &str, track: &u16) -> Song {
         let a = self.get_album(artist, album);
 
         for song in a {
@@ -106,15 +104,15 @@ pub struct Artist {
 }
 
 impl Artist {
-    pub fn album(&self, name: &str) -> Option<&Album> {
-        let mut out = None;
-        for album in &self.albums {
-            if album.name == name {
-                out = Some(album);
-            }
-        }
-        return out;
-    }
+    // pub fn album(&self, name: &str) -> Option<&Album> {
+    //     let mut out = None;
+    //     for album in &self.albums {
+    //         if album.name == name {
+    //             out = Some(album);
+    //         }
+    //     }
+    //     return out;
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -125,14 +123,14 @@ pub struct Album {
     pub total_discs: u16,
 }
 impl Album {
-    pub fn track(&self, track_number: &u16) -> Option<&Song> {
-        for tracks in &self.songs {
-            if &tracks.track_number == track_number {
-                return Some(tracks);
-            }
-        }
-        None
-    }
+    // pub fn track(&self, track_number: &u16) -> Option<&Song> {
+    //     for tracks in &self.songs {
+    //         if &tracks.track_number == track_number {
+    //             return Some(tracks);
+    //         }
+    //     }
+    //     None
+    // }
 }
 
 #[derive(Debug, Clone)]
