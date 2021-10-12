@@ -106,7 +106,7 @@ impl App {
 
                     let search = Paragraph::new(self.query.clone())
                         .block(Block::default().title("Search").borders(Borders::ALL))
-                        .style(Style::default().fg(Color::White).bg(Color::Black))
+                        .style(Style::default())
                         .wrap(Wrap { trim: true });
 
                     f.render_stateful_widget(l, left, &mut self.state);
@@ -193,6 +193,18 @@ impl App {
                     }
                 } else {
                     match code {
+                        //if you type a number then press enter it should go to that track
+
+                        // KeyCode::Char('1')
+                        // | KeyCode::Char('2')
+                        // | KeyCode::Char('3')
+                        // | KeyCode::Char('4')
+                        // | KeyCode::Char('5')
+                        // | KeyCode::Char('6')
+                        // | KeyCode::Char('7')
+                        // | KeyCode::Char('8')
+                        // | KeyCode::Char('9')
+                        // | KeyCode::Char('0') => todo!(),
                         KeyCode::Char('c') => self.quit = true,
                         KeyCode::Down | KeyCode::Char('j') => self.ml.down(),
                         KeyCode::Up | KeyCode::Char('k') => self.ml.up(),
