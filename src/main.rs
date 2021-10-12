@@ -3,6 +3,7 @@ mod database;
 mod list;
 mod musiclibrary;
 mod player;
+mod queue;
 
 use app::App;
 

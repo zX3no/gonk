@@ -1,5 +1,5 @@
 use soloud::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -14,6 +14,7 @@ pub struct Player {
     song_length: Arc<RwLock<f64>>,
     elapsed: Arc<RwLock<f64>>,
     quit: Arc<AtomicBool>,
+    pub next_track: Arc<AtomicBool>,
 
     pub volume: f32,
 }
@@ -29,10 +30,13 @@ impl Player {
             now_playing: String::new(),
             volume: 0.01,
             quit: Arc::new(AtomicBool::new(false)),
+            next_track: Arc::new(AtomicBool::new(false)),
         }
     }
-    pub fn play(&mut self, path: &Path) {
+    pub fn play(&mut self, path: PathBuf) {
         if self.thread_handle.is_some() {
+            //make sure we don't trigger a track skip
+            self.next_track.store(false, Ordering::SeqCst);
             //stop playback smoothly
             self.stop();
             //tell the thread to quit
@@ -50,6 +54,7 @@ impl Player {
         let length = self.song_length.clone();
         let elapsed = self.elapsed.clone();
         let quit = self.quit.clone();
+        let next_track = self.next_track.clone();
 
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
@@ -69,6 +74,7 @@ impl Player {
                     .unwrap()
                     .stream_position(handle.read().unwrap().unwrap());
             }
+            next_track.store(true, Ordering::SeqCst);
         }));
     }
     pub fn now_playing(&self) -> String {

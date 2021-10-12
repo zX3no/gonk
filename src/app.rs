@@ -55,7 +55,20 @@ impl App {
                         .map(|item| ListItem::new(item.clone()))
                         .collect();
 
-                    let l = tui::widgets::List::new(list)
+                    let queue: Vec<ListItem> = self
+                        .ml
+                        .queue()
+                        .iter()
+                        .map(|item| ListItem::new(item.clone()))
+                        .collect();
+
+                    let queue = tui::widgets::List::new(queue)
+                        .block(Block::default().title("Queue").borders(Borders::ALL))
+                        .style(Style::default().fg(Color::White))
+                        .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
+                        .highlight_symbol(">>");
+
+                    let browser = tui::widgets::List::new(list)
                         .block(
                             Block::default()
                                 .title(self.ml.title())
@@ -73,14 +86,14 @@ impl App {
 
                     let bottom_left = Rect::new(0, size.height - 3, size.width / 3, 3);
                     let b = Block::default()
-                        .title(self.ml.player.volume.to_string())
+                        .title(self.ml.volume())
                         .borders(Borders::ALL);
 
                     let g = Gauge::default()
                         .block(
                             Block::default()
                                 .borders(Borders::ALL)
-                                .title(self.ml.player.now_playing()),
+                                .title(self.ml.now_playing()),
                         )
                         .gauge_style(
                             Style::default()
@@ -88,8 +101,8 @@ impl App {
                                 .bg(Color::Black)
                                 .add_modifier(Modifier::ITALIC),
                         )
-                        .percent(self.ml.player.progress_percent())
-                        .label(self.ml.player.progress());
+                        .percent(self.ml.progress_percent())
+                        .label(self.ml.progress());
 
                     let right = Rect::new(
                         size.width / 3,
@@ -109,12 +122,13 @@ impl App {
                         .style(Style::default())
                         .wrap(Wrap { trim: true });
 
-                    f.render_stateful_widget(l, left, &mut self.state);
+                    f.render_stateful_widget(browser, left, &mut self.state);
+                    // f.render_widget(b, right);
+                    f.render_widget(g, bottom_right);
+                    f.render_widget(queue, right);
                     if self.search_mode {
                         f.render_widget(search, bottom_left);
                     }
-                    f.render_widget(b, right);
-                    f.render_widget(g, bottom_right);
                 })
                 .unwrap();
 
@@ -208,12 +222,13 @@ impl App {
                         KeyCode::Char('c') => self.quit = true,
                         KeyCode::Down | KeyCode::Char('j') => self.ml.down(),
                         KeyCode::Up | KeyCode::Char('k') => self.ml.up(),
-                        KeyCode::Enter | KeyCode::Char('l') => self.ml.next_mode(),
+                        KeyCode::Enter => self.ml.add_to_queue(),
+                        KeyCode::Char('l') => self.ml.next_mode(),
                         KeyCode::Backspace | KeyCode::Char('h') => self.ml.prev_mode(),
                         KeyCode::Esc => self.ml.reset_filter(),
-                        KeyCode::Char(' ') => self.ml.player.toggle_playback(),
-                        KeyCode::Char('-') => self.ml.player.decrease_volume(),
-                        KeyCode::Char('=') => self.ml.player.increase_volume(),
+                        KeyCode::Char(' ') => self.ml.toggle_playback(),
+                        KeyCode::Char('-') => self.ml.decrease_volume(),
+                        KeyCode::Char('=') => self.ml.increase_volume(),
                         KeyCode::Char('/') => {
                             self.search_mode = true;
                             //reset the view everytime we enter search mode

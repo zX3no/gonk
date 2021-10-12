@@ -5,10 +5,13 @@ pub enum Mode {
     Track,
 }
 
+use crossterm::style::Stylize;
+
 use crate::{
     database::{Database, Song},
     list::List,
     player::Player,
+    queue::Queue,
 };
 
 pub struct MusicLibrary {
@@ -17,19 +20,25 @@ pub struct MusicLibrary {
     artist: List,
     album: List,
     track: List,
-    pub player: Player,
+    // pub player: Player,
+    queue: Queue,
 }
 impl MusicLibrary {
     pub fn new() -> Self {
         let database = Database::create();
         let artist = List::from_vec(MusicLibrary::get_artists(&database));
+
+        let queue = Queue::new();
+        queue.run();
+
         Self {
             database,
             mode: Mode::Artist,
             artist,
             album: List::new(),
             track: List::new(),
-            player: Player::new(),
+            // player: Player::new(),
+            queue,
         }
     }
     pub fn next_mode(&mut self) {
@@ -60,7 +69,7 @@ impl MusicLibrary {
                 let num = selected.split_once('.').unwrap();
                 let track = num.0.parse::<u16>().unwrap();
 
-                self.play(&artist, &album, &track);
+                // self.play(&artist, &album, &track);
             }
         }
     }
@@ -153,6 +162,28 @@ impl MusicLibrary {
             Mode::Track => self.track.len(),
         }
     }
+    pub fn add_to_queue(&mut self) {
+        match self.mode {
+            Mode::Artist => (),
+            Mode::Album => (),
+            Mode::Track => {
+                let artist = self.artist.selected();
+                let album = self.album.selected();
+
+                let selected = self.track.selected();
+                let num = selected.split_once('.').unwrap();
+                let track = num.0.parse::<u16>().unwrap();
+
+                let song = &self
+                    .database
+                    .get_song(&artist.to_string(), &album.to_string(), &track);
+
+                self.queue.add(song.name.clone(), &song.path);
+
+                // self.play(&artist, &album, &track);
+            }
+        }
+    }
     fn get_artists(database: &Database) -> Vec<String> {
         let mut a: Vec<String> = database
             .get_artists()
@@ -183,12 +214,42 @@ impl MusicLibrary {
 
         album.iter().map(|s| s.name_with_number.clone()).collect()
     }
-    fn play(&mut self, artist: &str, album: &str, track: &u16) {
-        self.player.play(
-            &self
-                .database
-                .get_song(&artist.to_string(), &album.to_string(), track)
-                .path,
-        );
+    pub fn toggle_playback(&self) {
+        self.queue.player.write().unwrap().toggle_playback();
     }
+    pub fn decrease_volume(&self) {
+        self.queue.player.write().unwrap().decrease_volume();
+    }
+    pub fn increase_volume(&self) {
+        self.queue.player.write().unwrap().increase_volume();
+    }
+    pub fn volume(&self) -> String {
+        self.queue.player.write().unwrap().volume.to_string()
+    }
+    pub fn now_playing(&self) -> String {
+        self.queue.player.write().unwrap().now_playing()
+    }
+    pub fn progress(&self) -> String {
+        self.queue.player.write().unwrap().progress()
+    }
+    pub fn progress_percent(&self) -> u16 {
+        self.queue.player.write().unwrap().progress_percent()
+    }
+    pub fn queue(&self) -> Vec<String> {
+        self.queue
+            .songs
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(s, _)| s.clone())
+            .collect()
+    }
+    // fn play(&mut self, artist: &str, album: &str, track: &u16) {
+    //     self.player.play(
+    //         &self
+    //             .database
+    //             .get_song(&artist.to_string(), &album.to_string(), track)
+    //             .path,
+    //     );
+    // }
 }
