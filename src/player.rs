@@ -16,6 +16,7 @@ pub struct Player {
     sl: Arc<RwLock<Soloud>>,
     handle: Arc<RwLock<Option<Handle>>>,
     thread_handle: Option<JoinHandle<()>>,
+    song_length: Arc<RwLock<f64>>,
 
     pub volume: f32,
 }
@@ -25,6 +26,7 @@ impl Player {
             sl: Arc::new(RwLock::new(Soloud::default().unwrap())),
             handle: Arc::new(RwLock::new(None)),
             thread_handle: None,
+            song_length: Arc::new(RwLock::new(0.0)),
             now_playing: String::new(),
             volume: 0.01,
         }
@@ -38,10 +40,12 @@ impl Player {
 
         let handle = self.handle.clone();
         let sl = self.sl.clone();
+        let length = self.song_length.clone();
 
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
             wav.load(path).unwrap();
+            *length.write().unwrap() = wav.length();
             *handle.write().unwrap() = Some(sl.read().unwrap().play(&wav));
 
             sl.write()
@@ -59,6 +63,18 @@ impl Player {
                 TerminateThread(handle.as_raw_handle(), 1);
             }
         }
+    }
+    pub fn get_length(&self) -> String {
+        let secs = *self.song_length.read().unwrap();
+
+        let mins = secs / 60.0;
+        let rem = secs % 60.0;
+        format!("{}:{}", mins.trunc(), rem.trunc())
+        // let a = Duration::from_secs(secs as u64);
+        // if secs > 0.0 {
+        //     panic!("{}, {}", mins.trunc(), rem.trunc());
+        // }
+        // return a;
     }
     pub fn toggle_playback(&mut self) {
         let paused = self

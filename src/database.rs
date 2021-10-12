@@ -169,10 +169,7 @@ impl Song {
         let track_number = tag.track_number().unwrap();
         let name = tag.title().unwrap().to_string();
 
-        let mut name_with_number = String::new();
-        name_with_number.push_str(&track_number.to_string());
-        name_with_number.push_str(". ");
-        name_with_number.push_str(&name);
+        let name_with_number = format!("{}. {}", track_number.to_string(), name);
 
         Song {
             name,

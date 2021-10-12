@@ -24,7 +24,7 @@ pub struct App {
 }
 impl App {
     pub fn new() -> Self {
-        execute!(stdout(), EnterAlternateScreen).unwrap();
+        // execute!(stdout(), EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
 
         Self {
@@ -75,6 +75,9 @@ impl App {
                     let b = Block::default()
                         .title(self.ml.player.volume.to_string())
                         .borders(Borders::ALL);
+                    let song_length = self.ml.player.get_length();
+                    let label = format!("0:00/{}", song_length);
+
                     let g = Gauge::default()
                         .block(Block::default().borders(Borders::ALL))
                         .gauge_style(
@@ -84,7 +87,7 @@ impl App {
                                 .add_modifier(Modifier::ITALIC),
                         )
                         .percent(15)
-                        .label("0:35/2:59");
+                        .label(label);
                     let right = Rect::new(
                         size.width / 3,
                         0,
