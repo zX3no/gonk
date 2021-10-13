@@ -173,6 +173,7 @@ fn convert_path(p: PathBuf) -> PathBuf {
         let mut path = String::from_utf16(&short_path).unwrap();
         //remove null terminator
         path.pop();
-        panic!("{}", path);
+
+        PathBuf::from(path)
     }
 }
