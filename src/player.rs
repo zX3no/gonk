@@ -34,6 +34,7 @@ impl Player {
         }
     }
     pub fn play(&mut self, path: PathBuf) {
+        let short_path = convert_path(path.clone());
         if self.thread_handle.is_some() {
             //make sure we don't trigger a track skip
             self.next_track.store(false, Ordering::SeqCst);
@@ -48,7 +49,6 @@ impl Player {
         }
 
         self.now_playing = path.file_stem().unwrap().to_string_lossy().to_string();
-        let path = path.to_path_buf();
         let handle = self.handle.clone();
         let sl = self.sl.clone();
         let length = self.song_length.clone();
@@ -59,7 +59,7 @@ impl Player {
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
 
-            wav.load(path).unwrap();
+            wav.load(short_path).unwrap();
             *length.write().unwrap() = wav.length();
             *handle.write().unwrap() = Some(sl.read().unwrap().play(&wav));
 
@@ -149,5 +149,30 @@ impl Player {
             .write()
             .unwrap()
             .set_volume(self.handle.read().unwrap().unwrap(), self.volume);
+    }
+}
+
+fn convert_path(p: PathBuf) -> PathBuf {
+    unsafe {
+        use core::ptr::null_mut;
+        use winapi::um::fileapi::*;
+
+        //convert path to null terminated string
+        let l = p.to_string_lossy().to_string();
+        let long_path: Vec<u16> = l.encode_utf16().chain(Some(0)).collect();
+
+        //get length of short_path
+        let len = GetShortPathNameW(long_path.as_ptr(), null_mut(), 0);
+
+        let mut short_path = vec![0; len as usize];
+
+        //get short path
+        GetShortPathNameW(long_path.as_ptr(), short_path.as_mut_ptr(), len);
+
+        //convert short path to string
+        let mut path = String::from_utf16(&short_path).unwrap();
+        //remove null terminator
+        path.pop();
+        panic!("{}", path);
     }
 }

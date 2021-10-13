@@ -57,9 +57,15 @@ impl Queue {
             }
 
             //trigger for next track
-            if player.write().unwrap().next_track.load(Ordering::SeqCst) {
-                *playing.write().unwrap() = Some(playing.read().unwrap().unwrap() + 1);
-                play();
+            if player.read().unwrap().next_track.load(Ordering::SeqCst) {
+                if playing.read().unwrap().unwrap() != songs.read().unwrap().len() {
+                    *playing.write().unwrap() = Some(playing.read().unwrap().unwrap() + 1);
+                    play();
+                } else {
+                    //loop the queue
+                    *playing.write().unwrap() = Some(0);
+                    play();
+                }
             }
         });
     }

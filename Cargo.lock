@@ -241,6 +241,7 @@ dependencies = [
  "jwalk",
  "soloud",
  "tui",
+ "winapi",
 ]
 
 [[package]]
