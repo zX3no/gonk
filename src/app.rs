@@ -14,12 +14,19 @@ use crate::musiclibrary::MusicLibrary;
 
 type Result = crossterm::Result<()>;
 
+enum Panel {
+    Browser,
+    Queue,
+}
+
 pub struct App {
     ml: MusicLibrary,
-    state: ListState,
+    browser_state: ListState,
+    queue_state: ListState,
     quit: bool,
     search_mode: bool,
     query: String,
+    selected_panel: Panel,
 }
 impl App {
     pub fn new() -> Self {
@@ -28,10 +35,12 @@ impl App {
 
         Self {
             ml: MusicLibrary::new(),
-            state: ListState::default(),
+            browser_state: ListState::default(),
+            queue_state: ListState::default(),
             quit: false,
             search_mode: false,
             query: String::new(),
+            selected_panel: Panel::Browser,
         }
     }
     pub fn run(&mut self) -> Result {
@@ -46,7 +55,14 @@ impl App {
                 .draw(|f| {
                     let size = f.size();
 
-                    self.state.select(self.ml.selection());
+                    match self.selected_panel {
+                        Panel::Browser => {
+                            self.browser_state.select(self.ml.browser_selection());
+                        }
+                        Panel::Queue => {
+                            self.queue_state.select(self.ml.queue_selection());
+                        }
+                    }
 
                     let list = self.ml.items();
 
@@ -122,10 +138,10 @@ impl App {
                         .style(Style::default())
                         .wrap(Wrap { trim: true });
 
-                    f.render_stateful_widget(browser, left, &mut self.state);
+                    f.render_stateful_widget(browser, left, &mut self.browser_state);
+                    f.render_stateful_widget(queue, right, &mut self.queue_state);
                     // f.render_widget(b, right);
                     f.render_widget(g, bottom_right);
-                    f.render_widget(queue, right);
                     if self.search_mode {
                         f.render_widget(search, bottom_left);
                     }
@@ -198,43 +214,81 @@ impl App {
     pub fn handle_input(&mut self) -> Result {
         if poll(Duration::from_millis(16))? {
             if let Event::Key(KeyEvent { code, modifiers }) = read()? {
-                if modifiers == KeyModifiers::CONTROL {
-                    match code {
+                match modifiers {
+                    KeyModifiers::CONTROL => match code {
                         KeyCode::Char('c') => {
                             self.quit = true;
                         }
                         _ => (),
-                    }
-                } else {
-                    match code {
-                        //if you type a number then press enter it should go to that track
-
-                        // KeyCode::Char('1')
-                        // | KeyCode::Char('2')
-                        // | KeyCode::Char('3')
-                        // | KeyCode::Char('4')
-                        // | KeyCode::Char('5')
-                        // | KeyCode::Char('6')
-                        // | KeyCode::Char('7')
-                        // | KeyCode::Char('8')
-                        // | KeyCode::Char('9')
-                        // | KeyCode::Char('0') => todo!(),
-                        KeyCode::Char('c') => self.quit = true,
-                        KeyCode::Down | KeyCode::Char('j') => self.ml.down(),
-                        KeyCode::Up | KeyCode::Char('k') => self.ml.up(),
-                        KeyCode::Enter => self.ml.add_to_queue(),
-                        KeyCode::Char('l') => self.ml.next_mode(),
-                        KeyCode::Backspace | KeyCode::Char('h') => self.ml.prev_mode(),
-                        KeyCode::Esc => self.ml.reset_filter(),
-                        KeyCode::Char(' ') => self.ml.toggle_playback(),
-                        KeyCode::Char('-') => self.ml.decrease_volume(),
-                        KeyCode::Char('=') => self.ml.increase_volume(),
-                        KeyCode::Char('/') => {
-                            self.search_mode = true;
-                            //reset the view everytime we enter search mode
-                            self.ml.reset_filter();
+                    },
+                    KeyModifiers::SHIFT => match code {
+                        KeyCode::Char('L') => {
+                            self.browser_state.select(None);
+                            self.selected_panel = Panel::Queue;
+                        }
+                        KeyCode::Char('H') => {
+                            self.queue_state.select(None);
+                            self.selected_panel = Panel::Browser;
                         }
                         _ => (),
+                    },
+                    _ => {
+                        match code {
+                            //if you type a number then press enter it should go to that track
+
+                            // KeyCode::Char('1')
+                            // | KeyCode::Char('2')
+                            // | KeyCode::Char('3')
+                            // | KeyCode::Char('4')
+                            // | KeyCode::Char('5')
+                            // | KeyCode::Char('6')
+                            // | KeyCode::Char('7')
+                            // | KeyCode::Char('8')
+                            // | KeyCode::Char('9')
+                            // | KeyCode::Char('0') => todo!(),
+                            KeyCode::Char('c') => self.quit = true,
+                            KeyCode::Down | KeyCode::Char('j') => match self.selected_panel {
+                                Panel::Browser => {
+                                    self.ml.down();
+                                }
+                                Panel::Queue => {
+                                    self.ml.queue_down();
+                                }
+                            },
+                            KeyCode::Up | KeyCode::Char('k') => match self.selected_panel {
+                                Panel::Browser => {
+                                    self.ml.up();
+                                }
+                                Panel::Queue => {
+                                    self.ml.queue_up();
+                                }
+                            },
+                            KeyCode::Enter => {
+                                if let Panel::Browser = self.selected_panel {
+                                    self.ml.add_to_queue();
+                                }
+                            }
+                            KeyCode::Char('l') => {
+                                if let Panel::Browser = self.selected_panel {
+                                    self.ml.next_mode()
+                                }
+                            }
+                            KeyCode::Backspace | KeyCode::Char('h') => {
+                                if let Panel::Browser = self.selected_panel {
+                                    self.ml.prev_mode()
+                                }
+                            }
+                            KeyCode::Esc => self.ml.reset_filter(),
+                            KeyCode::Char(' ') => self.ml.toggle_playback(),
+                            KeyCode::Char('-') => self.ml.decrease_volume(),
+                            KeyCode::Char('=') => self.ml.increase_volume(),
+                            KeyCode::Char('/') => {
+                                self.search_mode = true;
+                                //reset the view everytime we enter search mode
+                                self.ml.reset_filter();
+                            }
+                            _ => (),
+                        }
                     }
                 }
             }

@@ -9,8 +9,9 @@ use crate::player::Player;
 
 pub struct Queue {
     pub songs: Arc<RwLock<Vec<(String, PathBuf)>>>,
-    playing: Arc<RwLock<Option<usize>>>,
+    pub playing: Arc<RwLock<Option<usize>>>,
     pub player: Arc<RwLock<Player>>,
+    pub selection: usize,
 }
 
 impl Queue {
@@ -19,6 +20,7 @@ impl Queue {
             songs: Arc::new(RwLock::new(Vec::new())),
             playing: Arc::new(RwLock::new(None)),
             player: Arc::new(RwLock::new(Player::new())),
+            selection: 0,
         }
     }
     pub fn add(&mut self, song: String, path: &Path) {
@@ -60,5 +62,19 @@ impl Queue {
                 play();
             }
         });
+    }
+    pub fn up(&mut self) {
+        if self.selection != 0 {
+            self.selection -= 1;
+        } else {
+            self.selection = self.songs.read().unwrap().len() - 1;
+        }
+    }
+    pub fn down(&mut self) {
+        if self.selection != self.songs.read().unwrap().len() - 1 {
+            self.selection += 1;
+        } else {
+            self.selection = 0;
+        }
     }
 }

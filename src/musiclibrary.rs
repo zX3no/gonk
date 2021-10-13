@@ -103,7 +103,7 @@ impl MusicLibrary {
             }
         }
     }
-    pub fn selection(&self) -> Option<usize> {
+    pub fn browser_selection(&self) -> Option<usize> {
         match self.mode {
             Mode::Artist => Some(self.artist.selection),
             Mode::Album => Some(self.album.selection),
@@ -243,6 +243,15 @@ impl MusicLibrary {
             .iter()
             .map(|(s, _)| s.clone())
             .collect()
+    }
+    pub fn queue_selection(&self) -> Option<usize> {
+        Some(self.queue.selection)
+    }
+    pub fn queue_up(&mut self) {
+        self.queue.up();
+    }
+    pub fn queue_down(&mut self) {
+        self.queue.down();
     }
     // fn play(&mut self, artist: &str, album: &str, track: &u16) {
     //     self.player.play(
