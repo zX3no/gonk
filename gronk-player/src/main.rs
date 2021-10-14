@@ -1,9 +1,11 @@
 #![allow(dead_code)]
-use player::{Event, Player};
+use event_handler::{Event, EventHandler};
+use player::Player;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::{panic, process};
 
+mod event_handler;
 mod player;
 
 fn thread_panic() {
@@ -16,20 +18,9 @@ fn thread_panic() {
 fn main() {
     thread_panic();
 
-    let (tx, rx) = channel();
+    let player = Player::new();
 
-    tx.send(Event::Next).unwrap();
-
-    thread::spawn(move || {
-        let mut player = Player::new();
-        loop {
-            player.update();
-            match rx.recv().unwrap() {
-                Event::Next => player.next(),
-                _ => (),
-            }
-        }
-    });
+    player.next();
 
     thread::park();
 }
