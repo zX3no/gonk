@@ -1,6 +1,9 @@
 ## Redesign Doc
 
-User <--> UI <--> Player <--> OS
+User <--> UI <--> Player <--> Backend <--> OS
+                    |
+                    |
+                  Indexer
 
 ### UI 
 
@@ -81,8 +84,8 @@ Each mode needs to have it's own independent state.
     - Volume
     - Current Elapsed
     - Current Duration
-    - Loop
     - Event
+    - Backend
 
 - Song 
     - Title
@@ -97,6 +100,7 @@ Each mode needs to have it's own independent state.
     - Previous
     - Volume Up
     - Volume Down
+    - Play
     - Pause
     - Stop
 
@@ -108,3 +112,11 @@ Each mode needs to have it's own independent state.
         - Do event
 
 The player is always running in a loop.
+
+### Backend 
+
+- Context 
+- Handle
+
+The context is an instance of soloud.
+The handle is a way to access the currently playing song.
