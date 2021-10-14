@@ -42,7 +42,7 @@ impl Player {
             events: Event::Null,
         }
     }
-    pub fn run(&mut self) {
+    pub fn update(&mut self) {
         let Self {
             queue,
             now_playing,
@@ -52,69 +52,69 @@ impl Player {
             events,
         } = self;
 
-        loop {
-            match events {
-                Event::Next => {
-                    if let Some(song) = now_playing {
-                        if let Some(index) = index {
-                            if let Some(next_song) = queue.get(*index + 1) {
-                                *song = next_song.clone();
-                                *index = *index + 1;
-                            } else if let Some(next_song) = queue.first() {
-                                *song = next_song.clone();
-                                *index = 0;
-                            }
+        match events {
+            Event::Next => {
+                if let Some(song) = now_playing {
+                    if let Some(index) = index {
+                        if let Some(next_song) = queue.get(*index + 1) {
+                            *song = next_song.clone();
+                            *index = *index + 1;
+                        } else if let Some(next_song) = queue.first() {
+                            *song = next_song.clone();
+                            *index = 0;
                         }
-                        backend.play_file(song.get_path());
                     }
-
-                    *events = Event::Null;
-                }
-                Event::Previous => {
-                    if let Some(song) = now_playing {
-                        if let Some(index) = index {
-                            if let Some(next_song) = queue.get(*index - 1) {
-                                *song = next_song.clone();
-                                *index = *index - 1;
-                            } else if let Some(next_song) = queue.first() {
-                                *song = next_song.clone();
-                                *index = 0;
-                            }
-                        }
-                        backend.play_file(song.get_path());
-                    }
-                }
-                Event::Volume(v) => backend.set_volume(*v),
-                Event::Play => backend.play(),
-                Event::Pause => backend.pause(),
-                Event::Stop => backend.stop(),
-                Event::Null => (),
-            }
-
-            //check if anything is playing
-            if let Some(now_playing) = now_playing {
-                //update the time elapsed
-                now_playing.update_elapsed(backend.get_elapsed());
-
-                //check if the song has finished
-                if let Some(elapsed) = now_playing.get_elapsed() {
-                    if elapsed == 0.0 {
-                        // *events = Event::Next;
-                    }
-                }
-            } else {
-                //add the first song to the queue
-                if let Some(song) = queue.first() {
-                    println!("Playing..");
-                    *now_playing = Some(song.clone());
                     backend.play_file(song.get_path());
-                } else {
-                    //Nothing to do...
+                }
+                *events = Event::Null;
+            }
+            Event::Previous => {
+                if let Some(song) = now_playing {
+                    if let Some(index) = index {
+                        if let Some(next_song) = queue.get(*index - 1) {
+                            *song = next_song.clone();
+                            *index = *index - 1;
+                        } else if let Some(next_song) = queue.first() {
+                            *song = next_song.clone();
+                            *index = 0;
+                        }
+                    }
+                    backend.play_file(song.get_path());
                 }
             }
-
-            thread::sleep(Duration::from_millis(100));
+            Event::Volume(v) => backend.set_volume(*v),
+            Event::Play => backend.play(),
+            Event::Pause => backend.pause(),
+            Event::Stop => backend.stop(),
+            Event::Null => (),
         }
+
+        //check if anything is playing
+        if let Some(now_playing) = now_playing {
+            //update the time elapsed
+            now_playing.update_elapsed(backend.get_elapsed());
+
+            //check if the song has finished
+            if let Some(elapsed) = now_playing.get_elapsed() {
+                if elapsed == 0.0 {
+                    // *events = Event::Next;
+                }
+            }
+        } else {
+            //add the first song to the queue
+            if let Some(song) = queue.first() {
+                println!("Playing..");
+                *now_playing = Some(song.clone());
+                *index = Some(0);
+                backend.set_wav(song.get_path());
+                backend.play_file(song.get_path());
+                // thread::park();
+            } else {
+                //Nothing to do...
+            }
+        }
+
+        thread::sleep(Duration::from_millis(100));
     }
     pub fn next(&mut self) {
         self.events = Event::Next;

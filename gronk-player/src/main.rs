@@ -1,15 +1,12 @@
 #![allow(dead_code)]
-use player::Player;
-use std::{
-    borrow::BorrowMut,
-    sync::{Arc, Mutex, RwLock},
-    thread,
-    time::Duration,
-};
+use player::{Event, Player};
+use std::sync::mpsc::channel;
+use std::thread;
 use std::{panic, process};
+
 mod player;
 
-fn multi_thread_panic() {
+fn thread_panic() {
     let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         orig_hook(panic_info);
@@ -17,14 +14,21 @@ fn multi_thread_panic() {
     }));
 }
 fn main() {
-    multi_thread_panic();
+    thread_panic();
 
-    let player = Arc::new(RwLock::new(Player::new()));
-    let p = player.clone();
+    let (tx, rx) = channel();
+
+    tx.send(Event::Next).unwrap();
 
     thread::spawn(move || {
-        //this is does not work
-        p.write().unwrap().run();
+        let mut player = Player::new();
+        loop {
+            player.update();
+            match rx.recv().unwrap() {
+                Event::Next => player.next(),
+                _ => (),
+            }
+        }
     });
 
     thread::park();
