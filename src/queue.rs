@@ -36,7 +36,7 @@ impl Queue {
 
         thread::spawn(move || loop {
             thread::sleep(Duration::from_millis(10));
-            let play = || {
+            let play = || -> () {
                 let path = songs
                     .read()
                     .unwrap()
@@ -58,9 +58,10 @@ impl Queue {
 
             //trigger for next track
             if player.read().unwrap().next_track.load(Ordering::SeqCst) {
-                if playing.read().unwrap().unwrap() != songs.read().unwrap().len() {
-                    *playing.write().unwrap() = Some(playing.read().unwrap().unwrap() + 1);
-                    play();
+                if playing.read().unwrap().unwrap() != songs.read().unwrap().len() - 1 {
+                    let next_track = playing.read().unwrap().unwrap();
+                    *playing.write().unwrap() = Some(next_track + 1);
+                    play()
                 } else {
                     //loop the queue
                     *playing.write().unwrap() = Some(0);

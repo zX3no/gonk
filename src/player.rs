@@ -73,6 +73,12 @@ impl Player {
                     .read()
                     .unwrap()
                     .stream_position(handle.read().unwrap().unwrap());
+
+                //this probably doesn't work
+                //check if track has ended
+                if *length.read().unwrap() == *elapsed.read().unwrap() {
+                    break;
+                }
             }
             next_track.store(true, Ordering::SeqCst);
         }));
