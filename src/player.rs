@@ -21,8 +21,10 @@ pub struct Player {
 impl Player {
     pub fn new() -> Self {
         //wtf?
+        let sl = Arc::new(RwLock::new(Soloud::default().unwrap()));
+        sl.write().unwrap().set_global_volume(0.02);
         Self {
-            sl: Arc::new(RwLock::new(Soloud::default().unwrap())),
+            sl,
             handle: Arc::new(RwLock::new(None)),
             thread_handle: None,
             song_length: Arc::new(RwLock::new(0.0)),
@@ -62,10 +64,6 @@ impl Player {
             wav.load(path).unwrap();
             *length.write().unwrap() = wav.length();
             *handle.write().unwrap() = Some(sl.read().unwrap().play(&wav));
-
-            sl.write()
-                .unwrap()
-                .set_volume(handle.read().unwrap().unwrap(), 0.02);
 
             while !quit.load(Ordering::SeqCst) {
                 thread::sleep(Duration::from_millis(25));
@@ -140,20 +138,15 @@ impl Player {
             self.volume = 0.05;
         }
 
-        self.sl
-            .write()
-            .unwrap()
-            .set_volume(self.handle.read().unwrap().unwrap(), self.volume);
+        self.sl.write().unwrap().set_global_volume(self.volume);
     }
     pub fn decrease_volume(&mut self) {
         self.volume -= 0.002;
         if self.volume < 0.0 {
             self.volume = 0.0;
         }
-        self.sl
-            .write()
-            .unwrap()
-            .set_volume(self.handle.read().unwrap().unwrap(), self.volume);
+
+        self.sl.write().unwrap().set_global_volume(self.volume);
     }
 }
 
