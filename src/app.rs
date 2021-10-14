@@ -263,11 +263,11 @@ impl App {
                                     self.ml.queue_up();
                                 }
                             },
-                            KeyCode::Enter => {
-                                if let Panel::Browser = self.selected_panel {
-                                    self.ml.add_to_queue();
-                                }
-                            }
+                            KeyCode::Enter => match self.selected_panel {
+                                Panel::Browser => self.ml.add_to_queue(),
+                                //todo remove placeholder
+                                Panel::Queue => self.ml.next(),
+                            },
                             KeyCode::Char('l') => {
                                 if let Panel::Browser = self.selected_panel {
                                     self.ml.next_mode()

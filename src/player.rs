@@ -13,7 +13,7 @@ pub struct Player {
     thread_handle: Option<JoinHandle<()>>,
     song_length: Arc<RwLock<f64>>,
     elapsed: Arc<RwLock<f64>>,
-    quit: Arc<AtomicBool>,
+    pub quit: Arc<AtomicBool>,
     pub next_track: Arc<AtomicBool>,
 
     pub volume: f32,

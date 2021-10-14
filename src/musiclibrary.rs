@@ -253,6 +253,9 @@ impl MusicLibrary {
     pub fn queue_down(&mut self) {
         self.queue.down();
     }
+    pub fn next(&mut self) {
+        self.queue.next();
+    }
     // fn play(&mut self, artist: &str, album: &str, track: &u16) {
     //     self.player.play(
     //         &self

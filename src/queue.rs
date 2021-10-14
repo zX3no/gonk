@@ -70,6 +70,13 @@ impl Queue {
             }
         });
     }
+    pub fn next(&mut self) {
+        self.player
+            .write()
+            .unwrap()
+            .quit
+            .store(true, Ordering::SeqCst);
+    }
     pub fn up(&mut self) {
         if self.selection != 0 {
             self.selection -= 1;
