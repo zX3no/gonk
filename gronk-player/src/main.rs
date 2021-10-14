@@ -1,7 +1,5 @@
 #![allow(dead_code)]
-use event_handler::{Event, EventHandler};
 use player::Player;
-use std::sync::mpsc::channel;
 use std::thread;
 use std::{panic, process};
 
@@ -20,6 +18,7 @@ fn main() {
 
     let player = Player::new();
 
+    player.next();
     player.next();
 
     thread::park();

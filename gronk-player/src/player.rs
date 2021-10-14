@@ -1,5 +1,5 @@
 use std::{
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{channel, Sender},
     thread,
 };
 

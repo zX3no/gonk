@@ -1,4 +1,4 @@
-use std::{path::Path, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use backend::Backend;
 use song::Song;
@@ -28,20 +28,23 @@ pub struct EventHandler {
 impl EventHandler {
     pub fn new() -> Self {
         let queue = vec![
-            Song::from("1.flac"),
-            Song::from("2.flac"),
-            Song::from("3.flac"),
+            Song::from("music/1.flac"),
+            Song::from("music/2.flac"),
+            Song::from("music/3.flac"),
         ];
+        let mut backend = Backend::new();
+        let volume = 0.02;
+        backend.set_volume(volume);
 
         Self {
             queue,
             now_playing: None,
             index: None,
-            volume: 1.0,
-            backend: Backend::new(),
+            volume,
+            backend,
         }
     }
-    pub fn update(&mut self, events: Event) {
+    pub fn update(&mut self, event: Event) {
         let Self {
             queue,
             now_playing,
@@ -50,9 +53,9 @@ impl EventHandler {
             backend,
         } = self;
 
-        dbg!(&events);
+        println!("{:#?}", event);
 
-        match events {
+        match event {
             Event::Next => {
                 if let Some(song) = now_playing {
                     if let Some(index) = index {
@@ -105,9 +108,7 @@ impl EventHandler {
                 println!("Playing..");
                 *now_playing = Some(song.clone());
                 *index = Some(0);
-                backend.set_wav(song.get_path());
                 backend.play_file(song.get_path());
-                // thread::park();
             } else {
                 //Nothing to do...
             }
@@ -115,25 +116,6 @@ impl EventHandler {
 
         thread::sleep(Duration::from_millis(100));
     }
-    // pub fn next(&mut self) {
-    //     self.events = Event::Next;
-    // }
-    // pub fn previous(&mut self) {
-    //     self.events = Event::Previous;
-    // }
-    // pub fn play(&mut self) {
-    //     self.events = Event::Play;
-    // }
-    // pub fn pause(&mut self) {
-    //     self.events = Event::Pause;
-    // }
-    // pub fn stop(&mut self) {
-    //     self.events = Event::Stop;
-    // }
-    // pub fn volume(&mut self, v: f32) {
-    //     //this needs to be done differently
-    //     self.events = Event::Volume(v);
-    // }
     pub fn get_elapsed(&self) -> String {
         if let Some(song) = &self.now_playing {
             if let Some(elapsed) = song.get_elapsed() {
