@@ -22,6 +22,18 @@ impl Backend {
     //     //and play the song
     //     self.handle = Some(self.ctx.play(&wav));
     // }
+    pub fn play_file(&mut self, path: &Path) {
+        //stop playback
+        self.stop();
+
+        //load wav file
+        let mut wav = audio::Wav::default();
+        wav.load(path).unwrap();
+
+        //update the current song handle
+        //and play the song
+        self.handle = Some(self.ctx.play(&wav));
+    }
     pub fn play(&mut self) {
         self.ctx.set_pause_all(false);
     }
@@ -31,7 +43,7 @@ impl Backend {
     pub fn stop(&mut self) {
         self.ctx.stop_all();
     }
-    pub fn volume(&mut self, v: f32) {
+    pub fn set_volume(&mut self, v: f32) {
         self.ctx.set_global_volume(v);
     }
     //these shouldn't be here the next track should be set by the queue
@@ -40,5 +52,11 @@ impl Backend {
     }
     pub fn previous(&mut self) {
         todo!();
+    }
+    pub fn get_elapsed(&self) -> f64 {
+        if let Some(handle) = self.handle {
+            return self.ctx.stream_position(handle);
+        }
+        0.0
     }
 }

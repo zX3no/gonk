@@ -1,9 +1,8 @@
 ## Redesign Doc
 
 User <--> UI <--> Player <--> Backend <--> OS
-                    |
-                    |
-                  Indexer
+
+There is also the indexer, which the UI and Player will need to talk to.
 
 ### UI 
 
@@ -81,12 +80,11 @@ Each mode needs to have it's own independent state.
 - Player
     - Queue(list of songs)
     - Playing Song(optional) 
+    - Index(optional)
     - Volume
-    - Current Elapsed
-    - Current Duration
-    - Event
     - Backend
-
+    - Event
+    
 - Song 
     - Title
     - Album
