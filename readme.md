@@ -115,6 +115,8 @@ The player is always running in a loop.
 
 - Context 
 - Handle
+- Join Handle
 
 The context is an instance of soloud.
 The handle is a way to access the currently playing song.
+The join handle is needed to wait for the playing thread to finish

@@ -32,7 +32,7 @@ impl Song {
     pub fn update_elapsed(&mut self, elapsed: f64) {
         self.elapsed = Some(elapsed);
     }
-    pub fn get_path(&self) -> &Path {
-        self.path.as_path()
+    pub fn get_path(&self) -> &PathBuf {
+        &self.path
     }
 }

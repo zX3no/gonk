@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, thread, time::Duration};
 
 use backend::Backend;
 use song::Song;
@@ -67,6 +67,8 @@ impl Player {
                         }
                         backend.play_file(song.get_path());
                     }
+
+                    *events = Event::Null;
                 }
                 Event::Previous => {
                     if let Some(song) = now_playing {
@@ -97,7 +99,7 @@ impl Player {
                 //check if the song has finished
                 if let Some(elapsed) = now_playing.get_elapsed() {
                     if elapsed == 0.0 {
-                        *events = Event::Next;
+                        // *events = Event::Next;
                     }
                 }
             } else {
@@ -110,6 +112,8 @@ impl Player {
                     //Nothing to do...
                 }
             }
+
+            thread::sleep(Duration::from_millis(100));
         }
     }
     pub fn next(&mut self) {

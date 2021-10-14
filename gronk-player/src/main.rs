@@ -2,7 +2,7 @@
 use player::Player;
 use std::{
     borrow::BorrowMut,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
     thread,
     time::Duration,
 };
@@ -20,13 +20,12 @@ fn main() {
     multi_thread_panic();
 
     let player = Arc::new(RwLock::new(Player::new()));
-    let mut p = player.clone();
+    let p = player.clone();
 
     thread::spawn(move || {
-        p.borrow_mut().write().unwrap().run();
+        //this is does not work
+        p.write().unwrap().run();
     });
-
-    let p = player.clone();
 
     thread::park();
 }
