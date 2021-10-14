@@ -34,7 +34,7 @@ impl Player {
         }
     }
     pub fn play(&mut self, path: PathBuf) {
-        let short_path = convert_path(path.clone());
+        // let short_path = convert_path(path.clone());
         if self.thread_handle.is_some() {
             //make sure we don't trigger a track skip
             self.next_track.store(false, Ordering::SeqCst);
@@ -59,7 +59,7 @@ impl Player {
         self.thread_handle = Some(thread::spawn(move || {
             let mut wav = audio::Wav::default();
 
-            wav.load(short_path).unwrap();
+            wav.load(path).unwrap();
             *length.write().unwrap() = wav.length();
             *handle.write().unwrap() = Some(sl.read().unwrap().play(&wav));
 
@@ -74,9 +74,8 @@ impl Player {
                     .unwrap()
                     .stream_position(handle.read().unwrap().unwrap());
 
-                //this probably doesn't work
                 //check if track has ended
-                if *length.read().unwrap() == *elapsed.read().unwrap() {
+                if *elapsed.read().unwrap() == 0.0 {
                     break;
                 }
             }

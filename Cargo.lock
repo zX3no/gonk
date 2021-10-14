@@ -548,9 +548,8 @@ checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
 
 [[package]]
 name = "soloud"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af9f90e2d8c611b07389f021e53b470b5ac44d6f4185d3024e4ead840406d3af"
+version = "1.0.0"
+source = "git+https://github.com/moalyousef/soloud-rs#343201c9921b7ab8f46100d395e248873f30691c"
 dependencies = [
  "bitflags",
  "paste",
@@ -559,9 +558,8 @@ dependencies = [
 
 [[package]]
 name = "soloud-sys"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44ede61ee58f3f0cf279cf9b4944b1b540d4aa64e57a0ff8054fff54cfbf16e8"
+version = "1.0.0"
+source = "git+https://github.com/moalyousef/soloud-rs#343201c9921b7ab8f46100d395e248873f30691c"
 dependencies = [
  "cmake",
 ]
