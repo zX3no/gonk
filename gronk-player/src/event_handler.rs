@@ -27,11 +27,7 @@ pub struct EventHandler {
 
 impl EventHandler {
     pub fn new() -> Self {
-        let queue = vec![
-            Song::from("music/1.flac"),
-            Song::from("music/2.flac"),
-            Song::from("music/3.flac"),
-        ];
+        let queue = vec![Song::from("music/覆.flac")];
         let mut backend = Backend::new();
         let volume = 0.02;
         backend.set_volume(volume);

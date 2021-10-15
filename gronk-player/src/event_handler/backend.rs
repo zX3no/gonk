@@ -34,7 +34,9 @@ impl Backend {
 
     pub fn set_wav(&mut self, path: &PathBuf) {
         let mut wav = audio::Wav::default();
-        wav.load(path).unwrap();
+        let bytes = std::fs::read(path).unwrap();
+        // wav.load(path).unwrap();
+        wav.load_mem(bytes).unwrap();
         self.wav = Some(wav);
     }
 
