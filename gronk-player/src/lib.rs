@@ -1,2 +1,2 @@
-mod event_handler;
-mod player;
+pub mod event_handler;
+pub mod player;

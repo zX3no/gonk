@@ -3,8 +3,8 @@ use std::{thread, time::Duration};
 use backend::Backend;
 use song::Song;
 
-mod backend;
-mod song;
+pub mod backend;
+pub mod song;
 
 #[derive(Debug)]
 pub enum Event {

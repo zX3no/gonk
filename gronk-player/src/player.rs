@@ -8,6 +8,7 @@ use crate::event_handler::{Event, EventHandler};
 pub struct Player {
     tx: Sender<Event>,
 }
+
 impl Player {
     pub fn new() -> Self {
         let (tx, rx) = channel();

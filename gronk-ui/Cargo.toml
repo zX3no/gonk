@@ -8,4 +8,5 @@ edition = "2018"
 [dependencies]
 crossterm = "0.21.0"
 tui = { version = "0.16", default-features = false, features = ['crossterm'] }
+gronk-player = {path = "../gronk-player"}
 
