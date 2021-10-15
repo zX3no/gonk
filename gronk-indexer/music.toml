@@ -1,0 +1,240 @@
+[[artists]]
+name = "Badbadnotgood"
+
+[[artists.albums]]
+name = "IV"
+artist = "Badbadnotgood"
+total_discs = 1
+
+[[artists.albums.songs]]
+name = "IV"
+name_with_number = "7. IV"
+track_number = 7
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\07 IV.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Lavender"
+name_with_number = "5. Lavender"
+track_number = 5
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\05 Lavender.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Confessions, Pt. 2"
+name_with_number = "4. Confessions, Pt. 2"
+track_number = 4
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\04 Confessions Pt. 2.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Speaking Gently"
+name_with_number = "2. Speaking Gently"
+track_number = 2
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\02 Speaking Gently.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Time Moves Slow"
+name_with_number = "3. Time Moves Slow"
+track_number = 3
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\03 Time Moves Slow.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Hyssop of Love"
+name_with_number = "8. Hyssop of Love"
+track_number = 8
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\08 Hyssop of Love.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Chompy's Paradise"
+name_with_number = "6. Chompy's Paradise"
+track_number = 6
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\06 Chompy's Paradise.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Structure No. 3"
+name_with_number = "9. Structure No. 3"
+track_number = 9
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\09 Structure No. 3.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Cashmere"
+name_with_number = "11. Cashmere"
+track_number = 11
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\11 Cashmere.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "And That, Too"
+name_with_number = "1. And That, Too"
+track_number = 1
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\01 And That Too.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "In Your Eyes"
+name_with_number = "10. In Your Eyes"
+track_number = 10
+album = "IV"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2016
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\IV (Album)\\10 In Your Eyes.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums]]
+name = "Talk Memory"
+artist = "Badbadnotgood"
+total_discs = 1
+
+[[artists.albums.songs]]
+name = "City of Mirrors"
+name_with_number = "3. City of Mirrors"
+track_number = 3
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\3. City of Mirrors.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Timid, Intimidating"
+name_with_number = "6. Timid, Intimidating"
+track_number = 6
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\6. Timid, Intimidating.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Beside April (Reprise)"
+name_with_number = "7. Beside April (Reprise)"
+track_number = 7
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\7. Beside April (Reprise).flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Talk Meaning"
+name_with_number = "8. Talk Meaning"
+track_number = 8
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\8. Talk Meaning.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Beside April"
+name_with_number = "4. Beside April"
+track_number = 4
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\4. Beside April.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Signal from the Noise"
+name_with_number = "1. Signal from the Noise"
+track_number = 1
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\1. Signal from the Noise.flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Unfolding (Momentum 73)"
+name_with_number = "2. Unfolding (Momentum 73)"
+track_number = 2
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\2. Unfolding (Momentum 73).flac"
+disc = 1
+total_disc = 1
+
+[[artists.albums.songs]]
+name = "Love Proceeding"
+name_with_number = "5. Love Proceeding"
+track_number = 5
+album = "Talk Memory"
+album_artist = "Badbadnotgood"
+duration = 0
+year = 2021
+path = "D:\\OneDrive\\Music\\Badbadnotgood\\Talk Memory\\5. Love Proceeding.flac"
+disc = 1
+total_disc = 1

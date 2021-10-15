@@ -4,13 +4,8 @@ use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols,
     text::{Span, Spans},
-    widgets::canvas::{Canvas, Label, Line, Map, MapResolution, Rectangle},
-    widgets::{
-        Axis, BarChart, Block, Borders, Cell, Chart, Dataset, Gauge, LineGauge, List, ListItem,
-        Paragraph, Row, Sparkline, Table, Tabs, Wrap,
-    },
+    widgets::{Block, BorderType, Borders, Cell, Gauge, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -18,6 +13,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
         .constraints([Constraint::Ratio(14, 15), Constraint::Min(0)].as_ref())
         .split(f.size());
+    // let block = Block::default()
+    //     .title("Block")
+    //     .borders(Borders::ALL)
+    //     .border_style(Style::default().fg(Color::White))
+    //     .border_type(BorderType::Rounded)
+    //     .style(Style::default());
 
     // f.render_widget(block.clone(), chunks[0]);
     // f.render_widget(block.clone(), chunks[1]);
@@ -43,6 +44,7 @@ where
         .direction(Direction::Horizontal)
         .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
         .split(area);
+
     let gauge = Gauge::default()
         .block(
             Block::default()

@@ -12,7 +12,6 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, LeaveAlternateScreen},
 };
-use gronk_player::player::Player;
 use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
