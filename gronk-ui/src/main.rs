@@ -8,7 +8,7 @@ use std::{
 
 use app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, Event as CTEvent, KeyCode},
+    event::{self, DisableMouseCapture, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, LeaveAlternateScreen},
 };
@@ -17,15 +17,13 @@ use tui::{backend::CrosstermBackend, Terminal};
 mod app;
 mod ui;
 
-enum Event<I> {
-    Input(I),
+enum Event {
+    Input(KeyEvent),
     Tick,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut stdout = stdout();
-
-    let backend = CrosstermBackend::new(stdout);
+    let backend = CrosstermBackend::new(stdout());
 
     let mut terminal = Terminal::new(backend)?;
 
@@ -60,15 +58,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         terminal.draw(|f| ui::draw(f, &mut app))?;
         match rx.recv()? {
             Event::Input(event) => match event.code {
-                KeyCode::Char('q') => {
-                    disable_raw_mode()?;
-                    execute!(
-                        terminal.backend_mut(),
-                        LeaveAlternateScreen,
-                        DisableMouseCapture
-                    )?;
-                    terminal.show_cursor()?;
-                    break;
+                KeyCode::Char('c') => {
+                    if event.modifiers == KeyModifiers::CONTROL {
+                        disable_raw_mode()?;
+                        execute!(
+                            terminal.backend_mut(),
+                            LeaveAlternateScreen,
+                            DisableMouseCapture
+                        )?;
+                        terminal.show_cursor()?;
+                        break;
+                    }
                 }
                 KeyCode::Char(c) => app.on_key(c),
                 KeyCode::Left => app.on_left(),
@@ -80,9 +80,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             Event::Tick => {
                 app.on_tick();
             }
-        }
-        if app.should_quit() {
-            break;
         }
     }
 
