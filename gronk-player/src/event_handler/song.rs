@@ -36,3 +36,8 @@ impl Song {
         &self.path
     }
 }
+impl PartialEq for Song {
+    fn eq(&self, other: &Song) -> bool {
+        self.title == other.title && self.path == other.path
+    }
+}

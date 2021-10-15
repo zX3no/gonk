@@ -8,6 +8,9 @@ mod song;
 
 #[derive(Debug)]
 pub enum Event {
+    Add(Song),
+    Remove(Song),
+    ClearQueue,
     Next,
     Previous,
     Volume(f32),
@@ -43,6 +46,9 @@ impl EventHandler {
     fn handle_events(&mut self, event: Event) {
         println!("{:#?}", event);
         match event {
+            Event::Add(song) => self.add(song),
+            Event::ClearQueue => self.clear_queue(),
+            Event::Remove(song) => self.remove(song),
             Event::Next => self.next(),
             Event::Previous => self.previous(),
             Event::Volume(v) => self.backend.set_volume(v),
@@ -109,6 +115,20 @@ impl EventHandler {
             let song = song.clone();
             self.backend.play_file(song.get_path());
         }
+    }
+    pub fn add(&mut self, song: Song) {
+        self.queue.push(song);
+    }
+    pub fn remove(&mut self, song: Song) {
+        let queue = self.queue.clone();
+        for (i, s) in queue.iter().enumerate() {
+            if s == &song {
+                self.queue.remove(i);
+            }
+        }
+    }
+    pub fn clear_queue(&mut self) {
+        self.queue.drain(..);
     }
     pub fn get_elapsed(&self) -> String {
         if let Some(song) = &self.now_playing {
