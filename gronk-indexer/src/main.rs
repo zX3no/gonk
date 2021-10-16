@@ -1,10 +1,8 @@
 mod database;
-use std::{fs::File, io::Write, path::PathBuf, time::Instant};
+use std::time::Instant;
 
 use database::Database;
-use hashbrown::HashMap;
 
-use crate::database::{Album, Artist, Song};
 struct T {
     now: Instant,
 }
@@ -20,11 +18,9 @@ impl T {
 }
 
 fn main() {
-    // let database = Database::create(r"D:\OneDrive\Music\");
-    // database.save();
-    let database = Database::read();
+    let database = Database::new();
+
     let t = T::start();
-    // database.find_artist("Iglooghost");
-    database.find_song("Talk Meaning");
+    database.find_album("Clear Tamei");
     t.end();
 }

@@ -1,3 +1,4 @@
 /target
 *.flac
 Cargo.lock
+music.toml

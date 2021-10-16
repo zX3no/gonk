@@ -13,18 +13,51 @@ use std::{
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Database {
     artists: Vec<Artist>,
-    // albums: Vec<Album>,
-    // songs: Vec<Song>,
 }
 
 impl Database {
+    pub fn new() -> Self {
+        if let Some(database) = Database::read() {
+            return database;
+        }
+        let database = Database::create(r"D:\OneDrive\Music");
+        Database::write(&database);
+        return database;
+    }
+
+    //~550ms
+    pub fn read() -> Option<Self> {
+        if let Ok(database) = fs::read_to_string("music.toml") {
+            if database.is_empty() {
+                return None;
+            }
+            return Some(toml::from_str(&database).unwrap());
+        }
+        None
+    }
+
+    //~60ms
+    pub fn write(database: &Database) {
+        let mut file = File::create("music.toml").unwrap();
+        let output = toml::to_string(&database).unwrap();
+        file.write_all(output.as_bytes()).unwrap();
+    }
+
+    pub fn update(&mut self) {
+        *self = Database::create(r"D:\OneDrive\Music");
+        Database::write(&self);
+    }
+
+    //~1.4s
     pub fn create(path: &str) -> Self {
         let path = Path::new(path);
 
         let mut songs: HashMap<String, Song> = HashMap::new();
+
         for entry in WalkDir::new(path).into_iter().flatten() {
             if let Some(ex) = entry.path().extension() {
                 if ex == "flac" || ex == "mp3" || ex == "m4a" || ex == "wav" {
+                    //this is slow
                     let song = Song::from(entry.path());
                     songs.insert(song.name.clone(), song.clone());
                 }
@@ -99,6 +132,8 @@ impl Database {
         }
         None
     }
+
+    //~30us
     pub fn find_album(&self, name: &str) -> Option<&Album> {
         for album in &self.get_albums() {
             if album.name == name {
@@ -108,7 +143,7 @@ impl Database {
         None
     }
 
-    //4us
+    //~4us
     pub fn find_artist(&self, name: &str) -> Option<&Artist> {
         for artist in &self.artists {
             if artist.name == name {
@@ -116,31 +151,6 @@ impl Database {
             }
         }
         None
-    }
-
-    // pub fn find_artist(&self, name: &str) -> String {
-    //     let mut artists = HashSet::new();
-    //     for song in &self.songs {
-    //         if !artists.contains(&song.album_artist) {
-    //             artists.insert(song.album_artist.clone());
-    //         }
-    //     }
-    //     if let Some(artist) = artists.get(name) {
-    //         return artist.clone();
-    //     }
-    //     panic!();
-    // }
-    pub fn save(&self) {
-        let mut file = File::create("music.toml").unwrap();
-        let output = toml::to_string(&self).unwrap();
-        file.write_all(output.as_bytes()).unwrap();
-    }
-    pub fn read() -> Self {
-        let data = fs::read_to_string("music.toml").unwrap();
-        if data.is_empty() {
-            panic!();
-        }
-        toml::from_str(&data).unwrap()
     }
 }
 
