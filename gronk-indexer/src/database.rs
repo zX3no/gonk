@@ -1,18 +1,17 @@
+#![allow(dead_code)]
 use audiotags::Tag;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use jwalk::WalkDir;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
-    time::Instant,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Database {
-    artists: Vec<Artist>,
+    pub artists: Vec<Artist>,
 }
 
 impl Database {
@@ -38,6 +37,7 @@ impl Database {
 
     //~60ms
     pub fn write(database: &Database) {
+        //todo Database::path() -> C:\Users\Bay\Appdata\Gronk\music.toml
         let mut file = File::create("music.toml").unwrap();
         let output = toml::to_string(&database).unwrap();
         file.write_all(output.as_bytes()).unwrap();
@@ -45,7 +45,7 @@ impl Database {
 
     pub fn update(&mut self) {
         *self = Database::create(r"D:\OneDrive\Music");
-        Database::write(&self);
+        Database::write(self);
     }
 
     //~1.4s

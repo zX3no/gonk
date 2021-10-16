@@ -1,5 +1,6 @@
 use std::io::stdout;
 
+use crate::browser::Browser;
 use crossterm::{
     event::EnableMouseCapture,
     execute,
@@ -13,18 +14,22 @@ pub enum Mode {
     Seeker,
 }
 
-pub struct App {
+pub struct App<'a> {
     pub mode: Mode,
+    pub browser: Browser<'a>,
+    pub query: String,
     pub seeker: String,
     pub seeker_ratio: u16,
 }
-impl App {
+impl<'a> App<'a> {
     pub fn new() -> Self {
         execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
         enable_raw_mode().unwrap();
 
         Self {
             mode: Mode::Browser,
+            browser: Browser::new(),
+            query: String::new(),
             seeker: String::from("00:00"),
             seeker_ratio: 0,
         }
@@ -44,6 +49,10 @@ impl App {
 
     pub fn on_left(&mut self) {
         todo!();
+    }
+
+    pub fn on_escape(&mut self) {
+        self.mode = Mode::Browser;
     }
 
     pub fn on_key(&mut self, c: char) {
