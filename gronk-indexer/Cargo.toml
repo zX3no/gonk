@@ -9,5 +9,6 @@ edition = "2018"
 audiotags = "0.2.7182"
 hashbrown = "0.11.2"
 jwalk = "0.6.0"
+rayon = "1.5.1"
 serde = { version = "1.0.130", features = ["derive"] }
 toml = "0.5.8"

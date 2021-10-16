@@ -1,18 +1,30 @@
 mod database;
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{fs::File, io::Write, path::PathBuf, time::Instant};
 
 use database::Database;
 use hashbrown::HashMap;
 
 use crate::database::{Album, Artist, Song};
+struct T {
+    now: Instant,
+}
+impl T {
+    pub fn start() -> Self {
+        T {
+            now: Instant::now(),
+        }
+    }
+    pub fn end(&self) {
+        println!("{:?}", self.now.elapsed());
+    }
+}
 
 fn main() {
-    let path = r"D:\OneDrive\Music\Badbadnotgood";
-    // let database = Database::create(r"D:\OneDrive\Music\Badbadnotgood");
-    Database::create_map(path);
-
-    // let mut file = File::create("music.toml").unwrap();
-
-    // let output = toml::to_string(&database).unwrap();
-    // file.write_all(output.as_bytes()).unwrap();
+    // let database = Database::create(r"D:\OneDrive\Music\");
+    // database.save();
+    let database = Database::read();
+    let t = T::start();
+    // database.find_artist("Iglooghost");
+    database.find_song("Talk Meaning");
+    t.end();
 }
