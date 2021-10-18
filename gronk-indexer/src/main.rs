@@ -18,7 +18,7 @@ impl T {
 }
 
 fn main() {
-    let database = Database::new();
+    let database = Database::new(r"D:\OneDrive\Music");
 
     let t = T::start();
     database.find_album("Clear Tamei");

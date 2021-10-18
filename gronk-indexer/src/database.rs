@@ -11,15 +11,17 @@ use std::{
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Database {
+    pub path: PathBuf,
     pub artists: Vec<Artist>,
 }
 
 impl Database {
-    pub fn new() -> Self {
+    pub fn new(path: &str) -> Self {
         if let Some(database) = Database::read() {
             return database;
         }
-        let database = Database::create(r"D:\OneDrive\Music");
+        let path = PathBuf::from(path);
+        let database = Database::create(&path);
         Database::write(&database);
         return database;
     }
@@ -44,14 +46,12 @@ impl Database {
     }
 
     pub fn update(&mut self) {
-        *self = Database::create(r"D:\OneDrive\Music");
+        *self = Database::create(&self.path);
         Database::write(self);
     }
 
     //~1.4s
-    pub fn create(path: &str) -> Self {
-        let path = Path::new(path);
-
+    pub fn create(path: &PathBuf) -> Self {
         let mut songs: HashMap<String, Song> = HashMap::new();
 
         for entry in WalkDir::new(path).into_iter().flatten() {
@@ -101,7 +101,10 @@ impl Database {
 
         let artists: Vec<Artist> = artists.values().cloned().collect();
 
-        Self { artists }
+        Self {
+            artists,
+            path: path.clone(),
+        }
     }
 
     //~20us

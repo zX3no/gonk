@@ -17,7 +17,7 @@ pub struct Browser<'a> {
 
 impl<'a> Browser<'a> {
     pub fn new() -> Self {
-        let database = Database::new();
+        let database = Database::new(r"D:\OneDrive\Music");
         let artist = BrowserList::artist(&database);
         let album = BrowserList::album(&database);
         let song = BrowserList::song(&database);
