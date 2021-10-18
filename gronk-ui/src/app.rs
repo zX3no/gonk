@@ -41,21 +41,28 @@ impl<'a> App<'a> {
             _ => (),
         }
     }
-
     pub fn on_down(&mut self) {
         match self.mode {
             Mode::Browser => self.browser.down(),
             _ => (),
         }
     }
-
     pub fn on_select(&mut self) {
-        // if !self.browser.is_song() {
-        self.browser.next_mode();
-        // }
+        if let Mode::Search = self.mode {
+            self.mode = Mode::Browser;
+            self.clear_query();
+        } else {
+            self.browser.next_mode();
+        }
     }
     pub fn on_back(&mut self) {
+        if let Mode::Search = self.mode {
+            self.query.pop();
+        }
         self.browser.prev_mode();
+    }
+    pub fn clear_query(&mut self) {
+        self.query = String::new();
     }
 
     pub fn on_escape(&mut self) {
@@ -63,18 +70,26 @@ impl<'a> App<'a> {
     }
 
     pub fn on_key(&mut self, c: char) {
+        if let Mode::Search = self.mode {
+            self.query.push(c);
+            return;
+        }
         match c {
             '/' => {
                 self.mode = Mode::Search;
             }
-            't' => {
-                // self.show_chart = !self.show_chart;
-            }
-            _ => {}
+            'h' => self.on_back(),
+            'j' => self.on_down(),
+            'k' => self.on_up(),
+            'l' => self.on_select(),
+            _ => (),
         }
     }
     pub fn get_seeker(&self) -> String {
         String::from("00:00")
+    }
+    pub fn get_query(&self) -> &String {
+        &self.query
     }
     pub fn on_tick(&mut self) {
         // if self.seeker_ratio < 100 {

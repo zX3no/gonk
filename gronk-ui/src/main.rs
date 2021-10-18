@@ -71,10 +71,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                         break;
                     }
                 }
-                KeyCode::Up | KeyCode::Char('k') => app.on_up(),
-                KeyCode::Down | KeyCode::Char('j') => app.on_down(),
-                KeyCode::Left | KeyCode::Backspace | KeyCode::Char('h') => app.on_back(),
-                KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => app.on_select(),
+                KeyCode::Up => app.on_up(),
+                KeyCode::Down => app.on_down(),
+                KeyCode::Left => app.on_back(),
+                KeyCode::Char('w') | KeyCode::Backspace => {
+                    if event.modifiers == KeyModifiers::CONTROL {
+                        app.clear_query();
+                    } else {
+                        app.on_back();
+                    }
+                }
+                KeyCode::Right | KeyCode::Enter => app.on_select(),
                 KeyCode::Esc => app.on_escape(),
                 KeyCode::Char(c) => app.on_key(c),
                 _ => {}
