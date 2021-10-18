@@ -1,5 +1,6 @@
 use crate::app::{App, Mode};
 
+#[allow(unused_imports)]
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -103,7 +104,11 @@ where
     let items = app.browser.get().clone();
 
     let list = List::new(items)
-        .block(Block::default().title("List").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title(app.browser.title())
+                .borders(Borders::ALL),
+        )
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
         .highlight_symbol(">>");
@@ -111,7 +116,7 @@ where
     f.render_stateful_widget(list, chunks[0], app.browser.selected());
 }
 
-fn draw_queue<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
+fn draw_queue<B>(f: &mut Frame<B>, _app: &mut App, area: Rect)
 where
     B: Backend,
 {

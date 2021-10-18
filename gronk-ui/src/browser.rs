@@ -65,6 +65,13 @@ impl<'a> Browser<'a> {
             BrowserMode::Song => self.mode = BrowserMode::Album,
         }
     }
+    pub fn title(&self) -> String {
+        return match self.mode {
+            BrowserMode::Artist => String::from("Artist"),
+            BrowserMode::Album => String::from("Album"),
+            BrowserMode::Song => String::from("Song"),
+        };
+    }
     pub fn up(&mut self) {
         let selection = self.get_selection();
         selection.up();

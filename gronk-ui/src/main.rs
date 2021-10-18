@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::{
     error::Error,
     io::stdout,
@@ -74,6 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Up => app.on_up(),
                 KeyCode::Down => app.on_down(),
                 KeyCode::Left => app.on_back(),
+                //w is ctrl+backspace
                 KeyCode::Char('w') | KeyCode::Backspace => {
                     if event.modifiers == KeyModifiers::CONTROL {
                         app.clear_query();

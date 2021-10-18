@@ -30,13 +30,12 @@ pub struct EventHandler {
 
 impl EventHandler {
     pub fn new() -> Self {
-        let queue = vec![Song::from("music/覆.flac")];
         let mut backend = Backend::new();
         let volume = 0.02;
         backend.set_volume(volume);
 
         Self {
-            queue,
+            queue: Vec::new(),
             now_playing: None,
             index: None,
             volume,
@@ -44,7 +43,6 @@ impl EventHandler {
         }
     }
     fn handle_events(&mut self, event: Event) {
-        println!("{:#?}", event);
         match event {
             Event::Add(song) => self.add(song),
             Event::ClearQueue => self.clear_queue(),

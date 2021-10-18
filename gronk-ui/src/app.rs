@@ -6,6 +6,7 @@ use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };
+use gronk_player::player::Player;
 
 pub enum Mode {
     Browser,
@@ -17,10 +18,12 @@ pub enum Mode {
 pub struct App<'a> {
     pub mode: Mode,
     pub browser: Browser<'a>,
+    pub player: Player,
     pub query: String,
     pub seeker: String,
     pub seeker_ratio: u16,
 }
+
 impl<'a> App<'a> {
     pub fn new() -> Self {
         execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
@@ -29,6 +32,7 @@ impl<'a> App<'a> {
         Self {
             mode: Mode::Browser,
             browser: Browser::new(),
+            player: Player::new(),
             query: String::new(),
             seeker: String::from("00:00"),
             seeker_ratio: 0,
@@ -64,11 +68,9 @@ impl<'a> App<'a> {
     pub fn clear_query(&mut self) {
         self.query = String::new();
     }
-
     pub fn on_escape(&mut self) {
         self.mode = Mode::Browser;
     }
-
     pub fn on_key(&mut self, c: char) {
         if let Mode::Search = self.mode {
             self.query.push(c);
