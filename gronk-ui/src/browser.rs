@@ -1,5 +1,5 @@
 use gronk_indexer::database::Database;
-use tui::widgets::ListItem;
+use tui::widgets::{ListItem, ListState};
 
 pub enum BrowserMode {
     Artist,
@@ -37,6 +37,48 @@ impl<'a> Browser<'a> {
             BrowserMode::Song => &self.song.list,
         };
     }
+    fn get_selection(&mut self) -> &mut BrowserList<'a> {
+        return match self.mode {
+            BrowserMode::Artist => &mut self.artist,
+            BrowserMode::Album => &mut self.album,
+            BrowserMode::Song => &mut self.song,
+        };
+    }
+    pub fn selected(&mut self) -> &mut ListState {
+        return match self.mode {
+            BrowserMode::Artist => &mut self.artist.selection,
+            BrowserMode::Album => &mut self.album.selection,
+            BrowserMode::Song => &mut self.song.selection,
+        };
+    }
+    pub fn next_mode(&mut self) {
+        match self.mode {
+            BrowserMode::Artist => self.mode = BrowserMode::Album,
+            BrowserMode::Album => self.mode = BrowserMode::Song,
+            BrowserMode::Song => (),
+        }
+    }
+    pub fn prev_mode(&mut self) {
+        match self.mode {
+            BrowserMode::Artist => (),
+            BrowserMode::Album => self.mode = BrowserMode::Artist,
+            BrowserMode::Song => self.mode = BrowserMode::Album,
+        }
+    }
+    pub fn up(&mut self) {
+        let selection = self.get_selection();
+        selection.up();
+    }
+    pub fn down(&mut self) {
+        let selection = self.get_selection();
+        selection.down();
+    }
+    pub fn is_song(&self) -> bool {
+        if let BrowserMode::Song = self.mode {
+            return true;
+        }
+        return false;
+    }
     pub fn filter_album_by_artist() {
         todo!();
     }
@@ -45,16 +87,44 @@ impl<'a> Browser<'a> {
     }
 }
 
+//change browser list to three different types
+//artist
+//album
+//song
+//they all derive the trait Browser
+//the trait is
+//up
+//down
 pub struct BrowserList<'a> {
     list: Vec<ListItem<'a>>,
-    selection: usize,
+    selection: ListState,
 }
 
 impl<'a> BrowserList<'a> {
-    pub fn new() -> Self {
-        Self {
-            list: Vec::new(),
-            selection: 0,
+    pub fn down(&mut self) {
+        let len = self.list.len();
+        let selection = &mut self.selection;
+        let selected = selection.selected();
+
+        if let Some(selected) = selected {
+            if selected + 1 > len - 1 {
+                selection.select(Some(0));
+            } else {
+                selection.select(Some(selected + 1));
+            }
+        }
+    }
+    pub fn up(&mut self) {
+        let len = self.list.len();
+        let selection = &mut self.selection;
+        let selected = selection.selected();
+
+        if let Some(selected) = selected {
+            if selected != 0 {
+                selection.select(Some(selected - 1));
+            } else {
+                selection.select(Some(len - 1));
+            }
         }
     }
     pub fn artist(database: &Database) -> Self {
@@ -63,9 +133,11 @@ impl<'a> BrowserList<'a> {
             artists.push(&artist.name);
         }
 
+        let mut selection = ListState::default();
+        selection.select(Some(0));
         Self {
             list: BrowserList::from_strings(artists),
-            selection: 0,
+            selection,
         }
     }
     pub fn album(database: &Database) -> Self {
@@ -74,20 +146,25 @@ impl<'a> BrowserList<'a> {
             albums.push(&album.name);
         }
 
+        let mut selection = ListState::default();
+        selection.select(Some(0));
+
         Self {
             list: BrowserList::from_strings(albums),
-            selection: 0,
+            selection,
         }
     }
     pub fn song(database: &Database) -> Self {
         let mut songs = Vec::new();
-        for song in &database.get_albums() {
+        for song in &database.get_songs() {
             songs.push(&song.name);
         }
 
+        let mut selection = ListState::default();
+        selection.select(Some(0));
         Self {
             list: BrowserList::from_strings(songs),
-            selection: 0,
+            selection,
         }
     }
     pub fn from_strings(strings: Vec<&String>) -> Vec<ListItem<'a>> {

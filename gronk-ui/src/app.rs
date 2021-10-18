@@ -36,19 +36,26 @@ impl<'a> App<'a> {
     }
     pub fn run() {}
     pub fn on_up(&mut self) {
-        todo!();
+        match self.mode {
+            Mode::Browser => self.browser.up(),
+            _ => (),
+        }
     }
 
     pub fn on_down(&mut self) {
-        todo!();
+        match self.mode {
+            Mode::Browser => self.browser.down(),
+            _ => (),
+        }
     }
 
-    pub fn on_right(&mut self) {
-        todo!();
+    pub fn on_select(&mut self) {
+        // if !self.browser.is_song() {
+        self.browser.next_mode();
+        // }
     }
-
-    pub fn on_left(&mut self) {
-        todo!();
+    pub fn on_back(&mut self) {
+        self.browser.prev_mode();
     }
 
     pub fn on_escape(&mut self) {

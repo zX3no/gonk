@@ -71,12 +71,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                         break;
                     }
                 }
-                KeyCode::Char(c) => app.on_key(c),
-                KeyCode::Left => app.on_left(),
-                KeyCode::Up => app.on_up(),
-                KeyCode::Right => app.on_right(),
-                KeyCode::Down => app.on_down(),
+                KeyCode::Up | KeyCode::Char('k') => app.on_up(),
+                KeyCode::Down | KeyCode::Char('j') => app.on_down(),
+                KeyCode::Left | KeyCode::Backspace | KeyCode::Char('h') => app.on_back(),
+                KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => app.on_select(),
                 KeyCode::Esc => app.on_escape(),
+                KeyCode::Char(c) => app.on_key(c),
                 _ => {}
             },
             Event::Tick => {

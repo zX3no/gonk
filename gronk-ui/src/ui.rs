@@ -108,7 +108,7 @@ where
         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
         .highlight_symbol(">>");
 
-    f.render_widget(list, chunks[0]);
+    f.render_stateful_widget(list, chunks[0], app.browser.selected());
 }
 
 fn draw_queue<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
