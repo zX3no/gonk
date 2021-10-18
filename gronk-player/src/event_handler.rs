@@ -3,6 +3,8 @@ use std::{thread, time::Duration};
 use backend::Backend;
 use song::Song;
 
+use crate::player::Seeker;
+
 pub mod backend;
 pub mod song;
 
@@ -127,6 +129,12 @@ impl EventHandler {
     }
     pub fn clear_queue(&mut self) {
         self.queue.drain(..);
+    }
+    pub fn get_seeker(&self) -> Seeker {
+        Seeker {
+            duration: self.get_duration(),
+            elapsed: self.get_elapsed(),
+        }
     }
     pub fn get_elapsed(&self) -> String {
         if let Some(song) = &self.now_playing {
