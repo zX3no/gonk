@@ -2,6 +2,7 @@
 use std::{
     error::Error,
     io::stdout,
+    panic, process,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -25,6 +26,12 @@ enum Event {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
+
     let backend = CrosstermBackend::new(stdout());
 
     let mut terminal = Terminal::new(backend)?;

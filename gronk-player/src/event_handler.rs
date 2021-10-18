@@ -3,8 +3,6 @@ use std::{thread, time::Duration};
 use backend::Backend;
 use song::Song;
 
-use crate::player::Seeker;
-
 pub mod backend;
 pub mod song;
 
@@ -35,7 +33,6 @@ impl EventHandler {
         let mut backend = Backend::new();
         let volume = 0.02;
         backend.set_volume(volume);
-
         Self {
             queue: Vec::new(),
             now_playing: None,
@@ -130,23 +127,34 @@ impl EventHandler {
     pub fn clear_queue(&mut self) {
         self.queue.drain(..);
     }
-    pub fn get_seeker(&self) -> Seeker {
-        Seeker {
-            duration: self.get_duration(),
-            elapsed: self.get_elapsed(),
-        }
+    pub fn get_seeker(&self) -> String {
+        format!("{}/{}", self.get_elapsed(), self.get_duration())
     }
     pub fn get_elapsed(&self) -> String {
         if let Some(song) = &self.now_playing {
             if let Some(elapsed) = song.get_elapsed() {
-                return elapsed.to_string();
+                let mins = elapsed / 60.0;
+                let rem = elapsed % 60.0;
+                return format!(
+                    "{:0width$}:{:0width$}",
+                    mins.trunc() as usize,
+                    rem.trunc() as usize,
+                    width = 2,
+                );
             }
         }
         String::from("00:00")
     }
     pub fn get_duration(&self) -> String {
         if let Some(song) = &self.now_playing {
-            return song.get_duration().to_string();
+            let mins = song.get_duration() / 60.0;
+            let rem = song.get_duration() % 60.0;
+            return format!(
+                "{:0width$}:{:0width$}",
+                mins.trunc() as usize,
+                rem.trunc() as usize,
+                width = 2,
+            );
         }
         String::from("00:00")
     }

@@ -1,7 +1,7 @@
 use std::{
     sync::{
         mpsc::{channel, Sender},
-        Arc, Mutex,
+        Arc, Mutex, RwLock,
     },
     thread,
 };
@@ -9,28 +9,15 @@ use std::{
 use crate::event_handler::{song::Song, Event, EventHandler};
 
 #[derive(Debug)]
-pub struct Seeker {
-    pub elapsed: String,
-    pub duration: String,
-}
-impl Seeker {
-    pub fn new() -> Self {
-        Self {
-            elapsed: String::new(),
-            duration: String::new(),
-        }
-    }
-}
-
 pub struct Player {
     tx: Sender<Event>,
-    seeker: Arc<Mutex<Seeker>>,
+    seeker: Arc<RwLock<String>>,
 }
 
 impl Player {
     pub fn new() -> Self {
         let (tx, rx) = channel();
-        let seeker = Arc::new(Mutex::new(Seeker::new()));
+        let seeker = Arc::new(RwLock::new(String::from("00:00")));
 
         let s = seeker.clone();
         thread::spawn(move || {
@@ -38,7 +25,7 @@ impl Player {
             let mut events = Event::Null;
             loop {
                 h.update(events);
-                *s.lock().unwrap() = h.get_seeker();
+                *s.write().unwrap() = h.get_seeker();
                 events = rx.recv().unwrap();
             }
         });
@@ -71,9 +58,9 @@ impl Player {
     pub fn clear_queue(&mut self) {
         self.tx.send(Event::ClearQueue).unwrap();
     }
-    pub fn get_seeker(&self) -> Seeker {
+    pub fn get_seeker(&self) -> String {
         let seeker = self.seeker.clone();
-        let s = Arc::try_unwrap(seeker).unwrap();
-        s.into_inner().unwrap()
+        let s = seeker.read().unwrap().clone();
+        return s;
     }
 }

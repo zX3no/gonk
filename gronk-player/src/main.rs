@@ -17,6 +17,7 @@ fn main() {
 
     player.next();
     player.next();
+    dbg!(player.get_seeker());
 
     thread::park();
 }

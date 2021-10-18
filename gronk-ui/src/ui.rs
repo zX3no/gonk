@@ -80,7 +80,7 @@ where
         .split(area);
 
     let text = Spans::from(Span::styled(
-        app.get_query(),
+        app.query.clone(),
         Style::default().add_modifier(Modifier::ITALIC),
     ));
 

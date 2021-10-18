@@ -34,7 +34,7 @@ impl<'a> App<'a> {
             browser: Browser::new(),
             player: Player::new(),
             query: String::new(),
-            seeker: String::from("00:00"),
+            seeker: String::from("00:00/00:00"),
             seeker_ratio: 0,
         }
     }
@@ -87,12 +87,6 @@ impl<'a> App<'a> {
             _ => (),
         }
     }
-    pub fn get_seeker(&self) -> String {
-        String::from("00:00")
-    }
-    pub fn get_query(&self) -> &String {
-        &self.query
-    }
     pub fn on_tick(&mut self) {
         // if self.seeker_ratio < 100 {
         //     self.seeker_ratio += 1;
@@ -100,7 +94,6 @@ impl<'a> App<'a> {
         //     self.seeker_ratio = 0;
         // }
 
-        //this could be done different?
-        // self.seeker = self.get_seeker();
+        self.seeker = self.player.get_seeker();
     }
 }
