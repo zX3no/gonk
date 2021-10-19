@@ -101,7 +101,7 @@ where
         .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
         .split(area);
 
-    let items = app.browser.get_list();
+    let items = app.browser.get_list_items();
 
     let list = List::new(items)
         .block(
@@ -113,7 +113,7 @@ where
         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
         .highlight_symbol(">>");
 
-    f.render_stateful_widget(list, chunks[0], app.browser.selected());
+    f.render_stateful_widget(list, chunks[0], app.browser.get_selection());
 }
 
 fn draw_queue<B>(f: &mut Frame<B>, _app: &mut App, area: Rect)
