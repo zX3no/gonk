@@ -149,33 +149,45 @@ impl BrowserList {
             list.push(artist.name.clone());
         }
 
-        let mut selection = ListState::default();
-        selection.select(Some(0));
-        Self { list, selection }
-    }
-    pub fn get_songs_from_album(database: &Database, name: &String) -> Self {
-        let album = database.find_album(&name).unwrap();
+        list.sort_by_key(|x| x.to_lowercase());
 
-        let list: Vec<String> = album
-            .songs
-            .iter()
-            .map(|song| song.name_with_number.clone())
-            .collect();
         let mut selection = ListState::default();
         selection.select(Some(0));
         Self { list, selection }
     }
     pub fn get_albums_from_artist(database: &Database, name: &String) -> Self {
         let artist = database.find_artist(&name).unwrap();
-        let list: Vec<String> = artist
+        let mut list: Vec<String> = artist
             .albums
             .iter()
             .map(|album| album.name.clone())
             .collect();
 
+        list.sort_by_key(|x| x.to_lowercase());
+
         let mut selection = ListState::default();
         selection.select(Some(0));
 
+        Self { list, selection }
+    }
+    pub fn get_songs_from_album(database: &Database, name: &String) -> Self {
+        let album = database.find_album(&name).unwrap();
+
+        let mut songs = album.songs.clone();
+
+        songs.sort_by(|a, b| {
+            a.disc
+                .cmp(&b.disc)
+                .then(a.track_number.cmp(&b.track_number))
+        });
+
+        let list: Vec<String> = songs
+            .iter()
+            .map(|song| song.name_with_number.clone())
+            .collect();
+
+        let mut selection = ListState::default();
+        selection.select(Some(0));
         Self { list, selection }
     }
     pub fn down(&mut self) {
