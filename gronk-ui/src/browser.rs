@@ -32,7 +32,23 @@ impl<'a> Browser {
             database,
         }
     }
-    pub fn get(&self) -> Vec<ListItem<'a>> {
+    pub fn update(&mut self) {
+        match self.mode {
+            BrowserMode::Album => {
+                if let Some(artist) = self.artist.get_name() {
+                    self.album = BrowserList::from_artist(&self.database, artist);
+                }
+            }
+            BrowserMode::Song => {
+                if let Some(album) = self.album.get_name() {
+                    self.song = BrowserList::from_album(&self.database, album);
+                }
+            }
+            _ => (),
+        }
+    }
+
+    pub fn get_list(&self) -> Vec<ListItem<'a>> {
         let list = match self.mode {
             BrowserMode::Artist => &self.artist.list,
             BrowserMode::Album => &self.album.list,
@@ -62,6 +78,7 @@ impl<'a> Browser {
             BrowserMode::Album => self.mode = BrowserMode::Song,
             BrowserMode::Song => (),
         }
+        self.update();
     }
     pub fn prev_mode(&mut self) {
         match self.mode {
@@ -116,6 +133,12 @@ pub struct BrowserList {
 }
 
 impl BrowserList {
+    pub fn get_name(&self) -> Option<&String> {
+        if let Some(index) = self.selection.selected() {
+            return self.list.get(index);
+        }
+        None
+    }
     pub fn first(&self) -> &String {
         self.list.first().unwrap()
     }
@@ -170,27 +193,6 @@ impl BrowserList {
         let mut list = Vec::new();
         for artist in &database.artists {
             list.push(artist.name.clone());
-        }
-
-        let mut selection = ListState::default();
-        selection.select(Some(0));
-        Self { list, selection }
-    }
-    pub fn album(database: &Database) -> Self {
-        let mut list = Vec::new();
-        for album in &database.get_albums() {
-            list.push(album.name.clone());
-        }
-
-        let mut selection = ListState::default();
-        selection.select(Some(0));
-
-        Self { list, selection }
-    }
-    pub fn song(database: &Database) -> Self {
-        let mut list = Vec::new();
-        for song in &database.get_songs() {
-            list.push(song.name.clone());
         }
 
         let mut selection = ListState::default();

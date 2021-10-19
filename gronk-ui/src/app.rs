@@ -93,6 +93,7 @@ impl App {
         // } else {
         //     self.seeker_ratio = 0;
         // }
+        // self.browser.update();
 
         self.seeker = self.player.get_seeker();
     }
