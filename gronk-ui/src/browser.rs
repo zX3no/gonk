@@ -37,11 +37,10 @@ impl Browser {
         let database = self.database.clone();
         match self.mode {
             BrowserMode::Album => {
-                // self.album.update(&database, self.artist.get_selected());
+                self.album.update(&database, &self.artist.get_selected());
             }
             BrowserMode::Song => {
-                // self.song =
-                //     BrowserList::get_songs_from_album(&self.database, self.album.get_selected());
+                self.song.update(&database, &self.album.get_selected());
             }
             _ => (),
         }
@@ -132,12 +131,6 @@ impl ArtistList {
 
         Self { list, state }
     }
-    pub fn test(&self) -> Vec<ListItem> {
-        self.list
-            .iter()
-            .map(|(item, _)| ListItem::new(item.clone()))
-            .collect()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -202,8 +195,27 @@ impl SongList {
 
         Self { list, state }
     }
+    pub fn update(&mut self, database: &Database, name: &String) {
+        let album = database.find_album(&name).unwrap();
+
+        let mut songs = album.songs.clone();
+
+        songs.sort_by(|a, b| {
+            a.disc
+                .cmp(&b.disc)
+                .then(a.track_number.cmp(&b.track_number))
+        });
+
+        let list = songs
+            .iter()
+            .map(|song| (song.name_with_number.clone(), song.clone()))
+            .collect();
+
+        self.state.select(Some(0));
+        self.list = list;
+    }
 }
-macro_rules! impl_foo {
+macro_rules! impl_list{
     ($($t:ty),+) => {
         $(impl List for $t {
 
@@ -249,10 +261,9 @@ macro_rules! impl_foo {
         })+
     }
 
-
 }
 
-impl_foo!(ArtistList, AlbumList, SongList);
+impl_list!(ArtistList, AlbumList, SongList);
 
 pub trait List {
     fn up(&mut self);
@@ -261,95 +272,3 @@ pub trait List {
     fn get_list(&self) -> Vec<ListItem<'static>>;
     fn first(&self) -> &String;
 }
-
-// #[derive(Debug, Clone)]
-// pub struct BrowserList {
-//     // list: Vec<ListItem<'a>>,
-//     list: Vec<String>,
-//     selection: ListState,
-// }
-
-// impl BrowserList {
-//     pub fn get_name(&self) -> Option<&String> {
-//         if let Some(index) = self.selection.selected() {
-//             return self.list.get(index);
-//         }
-//         None
-//     }
-//     pub fn first(&self) -> &String {
-//         self.list.first().unwrap()
-//     }
-//     pub fn get_artists(database: &Database) -> Self {
-//         let mut list = Vec::new();
-//         for artist in &database.artists {
-//             list.push(artist.name.clone());
-//         }
-
-//         list.sort_by_key(|x| x.to_lowercase());
-
-//         let mut selection = ListState::default();
-//         selection.select(Some(0));
-//         Self { list, selection }
-//     }
-//     pub fn get_albums_from_artist(database: &Database, name: &String) -> Self {
-//         let artist = database.find_artist(&name).unwrap();
-//         let mut list: Vec<String> = artist
-//             .albums
-//             .iter()
-//             .map(|album| album.name.clone())
-//             .collect();
-
-//         list.sort_by_key(|x| x.to_lowercase());
-
-//         let mut selection = ListState::default();
-//         selection.select(Some(0));
-
-//         Self { list, selection }
-//     }
-//     pub fn get_songs_from_album(database: &Database, name: &String) -> Self {
-//         let album = database.find_album(&name).unwrap();
-
-//         let mut songs = album.songs.clone();
-
-//         songs.sort_by(|a, b| {
-//             a.disc
-//                 .cmp(&b.disc)
-//                 .then(a.track_number.cmp(&b.track_number))
-//         });
-
-//         let list: Vec<String> = songs
-//             .iter()
-//             .map(|song| song.name_with_number.clone())
-//             .collect();
-
-//         let mut selection = ListState::default();
-//         selection.select(Some(0));
-//         Self { list, selection }
-//     }
-//     pub fn down(&mut self) {
-//         let len = self.list.len();
-//         let selection = &mut self.selection;
-//         let selected = selection.selected();
-
-//         if let Some(selected) = selected {
-//             if selected + 1 > len - 1 {
-//                 selection.select(Some(0));
-//             } else {
-//                 selection.select(Some(selected + 1));
-//             }
-//         }
-//     }
-//     pub fn up(&mut self) {
-//         let len = self.list.len();
-//         let selection = &mut self.selection;
-//         let selected = selection.selected();
-
-//         if let Some(selected) = selected {
-//             if selected != 0 {
-//                 selection.select(Some(selected - 1));
-//             } else {
-//                 selection.select(Some(len - 1));
-//             }
-//         }
-//     }
-// }
