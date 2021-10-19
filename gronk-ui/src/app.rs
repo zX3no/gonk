@@ -15,16 +15,16 @@ pub enum Mode {
     Seeker,
 }
 
-pub struct App<'a> {
+pub struct App {
     pub mode: Mode,
-    pub browser: Browser<'a>,
+    pub browser: Browser,
     pub player: Player,
     pub query: String,
     pub seeker: String,
     pub seeker_ratio: u16,
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn new() -> Self {
         execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
         enable_raw_mode().unwrap();

@@ -101,7 +101,7 @@ where
         .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
         .split(area);
 
-    let items = app.browser.get().clone();
+    let items = app.browser.get();
 
     let list = List::new(items)
         .block(
