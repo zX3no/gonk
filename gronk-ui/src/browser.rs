@@ -20,9 +20,9 @@ pub struct Browser {
 impl<'a> Browser {
     pub fn new() -> Self {
         let database = Database::new(r"D:\OneDrive\Music");
-        let artist = BrowserList::artist(&database);
-        let album = BrowserList::from_artist(&database, artist.first());
-        let song = BrowserList::from_album(&database, album.first());
+        let artist = BrowserList::get_artists(&database);
+        let album = BrowserList::get_albums_from_artist(&database, artist.first());
+        let song = BrowserList::get_songs_from_album(&database, album.first());
 
         Self {
             mode: BrowserMode::Artist,
@@ -32,16 +32,17 @@ impl<'a> Browser {
             database,
         }
     }
+    //updates the albums or songs depending on what was selected
     pub fn update(&mut self) {
         match self.mode {
             BrowserMode::Album => {
                 if let Some(artist) = self.artist.get_name() {
-                    self.album = BrowserList::from_artist(&self.database, artist);
+                    self.album = BrowserList::get_albums_from_artist(&self.database, artist);
                 }
             }
             BrowserMode::Song => {
                 if let Some(album) = self.album.get_name() {
-                    self.song = BrowserList::from_album(&self.database, album);
+                    self.song = BrowserList::get_songs_from_album(&self.database, album);
                 }
             }
             _ => (),
@@ -142,15 +143,29 @@ impl BrowserList {
     pub fn first(&self) -> &String {
         self.list.first().unwrap()
     }
-    pub fn from_album(database: &Database, name: &String) -> Self {
-        let album = database.find_album(&name).unwrap();
+    pub fn get_artists(database: &Database) -> Self {
+        let mut list = Vec::new();
+        for artist in &database.artists {
+            list.push(artist.name.clone());
+        }
 
-        let list: Vec<String> = album.songs.iter().map(|song| song.name.clone()).collect();
         let mut selection = ListState::default();
         selection.select(Some(0));
         Self { list, selection }
     }
-    pub fn from_artist(database: &Database, name: &String) -> Self {
+    pub fn get_songs_from_album(database: &Database, name: &String) -> Self {
+        let album = database.find_album(&name).unwrap();
+
+        let list: Vec<String> = album
+            .songs
+            .iter()
+            .map(|song| song.name_with_number.clone())
+            .collect();
+        let mut selection = ListState::default();
+        selection.select(Some(0));
+        Self { list, selection }
+    }
+    pub fn get_albums_from_artist(database: &Database, name: &String) -> Self {
         let artist = database.find_artist(&name).unwrap();
         let list: Vec<String> = artist
             .albums
@@ -188,15 +203,5 @@ impl BrowserList {
                 selection.select(Some(len - 1));
             }
         }
-    }
-    pub fn artist(database: &Database) -> Self {
-        let mut list = Vec::new();
-        for artist in &database.artists {
-            list.push(artist.name.clone());
-        }
-
-        let mut selection = ListState::default();
-        selection.select(Some(0));
-        Self { list, selection }
     }
 }
