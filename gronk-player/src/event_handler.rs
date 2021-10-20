@@ -172,6 +172,9 @@ impl EventHandler {
         self.volume.to_string()
     }
     pub fn get_queue(&self) -> Vec<String> {
-        self.queue.iter().map(|song| song.name.clone()).collect()
+        self.queue
+            .iter()
+            .map(|song| song.name_with_number.clone())
+            .collect()
     }
 }
