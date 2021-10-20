@@ -11,18 +11,18 @@ pub enum BrowserMode {
 #[derive(Debug, Clone)]
 pub struct Browser {
     pub mode: BrowserMode,
-    pub artist: ArtistList,
-    pub album: AlbumList,
-    pub song: SongList,
+    pub artist: List<Artist>,
+    pub album: List<Album>,
+    pub song: List<Song>,
     pub database: Database,
 }
 
 impl Browser {
     pub fn new() -> Self {
         let database = Database::new(r"D:\OneDrive\Music");
-        let artist = ArtistList::new(&database);
-        let album = AlbumList::new(&database, artist.first());
-        let song = SongList::new(&database, album.first());
+        let artist = List::<Artist>::new(&database);
+        let album = List::<Album>::new(&database, artist.first());
+        let song = List::<Song>::new(&database, album.first());
 
         Self {
             mode: BrowserMode::Artist,
@@ -105,19 +105,53 @@ impl Browser {
     }
 }
 
-fn test(al: &ArtistList) -> Vec<ListItem<'static>> {
-    al.list
-        .iter()
-        .map(|(item, _)| ListItem::new(item.clone()))
-        .collect()
-}
-
 #[derive(Debug, Clone)]
-pub struct ArtistList {
-    list: Vec<(String, Artist)>,
+pub struct List<T> {
+    list: Vec<(String, T)>,
     state: ListState,
 }
-impl ArtistList {
+impl<T> List<T> {
+    fn up(&mut self) {
+        let len = self.list.len();
+        if let Some(selected) = self.state.selected() {
+            if selected != 0 {
+                self.state.select(Some(selected - 1));
+            } else {
+                self.state.select(Some(len - 1));
+            }
+        }
+    }
+
+    fn down(&mut self) {
+        let len = self.list.len();
+        if let Some(selected) = self.state.selected() {
+            if selected + 1 > len - 1 {
+                self.state.select(Some(0));
+            } else {
+                self.state.select(Some(selected + 1));
+            }
+        }
+    }
+
+    fn get_selected(&self) -> String {
+        if let Some(index) = self.state.selected() {
+            return self.list.get(index).unwrap().0.clone();
+        }
+        String::new()
+    }
+
+    fn get_list(&self) -> Vec<ListItem<'static>> {
+        self.list
+            .iter()
+            .map(|(item, _)| ListItem::new(item.clone()))
+            .collect()
+    }
+
+    fn first(&self) -> &String {
+        &self.list.first().unwrap().0
+    }
+}
+impl List<Artist> {
     pub fn new(database: &Database) -> Self {
         let mut list = Vec::new();
         for artist in &database.artists {
@@ -132,13 +166,7 @@ impl ArtistList {
         Self { list, state }
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct AlbumList {
-    list: Vec<(String, Album)>,
-    state: ListState,
-}
-impl AlbumList {
+impl List<Album> {
     pub fn new(database: &Database, artist: &String) -> Self {
         let artist = database.find_artist(artist).unwrap();
 
@@ -168,12 +196,7 @@ impl AlbumList {
         self.list = list;
     }
 }
-#[derive(Debug, Clone)]
-pub struct SongList {
-    list: Vec<(String, Song)>,
-    state: ListState,
-}
-impl SongList {
+impl List<Song> {
     pub fn new(database: &Database, album: &String) -> Self {
         let album = database.find_album(album).unwrap();
 
@@ -214,61 +237,4 @@ impl SongList {
         self.state.select(Some(0));
         self.list = list;
     }
-}
-macro_rules! impl_list{
-    ($($t:ty),+) => {
-        $(impl List for $t {
-
-    fn up(&mut self) {
-        let len = self.list.len();
-        if let Some(selected) = self.state.selected() {
-            if selected != 0 {
-                self.state.select(Some(selected - 1));
-            } else {
-                self.state.select(Some(len - 1));
-            }
-        }
-    }
-
-    fn down(&mut self) {
-        let len = self.list.len();
-        if let Some(selected) = self.state.selected() {
-            if selected + 1 > len - 1 {
-                self.state.select(Some(0));
-            } else {
-                self.state.select(Some(selected + 1));
-            }
-        }
-    }
-
-    fn get_selected(&self) -> String {
-        if let Some(index) = self.state.selected(){
-            return self.list.get(index).unwrap().0.clone();
-        }
-        String::new()
-    }
-
-    fn get_list(&self) -> Vec<ListItem<'static>> {
-        self.list
-            .iter()
-            .map(|(item, _)| ListItem::new(item.clone()))
-            .collect()
-    }
-
-    fn first(&self) -> &String {
-        &self.list.first().unwrap().0
-    }
-        })+
-    }
-
-}
-
-impl_list!(ArtistList, AlbumList, SongList);
-
-pub trait List {
-    fn up(&mut self);
-    fn down(&mut self);
-    fn get_selected(&self) -> String;
-    fn get_list(&self) -> Vec<ListItem<'static>>;
-    fn first(&self) -> &String;
 }
