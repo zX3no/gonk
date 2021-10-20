@@ -46,7 +46,7 @@ impl EventHandler {
             Event::ClearQueue => self.clear_queue(),
             Event::Remove(song) => self.remove(song),
             Event::Next => self.next(),
-            Event::Previous => self.previous(),
+            Event::Previous => self.prev(),
             Event::Volume(v) => self.backend.set_volume(v),
             Event::Play => self.backend.play(),
             Event::Pause => self.backend.pause(),
@@ -90,22 +90,35 @@ impl EventHandler {
         thread::sleep(Duration::from_millis(100));
     }
     fn next(&mut self) {
-        self.change_song(true);
-    }
-    fn previous(&mut self) {
-        self.change_song(false);
-    }
-    fn change_song(&mut self, dir: bool) {
         let (now_playing, index, queue) = (&mut self.now_playing, &mut self.index, &self.queue);
 
         if let Some(song) = now_playing {
             if let Some(index) = index {
-                if let Some(next_song) = queue.get(*index + dir as usize) {
+                if let Some(next_song) = queue.get(*index + 1) {
                     *song = next_song.clone();
-                    *index = *index + dir as usize;
+                    *index = *index + 1;
                 } else if let Some(next_song) = queue.first() {
                     *song = next_song.clone();
                     *index = 0;
+                }
+            }
+            let song = song.clone();
+            self.backend.play_file(&song.path);
+        }
+    }
+    fn prev(&mut self) {
+        let (now_playing, index, queue) = (&mut self.now_playing, &mut self.index, &self.queue);
+
+        if let Some(song) = now_playing {
+            if let Some(index) = index {
+                if *index != 0 {
+                    if let Some(next_song) = queue.get(*index - 1) {
+                        *song = next_song.clone();
+                        *index = *index - 1;
+                    }
+                } else if let Some(next_song) = queue.last() {
+                    *song = next_song.clone();
+                    *index = queue.len() - 1;
                 }
             }
             let song = song.clone();

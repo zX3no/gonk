@@ -1,4 +1,4 @@
-use std::io::stdout;
+use std::{borrow::Borrow, io::stdout};
 
 use crate::{browser::Browser, queue::Queue};
 use crossterm::{
@@ -86,6 +86,8 @@ impl App {
             'j' => self.on_down(),
             'k' => self.on_up(),
             'l' => self.on_select(),
+            'q' => self.queue.prev(),
+            'e' => self.queue.next(),
             _ => (),
         }
     }

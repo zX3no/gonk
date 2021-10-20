@@ -40,28 +40,28 @@ impl Player {
     pub fn next(&self) {
         self.tx.send(Event::Next).unwrap();
     }
-    pub fn previous(&mut self) {
+    pub fn previous(&self) {
         self.tx.send(Event::Previous).unwrap();
     }
-    pub fn play(&mut self) {
+    pub fn play(&self) {
         self.tx.send(Event::Play).unwrap();
     }
-    pub fn pause(&mut self) {
+    pub fn pause(&self) {
         self.tx.send(Event::Pause).unwrap();
     }
-    pub fn stop(&mut self) {
+    pub fn stop(&self) {
         self.tx.send(Event::Stop).unwrap();
     }
-    pub fn volume(&mut self, v: f32) {
+    pub fn volume(&self, v: f32) {
         self.tx.send(Event::Volume(v)).unwrap();
     }
-    pub fn add(&mut self, song: Song) {
+    pub fn add(&self, song: Song) {
         self.tx.send(Event::Add(song)).unwrap();
     }
-    pub fn remove(&mut self, song: Song) {
+    pub fn remove(&self, song: Song) {
         self.tx.send(Event::Remove(song)).unwrap();
     }
-    pub fn clear_queue(&mut self) {
+    pub fn clear_queue(&self) {
         self.tx.send(Event::ClearQueue).unwrap();
     }
     pub fn get_seeker(&self) -> String {

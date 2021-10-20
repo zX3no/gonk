@@ -12,15 +12,24 @@ impl Queue {
         }
     }
     pub fn get_list_items(&self) -> Vec<ListItem<'static>> {
-        Vec::new()
+        self.get_queue()
+            .iter()
+            .map(|song| ListItem::new(song.clone()))
+            .collect()
     }
     pub fn add(&mut self, song: Song) {
         self.player.add(song.clone());
     }
     pub fn get_queue(&self) -> Vec<String> {
-        Vec::new()
+        self.player.get_queue()
     }
     pub fn get_seeker(&self) -> String {
         self.player.get_seeker()
+    }
+    pub fn next(&self) {
+        self.player.next();
+    }
+    pub fn prev(&self) {
+        self.player.previous();
     }
 }
