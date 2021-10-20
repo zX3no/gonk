@@ -36,4 +36,7 @@ impl Queue {
         self.player.clear_queue();
         self.player.stop()
     }
+    pub fn pause(&self) {
+        self.player.toggle_playback();
+    }
 }

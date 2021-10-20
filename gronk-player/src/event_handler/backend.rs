@@ -36,11 +36,15 @@ impl Backend {
         self.wav = Some(wav);
     }
 
-    pub fn play(&mut self) {
-        self.ctx.set_pause_all(false);
-    }
-    pub fn pause(&mut self) {
-        self.ctx.set_pause_all(true);
+    pub fn toggle_playback(&mut self) {
+        if let Some(handle) = self.handle {
+            let paused = self.ctx.pause(handle);
+            if paused {
+                self.ctx.set_pause_all(false);
+            } else {
+                self.ctx.set_pause_all(true);
+            }
+        }
     }
     pub fn stop(&mut self) {
         self.ctx.stop_all();

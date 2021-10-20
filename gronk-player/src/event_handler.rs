@@ -13,8 +13,7 @@ pub enum Event {
     Next,
     Previous,
     Volume(f32),
-    Play,
-    Pause,
+    TogglePlayback,
     Stop,
     Null,
 }
@@ -48,8 +47,7 @@ impl EventHandler {
             Event::Next => self.next(),
             Event::Previous => self.prev(),
             Event::Volume(v) => self.backend.set_volume(v),
-            Event::Play => self.backend.play(),
-            Event::Pause => self.backend.pause(),
+            Event::TogglePlayback => self.backend.toggle_playback(),
             Event::Stop => self.backend.stop(),
             Event::Null => (),
         }

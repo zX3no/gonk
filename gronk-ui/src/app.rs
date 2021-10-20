@@ -88,6 +88,7 @@ impl App {
             'q' => self.queue.prev(),
             'e' => self.queue.next(),
             'c' => self.queue.clear(),
+            ' ' => self.queue.pause(),
             _ => (),
         }
     }

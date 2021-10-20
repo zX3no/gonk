@@ -43,12 +43,6 @@ impl Player {
     pub fn previous(&self) {
         self.tx.send(Event::Previous).unwrap();
     }
-    pub fn play(&self) {
-        self.tx.send(Event::Play).unwrap();
-    }
-    pub fn pause(&self) {
-        self.tx.send(Event::Pause).unwrap();
-    }
     pub fn stop(&self) {
         self.tx.send(Event::Stop).unwrap();
     }
@@ -73,5 +67,8 @@ impl Player {
         let queue = self.queue.clone();
         let q = queue.read().unwrap().clone();
         q
+    }
+    pub fn toggle_playback(&self) {
+        self.tx.send(Event::TogglePlayback).unwrap();
     }
 }
