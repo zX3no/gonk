@@ -1,6 +1,6 @@
 use std::io::stdout;
 
-use crate::browser::Browser;
+use crate::{browser::Browser, queue::Queue};
 use crossterm::{
     event::EnableMouseCapture,
     execute,
@@ -18,7 +18,7 @@ pub enum Mode {
 pub struct App {
     pub mode: Mode,
     pub browser: Browser,
-    pub player: Player,
+    pub queue: Queue,
     pub query: String,
     pub seeker: String,
     pub seeker_ratio: u16,
@@ -32,7 +32,7 @@ impl App {
         Self {
             mode: Mode::Browser,
             browser: Browser::new(),
-            player: Player::new(),
+            queue: Queue::new(),
             query: String::new(),
             seeker: String::from("00:00/00:00"),
             seeker_ratio: 0,
@@ -55,6 +55,8 @@ impl App {
         if let Mode::Search = self.mode {
             self.mode = Mode::Browser;
             self.clear_query();
+        } else if let Some(song) = self.browser.get_song() {
+            self.queue.add(song.clone());
         } else {
             self.browser.next_mode();
         }
@@ -95,6 +97,7 @@ impl App {
         // }
         // self.browser.update();
 
-        self.seeker = self.player.get_seeker();
+        //todo broken
+        self.seeker = self.queue.get_seeker();
     }
 }

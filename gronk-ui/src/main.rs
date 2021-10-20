@@ -18,6 +18,7 @@ use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
 mod browser;
+mod queue;
 mod ui;
 
 enum Event {

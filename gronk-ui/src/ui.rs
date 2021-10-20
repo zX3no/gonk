@@ -116,7 +116,7 @@ where
     f.render_stateful_widget(list, chunks[0], app.browser.get_selection());
 }
 
-fn draw_queue<B>(f: &mut Frame<B>, _app: &mut App, area: Rect)
+fn draw_queue<B>(f: &mut Frame<B>, app: &mut App, area: Rect)
 where
     B: Backend,
 {
@@ -125,11 +125,8 @@ where
         .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
         .split(area);
 
-    let items = [
-        ListItem::new("Item 1"),
-        ListItem::new("Item 2"),
-        ListItem::new("Item 3"),
-    ];
+    let items = app.queue.get_list_items();
+
     let list = List::new(items)
         .block(Block::default().title("List").borders(Borders::ALL))
         .style(Style::default().fg(Color::White))

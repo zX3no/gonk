@@ -34,13 +34,13 @@ impl Browser {
     }
     //updates the albums or songs depending on what was selected
     pub fn update(&mut self) {
-        let database = self.database.clone();
         match self.mode {
             BrowserMode::Album => {
-                self.album.update(&database, &self.artist.get_selected());
+                self.album
+                    .update(&self.database, &self.artist.get_selected());
             }
             BrowserMode::Song => {
-                self.song.update(&database, &self.album.get_selected());
+                self.song.update(&self.database, &self.album.get_selected());
             }
             _ => (),
         }
@@ -67,6 +67,14 @@ impl Browser {
             BrowserMode::Song => (),
         }
         self.update();
+    }
+    pub fn get_song(&self) -> Option<&Song> {
+        if let BrowserMode::Song = self.mode {
+            let song = self.song.get_selected_data().unwrap();
+            let song = self.database.find_song(&song.name);
+            return song;
+        }
+        return None;
     }
     pub fn prev_mode(&mut self) {
         match self.mode {
@@ -110,7 +118,8 @@ pub struct List<T> {
     list: Vec<(String, T)>,
     state: ListState,
 }
-impl<T> List<T> {
+
+impl<T: Clone> List<T> {
     fn up(&mut self) {
         let len = self.list.len();
         if let Some(selected) = self.state.selected() {
@@ -131,6 +140,13 @@ impl<T> List<T> {
                 self.state.select(Some(selected + 1));
             }
         }
+    }
+
+    fn get_selected_data(&self) -> Option<T> {
+        if let Some(index) = self.state.selected() {
+            return Some(self.list.get(index).unwrap().1.clone());
+        }
+        None
     }
 
     fn get_selected(&self) -> String {

@@ -12,3 +12,4 @@ path = "src/lib.rs"
 
 [dependencies]
 soloud = "0.4.4"
+gronk-indexer = {path = "../gronk-indexer"}

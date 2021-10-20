@@ -6,30 +6,36 @@ use std::{
     thread,
 };
 
-use crate::event_handler::{song::Song, Event, EventHandler};
+use crate::event_handler::{Event, EventHandler};
+use gronk_indexer::database::Song;
 
 #[derive(Debug)]
 pub struct Player {
     tx: Sender<Event>,
     seeker: Arc<RwLock<String>>,
+    queue: Arc<RwLock<Vec<String>>>,
 }
 
 impl Player {
     pub fn new() -> Self {
         let (tx, rx) = channel();
         let seeker = Arc::new(RwLock::new(String::from("00:00")));
+        let queue = Arc::new(RwLock::new(Vec::new()));
 
         let s = seeker.clone();
+        let q = queue.clone();
+
         thread::spawn(move || {
             let mut h = EventHandler::new();
             let mut events = Event::Null;
             loop {
                 h.update(events);
                 *s.write().unwrap() = h.get_seeker();
+                *q.write().unwrap() = h.get_queue();
                 events = rx.recv().unwrap();
             }
         });
-        Self { tx, seeker }
+        Self { tx, seeker, queue }
     }
     pub fn next(&self) {
         self.tx.send(Event::Next).unwrap();
@@ -62,5 +68,10 @@ impl Player {
         let seeker = self.seeker.clone();
         let s = seeker.read().unwrap().clone();
         return s;
+    }
+    pub fn get_queue(&self) -> Vec<String> {
+        let queue = self.queue.clone();
+        let q = queue.read().unwrap().clone();
+        return q;
     }
 }

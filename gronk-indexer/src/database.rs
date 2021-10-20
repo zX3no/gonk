@@ -183,6 +183,8 @@ pub struct Song {
     //todo track length / not implemented into audiotags
     pub disc: u16,
     pub total_disc: u16,
+    pub duration: f64,
+    pub elapsed: Option<f64>,
 }
 
 impl Song {
@@ -218,6 +220,16 @@ impl Song {
             path,
             disc,
             total_disc,
+            duration: 0.0,
+            elapsed: None,
         }
+    }
+    pub fn update_elapsed(&mut self, elapsed: f64) {
+        self.elapsed = Some(elapsed);
+    }
+}
+impl PartialEq for Song {
+    fn eq(&self, other: &Song) -> bool {
+        self.name == other.name && self.path == other.path
     }
 }

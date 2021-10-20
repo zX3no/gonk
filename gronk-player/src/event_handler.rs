@@ -1,10 +1,9 @@
 use std::{thread, time::Duration};
 
 use backend::Backend;
-use song::Song;
+use gronk_indexer::database::Song;
 
 pub mod backend;
-pub mod song;
 
 #[derive(Debug)]
 pub enum Event {
@@ -72,7 +71,7 @@ impl EventHandler {
             now_playing.update_elapsed(backend.get_elapsed());
 
             //check if the song has finished
-            if let Some(elapsed) = now_playing.get_elapsed() {
+            if let Some(elapsed) = now_playing.elapsed {
                 if elapsed == 0.0 {
                     // *events = Event::Next;
                 }
@@ -82,7 +81,7 @@ impl EventHandler {
             if let Some(song) = queue.first() {
                 *now_playing = Some(song.clone());
                 *index = Some(0);
-                backend.play_file(song.get_path());
+                backend.play_file(&song.path);
             } else {
                 //Nothing to do...
             }
@@ -110,7 +109,7 @@ impl EventHandler {
                 }
             }
             let song = song.clone();
-            self.backend.play_file(song.get_path());
+            self.backend.play_file(&song.path);
         }
     }
     pub fn add(&mut self, song: Song) {
@@ -132,7 +131,7 @@ impl EventHandler {
     }
     pub fn get_elapsed(&self) -> String {
         if let Some(song) = &self.now_playing {
-            if let Some(elapsed) = song.get_elapsed() {
+            if let Some(elapsed) = song.elapsed {
                 let mins = elapsed / 60.0;
                 let rem = elapsed % 60.0;
                 return format!(
@@ -147,8 +146,8 @@ impl EventHandler {
     }
     pub fn get_duration(&self) -> String {
         if let Some(song) = &self.now_playing {
-            let mins = song.get_duration() / 60.0;
-            let rem = song.get_duration() % 60.0;
+            let mins = song.duration / 60.0;
+            let rem = song.duration % 60.0;
             return format!(
                 "{:0width$}:{:0width$}",
                 mins.trunc() as usize,
@@ -160,5 +159,8 @@ impl EventHandler {
     }
     pub fn get_volume(&self) -> String {
         self.volume.to_string()
+    }
+    pub fn get_queue(&self) -> Vec<String> {
+        self.queue.iter().map(|song| song.name.clone()).collect()
     }
 }
