@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, io::stdout};
+use std::io::stdout;
 
 use crate::{browser::Browser, queue::Queue};
 use crossterm::{
@@ -6,7 +6,6 @@ use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };
-use gronk_player::player::Player;
 
 pub enum Mode {
     Browser,

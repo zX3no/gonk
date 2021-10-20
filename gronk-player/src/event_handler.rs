@@ -96,7 +96,7 @@ impl EventHandler {
             if let Some(index) = index {
                 if let Some(next_song) = queue.get(*index + 1) {
                     *song = next_song.clone();
-                    *index = *index + 1;
+                    *index += 1;
                 } else if let Some(next_song) = queue.first() {
                     *song = next_song.clone();
                     *index = 0;
@@ -114,7 +114,7 @@ impl EventHandler {
                 if *index != 0 {
                     if let Some(next_song) = queue.get(*index - 1) {
                         *song = next_song.clone();
-                        *index = *index - 1;
+                        *index -= 1;
                     }
                 } else if let Some(next_song) = queue.last() {
                     *song = next_song.clone();

@@ -46,19 +46,19 @@ impl Browser {
         }
     }
     pub fn get_list_items(&self) -> Vec<ListItem<'static>> {
-        return match self.mode {
+        match self.mode {
             BrowserMode::Artist => self.artist.get_list(),
             BrowserMode::Album => self.album.get_list(),
             BrowserMode::Song => self.song.get_list(),
-        };
+        }
     }
 
     pub fn get_selection(&mut self) -> &mut ListState {
-        return match self.mode {
+        match self.mode {
             BrowserMode::Artist => &mut self.artist.state,
             BrowserMode::Album => &mut self.album.state,
             BrowserMode::Song => &mut self.song.state,
-        };
+        }
     }
     pub fn next_mode(&mut self) {
         match self.mode {
@@ -71,10 +71,10 @@ impl Browser {
     pub fn get_song(&self) -> Option<&Song> {
         if let BrowserMode::Song = self.mode {
             let song = self.song.get_selected_data().unwrap();
-            let song = self.database.find_song(&song.name);
-            return song;
+            self.database.find_song(&song.name)
+        } else {
+            None
         }
-        return None;
     }
     pub fn prev_mode(&mut self) {
         match self.mode {
@@ -84,11 +84,11 @@ impl Browser {
         }
     }
     pub fn title(&self) -> String {
-        return match self.mode {
+        match self.mode {
             BrowserMode::Artist => String::from("Artist"),
             BrowserMode::Album => String::from("Album"),
             BrowserMode::Song => String::from("Song"),
-        };
+        }
     }
 
     pub fn up(&mut self) {
@@ -106,10 +106,7 @@ impl Browser {
         };
     }
     pub fn is_song(&self) -> bool {
-        if let BrowserMode::Song = self.mode {
-            return true;
-        }
-        return false;
+        matches!(self.mode, BrowserMode::Song)
     }
 }
 
@@ -183,7 +180,7 @@ impl List<Artist> {
     }
 }
 impl List<Album> {
-    pub fn new(database: &Database, artist: &String) -> Self {
+    pub fn new(database: &Database, artist: &str) -> Self {
         let artist = database.find_artist(artist).unwrap();
 
         let mut list = Vec::new();
@@ -198,8 +195,8 @@ impl List<Album> {
 
         Self { list, state }
     }
-    pub fn update(&mut self, database: &Database, name: &String) {
-        let artist = database.find_artist(&name).unwrap();
+    pub fn update(&mut self, database: &Database, name: &str) {
+        let artist = database.find_artist(name).unwrap();
         let mut list: Vec<(String, Album)> = artist
             .albums
             .iter()
@@ -213,7 +210,7 @@ impl List<Album> {
     }
 }
 impl List<Song> {
-    pub fn new(database: &Database, album: &String) -> Self {
+    pub fn new(database: &Database, album: &str) -> Self {
         let album = database.find_album(album).unwrap();
 
         let mut list = Vec::new();
@@ -234,8 +231,8 @@ impl List<Song> {
 
         Self { list, state }
     }
-    pub fn update(&mut self, database: &Database, name: &String) {
-        let album = database.find_album(&name).unwrap();
+    pub fn update(&mut self, database: &Database, name: &str) {
+        let album = database.find_album(name).unwrap();
 
         let mut songs = album.songs.clone();
 

@@ -51,7 +51,7 @@ impl Database {
     }
 
     //~1.4s
-    pub fn create(path: &PathBuf) -> Self {
+    pub fn create(path: &Path) -> Self {
         let mut songs: HashMap<String, Song> = HashMap::new();
 
         for entry in WalkDir::new(path).into_iter().flatten() {
@@ -103,7 +103,7 @@ impl Database {
 
         Self {
             artists,
-            path: path.clone(),
+            path: path.to_path_buf(),
         }
     }
 
@@ -113,7 +113,7 @@ impl Database {
         for artist in &self.artists {
             albums.extend(&artist.albums);
         }
-        return albums;
+        albums
     }
 
     //~160us
@@ -123,7 +123,7 @@ impl Database {
         for album in albums {
             songs.extend(&album.songs);
         }
-        return songs;
+        songs
     }
 
     //~240us

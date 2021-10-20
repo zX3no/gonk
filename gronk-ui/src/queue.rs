@@ -18,7 +18,7 @@ impl Queue {
             .collect()
     }
     pub fn add(&mut self, song: Song) {
-        self.player.add(song.clone());
+        self.player.add(song);
     }
     pub fn get_queue(&self) -> Vec<String> {
         self.player.get_queue()

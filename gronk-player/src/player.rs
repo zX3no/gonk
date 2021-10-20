@@ -1,7 +1,7 @@
 use std::{
     sync::{
         mpsc::{channel, Sender},
-        Arc, Mutex, RwLock,
+        Arc, RwLock,
     },
     thread,
 };
@@ -67,11 +67,11 @@ impl Player {
     pub fn get_seeker(&self) -> String {
         let seeker = self.seeker.clone();
         let s = seeker.read().unwrap().clone();
-        return s;
+        s
     }
     pub fn get_queue(&self) -> Vec<String> {
         let queue = self.queue.clone();
         let q = queue.read().unwrap().clone();
-        return q;
+        q
     }
 }

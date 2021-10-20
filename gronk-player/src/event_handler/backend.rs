@@ -1,8 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::{mpsc::channel, Arc, Mutex, MutexGuard},
-    thread::JoinHandle,
-};
+use std::path::Path;
 
 use soloud::*;
 
@@ -21,7 +17,7 @@ impl Backend {
             wav: None,
         }
     }
-    pub fn play_file(&mut self, path: &PathBuf) {
+    pub fn play_file(&mut self, path: &Path) {
         self.stop();
         self.set_wav(path);
 
@@ -32,7 +28,7 @@ impl Backend {
         }
     }
 
-    pub fn set_wav(&mut self, path: &PathBuf) {
+    pub fn set_wav(&mut self, path: &Path) {
         let mut wav = audio::Wav::default();
         let bytes = std::fs::read(path).unwrap();
         // wav.load(path).unwrap();

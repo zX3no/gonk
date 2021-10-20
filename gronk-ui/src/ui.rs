@@ -64,7 +64,7 @@ where
                 .bg(Color::Black)
                 .add_modifier(Modifier::ITALIC),
         )
-        .percent(app.seeker_ratio.clone())
+        .percent(app.seeker_ratio)
         .label(app.seeker.clone());
 
     f.render_widget(gauge, chunks[1]);
