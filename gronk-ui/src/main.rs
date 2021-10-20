@@ -78,6 +78,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         )?;
                         terminal.show_cursor()?;
                         break;
+                    } else {
+                        app.on_key('c');
                     }
                 }
                 KeyCode::Up => app.on_up(),

@@ -32,4 +32,8 @@ impl Queue {
     pub fn prev(&self) {
         self.player.previous();
     }
+    pub fn clear(&self) {
+        self.player.clear_queue();
+        self.player.stop()
+    }
 }

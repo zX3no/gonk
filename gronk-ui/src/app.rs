@@ -88,6 +88,7 @@ impl App {
             'l' => self.on_select(),
             'q' => self.queue.prev(),
             'e' => self.queue.next(),
+            'c' => self.queue.clear(),
             _ => (),
         }
     }
