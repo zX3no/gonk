@@ -135,7 +135,8 @@ impl EventHandler {
         }
     }
     pub fn clear_queue(&mut self) {
-        self.queue.drain(..);
+        self.queue = Vec::new();
+        self.now_playing = None;
     }
     pub fn get_seeker(&self) -> String {
         format!("{}/{}", self.get_elapsed(), self.get_duration())
