@@ -50,14 +50,20 @@ impl App {
             _ => (),
         }
     }
-    pub fn on_select(&mut self) {
+    pub fn on_next(&mut self) {
         if let Mode::Search = self.mode {
             self.mode = Mode::Browser;
             self.clear_query();
-        } else if let Some(song) = self.browser.get_song() {
-            self.queue.add(song.clone());
         } else {
             self.browser.next_mode();
+        }
+    }
+    pub fn on_enter(&mut self) {
+        if let Mode::Search = self.mode {
+            self.mode = Mode::Browser;
+            self.clear_query();
+        } else {
+            self.queue.add(self.browser.get_songs());
         }
     }
     pub fn on_back(&mut self) {
@@ -84,7 +90,7 @@ impl App {
             'h' => self.on_back(),
             'j' => self.on_down(),
             'k' => self.on_up(),
-            'l' => self.on_select(),
+            'l' => self.on_next(),
             'q' => self.queue.prev(),
             'e' => self.queue.next(),
             'c' => self.queue.clear(),

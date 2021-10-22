@@ -93,7 +93,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         app.on_back();
                     }
                 }
-                KeyCode::Right | KeyCode::Enter => app.on_select(),
+                KeyCode::Right => app.on_next(),
+                KeyCode::Enter => app.on_enter(),
                 KeyCode::Esc => app.on_escape(),
                 KeyCode::Char(c) => app.on_key(c),
                 _ => {}

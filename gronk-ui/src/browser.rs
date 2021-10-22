@@ -68,12 +68,25 @@ impl Browser {
         }
         self.update();
     }
-    pub fn get_song(&self) -> Option<&Song> {
-        if let BrowserMode::Song = self.mode {
-            let song = self.song.get_selected_data().unwrap();
-            self.database.find_song(&song.name)
-        } else {
-            None
+    pub fn get_songs(&self) -> Vec<&Song> {
+        match self.mode {
+            BrowserMode::Artist => {
+                let artist = &self.artist.get_selected_data().unwrap();
+                let songs = Vec::new();
+                for album in &artist.albums {
+                    songs.extend(&album.songs);
+                }
+                songs
+            }
+            BrowserMode::Album => {
+                let songs = self.album.get_selected_data().unwrap().songs;
+                let s = Vec::new();
+                for song in songs {
+                    s.push(&song);
+                }
+                s
+            }
+            BrowserMode::Song => vec![&self.song.get_selected_data().unwrap()],
         }
     }
     pub fn prev_mode(&mut self) {

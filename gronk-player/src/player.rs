@@ -49,8 +49,8 @@ impl Player {
     pub fn volume(&self, v: f32) {
         self.tx.send(Event::Volume(v)).unwrap();
     }
-    pub fn add(&self, song: Song) {
-        self.tx.send(Event::Add(song)).unwrap();
+    pub fn add(&self, songs: Vec<Song>) {
+        self.tx.send(Event::Add(songs)).unwrap();
     }
     pub fn remove(&self, song: Song) {
         self.tx.send(Event::Remove(song)).unwrap();

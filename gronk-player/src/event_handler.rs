@@ -7,7 +7,7 @@ pub mod backend;
 
 #[derive(Debug)]
 pub enum Event {
-    Add(Song),
+    Add(Vec<Song>),
     Remove(Song),
     ClearQueue,
     Next,
@@ -41,7 +41,7 @@ impl EventHandler {
     }
     fn handle_events(&mut self, event: Event) {
         match event {
-            Event::Add(song) => self.add(song),
+            Event::Add(songs) => self.add(songs),
             Event::ClearQueue => self.clear_queue(),
             Event::Remove(song) => self.remove(song),
             Event::Next => self.next(),
@@ -123,8 +123,8 @@ impl EventHandler {
             self.backend.play_file(&song.path);
         }
     }
-    pub fn add(&mut self, song: Song) {
-        self.queue.push(song);
+    pub fn add(&mut self, songs: Vec<Song>) {
+        self.queue.extend(songs);
     }
     pub fn remove(&mut self, song: Song) {
         let queue = self.queue.clone();
