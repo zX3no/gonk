@@ -17,8 +17,8 @@ impl Queue {
             .map(|song| ListItem::new(song.clone()))
             .collect()
     }
-    pub fn add(&mut self, song: Song) {
-        self.player.add(song);
+    pub fn add(&mut self, songs: Vec<Song>) {
+        self.player.add(songs);
     }
     pub fn get_queue(&self) -> Vec<String> {
         self.player.get_queue()
