@@ -46,7 +46,7 @@ impl EventHandler {
             Event::Remove(song) => self.remove(song),
             Event::Next => self.next(),
             Event::Previous => self.prev(),
-            Event::Volume(v) => self.backend.set_volume(v),
+            Event::Volume(v) => self.set_volume(v),
             Event::TogglePlayback => self.backend.toggle_playback(),
             Event::Stop => self.backend.stop(),
             Event::Null => (),
@@ -170,6 +170,15 @@ impl EventHandler {
     }
     pub fn get_volume(&self) -> String {
         self.volume.to_string()
+    }
+    pub fn set_volume(&mut self, v: f32) {
+        self.volume += v;
+        if self.volume > 0.1 {
+            self.volume = 0.1;
+        } else if self.volume < 0.0 {
+            self.volume = 0.0;
+        }
+        self.backend.set_volume(self.volume);
     }
     pub fn get_queue(&self) -> Vec<String> {
         self.queue

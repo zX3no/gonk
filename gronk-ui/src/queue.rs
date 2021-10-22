@@ -39,4 +39,10 @@ impl Queue {
     pub fn pause(&self) {
         self.player.toggle_playback();
     }
+    pub fn volume_down(&self) {
+        self.player.volume(-0.005);
+    }
+    pub fn volume_up(&self) {
+        self.player.volume(0.005);
+    }
 }

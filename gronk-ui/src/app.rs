@@ -95,6 +95,8 @@ impl App {
             'e' => self.queue.next(),
             'c' => self.queue.clear(),
             ' ' => self.queue.pause(),
+            '-' => self.queue.volume_down(),
+            '=' => self.queue.volume_up(),
             _ => (),
         }
     }
