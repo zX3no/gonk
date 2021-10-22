@@ -76,11 +76,21 @@ impl Browser {
                 for album in &artist.albums {
                     songs.extend(album.songs.clone());
                 }
-                songs
+                Browser::sort(songs)
             }
-            BrowserMode::Album => self.album.get_selected_data().unwrap().songs,
+            BrowserMode::Album => Browser::sort(self.album.get_selected_data().unwrap().songs),
             BrowserMode::Song => vec![self.song.get_selected_data().unwrap()],
         }
+    }
+    fn sort(mut songs: Vec<Song>) -> Vec<Song> {
+        songs.sort_by(|a, b| {
+            a.album.cmp(&b.album).then(
+                a.disc
+                    .cmp(&b.disc)
+                    .then(a.track_number.cmp(&b.track_number)),
+            )
+        });
+        songs
     }
     pub fn prev_mode(&mut self) {
         match self.mode {
