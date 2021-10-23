@@ -130,7 +130,12 @@ where
     let list = List::new(items)
         .block(Block::default().title("List").borders(Borders::ALL))
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
-        .highlight_symbol(">>");
-    f.render_widget(list, chunks[1]);
+        .highlight_style(
+            Style::default()
+                .add_modifier(Modifier::ITALIC)
+                .bg(Color::White)
+                .fg(Color::Black),
+        )
+        .highlight_symbol("> ");
+    f.render_stateful_widget(list, chunks[1], app.queue.get_state());
 }

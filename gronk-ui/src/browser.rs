@@ -64,7 +64,7 @@ impl Browser {
         match self.mode {
             BrowserMode::Artist => self.mode = BrowserMode::Album,
             BrowserMode::Album => self.mode = BrowserMode::Song,
-            BrowserMode::Song => (),
+            BrowserMode::Song => return,
         }
         self.update();
     }

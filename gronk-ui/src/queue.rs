@@ -1,14 +1,18 @@
 use gronk_indexer::database::Song;
 use gronk_player::player::Player;
-use tui::widgets::ListItem;
+use tui::widgets::{ListItem, ListState};
 
 pub struct Queue {
     player: Player,
+    state: ListState,
 }
 impl Queue {
     pub fn new() -> Self {
+        let mut state = ListState::default();
+        state.select(Some(0));
         Self {
             player: Player::new(),
+            state,
         }
     }
     pub fn get_list_items(&self) -> Vec<ListItem<'static>> {
@@ -16,6 +20,10 @@ impl Queue {
             .iter()
             .map(|song| ListItem::new(song.clone()))
             .collect()
+    }
+    pub fn get_state(&mut self) -> &mut ListState {
+        //todo store the state in the queue
+        &mut self.state
     }
     pub fn add(&mut self, songs: Vec<Song>) {
         self.player.add(songs);
