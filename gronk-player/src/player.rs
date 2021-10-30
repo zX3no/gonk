@@ -4,24 +4,14 @@ use std::{
         Arc, RwLock,
     },
     thread,
+    time::Duration,
 };
 
-use crate::event_handler::{Event, EventHandler};
+use crate::{
+    event_handler::{Event, EventHandler},
+    queue::Queue,
+};
 use gronk_indexer::database::Song;
-
-#[derive(Debug, Clone)]
-pub struct Queue {
-    pub songs: Vec<String>,
-    pub state: Option<usize>,
-}
-impl Queue {
-    pub fn new() -> Self {
-        Self {
-            songs: Vec::new(),
-            state: None,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Player {
@@ -46,7 +36,12 @@ impl Player {
                 h.update(events);
                 *s.write().unwrap() = h.get_seeker();
                 *q.write().unwrap() = h.get_queue();
-                events = rx.recv().unwrap();
+                if let Ok(e) = rx.try_recv() {
+                    events = e;
+                } else {
+                    events = Event::Null;
+                }
+                thread::sleep(Duration::from_millis(10));
             }
         });
         Self { tx, seeker, queue }

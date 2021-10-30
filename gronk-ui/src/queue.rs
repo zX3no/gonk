@@ -21,9 +21,15 @@ impl Queue {
             .map(|song| ListItem::new(song.clone()))
             .collect()
     }
+    pub fn now_playing(&self) -> String {
+        if let Some(song) = self.player.get_queue().now_playing {
+            return song.name_with_number;
+        }
+        String::new()
+    }
     pub fn get_state(&mut self) -> &mut ListState {
-        let selection = self.player.get_queue().state;
-        self.state.select(selection);
+        let selection = self.player.get_queue();
+        self.state.select(selection.index);
 
         &mut self.state
     }
@@ -31,7 +37,12 @@ impl Queue {
         self.player.add(songs);
     }
     pub fn get_queue(&self) -> Vec<String> {
-        self.player.get_queue().songs
+        self.player
+            .get_queue()
+            .songs
+            .iter()
+            .map(|song| song.name_with_number.clone())
+            .collect()
     }
     pub fn get_seeker(&self) -> String {
         self.player.get_seeker()

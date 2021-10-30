@@ -2,7 +2,6 @@ use std::io::stdout;
 
 use crate::{browser::Browser, queue::Queue};
 use crossterm::{
-    event::EnableMouseCapture,
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };

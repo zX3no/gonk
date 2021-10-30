@@ -57,7 +57,7 @@ where
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("20 - Example Track"),
+                .title(app.queue.now_playing()),
         )
         .gauge_style(
             Style::default()

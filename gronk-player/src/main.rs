@@ -5,6 +5,7 @@ use std::{panic, process};
 
 mod event_handler;
 mod player;
+mod queue;
 
 fn main() {
     let orig_hook = panic::take_hook();
@@ -15,9 +16,9 @@ fn main() {
 
     let player = Player::new();
 
-    player.next();
-    player.next();
-    dbg!(player.get_seeker());
+    // player.next();
+    // player.next();
+    // dbg!(player.get_seeker());
 
     thread::park();
 }
