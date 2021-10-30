@@ -68,7 +68,7 @@ impl EventHandler {
             //check if the song has finished
             if let Some(elapsed) = now_playing.elapsed {
                 if elapsed == 0.0 {
-                    // *events = Event::Next;
+                    self.next();
                 }
             }
         } else {

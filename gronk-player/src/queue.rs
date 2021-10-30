@@ -18,7 +18,10 @@ impl Queue {
     }
     pub fn test() -> Self {
         Self {
-            songs: vec![Song::from(PathBuf::from("music/2.flac"))],
+            songs: vec![
+                Song::from(PathBuf::from("music/a.wav")),
+                Song::from(PathBuf::from("music/b.wav")),
+            ],
             now_playing: None,
             index: None,
         }

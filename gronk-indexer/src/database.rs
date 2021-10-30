@@ -190,43 +190,60 @@ pub struct Song {
 impl Song {
     pub fn from(path: PathBuf) -> Self {
         //this is slow
-        let tag = Tag::new().read_from_path(&path).unwrap();
+        if let Ok(tag) = Tag::new().read_from_path(&path) {
+            let album_artist = if let Some(artist) = tag.album_artist() {
+                artist.to_string()
+            } else if let Some(artist) = tag.artist() {
+                artist.to_string()
+            } else {
+                panic!("no artist for {:?}", path);
+            };
 
-        let album_artist = if let Some(artist) = tag.album_artist() {
-            artist.to_string()
-        } else if let Some(artist) = tag.artist() {
-            artist.to_string()
+            let total_disc = tag.total_discs().unwrap_or(1);
+            let disc = tag.disc_number().unwrap_or(1);
+
+            let track_number = tag.track_number().unwrap();
+            let name = tag.title().unwrap().to_string();
+
+            let name_with_number = format!("{}. {}", track_number.to_string(), name);
+
+            let year = tag.year().unwrap_or(0);
+
+            Song {
+                name,
+                name_with_number,
+                track_number,
+                album: tag.album_title().unwrap().to_string(),
+                album_artist,
+                year,
+                path,
+                disc,
+                total_disc,
+                duration: 0.0,
+                elapsed: None,
+            }
         } else {
-            panic!("no artist for {:?}", path);
-        };
-
-        let total_disc = tag.total_discs().unwrap_or(1);
-        let disc = tag.disc_number().unwrap_or(1);
-
-        let track_number = tag.track_number().unwrap();
-        let name = tag.title().unwrap().to_string();
-
-        let name_with_number = format!("{}. {}", track_number.to_string(), name);
-
-        let year = tag.year().unwrap_or(0);
-
-        Song {
-            name,
-            name_with_number,
-            track_number,
-            album: tag.album_title().unwrap().to_string(),
-            album_artist,
-            year,
-            path,
-            disc,
-            total_disc,
-            duration: 0.0,
-            elapsed: None,
+            Song::default(path)
         }
     }
     pub fn update(&mut self, elapsed: f64, duration: f64) {
         self.elapsed = Some(elapsed);
         self.duration = duration;
+    }
+    fn default(path: PathBuf) -> Self {
+        Song {
+            name: String::new(),
+            name_with_number: String::new(),
+            track_number: 1,
+            album: String::new(),
+            album_artist: String::new(),
+            year: 0,
+            path,
+            disc: 0,
+            total_disc: 0,
+            duration: 0.0,
+            elapsed: None,
+        }
     }
 }
 impl PartialEq for Song {
