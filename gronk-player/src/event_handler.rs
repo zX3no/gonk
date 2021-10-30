@@ -63,14 +63,10 @@ impl EventHandler {
         //check if anything is playing
         if let Some(now_playing) = &mut queue.now_playing {
             //update the time elapsed
-            if backend.get_duration() == 0.0 {
-                now_playing.update(backend.get_duration(), backend.get_duration());
-
-                if backend.get_duration() == 0.0 {
-                    self.next();
-                }
+            if backend.is_playing() {
+                now_playing.update(backend.get_elapsed(), backend.get_duration());
             } else {
-                now_playing.update(backend.get_duration(), backend.get_duration());
+                self.next();
             }
         } else {
             //add the first song to the queue

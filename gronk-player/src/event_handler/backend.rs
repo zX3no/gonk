@@ -64,4 +64,10 @@ impl Backend {
         }
         0.0
     }
+    pub fn is_playing(&self) -> bool {
+        if let Some(handle) = self.handle {
+            return self.ctx.is_valid_voice_handle(handle);
+        }
+        false
+    }
 }
