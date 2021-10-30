@@ -19,31 +19,26 @@ impl Queue {
     pub fn test() -> Self {
         Self {
             songs: vec![
-                Song::from(PathBuf::from("music/a.wav")),
-                Song::from(PathBuf::from("music/b.wav")),
+                Song::from(PathBuf::from("music/2.flac")),
+                Song::from(PathBuf::from("music/3.flac")),
             ],
             now_playing: None,
-            index: None,
+            index: Some(0),
         }
     }
     pub fn next_song(&mut self) -> Option<PathBuf> {
-        let (now_playing, index, songs) = (&mut self.now_playing, &mut self.index, &self.songs);
-
-        if let Some(song) = now_playing {
-            if let Some(index) = index {
-                if let Some(next_song) = songs.get(*index + 1) {
-                    *song = next_song.clone();
+        if self.now_playing.is_some() {
+            if let Some(index) = &mut self.index {
+                if let Some(next_song) = self.songs.get(*index + 1) {
                     *index += 1;
-                } else if let Some(next_song) = songs.first() {
-                    *song = next_song.clone();
+                    return Some(next_song.path.clone());
+                } else if let Some(next_song) = self.songs.first() {
                     *index = 0;
+                    return Some(next_song.path.clone());
                 }
             }
-            let song = song.clone();
-            Some(song.path)
-        } else {
-            None
         }
+        None
     }
     pub fn prev_song(&mut self) -> Option<PathBuf> {
         let (now_playing, index, queue) = (&mut self.now_playing, &mut self.index, &self.songs);

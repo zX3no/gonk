@@ -31,16 +31,12 @@ impl Player {
 
         thread::spawn(move || {
             let mut h = EventHandler::new();
-            let mut events = Event::Null;
+            let mut events;
             loop {
-                h.update(events);
                 *s.write().unwrap() = h.get_seeker();
                 *q.write().unwrap() = h.get_queue();
-                if let Ok(e) = rx.try_recv() {
-                    events = e;
-                } else {
-                    events = Event::Null;
-                }
+                events = rx.try_recv().unwrap_or(Event::Null);
+                h.update(events);
                 thread::sleep(Duration::from_millis(10));
             }
         });

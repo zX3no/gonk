@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use player::Player;
 use std::thread;
+use std::time::Duration;
 use std::{panic, process};
 
 mod event_handler;
@@ -16,7 +17,7 @@ fn main() {
 
     let player = Player::new();
 
-    // player.next();
+    player.next();
     // player.next();
     // dbg!(player.get_seeker());
 
