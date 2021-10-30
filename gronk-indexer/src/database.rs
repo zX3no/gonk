@@ -223,27 +223,25 @@ impl Song {
                 elapsed: None,
             }
         } else {
-            Song::default(path)
+            Song {
+                name: String::new(),
+                name_with_number: String::new(),
+                track_number: 1,
+                album: String::new(),
+                album_artist: String::new(),
+                year: 0,
+                path,
+                disc: 0,
+                total_disc: 0,
+                duration: 0.0,
+                elapsed: None,
+            }
         }
     }
+
     pub fn update(&mut self, elapsed: f64, duration: f64) {
         self.elapsed = Some(elapsed);
         self.duration = duration;
-    }
-    fn default(path: PathBuf) -> Self {
-        Song {
-            name: String::new(),
-            name_with_number: String::new(),
-            track_number: 1,
-            album: String::new(),
-            album_artist: String::new(),
-            year: 0,
-            path,
-            disc: 0,
-            total_disc: 0,
-            duration: 0.0,
-            elapsed: None,
-        }
     }
 }
 impl PartialEq for Song {
