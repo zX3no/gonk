@@ -16,6 +16,13 @@ impl Queue {
             index: None,
         }
     }
+    pub fn test() -> Self {
+        Self {
+            songs: vec![Song::from(PathBuf::from("music/2.flac"))],
+            now_playing: None,
+            index: None,
+        }
+    }
     pub fn next_song(&mut self) -> Option<PathBuf> {
         let (now_playing, index, songs) = (&mut self.now_playing, &mut self.index, &self.songs);
 

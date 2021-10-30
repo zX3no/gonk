@@ -224,8 +224,9 @@ impl Song {
             elapsed: None,
         }
     }
-    pub fn update_elapsed(&mut self, elapsed: f64) {
+    pub fn update(&mut self, elapsed: f64, duration: f64) {
         self.elapsed = Some(elapsed);
+        self.duration = duration;
     }
 }
 impl PartialEq for Song {

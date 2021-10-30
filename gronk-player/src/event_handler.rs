@@ -33,7 +33,7 @@ impl EventHandler {
         backend.set_volume(volume);
         Self {
             queue: Queue::new(),
-            // queue: vec![Song::from(PathBuf::from("music/2.flac"))],
+            // queue: Queue::test(),
             volume,
             backend,
         }
@@ -63,7 +63,7 @@ impl EventHandler {
         //check if anything is playing
         if let Some(now_playing) = &mut queue.now_playing {
             //update the time elapsed
-            now_playing.update_elapsed(backend.get_elapsed());
+            now_playing.update(backend.get_elapsed(), backend.get_duration());
 
             //check if the song has finished
             if let Some(elapsed) = now_playing.elapsed {
