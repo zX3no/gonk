@@ -25,7 +25,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
+        execute!(stdout(), EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
 
         Self {
