@@ -3,6 +3,8 @@ use std::{thread, time::Duration};
 use backend::Backend;
 use gronk_indexer::database::Song;
 
+use crate::player::Queue;
+
 pub mod backend;
 
 #[derive(Debug)]
@@ -181,10 +183,16 @@ impl EventHandler {
         }
         self.backend.set_volume(self.volume);
     }
-    pub fn get_queue(&self) -> Vec<String> {
-        self.queue
+    pub fn get_queue(&self) -> Queue {
+        let songs = self
+            .queue
             .iter()
             .map(|song| song.name_with_number.clone())
-            .collect()
+            .collect();
+
+        Queue {
+            songs,
+            state: self.index,
+        }
     }
 }

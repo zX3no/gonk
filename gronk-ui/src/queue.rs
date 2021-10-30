@@ -22,14 +22,16 @@ impl Queue {
             .collect()
     }
     pub fn get_state(&mut self) -> &mut ListState {
-        //todo store the state in the queue
+        let selection = self.player.get_queue().state;
+        self.state.select(selection);
+
         &mut self.state
     }
     pub fn add(&mut self, songs: Vec<Song>) {
         self.player.add(songs);
     }
     pub fn get_queue(&self) -> Vec<String> {
-        self.player.get_queue()
+        self.player.get_queue().songs
     }
     pub fn get_seeker(&self) -> String {
         self.player.get_seeker()

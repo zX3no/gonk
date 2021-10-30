@@ -14,7 +14,7 @@ use tui::{
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
-        .constraints([Constraint::Percentage(95), Constraint::Percentage(10)].as_ref())
+        .constraints([Constraint::Percentage(95), Constraint::Percentage(5)].as_ref())
         .split(f.size());
 
     let browser_chunks = match app.mode {
