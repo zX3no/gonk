@@ -60,26 +60,34 @@ impl App {
     pub fn on_enter(&mut self) {
         if let Mode::Search = self.mode {
             self.mode = Mode::Browser;
-            self.clear_query();
-        } else {
+        } else if self.browser.is_song() {
             self.queue.add(self.browser.get_songs());
+        } else {
+            self.clear_query();
         }
     }
     pub fn on_back(&mut self) {
         if let Mode::Search = self.mode {
             self.query.pop();
+            self.browser.refresh();
+            self.browser.search(&self.query);
         }
+        self.clear_query();
         self.browser.prev_mode();
     }
     pub fn clear_query(&mut self) {
         self.query = String::new();
+        self.browser.refresh();
     }
     pub fn on_escape(&mut self) {
         self.mode = Mode::Browser;
+        self.browser.refresh();
+        self.query = String::new();
     }
     pub fn on_key(&mut self, c: char) {
         if let Mode::Search = self.mode {
             self.query.push(c);
+            self.browser.search(&self.query);
             return;
         }
         match c {

@@ -23,15 +23,6 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             .constraints([Constraint::Ratio(1, 1)].as_ref())
             .split(f.size()),
     };
-    // let block = Block::default()
-    //     .title("Block")
-    //     .borders(Borders::ALL)
-    //     .border_style(Style::default().fg(Color::White))
-    //     .border_type(BorderType::Rounded)
-    //     .style(Style::default());
-
-    // f.render_widget(block.clone(), chunks[0]);
-    // f.render_widget(block.clone(), chunks[1]);
 
     draw_browser(f, app, browser_chunks[0]);
     draw_queue(f, app, chunks[0]);
@@ -50,7 +41,7 @@ where
 {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
+        .constraints([Constraint::Ratio(1, 4), Constraint::Ratio(1, 2)])
         .split(area);
 
     let gauge = Gauge::default()
@@ -79,7 +70,7 @@ where
 {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
+        .constraints([Constraint::Ratio(1, 4), Constraint::Ratio(1, 2)])
         .split(area);
 
     let text = Spans::from(Span::styled(
@@ -101,7 +92,7 @@ where
 {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
+        .constraints([Constraint::Ratio(1, 4), Constraint::Ratio(1, 2)])
         .split(area);
 
     let items = app.browser.get_list_items();
@@ -125,7 +116,7 @@ where
 {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 6), Constraint::Ratio(1, 2)])
+        .constraints([Constraint::Ratio(1, 4), Constraint::Ratio(1, 2)])
         .split(area);
 
     let items = app.queue.get_list_items();

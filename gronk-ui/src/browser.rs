@@ -32,7 +32,11 @@ impl Browser {
             database,
         }
     }
-    //updates the albums or songs depending on what was selected
+    pub fn refresh(&mut self) {
+        self.artist.refresh(&self.database);
+        // BrowserMode::Album => self.album = List::<Album>::new(&self.database, &self.artist),
+        // BrowserMode::Song => self.song = List::<Song>::new(&self.database, &self.album),
+    }
     pub fn update(&mut self) {
         match self.mode {
             BrowserMode::Album => {
@@ -44,6 +48,13 @@ impl Browser {
             }
             _ => (),
         }
+    }
+    pub fn search(&mut self, query: &String) {
+        match self.mode {
+            BrowserMode::Artist => self.artist.filter(query),
+            BrowserMode::Album => self.album.filter(query),
+            BrowserMode::Song => self.song.filter(query),
+        };
     }
     pub fn get_list_items(&self) -> Vec<ListItem<'static>> {
         match self.mode {
@@ -106,7 +117,13 @@ impl Browser {
             BrowserMode::Song => String::from("Song"),
         }
     }
-
+    // pub fn get(&mut self) -> &mut List<T> {
+    //     match self.mode {
+    //         BrowserMode::Artist => &mut self.artist,
+    //         BrowserMode::Album => self.album,
+    //         BrowserMode::Song => self.song,
+    //     }
+    // }
     pub fn up(&mut self) {
         match self.mode {
             BrowserMode::Artist => self.artist.up(),
@@ -179,6 +196,21 @@ impl<T: Clone> List<T> {
     fn first(&self) -> &String {
         &self.list.first().unwrap().0
     }
+
+    pub fn filter(&mut self, query: &String) {
+        self.list = self
+            .list
+            .iter()
+            .filter(|(name, _)| name.to_lowercase().contains(query))
+            .cloned()
+            .collect();
+
+        if self.list.is_empty() {
+            self.state.select(None);
+        } else {
+            self.state.select(Some(0));
+        }
+    }
 }
 impl List<Artist> {
     pub fn new(database: &Database) -> Self {
@@ -193,6 +225,20 @@ impl List<Artist> {
         state.select(Some(0));
 
         Self { list, state }
+    }
+    pub fn refresh(&mut self, database: &Database) {
+        if let Some(index) = self.state.selected() {
+            let name = self.list.get(index).unwrap().0.clone();
+            *self = Self::new(database);
+
+            for (i, item) in self.list.iter().enumerate() {
+                if item.0 == name {
+                    self.state.select(Some(i));
+                }
+            }
+        } else {
+            *self = Self::new(database);
+        }
     }
 }
 impl List<Album> {
