@@ -64,7 +64,10 @@ impl EventHandler {
         if let Some(now_playing) = &mut queue.now_playing {
             //update the time elapsed
             if backend.is_playing() {
-                now_playing.update(backend.get_elapsed(), backend.get_duration());
+                let elapsed = backend.get_elapsed();
+                let duration = backend.get_duration();
+                now_playing.update(elapsed, duration);
+                queue.percent = ((elapsed / duration * 100.0) as u16).clamp(0, 100);
             } else {
                 self.next();
             }

@@ -7,6 +7,7 @@ pub struct Queue {
     pub songs: Vec<Song>,
     pub now_playing: Option<Song>,
     pub index: Option<usize>,
+    pub percent: u16,
 }
 impl Queue {
     pub fn new() -> Self {
@@ -14,6 +15,7 @@ impl Queue {
             songs: Vec::new(),
             now_playing: None,
             index: None,
+            percent: 0,
         }
     }
     pub fn test() -> Self {
@@ -24,6 +26,7 @@ impl Queue {
             ],
             now_playing: None,
             index: Some(0),
+            percent: 0,
         }
     }
     pub fn next_song(&mut self) -> Option<PathBuf> {

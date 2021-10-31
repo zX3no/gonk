@@ -109,5 +109,6 @@ impl App {
 
         //todo broken
         self.seeker = self.queue.get_seeker();
+        self.seeker_ratio = self.queue.get_ratio();
     }
 }

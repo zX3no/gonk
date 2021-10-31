@@ -33,6 +33,9 @@ impl Queue {
 
         &mut self.state
     }
+    pub fn get_ratio(&self) -> u16 {
+        self.player.get_queue().percent
+    }
     pub fn add(&mut self, songs: Vec<Song>) {
         self.player.add(songs);
     }
