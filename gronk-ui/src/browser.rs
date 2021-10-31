@@ -34,6 +34,10 @@ impl Browser {
     }
     pub fn refresh(&mut self) {
         self.artist.refresh(&self.database);
+        self.album.refresh(
+            &self.database,
+            &self.artist.get_selected_data().unwrap().name,
+        );
         // BrowserMode::Album => self.album = List::<Album>::new(&self.database, &self.artist),
         // BrowserMode::Song => self.song = List::<Song>::new(&self.database, &self.album),
     }
@@ -117,13 +121,7 @@ impl Browser {
             BrowserMode::Song => String::from("Song"),
         }
     }
-    // pub fn get(&mut self) -> &mut List<T> {
-    //     match self.mode {
-    //         BrowserMode::Artist => &mut self.artist,
-    //         BrowserMode::Album => self.album,
-    //         BrowserMode::Song => self.song,
-    //     }
-    // }
+
     pub fn up(&mut self) {
         match self.mode {
             BrowserMode::Artist => self.artist.up(),
@@ -257,6 +255,20 @@ impl List<Album> {
 
         Self { list, state }
     }
+    pub fn refresh(&mut self, database: &Database, artist: &str) {
+        if let Some(index) = self.state.selected() {
+            let name = self.list.get(index).unwrap().0.clone();
+            *self = Self::new(database, artist);
+
+            for (i, item) in self.list.iter().enumerate() {
+                if item.0 == name {
+                    self.state.select(Some(i));
+                }
+            }
+        } else {
+            *self = Self::new(database, artist);
+        }
+    }
     pub fn update(&mut self, database: &Database, name: &str) {
         let artist = database.find_artist(name).unwrap();
         let mut list: Vec<(String, Album)> = artist
@@ -294,22 +306,22 @@ impl List<Song> {
         Self { list, state }
     }
     pub fn update(&mut self, database: &Database, name: &str) {
-        let album = database.find_album(name).unwrap();
+        if let Some(album) = database.find_album(name) {
+            let mut songs = album.songs.clone();
 
-        let mut songs = album.songs.clone();
+            songs.sort_by(|a, b| {
+                a.disc
+                    .cmp(&b.disc)
+                    .then(a.track_number.cmp(&b.track_number))
+            });
 
-        songs.sort_by(|a, b| {
-            a.disc
-                .cmp(&b.disc)
-                .then(a.track_number.cmp(&b.track_number))
-        });
+            let list = songs
+                .iter()
+                .map(|song| (song.name_with_number.clone(), song.clone()))
+                .collect();
 
-        let list = songs
-            .iter()
-            .map(|song| (song.name_with_number.clone(), song.clone()))
-            .collect();
-
-        self.state.select(Some(0));
-        self.list = list;
+            self.state.select(Some(0));
+            self.list = list;
+        }
     }
 }
