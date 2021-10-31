@@ -38,8 +38,10 @@ impl Browser {
             &self.database,
             &self.artist.get_selected_data().unwrap().name,
         );
-        // BrowserMode::Album => self.album = List::<Album>::new(&self.database, &self.artist),
-        // BrowserMode::Song => self.song = List::<Song>::new(&self.database, &self.album),
+        self.song.refresh(
+            &self.database,
+            &self.album.get_selected_data().unwrap().name,
+        );
     }
     pub fn update(&mut self) {
         match self.mode {
@@ -283,6 +285,7 @@ impl List<Album> {
         self.list = list;
     }
 }
+
 impl List<Song> {
     pub fn new(database: &Database, album: &str) -> Self {
         let album = database.find_album(album).unwrap();
@@ -305,6 +308,22 @@ impl List<Song> {
 
         Self { list, state }
     }
+
+    pub fn refresh(&mut self, database: &Database, album: &str) {
+        if let Some(index) = self.state.selected() {
+            let name = self.list.get(index).unwrap().0.clone();
+            *self = Self::new(database, album);
+
+            for (i, item) in self.list.iter().enumerate() {
+                if item.0 == name {
+                    self.state.select(Some(i));
+                }
+            }
+        } else {
+            *self = Self::new(database, album);
+        }
+    }
+
     pub fn update(&mut self, database: &Database, name: &str) {
         if let Some(album) = database.find_album(name) {
             let mut songs = album.songs.clone();
