@@ -32,6 +32,7 @@ impl Browser {
             database,
         }
     }
+
     pub fn refresh(&mut self) {
         self.artist.refresh(&self.database);
         self.album.refresh(
@@ -43,6 +44,7 @@ impl Browser {
             &self.album.get_selected_data().unwrap().name,
         );
     }
+
     pub fn update(&mut self) {
         match self.mode {
             BrowserMode::Album => {
@@ -55,6 +57,7 @@ impl Browser {
             _ => (),
         }
     }
+
     pub fn search(&mut self, query: &String) {
         match self.mode {
             BrowserMode::Artist => self.artist.filter(query),
@@ -62,6 +65,7 @@ impl Browser {
             BrowserMode::Song => self.song.filter(query),
         };
     }
+
     pub fn get_list_items(&self) -> Vec<ListItem<'static>> {
         match self.mode {
             BrowserMode::Artist => self.artist.get_list(),
@@ -77,6 +81,7 @@ impl Browser {
             BrowserMode::Song => &mut self.song.state,
         }
     }
+
     pub fn next_mode(&mut self) {
         match self.mode {
             BrowserMode::Artist => self.mode = BrowserMode::Album,
@@ -85,6 +90,7 @@ impl Browser {
         }
         self.update();
     }
+
     pub fn get_songs(&self) -> Vec<Song> {
         match self.mode {
             BrowserMode::Artist => {
@@ -99,6 +105,7 @@ impl Browser {
             BrowserMode::Song => vec![self.song.get_selected_data().unwrap()],
         }
     }
+
     fn sort(mut songs: Vec<Song>) -> Vec<Song> {
         songs.sort_by(|a, b| {
             a.album.cmp(&b.album).then(
@@ -109,6 +116,7 @@ impl Browser {
         });
         songs
     }
+
     pub fn prev_mode(&mut self) {
         match self.mode {
             BrowserMode::Artist => (),
@@ -116,6 +124,7 @@ impl Browser {
             BrowserMode::Song => self.mode = BrowserMode::Album,
         }
     }
+
     pub fn title(&self) -> String {
         match self.mode {
             BrowserMode::Artist => String::from("Artist"),
@@ -131,6 +140,7 @@ impl Browser {
             BrowserMode::Song => self.song.up(),
         };
     }
+
     pub fn down(&mut self) {
         match self.mode {
             BrowserMode::Artist => self.artist.down(),
@@ -138,6 +148,7 @@ impl Browser {
             BrowserMode::Song => self.song.down(),
         };
     }
+
     pub fn is_song(&self) -> bool {
         matches!(self.mode, BrowserMode::Song)
     }
@@ -197,7 +208,7 @@ impl<T: Clone> List<T> {
         &self.list.first().unwrap().0
     }
 
-    pub fn filter(&mut self, query: &String) {
+    pub fn filter(&mut self, query: &str) {
         self.list = self
             .list
             .iter()
@@ -226,6 +237,7 @@ impl List<Artist> {
 
         Self { list, state }
     }
+
     pub fn refresh(&mut self, database: &Database) {
         if let Some(index) = self.state.selected() {
             let name = self.list.get(index).unwrap().0.clone();
@@ -257,6 +269,7 @@ impl List<Album> {
 
         Self { list, state }
     }
+
     pub fn refresh(&mut self, database: &Database, artist: &str) {
         if let Some(index) = self.state.selected() {
             let name = self.list.get(index).unwrap().0.clone();
@@ -271,6 +284,7 @@ impl List<Album> {
             *self = Self::new(database, artist);
         }
     }
+
     pub fn update(&mut self, database: &Database, name: &str) {
         let artist = database.find_artist(name).unwrap();
         let mut list: Vec<(String, Album)> = artist

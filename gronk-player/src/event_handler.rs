@@ -1,5 +1,3 @@
-use std::{path::PathBuf, thread, time::Duration};
-
 use backend::Backend;
 use gronk_indexer::database::Song;
 

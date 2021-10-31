@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use player::Player;
 use std::thread;
-use std::time::Duration;
 use std::{panic, process};
 
 mod event_handler;

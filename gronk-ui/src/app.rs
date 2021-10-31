@@ -36,7 +36,6 @@ impl App {
             seeker_ratio: 0,
         }
     }
-    pub fn run() {}
     pub fn on_up(&mut self) {
         match self.mode {
             Mode::Browser => self.browser.up(),
