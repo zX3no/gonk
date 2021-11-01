@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use tui::backend::Backend;
 use tui::layout::*;
 use tui::style::*;
@@ -74,16 +72,16 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let no_state = ListState::default();
 
-    match app.mode {
-        crate::app::Mode::Artist => {
+    match app.browser_mode {
+        crate::app::BrowserMode::Artist => {
             album_state = no_state.clone();
             song_state = no_state;
         }
-        crate::app::Mode::Album => {
+        crate::app::BrowserMode::Album => {
             artist_state = no_state.clone();
             song_state = no_state;
         }
-        crate::app::Mode::Song => {
+        crate::app::BrowserMode::Song => {
             artist_state = no_state.clone();
             album_state = no_state;
         }

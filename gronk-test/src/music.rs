@@ -1,3 +1,6 @@
+use std::path::Path;
+
+use gronk_indexer::database::*;
 #[derive(Clone, Debug)]
 pub struct Music {
     artists: Vec<Artist>,
@@ -6,56 +9,63 @@ pub struct Music {
 
 impl Music {
     pub fn new() -> Self {
-        let track_1 = Song {
-            name: String::from("Panic Emoji"),
-        };
-        let track_2 = Song {
-            name: String::from("Dayum"),
-        };
-        let track_3 = Song {
-            name: String::from("Among us"),
-        };
-        let track_4 = Song {
-            name: String::from("sus"),
-        };
-        let veteran = Album {
-            name: String::from("Veteren"),
-            songs: vec![track_1.clone(), track_2.clone()],
-            selected_song: track_1.clone(),
-        };
-        let lp = Album {
-            name: String::from("LP!"),
-            songs: vec![track_3.clone(), track_4.clone()],
-            selected_song: track_3.clone(),
-        };
-        let jpegmafia = Artist {
-            name: String::from("JPEGMAFIA"),
-            albums: vec![veteran.clone(), lp.clone()],
-            selected_album: veteran,
-        };
-
-        let track_1 = Song {
-            name: String::from("Something Fossil"),
-        };
-        let track_2 = Song {
-            name: String::from("Neo"),
-        };
-        let neowax = Album {
-            name: String::from("NeoWax"),
-            songs: vec![track_1.clone(), track_2.clone()],
-            selected_song: track_1.clone(),
-        };
-        let iglooghost = Artist {
-            name: String::from("Iglooghost"),
-            albums: vec![neowax.clone()],
-            selected_album: neowax,
-        };
-
+        let database = Database::create(Path::new("D:/OneDrive/Music"));
         Self {
-            artists: vec![jpegmafia.clone(), iglooghost.clone()],
-            selected_artist: jpegmafia,
+            selected_artist: database.artists.first().unwrap().clone(),
+            artists: database.artists,
         }
     }
+    // pub fn new() -> Self {
+    //     let track_1 = Song {
+    //         name: String::from("Panic Emoji"),
+    //     };
+    //     let track_2 = Song {
+    //         name: String::from("Dayum"),
+    //     };
+    //     let track_3 = Song {
+    //         name: String::from("Among us"),
+    //     };
+    //     let track_4 = Song {
+    //         name: String::from("sus"),
+    //     };
+    //     let veteran = Album {
+    //         name: String::from("Veteren"),
+    //         songs: vec![track_1.clone(), track_2.clone()],
+    //         selected_song: track_1.clone(),
+    //     };
+    //     let lp = Album {
+    //         name: String::from("LP!"),
+    //         songs: vec![track_3.clone(), track_4.clone()],
+    //         selected_song: track_3.clone(),
+    //     };
+    //     let jpegmafia = Artist {
+    //         name: String::from("JPEGMAFIA"),
+    //         albums: vec![veteran.clone(), lp.clone()],
+    //         selected_album: veteran,
+    //     };
+
+    //     let track_1 = Song {
+    //         name: String::from("Something Fossil"),
+    //     };
+    //     let track_2 = Song {
+    //         name: String::from("Neo"),
+    //     };
+    //     let neowax = Album {
+    //         name: String::from("NeoWax"),
+    //         songs: vec![track_1.clone(), track_2.clone()],
+    //         selected_song: track_1.clone(),
+    //     };
+    //     let iglooghost = Artist {
+    //         name: String::from("Iglooghost"),
+    //         albums: vec![neowax.clone()],
+    //         selected_album: neowax,
+    //     };
+
+    //     Self {
+    //         artists: vec![jpegmafia.clone(), iglooghost.clone()],
+    //         selected_artist: jpegmafia,
+    //     }
+    // }
     pub fn artists_down(&mut self) {
         //get the current selected artist index
         if let Some(i) = self.get_selected_artist() {
@@ -229,40 +239,40 @@ impl Music {
     }
 }
 
-#[derive(Clone, Debug)]
-struct Artist {
-    name: String,
-    albums: Vec<Album>,
-    selected_album: Album,
-}
+// #[derive(Clone, Debug)]
+// struct Artist {
+//     name: String,
+//     albums: Vec<Album>,
+//     selected_album: Album,
+// }
 
-impl PartialEq for Artist {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.albums == other.albums
-        // && self.selected_album == other.selected_album
-    }
-}
+// impl PartialEq for Artist {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.name == other.name && self.albums == other.albums
+//         // && self.selected_album == other.selected_album
+//     }
+// }
 
-#[derive(Clone, Debug)]
-struct Album {
-    name: String,
-    songs: Vec<Song>,
-    selected_song: Song,
-}
+// #[derive(Clone, Debug)]
+// struct Album {
+//     name: String,
+//     songs: Vec<Song>,
+//     selected_song: Song,
+// }
 
-impl PartialEq for Album {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.songs == other.songs
-        // && self.selected_song == other.selected_song
-    }
-}
+// impl PartialEq for Album {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.name == other.name && self.songs == other.songs
+//         // && self.selected_song == other.selected_song
+//     }
+// }
 
-#[derive(Clone, Debug)]
-struct Song {
-    name: String,
-}
-impl PartialEq for Song {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
+// #[derive(Clone, Debug)]
+// struct Song {
+//     name: String,
+// }
+// impl PartialEq for Song {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.name == other.name
+//     }
+// }
