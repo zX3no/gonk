@@ -1,4 +1,4 @@
-use crate::types::Music;
+use crate::music::Music;
 
 pub enum Mode {
     Artist,

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 crossterm = "0.22.1"
 tui = { version = "0.16.0", default-features = false, features = ['crossterm'] }
+gronk-indexer = {path = "../gronk-indexer"}

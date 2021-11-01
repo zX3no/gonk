@@ -15,7 +15,8 @@ use crossterm::{
 use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
-mod types;
+mod music;
+// mod types;
 mod ui;
 
 enum Event {
@@ -40,7 +41,7 @@ fn main() {
     // Setup input handling
     let (tx, rx) = mpsc::channel();
 
-    let tick_rate = Duration::from_millis(100);
+    let tick_rate = Duration::from_millis(10);
     thread::spawn(move || {
         let mut last_tick = Instant::now();
         loop {
