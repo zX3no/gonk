@@ -50,7 +50,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">>");
 
     let mut artist_state = ListState::default();
-    artist_state.select(music.selected_artist());
+    artist_state.select(music.get_selected_artist());
 
     let albums = List::new(b)
         .block(Block::default().title("Album").borders(Borders::ALL))
@@ -59,7 +59,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">>");
 
     let mut album_state = ListState::default();
-    album_state.select(music.selected_album());
+    album_state.select(music.get_selected_album());
 
     let songs = List::new(c)
         .block(Block::default().title("Song").borders(Borders::ALL))
@@ -68,7 +68,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">>");
 
     let mut song_state = ListState::default();
-    song_state.select(music.selected_song());
+    song_state.select(music.get_selected_song());
 
     let no_state = ListState::default();
 

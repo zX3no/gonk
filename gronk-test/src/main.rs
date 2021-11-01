@@ -63,6 +63,7 @@ fn main() {
     let mut app = App::new();
 
     terminal.clear().unwrap();
+    terminal.hide_cursor().unwrap();
 
     loop {
         terminal.draw(|f| ui::draw(f, &mut app)).unwrap();
@@ -81,8 +82,8 @@ fn main() {
                         break;
                     }
                 }
-                KeyCode::Char('j') => app.music.artist_down(),
-                KeyCode::Char('k') => app.music.artist_up(),
+                KeyCode::Char('j') => app.move_down(),
+                KeyCode::Char('k') => app.move_up(),
                 KeyCode::Char('h') => app.prev_mode(),
                 KeyCode::Char('l') => app.next_mode(),
                 _ => (),

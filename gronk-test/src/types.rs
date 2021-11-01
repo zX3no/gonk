@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Music {
     artists: Vec<Artist>,
     selected_artist: Artist,
@@ -50,9 +50,9 @@ impl Music {
             selected_artist: iglooghost,
         }
     }
-    pub fn artist_down(&mut self) {
+    pub fn artists_down(&mut self) {
         //get the current selected artist index
-        if let Some(i) = self.selected_artist() {
+        if let Some(i) = self.get_selected_artist() {
             //try to move up
             if let Some(artist) = self.artists.get(i + 1) {
                 //if we can update the selected artist
@@ -62,40 +62,123 @@ impl Music {
                     //if we can't reset to first artist
                     self.selected_artist = artist.clone();
                 } else {
-                    //TODO: if there are no artists set to none
-                    // self.selected_artist = None;
-                    panic!("no artists?");
+                    panic!("first returned nothing");
                 }
             }
         } else {
             panic!("no selected artist?");
         }
     }
-    pub fn artist_up(&mut self) {
+    pub fn artists_up(&mut self) {
         //get the current selected artist index
-        if let Some(i) = self.selected_artist() {
+        if let Some(i) = self.get_selected_artist() {
             //try to move up
             if i == 0 {
                 if let Some(artist) = self.artists.last() {
                     //if we can't reset to first artist
                     self.selected_artist = artist.clone();
                 } else {
-                    //TODO: if there are no artists set to none
-                    // self.selected_artist = None;
-                    panic!("no artists?");
+                    panic!("last returned nothing");
                 }
             } else {
                 if let Some(artist) = self.artists.get(i - 1) {
                     //if we can update the selected artist
                     self.selected_artist = artist.clone();
                 } else {
-                    panic!("no artists?");
+                    panic!("could not get i - 1");
                 }
             }
         } else {
             panic!("no selected artist?");
         }
     }
+    pub fn albums_up(&mut self) {
+        //get the current selected artist index
+        if let Some(i) = self.get_selected_album() {
+            //try to move up
+            if i == 0 {
+                if let Some(album) = self.selected_artist.albums.last() {
+                    //if we can't reset to first artist
+                    self.selected_artist.selected_album = album.clone();
+                } else {
+                    panic!("no artists?");
+                }
+            } else {
+                if let Some(album) = self.selected_artist.albums.get(i - 1) {
+                    //if we can update the selected artist
+                    self.selected_artist.selected_album = album.clone();
+                } else {
+                    panic!("could not get i - 1");
+                }
+            }
+        } else {
+            panic!("no selected artist?");
+        }
+    }
+    pub fn albums_down(&mut self) {
+        //get the current selected artist index
+        if let Some(i) = self.get_selected_album() {
+            //try to move up
+            if let Some(album) = self.selected_artist.albums.get(i + 1) {
+                //if we can update the selected artist
+                self.selected_artist.selected_album = album.clone();
+            } else {
+                if let Some(album) = self.selected_artist.albums.first() {
+                    //if we can't reset to first artist
+                    self.selected_artist.selected_album = album.clone();
+                } else {
+                    panic!("first returned nothing");
+                }
+            }
+        } else {
+            panic!("no selected album?");
+        }
+    }
+    pub fn songs_up(&mut self) {
+        //get the current selected artist index
+        if let Some(i) = self.get_selected_song() {
+            //try to move up
+            if i == 0 {
+                if let Some(song) = self.selected_artist.selected_album.songs.last() {
+                    //if we can't reset to first artist
+                    self.selected_artist.selected_album.selected_song = song.clone();
+                } else {
+                    //TODO: if there are no artists set to none
+                    // self.selected_artist = None;
+                    panic!("no artists?");
+                }
+            } else {
+                if let Some(song) = self.selected_artist.selected_album.songs.get(i - 1) {
+                    //if we can update the selected artist
+                    self.selected_artist.selected_album.selected_song = song.clone();
+                } else {
+                    panic!("could not get i - 1");
+                }
+            }
+        } else {
+            panic!("no selected song?");
+        }
+    }
+    pub fn songs_down(&mut self) {
+        //get the current selected artist index
+        if let Some(i) = self.get_selected_song() {
+            //try to move up
+            if let Some(song) = self.selected_artist.selected_album.songs.get(i + 1) {
+                //if we can update the selected artist
+                self.selected_artist.selected_album.selected_song = song.clone();
+            } else {
+                if let Some(song) = self.selected_artist.selected_album.songs.first() {
+                    //if we can't reset to first artist
+                    self.selected_artist.selected_album.selected_song = song.clone();
+                } else {
+                    panic!("first returned nothing");
+                }
+            }
+        } else {
+            panic!("no selected song?");
+        }
+    }
+
     pub fn artist_names(&self) -> Vec<String> {
         self.artists.iter().map(|a| a.name.clone()).collect()
     }
@@ -114,7 +197,7 @@ impl Music {
             .map(|a| a.name.clone())
             .collect()
     }
-    pub fn selected_artist(&self) -> Option<usize> {
+    pub fn get_selected_artist(&self) -> Option<usize> {
         for (i, artist) in self.artists.iter().enumerate() {
             if artist == &self.selected_artist {
                 return Some(i);
@@ -122,7 +205,7 @@ impl Music {
         }
         None
     }
-    pub fn selected_album(&self) -> Option<usize> {
+    pub fn get_selected_album(&self) -> Option<usize> {
         for (i, album) in self.selected_artist.albums.iter().enumerate() {
             if album == &self.selected_artist.selected_album {
                 return Some(i);
@@ -130,7 +213,7 @@ impl Music {
         }
         None
     }
-    pub fn selected_song(&self) -> Option<usize> {
+    pub fn get_selected_song(&self) -> Option<usize> {
         for (i, album) in self.selected_artist.selected_album.songs.iter().enumerate() {
             if album == &self.selected_artist.selected_album.selected_song {
                 return Some(i);
@@ -140,7 +223,7 @@ impl Music {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Artist {
     name: String,
     albums: Vec<Album>,
@@ -149,13 +232,12 @@ struct Artist {
 
 impl PartialEq for Artist {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.albums == other.albums
-            && self.selected_album == other.selected_album
+        self.name == other.name && self.albums == other.albums
+        // && self.selected_album == other.selected_album
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Album {
     name: String,
     songs: Vec<Song>,
@@ -164,13 +246,12 @@ struct Album {
 
 impl PartialEq for Album {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.songs == other.songs
-            && self.selected_song == other.selected_song
+        self.name == other.name && self.songs == other.songs
+        // && self.selected_song == other.selected_song
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Song {
     name: String,
 }
