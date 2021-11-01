@@ -5,11 +5,15 @@ use tui::widgets::*;
 use tui::Frame;
 
 use crate::app::App;
+use crate::app::Mode;
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    if let Mode::Queue = app.ui_mode {
+        return;
+    }
     let area = f.size();
 
-    let music = &app.music;
+    let music = &mut app.music;
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)

@@ -7,14 +7,14 @@ pub enum BrowserMode {
 }
 
 impl BrowserMode {
-    fn add(&mut self) {
+    fn next(&mut self) {
         match self {
             BrowserMode::Artist => *self = BrowserMode::Album,
             BrowserMode::Album => *self = BrowserMode::Song,
             BrowserMode::Song => (),
         }
     }
-    fn min(&mut self) {
+    fn prev(&mut self) {
         match self {
             BrowserMode::Artist => (),
             BrowserMode::Album => *self = BrowserMode::Artist,
@@ -25,6 +25,14 @@ impl BrowserMode {
 pub enum Mode {
     Browser,
     Queue,
+}
+impl Mode {
+    fn toggle(&mut self) {
+        match self {
+            Mode::Browser => *self = Mode::Queue,
+            Mode::Queue => *self = Mode::Browser,
+        }
+    }
 }
 
 pub struct App {
@@ -41,16 +49,19 @@ impl App {
             ui_mode: Mode::Browser,
         }
     }
-
-    pub fn next_mode(&mut self) {
-        self.browser_mode.add();
+    pub fn ui_toggle(&mut self) {
+        self.ui_mode.toggle();
     }
 
-    pub fn prev_mode(&mut self) {
-        self.browser_mode.min();
+    pub fn browser_next(&mut self) {
+        self.browser_mode.next();
     }
 
-    pub fn move_down(&mut self) {
+    pub fn browser_prev(&mut self) {
+        self.browser_mode.prev();
+    }
+
+    pub fn browser_down(&mut self) {
         match self.browser_mode {
             BrowserMode::Artist => self.music.artists_down(),
             BrowserMode::Album => self.music.albums_down(),
@@ -58,7 +69,7 @@ impl App {
         }
     }
 
-    pub fn move_up(&mut self) {
+    pub fn browser_up(&mut self) {
         match self.browser_mode {
             BrowserMode::Artist => self.music.artists_up(),
             BrowserMode::Album => self.music.albums_up(),

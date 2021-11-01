@@ -83,10 +83,11 @@ fn main() {
                         break;
                     }
                 }
-                KeyCode::Char('j') => app.move_down(),
-                KeyCode::Char('k') => app.move_up(),
-                KeyCode::Char('h') => app.prev_mode(),
-                KeyCode::Char('l') => app.next_mode(),
+                KeyCode::Char('j') => app.browser_down(),
+                KeyCode::Char('k') => app.browser_up(),
+                KeyCode::Char('h') => app.browser_prev(),
+                KeyCode::Char('l') => app.browser_next(),
+                KeyCode::Tab => app.ui_toggle(),
                 _ => (),
             },
             Event::Tick => {

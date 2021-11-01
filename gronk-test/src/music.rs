@@ -10,9 +10,13 @@ pub struct Music {
 impl Music {
     pub fn new() -> Self {
         let database = Database::create(Path::new("D:/OneDrive/Music"));
+
+        //TODO: Sort all data in the database.
+        let mut artists = database.artists;
+        artists.sort_by_key(|artist| artist.name.to_lowercase());
         Self {
-            selected_artist: database.artists.first().unwrap().clone(),
-            artists: database.artists,
+            selected_artist: artists.first().unwrap().clone(),
+            artists,
         }
     }
     // pub fn new() -> Self {
@@ -195,23 +199,39 @@ impl Music {
         }
     }
 
-    pub fn artist_names(&self) -> Vec<String> {
+    pub fn artist_names(&mut self) -> Vec<String> {
         self.artists.iter().map(|a| a.name.clone()).collect()
     }
     pub fn album_names(&self) -> Vec<String> {
         self.selected_artist
             .albums
             .iter()
-            .map(|a| a.name.clone())
+            .map(|album| album.name.clone())
             .collect()
+        // let mut albums: Vec<String> = self
+        //     .selected_artist
+        //     .albums
+        //     .iter()
+        //     .map(|a| a.name.clone())
+        //     .collect();
+
+        // albums.sort_by_key(|album| album.to_lowercase());
+        // albums
     }
     pub fn song_names(&self) -> Vec<String> {
         self.selected_artist
             .selected_album
             .songs
             .iter()
-            .map(|a| a.name.clone())
+            .map(|song| song.name.clone())
             .collect()
+        // let mut songs = self.selected_artist.selected_album.songs.clone();
+        // songs.sort_by(|a, b| {
+        //     a.disc
+        //         .cmp(&b.disc)
+        //         .then(a.track_number.cmp(&b.track_number))
+        // });
+        // songs.iter().map(|a| a.name.clone()).collect()
     }
     pub fn get_selected_artist(&self) -> Option<usize> {
         for (i, artist) in self.artists.iter().enumerate() {
