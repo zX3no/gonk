@@ -52,6 +52,26 @@ impl Database {
     }
 
     //~1.4s
+    // pub fn create_fast(path: &Path) -> Self {
+    //     let songs: Vec<Song> = WalkDir::new(path)
+    //         .into_iter()
+    //         .filter_map(|entry| {
+    //             if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+    //                 if ex == "flac" || ex == "mp3" || ex == "m4a" || ex == "wav" {
+    //                     //this is slow
+    //                     let song = Song::from(entry.as_ref().unwrap().path());
+    //                     return Some(song);
+    //                 }
+    //             }
+    //             None
+    //         })
+    //         .collect();
+
+    //     songs.sort_by_key(|song| song.name.to_lowercase());
+
+    //     let artist: Vec<_> = songs.iter().map(|song| song.album_artist).collect();
+    //     artist.dedup();
+    // }
     pub fn create(path: &Path) -> Self {
         let mut songs: HashMap<String, Song> = HashMap::new();
 
@@ -59,7 +79,7 @@ impl Database {
             if let Some(ex) = entry.path().extension() {
                 if ex == "flac" || ex == "mp3" || ex == "m4a" || ex == "wav" {
                     //this is slow
-                    let song = Song::from(entry.path());
+                    let song = Song::from(&entry.path().to_str().unwrap());
                     songs.insert(song.name.clone(), song.clone());
                 }
             }
@@ -333,7 +353,7 @@ pub struct Song {
 }
 
 impl Song {
-    pub fn from(path: PathBuf) -> Self {
+    pub fn from(path: &str) -> Self {
         //this is slow
         if let Ok(tag) = Tag::new().read_from_path(&path) {
             let album_artist = if let Some(artist) = tag.album_artist() {
@@ -361,7 +381,7 @@ impl Song {
                 album: tag.album_title().unwrap().to_string(),
                 album_artist,
                 year,
-                path,
+                path: PathBuf::from(path),
                 disc,
                 total_disc,
                 duration: 0.0,
@@ -375,7 +395,7 @@ impl Song {
                 album: String::new(),
                 album_artist: String::new(),
                 year: 0,
-                path,
+                path: PathBuf::from(path),
                 disc: 0,
                 total_disc: 0,
                 duration: 0.0,
