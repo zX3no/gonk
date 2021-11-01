@@ -1,0 +1,194 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'gronk_player'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=gronk-player"
+                ],
+                "filter": {
+                    "name": "gronk_player",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'gronk-player'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=gronk-player",
+                    "--package=gronk-player"
+                ],
+                "filter": {
+                    "name": "gronk-player",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'gronk-player'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=gronk-player",
+                    "--package=gronk-player"
+                ],
+                "filter": {
+                    "name": "gronk-player",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'gronk-indexer'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=gronk-indexer"
+                ],
+                "filter": {
+                    "name": "gronk-indexer",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'gronk-indexer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=gronk-indexer",
+                    "--package=gronk-indexer"
+                ],
+                "filter": {
+                    "name": "gronk-indexer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'gronk-indexer'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=gronk-indexer",
+                    "--package=gronk-indexer"
+                ],
+                "filter": {
+                    "name": "gronk-indexer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'gronk'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=gronk",
+                    "--package=gronk-ui"
+                ],
+                "filter": {
+                    "name": "gronk",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'gronk'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=gronk",
+                    "--package=gronk-ui"
+                ],
+                "filter": {
+                    "name": "gronk",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'gronk-test'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=gronk-test",
+                    "--package=gronk-test"
+                ],
+                "filter": {
+                    "name": "gronk-test",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'gronk-test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=gronk-test",
+                    "--package=gronk-test"
+                ],
+                "filter": {
+                    "name": "gronk-test",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

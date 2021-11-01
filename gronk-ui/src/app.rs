@@ -54,6 +54,7 @@ impl App {
             self.clear_query();
         } else {
             self.browser.next_mode();
+            self.clear_query();
         }
     }
     pub fn on_enter(&mut self) {
@@ -70,9 +71,10 @@ impl App {
             self.query.pop();
             self.browser.refresh();
             self.browser.search(&self.query);
+        } else {
+            self.clear_query();
+            self.browser.prev_mode();
         }
-        self.clear_query();
-        self.browser.prev_mode();
     }
     pub fn clear_query(&mut self) {
         self.query = String::new();
