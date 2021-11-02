@@ -1,14 +1,8 @@
+use rusqlite::{params, Connection, Result};
 use std::fs::File;
 
-use rusqlite::{params, Connection, Result};
-
-#[derive(Debug)]
-struct Person {
-    id: i32,
-    name: String,
-    data: Option<Vec<u8>>,
-}
 fn create_db(conn: &Connection) -> Result<()> {
+    File::create("music.db").unwrap();
     conn.execute("PRAGMA foregin_keys = ON", [])?;
 
     conn.execute(
@@ -39,8 +33,8 @@ fn create_db(conn: &Connection) -> Result<()> {
 
     Ok(())
 }
+
 fn main() -> Result<()> {
-    File::create("music.db").unwrap();
     let conn = Connection::open("music.db")?;
 
     create_db(&conn)?;
@@ -52,12 +46,24 @@ fn main() -> Result<()> {
     add_song(&conn, "Panic Emoji", "EP!")?;
     add_song(&conn, "Panic Emoji", "LP!")?;
 
+    dbg!(get_song_artist(&conn)?);
     dbg!(get_artists(&conn)?);
 
-    // let mut stmt =
-    //     conn.prepare("SELECT album.artist FROM song INNER JOIN album ON song.album = album.id ")?;
-
     Ok(())
+}
+
+pub fn get_song_artist(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn
+        .prepare("SELECT album.artist FROM song INNER JOIN album ON song.album = album.id ")
+        .unwrap();
+    let mut rows = stmt.query([])?;
+
+    let mut artists: Vec<String> = Vec::new();
+    while let Some(row) = rows.next()? {
+        artists.push(row.get(0)?);
+    }
+
+    Ok(artists)
 }
 pub fn get_artists(conn: &Connection) -> Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT * FROM artist")?;
