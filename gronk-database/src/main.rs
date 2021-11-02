@@ -28,8 +28,12 @@ fn create_db(conn: &Connection) -> Result<()> {
         "CREATE TABLE song(
                     name    TEXT,
                     album   TEXT NOT NULL,
-                    FOREIGN KEY(album) REFERENCES album(id)
+                    path    TEXT NOT NULL,
+                    track   INTEGER NOT NULL,
+                    artist  TEXT NOT NULL
                 )",
+        //album   INTEGER NOT NULL,
+        //FOREIGN KEY(album) REFERENCES album(id)
         [],
     )?;
 
@@ -40,18 +44,45 @@ fn main() -> Result<()> {
     let conn = Connection::open("music.db")?;
 
     create_db(&conn)?;
-    add_artist(&conn, "Iglooghost")?;
 
-    add_artist(&conn, "JPEGMAFIA")?;
     add_album(&conn, "LP!", "JPEGMAFIA")?;
     add_album(&conn, "EP!", "JPEGMAFIA")?;
+    add_album(&conn, "NEO", "Iglooghost")?;
 
+    add_song(&conn, "Alpha Emoji", "EP!")?;
     add_song(&conn, "Panic Emoji", "EP!")?;
-    add_song(&conn, "Panic Emoji", "LP!")?;
+    add_song(&conn, "TEST", "LP!")?;
+    add_song(&conn, "sussusususus", "NEO")?;
 
+    // get_all_songs(&conn)?;
+
+    let mut stmt = conn.prepare("SELECT album FROM song WHERE artist = \"me\"")?;
+    let mut rows = stmt.query([])?;
+
+    while let Some(row) = rows.next()? {
+        let a: String = row.get(0)?;
+        dbg!(a);
+    }
     // dbg!(get_song_artist(&conn)?);
     // dbg!(get_artists(&conn)?);
 
+    Ok(())
+}
+pub fn get_all_songs(conn: &Connection) -> Result<()> {
+    let mut stmt = conn
+        .prepare("SELECT song.name, song.album, path, track, artist.name FROM song INNER JOIN album ON song.album = album.id INNER JOIN artist ON album.artist = artist.id")
+        .unwrap();
+    let mut rows = stmt.query([])?;
+
+    while let Some(row) = rows.next()? {
+        let name: String = row.get(0)?;
+        let album: usize = row.get(1)?;
+        let path: String = row.get(2)?;
+        let number: usize = row.get(3)?;
+        let artist: String = row.get(4)?;
+
+        println!("{} | {} | {} | {} | {}", number, name, album, path, artist);
+    }
     Ok(())
 }
 
@@ -68,16 +99,16 @@ pub fn get_song_artist(conn: &Connection) -> Result<Vec<String>> {
 
     Ok(artists)
 }
-pub fn get_artists(conn: &Connection) -> Result<Vec<String>> {
+pub fn get_artists(conn: &Connection) -> Result<()> {
     let mut stmt = conn.prepare("SELECT * FROM artist")?;
     let mut rows = stmt.query([])?;
 
-    let mut artists: Vec<String> = Vec::new();
     while let Some(row) = rows.next()? {
-        artists.push(row.get(0)?);
+        let a: usize = row.get(0)?;
+        dbg!(a);
     }
 
-    Ok(artists)
+    Ok(())
 }
 pub fn find_artist_id(conn: &Connection, name: &str) -> Option<usize> {
     let query = format!("SELECT id FROM artist where name = \"{}\"", name);
@@ -140,16 +171,21 @@ pub fn add_album(conn: &Connection, name: &str, artist: &str) -> Result<()> {
 }
 
 pub fn add_song(conn: &Connection, name: &str, album: &str) -> Result<()> {
-    let id = if let Some(id) = find_album_id(conn, album) {
-        id
-    } else {
-        let artist = get_album_artist(conn, album);
-        add_album(conn, album, &artist.unwrap())?;
-        find_artist_id(conn, album).unwrap()
-    };
+    //when adding a song it is important to add it to the correct album
+    //a song will contain the song artist and album name
+    //so it should be easy to find the correct one
+    //this does not represent the final data
+
+    // let id = if let Some(id) = find_album_id(conn, album) {
+    //     id
+    // } else {
+    //     let artist = get_album_artist(conn, album);
+    //     add_album(conn, album, &artist.unwrap())?;
+    //     find_artist_id(conn, album).unwrap()
+    // };
     conn.execute(
-        "INSERT INTO song (name, album) VALUES (?1, ?2)",
-        params![name, id],
+        "INSERT INTO song (name, album, path, track, artist) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![name, album, "example/path", 1, "me"],
     )?;
     Ok(())
 }
