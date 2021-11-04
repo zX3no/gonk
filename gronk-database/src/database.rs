@@ -1,26 +1,22 @@
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::PathBuf,
-    sync::{Arc, RwLock, RwLockReadGuard},
-    thread::{self, JoinHandle},
-    time::Instant,
-};
+use std::{fs::File, path::PathBuf, sync::Arc, time::Instant};
 
 use audiotags::Tag;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Result};
 use walkdir::WalkDir;
+
 pub struct Database {
     conn: Connection,
 }
+
 impl Database {
     pub fn new() -> Self {
         Self {
             conn: Connection::open("music.db").unwrap(),
         }
     }
+
     pub fn create_db(&self) -> rusqlite::Result<()> {
         let conn = &self.conn;
 
@@ -43,24 +39,7 @@ impl Database {
             [],
         )?;
 
-        Ok(())
-    }
-    pub fn scan(path: &str) -> Vec<PathBuf> {
-        WalkDir::new(path)
-            .into_iter()
-            .filter_map(|entry| {
-                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                        return Some(entry.as_ref().unwrap().path().to_path_buf());
-                    }
-                }
-                None
-            })
-            .collect()
-    }
-    pub fn write() {
-        let p = "D:/OneDrive/Music/";
-        let paths = Database::scan(p);
+        let paths = Database::scan("D:/OneDrive/Music");
 
         let songs: Vec<MinSong> = paths
             .par_iter()
@@ -84,26 +63,24 @@ impl Database {
                 )
                 .unwrap();
         });
-    }
 
-    pub fn get_songs(&self) -> rusqlite::Result<()> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT name, album, track, artist FROM song WHERE artist = 'JPEGMAFIA'")
-            .unwrap();
-
-        let mut rows = stmt.query([])?;
-
-        while let Some(row) = rows.next()? {
-            let name: String = row.get(0)?;
-            let album: String = row.get(1)?;
-            let number: usize = row.get(2)?;
-            let artist: String = row.get(3)?;
-
-            println!("{} | {} | {} | {} ", number, name, album, artist);
-        }
         Ok(())
     }
+
+    pub fn scan(path: &str) -> Vec<PathBuf> {
+        WalkDir::new(path)
+            .into_iter()
+            .filter_map(|entry| {
+                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                        return Some(entry.as_ref().unwrap().path().to_path_buf());
+                    }
+                }
+                None
+            })
+            .collect()
+    }
+
     pub fn get_artists(&self) -> Result<()> {
         let mut stmt = self.conn.prepare("SELECT artist FROM song")?;
 
@@ -116,9 +93,12 @@ impl Database {
         }
         vec.sort_by_key(|s| s.to_lowercase());
         vec.dedup();
-        dbg!(vec);
+        for artist in vec {
+            println!("{}", artist);
+        }
         Ok(())
     }
+
     pub fn get_album_by_artist(&self, artist: &str) -> Result<()> {
         let query = format!("SELECT album FROM song WHERE artist = '{}'", artist);
         let mut stmt = self.conn.prepare(&query)?;
@@ -132,12 +112,15 @@ impl Database {
         }
         vec.sort_by_key(|s| s.to_lowercase());
         vec.dedup();
-        dbg!(vec);
+
+        for album in vec {
+            println!("{}", album);
+        }
         Ok(())
     }
     pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Result<()> {
         let query = format!(
-            "SELECT name, track FROM song WHERE artist = '{}' AND album = '{}'",
+            "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}'",
             artist, album
         );
         let mut stmt = self.conn.prepare(&query)?;
@@ -146,41 +129,15 @@ impl Database {
 
         let mut vec = Vec::new();
         while let Some(row) = rows.next()? {
-            let name: String = row.get(0)?;
-            let track: usize = row.get(1)?;
-            vec.push((name, track));
+            let track: usize = row.get(0)?;
+            let name: String = row.get(1)?;
+
+            vec.push((track, name));
         }
+        vec.sort_by(|a, b| a.0.cmp(&b.0));
         for song in vec {
-            println!("{}: {}", song.1, song.0);
+            println!("{}: {}", song.0, song.1);
         }
-        Ok(())
-    }
-
-    pub fn add_song(
-        conn: Connection,
-        track: u16,
-        name: &str,
-        album: &str,
-        artist: &str,
-        path: &str,
-    ) -> rusqlite::Result<()> {
-        let now = Instant::now();
-        //oh yeah this is what i'm talking about
-        //2 seconds for all songs
-        //in a thread pool it should be fast
-        //i think sqlite was build for that
-        let query = format!(
-            "BEGIN; 
-            INSERT OR IGNORE INTO artist(id) VALUES ('{}'); 
-            INSERT OR IGNORE INTO album(name, artist) VALUES ('{}', '{}'); 
-            INSERT INTO song (track, name, path, album) VALUES('{}','{}','{}', (SELECT id FROM album WHERE name = '{}' AND artist = '{}'));
-            COMMIT;",
-            artist, album, artist,
-            track, name, path, album, artist,
-        );
-        conn.execute_batch(&query)?;
-        println!("{:?}", now.elapsed());
-
         Ok(())
     }
 }

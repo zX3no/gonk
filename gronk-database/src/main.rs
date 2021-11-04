@@ -1,9 +1,6 @@
-use std::{sync::Arc, thread};
-
 use database::Database;
-use r2d2_sqlite::SqliteConnectionManager;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rusqlite::{Connection, Result};
+use rusqlite::Result;
+use std::time::Instant;
 mod database;
 
 // Song Name | Track Number | Album | Artist | Year
@@ -25,15 +22,13 @@ mod database;
 
 fn main() -> Result<()> {
     let database = Database::new();
-    // database.create_db()?;
-    // Database::write();
+    let now = Instant::now();
+    database.create_db()?;
+    println!("{:?}", now.elapsed());
 
-    // database.add_song(1, "NAME", "ALBUM", "ARTIST", "PATH")?;
-
-    // database.get_songs()?;
-    // database.get_artists()?;
-    database.get_album_by_artist("JPEGMAFIA")?;
-    database.get_songs_from_album("LP!", "JPEGMAFIA")?;
+    database.get_artists()?;
+    // database.get_album_by_artist("JPEGMAFIA")?;
+    // database.get_songs_from_album("Veteran", "JPEGMAFIA")?;
 
     Ok(())
 }
