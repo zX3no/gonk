@@ -32,6 +32,7 @@ impl Database {
                     name    TEXT,
                     path    TEXT,
                     track   INTEGER,
+                    disc    INTEGER,
                     album   TEXT,
                     artist  TEXT
                 )",
@@ -66,8 +67,8 @@ impl Database {
 
             connection
                 .execute(
-                    "INSERT INTO song (track, name, album, artist) VALUES (?1, ?2, ?3, ?4)",
-                    params![song.track, song.name, song.album, song.artist],
+                    "INSERT INTO song (track, disc, name, album, artist) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![song.track, song.disc, song.name, song.album, song.artist],
                 )
                 .unwrap();
         });
@@ -76,67 +77,49 @@ impl Database {
     }
 
     pub fn get_artists(&self) -> Result<()> {
-        let mut stmt = self.conn.prepare("SELECT DISTINCT artist FROM song")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
 
         let mut rows = stmt.query([])?;
 
-        let mut vec = Vec::new();
-
         while let Some(row) = rows.next()? {
-            let s: String = row.get(0)?;
-            vec.push(s);
-        }
-
-        vec.sort_by_key(|s| s.to_lowercase());
-
-        for artist in vec {
+            let artist: String = row.get(0)?;
             println!("{}", artist);
         }
         Ok(())
     }
 
-    pub fn get_album_by_artist(&self, artist: &str) -> Result<()> {
+    pub fn get_albums_by_artist(&self, artist: &str) -> Result<()> {
         let query = format!(
-            "SELECT DISTINCT album FROM song WHERE artist = '{}'",
+            "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
             artist
         );
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
 
-        let mut vec = Vec::new();
         while let Some(row) = rows.next()? {
-            let s: String = row.get(0)?;
-            vec.push(s);
-        }
-
-        vec.sort_by_key(|s| s.to_lowercase());
-
-        for album in vec {
+            let album: String = row.get(0)?;
             println!("{}", album);
         }
+
         Ok(())
     }
 
     pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Result<()> {
         let query = format!(
-            "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}'",
+            "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
             artist, album
         );
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
-        let mut vec = Vec::new();
 
         while let Some(row) = rows.next()? {
             let track: usize = row.get(0)?;
             let name: String = row.get(1)?;
-            vec.push((track, name));
+            println!("{}: {}", track, name);
         }
 
-        vec.sort_by(|a, b| a.0.cmp(&b.0));
-
-        for song in vec {
-            println!("{}: {}", song.0, song.1);
-        }
         Ok(())
     }
 }
@@ -147,6 +130,7 @@ pub struct MinSong {
     album: String,
     artist: String,
     name: String,
+    disc: u16,
     track: u16,
 }
 
@@ -161,10 +145,12 @@ impl MinSong {
             } else {
                 panic!("no artist for {:?}", path);
             };
+            let disc = tag.disc_number().unwrap_or(1);
             return MinSong {
                 album: tag.album_title().unwrap().to_string(),
                 artist,
                 path: PathBuf::from(path),
+                disc,
                 name: tag.title().unwrap().to_string(),
                 track: tag.track_number().unwrap(),
             };

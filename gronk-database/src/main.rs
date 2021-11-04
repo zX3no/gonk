@@ -8,8 +8,8 @@ fn main() -> Result<()> {
     // database.create_db()?;
 
     // database.get_artists()?;
-    // database.get_album_by_artist("JPEGMAFIA")?;
-    // database.get_songs_from_album("Veteran", "JPEGMAFIA")?;
+    // database.get_albums_by_artist("JPEGMAFIA")?;
+    database.get_songs_from_album("The Powers That B", "Death Grips")?;
 
     Ok(())
 }
