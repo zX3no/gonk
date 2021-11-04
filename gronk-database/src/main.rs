@@ -25,27 +25,12 @@ mod database;
 
 fn main() -> Result<()> {
     let database = Database::new();
-    database.create_db()?;
-    Database::write();
+    // database.create_db()?;
+    // Database::write();
 
     // database.add_song(1, "NAME", "ALBUM", "ARTIST", "PATH")?;
 
-    // database.get_all_songs()?;
+    database.get_songs()?;
 
     Ok(())
-}
-
-pub fn get_song_artist(conn: &Connection) -> Result<Vec<String>> {
-    let mut stmt = conn
-        .prepare("SELECT album.artist FROM song INNER JOIN album ON song.album = album.id")
-        .unwrap();
-
-    let mut rows = stmt.query([])?;
-
-    let mut artists: Vec<String> = Vec::new();
-    while let Some(row) = rows.next()? {
-        artists.push(row.get(0)?);
-    }
-
-    Ok(artists)
 }

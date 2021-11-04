@@ -10,7 +10,7 @@ use std::{
 use audiotags::Tag;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use walkdir::WalkDir;
 pub struct Database {
     conn: Connection,
@@ -30,30 +30,15 @@ impl Database {
         conn.execute("PRAGMA synchronous = 0", [])?;
         // conn.execute("PRAGMA cache_size = 1000000", [])?;
         conn.execute("PRAGMA temp_store = MEMORY", [])?;
-
-        conn.execute(
-            "CREATE TABLE artist(
-                    id TEXT PRIMARY KEY
-                )",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE TABLE album(
-                    id INTEGER PRIMARY KEY,
-                    name TEXT,
-                    artist      INTEGER NOT NULL,
-                    FOREIGN     KEY(artist) REFERENCES artist(id)
-                )",
-            [],
-        )?;
+        // conn.execute("PRAGMA busy_timeout = 5000", [])?;
 
         conn.execute(
             "CREATE TABLE song(
                     name    TEXT,
                     path    TEXT,
                     track   INTEGER,
-                    album   INTEGER NOT NULL REFERENCES album(id)
+                    album   TEXT,
+                    artist  TEXT
                 )",
             [],
         )?;
@@ -74,7 +59,7 @@ impl Database {
             .collect()
     }
     pub fn write() {
-        let p = "D:/OneDrive/Music";
+        let p = "D:/OneDrive/Music/";
         let paths = Database::scan(p);
 
         let songs: Vec<MinSong> = paths
@@ -88,38 +73,34 @@ impl Database {
         let pool_arc = Arc::new(sqlite_pool);
 
         let pool = pool_arc.clone();
-        songs.par_iter().for_each(|song| {
-            let connection = pool.get();
 
-            //this won't work because it needs to be executed in order
-            let query = format!(
-            "BEGIN; 
-            INSERT OR IGNORE INTO artist(id) VALUES ('{}'); 
-            INSERT OR IGNORE INTO album(name, artist) VALUES ('{}', '{}'); 
-            INSERT INTO song (track, name, path, album) VALUES('{}','{}','{}', (SELECT id FROM album WHERE name = '{}' AND artist = '{}'));
-            COMMIT;",
-            song.artist, song.album, song.artist,
-            song.track, song.name, song.path.to_str().unwrap(), song.album, song.artist,
-        );
-            connection.unwrap().execute_batch(&query).unwrap();
+        songs.par_iter().for_each(|song| {
+            let connection = pool.get().unwrap();
+
+            connection
+                .execute(
+                    "INSERT INTO song (track, name, album, artist) VALUES (?1, ?2, ?3, ?4)",
+                    params![song.track, song.name, song.album, song.artist],
+                )
+                .unwrap();
         });
     }
 
-    pub fn get_all_songs(&self) -> rusqlite::Result<()> {
-        let mut stmt = self.conn
-        .prepare("SELECT song.name, song.album, path, track, artist.id FROM song INNER JOIN album ON song.album = album.id INNER JOIN artist ON album.artist = artist.id")
-        .unwrap();
+    pub fn get_songs(&self) -> rusqlite::Result<()> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name, album, track, artist FROM song WHERE artist = 'JPEGMAFIA'")
+            .unwrap();
 
         let mut rows = stmt.query([])?;
 
         while let Some(row) = rows.next()? {
             let name: String = row.get(0)?;
-            let album: usize = row.get(1)?;
-            let path: String = row.get(2)?;
-            let number: usize = row.get(3)?;
-            let artist: String = row.get(4)?;
+            let album: String = row.get(1)?;
+            let number: usize = row.get(2)?;
+            let artist: String = row.get(3)?;
 
-            println!("{} | {} | {} | {} | {}", number, name, album, path, artist);
+            println!("{} | {} | {} | {} ", number, name, album, artist);
         }
         Ok(())
     }
