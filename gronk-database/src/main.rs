@@ -1,6 +1,5 @@
 use database::Database;
-use rusqlite::{params, Connection, Result};
-use std::{fs::File, time::Instant};
+use rusqlite::{Connection, Result};
 mod database;
 
 // Song Name | Track Number | Album | Artist | Year

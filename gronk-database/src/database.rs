@@ -1,6 +1,6 @@
 use std::{fs::File, time::Instant};
 
-use rusqlite::{params, Connection, Result};
+use rusqlite::{Connection, Result};
 pub struct Database {
     conn: Connection,
 }
@@ -15,6 +15,10 @@ impl Database {
 
         File::create("music.db").unwrap();
         conn.execute("PRAGMA foregin_keys = ON", [])?;
+        // conn.execute("PRAGMA journal_mode = MEMORY", [])?;
+        conn.execute("PRAGMA synchronous = 0", [])?;
+        // conn.execute("PRAGMA cache_size = 1000000", [])?;
+        conn.execute("PRAGMA temp_store = MEMORY", [])?;
 
         conn.execute(
             "CREATE TABLE artist(
@@ -46,21 +50,6 @@ impl Database {
         Ok(())
     }
 
-    pub fn add_artist(&self, artist: &str) -> Result<()> {
-        self.conn.execute(
-            "INSERT OR IGNORE INTO artist(id) VALUES (?1)",
-            params![artist],
-        )?;
-
-        Ok(())
-    }
-    pub fn add_album(&self, album: &str, artist: &str) -> Result<()> {
-        self.conn.execute(
-            "INSERT OR IGNORE INTO album(name, artist) VALUES (?1, ?2)",
-            params![album, artist],
-        )?;
-        Ok(())
-    }
     pub fn add_song(
         &self,
         track: usize,
@@ -69,11 +58,22 @@ impl Database {
         artist: &str,
         path: &str,
     ) -> Result<()> {
-        self.add_artist(artist)?;
-        self.add_album(album, artist)?;
-
-        let query = format!("INSERT INTO song (track, name, path, album) VALUES (?1, ?2, ?3, (SELECT id FROM album WHERE name = \"{}\" AND artist = \"{}\"))", album, artist);
-        self.conn.execute(&query, params![track, name, path])?;
+        let now = Instant::now();
+        //oh yeah this is what i'm talking about
+        //2 seconds for all songs
+        //in a thread pool it should be fast
+        //i think sqlite was build for that
+        let query = format!(
+            "BEGIN; 
+            INSERT OR IGNORE INTO artist(id) VALUES ('{}'); 
+            INSERT OR IGNORE INTO album(name, artist) VALUES ('{}', '{}'); 
+            INSERT INTO song (track, name, path, album) VALUES('{}','{}','{}', (SELECT id FROM album WHERE name = '{}' AND artist = '{}'));
+            COMMIT;",
+            artist, album, artist,
+            track, name, path, album, artist,
+        );
+        self.conn.execute_batch(&query)?;
+        println!("{:?}", now.elapsed());
 
         Ok(())
     }
