@@ -38,7 +38,17 @@ impl Database {
             [],
         )?;
 
-        let paths = Database::scan("D:/OneDrive/Music");
+        let paths: Vec<PathBuf> = WalkDir::new("D:/OneDrive/Music")
+            .into_iter()
+            .filter_map(|entry| {
+                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                        return Some(entry.as_ref().unwrap().path().to_path_buf());
+                    }
+                }
+                None
+            })
+            .collect();
 
         let songs: Vec<MinSong> = paths
             .par_iter()
@@ -46,8 +56,7 @@ impl Database {
             .collect();
 
         let sqlite_connection_manager = SqliteConnectionManager::file("music.db");
-        let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager)
-            .expect("Failed to create r2d2 SQLite connection pool");
+        let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
         let pool_arc = Arc::new(sqlite_pool);
 
         let pool = pool_arc.clone();
@@ -66,32 +75,21 @@ impl Database {
         Ok(())
     }
 
-    pub fn scan(path: &str) -> Vec<PathBuf> {
-        WalkDir::new(path)
-            .into_iter()
-            .filter_map(|entry| {
-                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                        return Some(entry.as_ref().unwrap().path().to_path_buf());
-                    }
-                }
-                None
-            })
-            .collect()
-    }
-
     pub fn get_artists(&self) -> Result<()> {
         let mut stmt = self.conn.prepare("SELECT artist FROM song")?;
 
         let mut rows = stmt.query([])?;
 
         let mut vec = Vec::new();
+
         while let Some(row) = rows.next()? {
             let s: String = row.get(0)?;
             vec.push(s);
         }
+
         vec.sort_by_key(|s| s.to_lowercase());
         vec.dedup();
+
         for artist in vec {
             println!("{}", artist);
         }
@@ -101,7 +99,6 @@ impl Database {
     pub fn get_album_by_artist(&self, artist: &str) -> Result<()> {
         let query = format!("SELECT album FROM song WHERE artist = '{}'", artist);
         let mut stmt = self.conn.prepare(&query)?;
-
         let mut rows = stmt.query([])?;
 
         let mut vec = Vec::new();
@@ -109,6 +106,7 @@ impl Database {
             let s: String = row.get(0)?;
             vec.push(s);
         }
+
         vec.sort_by_key(|s| s.to_lowercase());
         vec.dedup();
 
@@ -117,23 +115,24 @@ impl Database {
         }
         Ok(())
     }
+
     pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Result<()> {
         let query = format!(
             "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}'",
             artist, album
         );
         let mut stmt = self.conn.prepare(&query)?;
-
         let mut rows = stmt.query([])?;
-
         let mut vec = Vec::new();
+
         while let Some(row) = rows.next()? {
             let track: usize = row.get(0)?;
             let name: String = row.get(1)?;
-
             vec.push((track, name));
         }
+
         vec.sort_by(|a, b| a.0.cmp(&b.0));
+
         for song in vec {
             println!("{}: {}", song.0, song.1);
         }
