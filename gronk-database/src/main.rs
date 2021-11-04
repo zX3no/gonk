@@ -30,7 +30,10 @@ fn main() -> Result<()> {
 
     // database.add_song(1, "NAME", "ALBUM", "ARTIST", "PATH")?;
 
-    database.get_songs()?;
+    // database.get_songs()?;
+    // database.get_artists()?;
+    database.get_album_by_artist("JPEGMAFIA")?;
+    database.get_songs_from_album("LP!", "JPEGMAFIA")?;
 
     Ok(())
 }

@@ -10,7 +10,7 @@ use std::{
 use audiotags::Tag;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, Result};
 use walkdir::WalkDir;
 pub struct Database {
     conn: Connection,
@@ -101,6 +101,57 @@ impl Database {
             let artist: String = row.get(3)?;
 
             println!("{} | {} | {} | {} ", number, name, album, artist);
+        }
+        Ok(())
+    }
+    pub fn get_artists(&self) -> Result<()> {
+        let mut stmt = self.conn.prepare("SELECT artist FROM song")?;
+
+        let mut rows = stmt.query([])?;
+
+        let mut vec = Vec::new();
+        while let Some(row) = rows.next()? {
+            let s: String = row.get(0)?;
+            vec.push(s);
+        }
+        vec.sort_by_key(|s| s.to_lowercase());
+        vec.dedup();
+        dbg!(vec);
+        Ok(())
+    }
+    pub fn get_album_by_artist(&self, artist: &str) -> Result<()> {
+        let query = format!("SELECT album FROM song WHERE artist = '{}'", artist);
+        let mut stmt = self.conn.prepare(&query)?;
+
+        let mut rows = stmt.query([])?;
+
+        let mut vec = Vec::new();
+        while let Some(row) = rows.next()? {
+            let s: String = row.get(0)?;
+            vec.push(s);
+        }
+        vec.sort_by_key(|s| s.to_lowercase());
+        vec.dedup();
+        dbg!(vec);
+        Ok(())
+    }
+    pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Result<()> {
+        let query = format!(
+            "SELECT name, track FROM song WHERE artist = '{}' AND album = '{}'",
+            artist, album
+        );
+        let mut stmt = self.conn.prepare(&query)?;
+
+        let mut rows = stmt.query([])?;
+
+        let mut vec = Vec::new();
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            let track: usize = row.get(1)?;
+            vec.push((name, track));
+        }
+        for song in vec {
+            println!("{}: {}", song.1, song.0);
         }
         Ok(())
     }
