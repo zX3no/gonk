@@ -1,4 +1,8 @@
+use std::{sync::Arc, thread};
+
 use database::Database;
+use r2d2_sqlite::SqliteConnectionManager;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{Connection, Result};
 mod database;
 
@@ -22,27 +26,12 @@ mod database;
 fn main() -> Result<()> {
     let database = Database::new();
     database.create_db()?;
+    Database::write();
 
-    database.add_song(1, "NAME", "ALBUM", "ARTIST", "PATH")?;
+    // database.add_song(1, "NAME", "ALBUM", "ARTIST", "PATH")?;
 
-    Ok(())
-}
+    // database.get_all_songs()?;
 
-pub fn get_all_songs(conn: &Connection) -> Result<()> {
-    let mut stmt = conn
-        .prepare("SELECT song.name, song.album, path, track, artist.name FROM song INNER JOIN album ON song.album = album.id INNER JOIN artist ON album.artist = artist.id")
-        .unwrap();
-    let mut rows = stmt.query([])?;
-
-    while let Some(row) = rows.next()? {
-        let name: String = row.get(0)?;
-        let album: usize = row.get(1)?;
-        let path: String = row.get(2)?;
-        let number: usize = row.get(3)?;
-        let artist: String = row.get(4)?;
-
-        println!("{} | {} | {} | {} | {}", number, name, album, path, artist);
-    }
     Ok(())
 }
 
@@ -50,6 +39,7 @@ pub fn get_song_artist(conn: &Connection) -> Result<Vec<String>> {
     let mut stmt = conn
         .prepare("SELECT album.artist FROM song INNER JOIN album ON song.album = album.id")
         .unwrap();
+
     let mut rows = stmt.query([])?;
 
     let mut artists: Vec<String> = Vec::new();
