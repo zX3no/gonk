@@ -76,7 +76,7 @@ impl Database {
     }
 
     pub fn get_artists(&self) -> Result<()> {
-        let mut stmt = self.conn.prepare("SELECT artist FROM song")?;
+        let mut stmt = self.conn.prepare("SELECT DISTINCT artist FROM song")?;
 
         let mut rows = stmt.query([])?;
 
@@ -88,7 +88,6 @@ impl Database {
         }
 
         vec.sort_by_key(|s| s.to_lowercase());
-        vec.dedup();
 
         for artist in vec {
             println!("{}", artist);
@@ -97,7 +96,10 @@ impl Database {
     }
 
     pub fn get_album_by_artist(&self, artist: &str) -> Result<()> {
-        let query = format!("SELECT album FROM song WHERE artist = '{}'", artist);
+        let query = format!(
+            "SELECT DISTINCT album FROM song WHERE artist = '{}'",
+            artist
+        );
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
 
@@ -108,7 +110,6 @@ impl Database {
         }
 
         vec.sort_by_key(|s| s.to_lowercase());
-        vec.dedup();
 
         for album in vec {
             println!("{}", album);
