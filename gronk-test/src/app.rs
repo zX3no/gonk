@@ -61,19 +61,11 @@ impl App {
         self.browser_mode.prev();
     }
 
-    pub fn browser_down(&mut self) {
-        match self.browser_mode {
-            BrowserMode::Artist => self.music.artists_down(),
-            BrowserMode::Album => self.music.albums_down(),
-            BrowserMode::Song => self.music.songs_down(),
-        }
+    pub fn browser_up(&mut self) {
+        self.music.up(&self.browser_mode);
     }
 
-    pub fn browser_up(&mut self) {
-        match self.browser_mode {
-            BrowserMode::Artist => self.music.artists_up(),
-            BrowserMode::Album => self.music.albums_up(),
-            BrowserMode::Song => self.music.songs_up(),
-        }
+    pub fn browser_down(&mut self) {
+        self.music.down(&self.browser_mode);
     }
 }

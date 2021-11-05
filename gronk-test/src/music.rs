@@ -1,298 +1,132 @@
-use std::path::Path;
+use gronk_database::database::Database;
 
-use gronk_indexer::database::*;
-#[derive(Clone, Debug)]
+use crate::app::BrowserMode;
+pub struct Item {
+    pub item: String,
+    pub index: usize,
+    pub len: usize,
+}
+impl Item {
+    pub fn new(item: String, index: usize, len: usize) -> Self {
+        Self { item, index, len }
+    }
+}
+
 pub struct Music {
-    artists: Vec<Artist>,
-    selected_artist: Artist,
+    database: Database,
+    selected_artist: Item,
+    selected_album: Item,
+    selected_song: Item,
+    artists: Vec<String>,
+    albums: Vec<String>,
+    songs: Vec<String>,
 }
 
 impl Music {
     pub fn new() -> Self {
-        let database = Database::create(Path::new("D:/OneDrive/Music"));
+        let database = Database::new();
 
-        //TODO: Sort all data in the database.
-        let mut artists = database.artists;
-        artists.sort_by_key(|artist| artist.name.to_lowercase());
+        let artists = database.get_artists().unwrap();
+        let artist = artists.first().unwrap().clone();
+
+        let albums = database.get_albums_by_artist(&artist).unwrap();
+        let album = albums.first().unwrap().clone();
+
+        let songs = database.get_songs_from_album(&artist, &album).unwrap();
+        let song = songs.first().unwrap().clone();
+
         Self {
-            selected_artist: artists.first().unwrap().clone(),
+            database,
+            selected_artist: Item::new(artist, 0, artists.len()),
+            selected_album: Item::new(album, 0, albums.len()),
+            selected_song: Item::new(song, 0, songs.len()),
             artists,
+            albums,
+            songs,
         }
-    }
-    // pub fn new() -> Self {
-    //     let track_1 = Song {
-    //         name: String::from("Panic Emoji"),
-    //     };
-    //     let track_2 = Song {
-    //         name: String::from("Dayum"),
-    //     };
-    //     let track_3 = Song {
-    //         name: String::from("Among us"),
-    //     };
-    //     let track_4 = Song {
-    //         name: String::from("sus"),
-    //     };
-    //     let veteran = Album {
-    //         name: String::from("Veteren"),
-    //         songs: vec![track_1.clone(), track_2.clone()],
-    //         selected_song: track_1.clone(),
-    //     };
-    //     let lp = Album {
-    //         name: String::from("LP!"),
-    //         songs: vec![track_3.clone(), track_4.clone()],
-    //         selected_song: track_3.clone(),
-    //     };
-    //     let jpegmafia = Artist {
-    //         name: String::from("JPEGMAFIA"),
-    //         albums: vec![veteran.clone(), lp.clone()],
-    //         selected_album: veteran,
-    //     };
-
-    //     let track_1 = Song {
-    //         name: String::from("Something Fossil"),
-    //     };
-    //     let track_2 = Song {
-    //         name: String::from("Neo"),
-    //     };
-    //     let neowax = Album {
-    //         name: String::from("NeoWax"),
-    //         songs: vec![track_1.clone(), track_2.clone()],
-    //         selected_song: track_1.clone(),
-    //     };
-    //     let iglooghost = Artist {
-    //         name: String::from("Iglooghost"),
-    //         albums: vec![neowax.clone()],
-    //         selected_album: neowax,
-    //     };
-
-    //     Self {
-    //         artists: vec![jpegmafia.clone(), iglooghost.clone()],
-    //         selected_artist: jpegmafia,
-    //     }
-    // }
-    pub fn artists_down(&mut self) {
-        //get the current selected artist index
-        if let Some(i) = self.get_selected_artist() {
-            //try to move up
-            if let Some(artist) = self.artists.get(i + 1) {
-                //if we can update the selected artist
-                self.selected_artist = artist.clone();
-            } else {
-                if let Some(artist) = self.artists.first() {
-                    //if we can't reset to first artist
-                    self.selected_artist = artist.clone();
-                } else {
-                    panic!("first returned nothing");
-                }
-            }
-        } else {
-            panic!("no selected artist?");
-        }
-    }
-    pub fn artists_up(&mut self) {
-        //get the current selected artist index
-        if let Some(i) = self.get_selected_artist() {
-            //try to move up
-            if i == 0 {
-                if let Some(artist) = self.artists.last() {
-                    //if we can't reset to first artist
-                    self.selected_artist = artist.clone();
-                } else {
-                    panic!("last returned nothing");
-                }
-            } else {
-                if let Some(artist) = self.artists.get(i - 1) {
-                    //if we can update the selected artist
-                    self.selected_artist = artist.clone();
-                } else {
-                    panic!("could not get i - 1");
-                }
-            }
-        } else {
-            panic!("no selected artist?");
-        }
-    }
-    pub fn albums_up(&mut self) {
-        //get the current selected artist index
-        if let Some(i) = self.get_selected_album() {
-            //try to move up
-            if i == 0 {
-                if let Some(album) = self.selected_artist.albums.last() {
-                    //if we can't reset to first artist
-                    self.selected_artist.selected_album = album.clone();
-                } else {
-                    panic!("no artists?");
-                }
-            } else {
-                if let Some(album) = self.selected_artist.albums.get(i - 1) {
-                    //if we can update the selected artist
-                    self.selected_artist.selected_album = album.clone();
-                } else {
-                    panic!("could not get i - 1");
-                }
-            }
-        } else {
-            panic!("no selected artist?");
-        }
-    }
-    pub fn albums_down(&mut self) {
-        //get the current selected artist index
-        if let Some(i) = self.get_selected_album() {
-            //try to move up
-            if let Some(album) = self.selected_artist.albums.get(i + 1) {
-                //if we can update the selected artist
-                self.selected_artist.selected_album = album.clone();
-            } else {
-                if let Some(album) = self.selected_artist.albums.first() {
-                    //if we can't reset to first artist
-                    self.selected_artist.selected_album = album.clone();
-                } else {
-                    panic!("first returned nothing");
-                }
-            }
-        } else {
-            panic!("no selected album?");
-        }
-    }
-    pub fn songs_up(&mut self) {
-        //get the current selected artist index
-        if let Some(i) = self.get_selected_song() {
-            //try to move up
-            if i == 0 {
-                if let Some(song) = self.selected_artist.selected_album.songs.last() {
-                    //if we can't reset to first artist
-                    self.selected_artist.selected_album.selected_song = song.clone();
-                } else {
-                    //TODO: if there are no artists set to none
-                    // self.selected_artist = None;
-                    panic!("no artists?");
-                }
-            } else {
-                if let Some(song) = self.selected_artist.selected_album.songs.get(i - 1) {
-                    //if we can update the selected artist
-                    self.selected_artist.selected_album.selected_song = song.clone();
-                } else {
-                    panic!("could not get i - 1");
-                }
-            }
-        } else {
-            panic!("no selected song?");
-        }
-    }
-    pub fn songs_down(&mut self) {
-        //get the current selected artist index
-        if let Some(i) = self.get_selected_song() {
-            //try to move up
-            if let Some(song) = self.selected_artist.selected_album.songs.get(i + 1) {
-                //if we can update the selected artist
-                self.selected_artist.selected_album.selected_song = song.clone();
-            } else {
-                if let Some(song) = self.selected_artist.selected_album.songs.first() {
-                    //if we can't reset to first artist
-                    self.selected_artist.selected_album.selected_song = song.clone();
-                } else {
-                    panic!("first returned nothing");
-                }
-            }
-        } else {
-            panic!("no selected song?");
-        }
-    }
-
-    pub fn artist_names(&mut self) -> Vec<String> {
-        self.artists.iter().map(|a| a.name.clone()).collect()
-    }
-    pub fn album_names(&self) -> Vec<String> {
-        self.selected_artist
-            .albums
-            .iter()
-            .map(|album| album.name.clone())
-            .collect()
-        // let mut albums: Vec<String> = self
-        //     .selected_artist
-        //     .albums
-        //     .iter()
-        //     .map(|a| a.name.clone())
-        //     .collect();
-
-        // albums.sort_by_key(|album| album.to_lowercase());
-        // albums
-    }
-    pub fn song_names(&self) -> Vec<String> {
-        self.selected_artist
-            .selected_album
-            .songs
-            .iter()
-            .map(|song| song.name.clone())
-            .collect()
-        // let mut songs = self.selected_artist.selected_album.songs.clone();
-        // songs.sort_by(|a, b| {
-        //     a.disc
-        //         .cmp(&b.disc)
-        //         .then(a.track_number.cmp(&b.track_number))
-        // });
-        // songs.iter().map(|a| a.name.clone()).collect()
     }
     pub fn get_selected_artist(&self) -> Option<usize> {
-        for (i, artist) in self.artists.iter().enumerate() {
-            if artist == &self.selected_artist {
-                return Some(i);
-            }
-        }
-        None
+        Some(self.selected_artist.index)
     }
     pub fn get_selected_album(&self) -> Option<usize> {
-        for (i, album) in self.selected_artist.albums.iter().enumerate() {
-            if album == &self.selected_artist.selected_album {
-                return Some(i);
-            }
-        }
-        None
+        Some(self.selected_album.index)
     }
     pub fn get_selected_song(&self) -> Option<usize> {
-        for (i, album) in self.selected_artist.selected_album.songs.iter().enumerate() {
-            if album == &self.selected_artist.selected_album.selected_song {
-                return Some(i);
-            }
+        Some(self.selected_song.index)
+    }
+    pub fn artist_names(&self) -> Vec<String> {
+        self.artists.clone()
+    }
+    pub fn album_names(&self) -> Vec<String> {
+        self.albums.clone()
+    }
+    pub fn song_names(&self) -> Vec<String> {
+        self.songs.clone()
+    }
+    pub fn up(&mut self, mode: &BrowserMode) {
+        let item = match mode {
+            BrowserMode::Artist => &mut self.selected_artist,
+            BrowserMode::Album => &mut self.selected_album,
+            BrowserMode::Song => &mut self.selected_song,
+        };
+
+        if item.index as i32 - 1 >= 0 {
+            item.index = item.index - 1;
+        } else {
+            item.index = item.len - 1;
         }
-        None
+
+        if let BrowserMode::Artist = mode {
+            self.update();
+        } else if let BrowserMode::Album = mode {
+            self.update_song();
+        }
+    }
+    pub fn down(&mut self, mode: &BrowserMode) {
+        let item = match mode {
+            BrowserMode::Artist => &mut self.selected_artist,
+            BrowserMode::Album => &mut self.selected_album,
+            BrowserMode::Song => &mut self.selected_song,
+        };
+
+        if item.index + 1 < item.len {
+            item.index = item.index + 1;
+        } else {
+            item.index = 0;
+        }
+
+        if let BrowserMode::Artist = mode {
+            self.update();
+        } else if let BrowserMode::Album = mode {
+            self.update_song();
+        }
+    }
+    pub fn update(&mut self) {
+        //Update the album based on artist selection
+        self.selected_artist.item = self
+            .artists
+            .get(self.selected_artist.index)
+            .unwrap()
+            .clone();
+
+        self.albums = self
+            .database
+            .get_albums_by_artist(&self.selected_artist.item)
+            .unwrap();
+
+        self.selected_album = Item::new(self.albums.first().unwrap().clone(), 0, self.albums.len());
+
+        self.update_song();
+    }
+    pub fn update_song(&mut self) {
+        //Update the song based on album selection
+        self.selected_album.item = self.albums.get(self.selected_album.index).unwrap().clone();
+
+        self.songs = self
+            .database
+            .get_songs_from_album(&self.selected_artist.item, &self.selected_album.item)
+            .unwrap();
+
+        self.selected_song = Item::new(self.songs.first().unwrap().clone(), 0, self.songs.len());
     }
 }
-
-// #[derive(Clone, Debug)]
-// struct Artist {
-//     name: String,
-//     albums: Vec<Album>,
-//     selected_album: Album,
-// }
-
-// impl PartialEq for Artist {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.name == other.name && self.albums == other.albums
-//         // && self.selected_album == other.selected_album
-//     }
-// }
-
-// #[derive(Clone, Debug)]
-// struct Album {
-//     name: String,
-//     songs: Vec<Song>,
-//     selected_song: Song,
-// }
-
-// impl PartialEq for Album {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.name == other.name && self.songs == other.songs
-//         // && self.selected_song == other.selected_song
-//     }
-// }
-
-// #[derive(Clone, Debug)]
-// struct Song {
-//     name: String,
-// }
-// impl PartialEq for Song {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.name == other.name
-//     }
-// }

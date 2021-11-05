@@ -51,7 +51,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .block(Block::default().title("Aritst").borders(Borders::ALL))
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default())
-        .highlight_symbol(">>");
+        .highlight_symbol("> ");
 
     let mut artist_state = ListState::default();
     artist_state.select(music.get_selected_artist());
@@ -60,7 +60,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .block(Block::default().title("Album").borders(Borders::ALL))
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default())
-        .highlight_symbol(">>");
+        .highlight_symbol("> ");
 
     let mut album_state = ListState::default();
     album_state.select(music.get_selected_album());
@@ -69,7 +69,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .block(Block::default().title("Song").borders(Borders::ALL))
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default())
-        .highlight_symbol(">>");
+        .highlight_symbol("> ");
 
     let mut song_state = ListState::default();
     song_state.select(music.get_selected_song());

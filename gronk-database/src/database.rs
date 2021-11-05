@@ -75,22 +75,19 @@ impl Database {
 
         Ok(())
     }
-
-    pub fn get_artists(&self) -> Result<()> {
+    pub fn first_artist(&self) -> Result<String> {
         let mut stmt = self
             .conn
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
 
         let mut rows = stmt.query([])?;
-
         while let Some(row) = rows.next()? {
             let artist: String = row.get(0)?;
-            println!("{}", artist);
+            return Ok(artist);
         }
-        Ok(())
+        panic!("no artists");
     }
-
-    pub fn get_albums_by_artist(&self, artist: &str) -> Result<()> {
+    pub fn first_album(&self, artist: &str) -> Result<String> {
         let query = format!(
             "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
             artist
@@ -98,16 +95,13 @@ impl Database {
 
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
-
         while let Some(row) = rows.next()? {
             let album: String = row.get(0)?;
-            println!("{}", album);
+            return Ok(album);
         }
-
-        Ok(())
+        panic!("no albums");
     }
-
-    pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Result<()> {
+    pub fn first_song(&self, artist: &str, album: &str) -> Result<String> {
         let query = format!(
             "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
             artist, album
@@ -119,10 +113,62 @@ impl Database {
         while let Some(row) = rows.next()? {
             let track: usize = row.get(0)?;
             let name: String = row.get(1)?;
-            println!("{}: {}", track, name);
+            return Ok(format!("{}: {}", track, name));
         }
 
-        Ok(())
+        panic!("no albums");
+    }
+
+    pub fn get_artists(&self) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
+
+        let mut rows = stmt.query([])?;
+
+        let mut artists = Vec::new();
+        while let Some(row) = rows.next()? {
+            let artist: String = row.get(0)?;
+            artists.push(artist);
+        }
+        Ok(artists)
+    }
+
+    pub fn get_albums_by_artist(&self, artist: &str) -> Result<Vec<String>> {
+        let query = format!(
+            "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
+            artist
+        );
+
+        let mut stmt = self.conn.prepare(&query)?;
+        let mut rows = stmt.query([])?;
+
+        let mut albums = Vec::new();
+        while let Some(row) = rows.next()? {
+            let album: String = row.get(0)?;
+            albums.push(album);
+        }
+
+        Ok(albums)
+    }
+
+    pub fn get_songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<String>> {
+        let query = format!(
+            "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
+            artist, album
+        );
+
+        let mut stmt = self.conn.prepare(&query)?;
+        let mut rows = stmt.query([])?;
+
+        let mut songs = Vec::new();
+        while let Some(row) = rows.next()? {
+            let track: usize = row.get(0)?;
+            let name: String = row.get(1)?;
+            songs.push(format!("{}. {}", track, name));
+        }
+
+        Ok(songs)
     }
 }
 
