@@ -107,7 +107,7 @@ impl Music {
             .artists
             .get(self.selected_artist.index)
             .unwrap()
-            .clone();
+            .to_owned();
 
         self.albums = self
             .database
@@ -120,7 +120,11 @@ impl Music {
     }
     pub fn update_song(&mut self) {
         //Update the song based on album selection
-        self.selected_album.item = self.albums.get(self.selected_album.index).unwrap().clone();
+        self.selected_album.item = self
+            .albums
+            .get(self.selected_album.index)
+            .unwrap()
+            .to_owned();
 
         self.songs = self
             .database

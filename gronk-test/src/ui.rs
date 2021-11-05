@@ -5,6 +5,7 @@ use tui::widgets::*;
 use tui::Frame;
 
 use crate::app::App;
+use crate::app::BrowserMode;
 use crate::app::Mode;
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
@@ -74,20 +75,18 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let mut song_state = ListState::default();
     song_state.select(music.get_selected_song());
 
-    let no_state = ListState::default();
-
     match app.browser_mode {
-        crate::app::BrowserMode::Artist => {
-            album_state = no_state.clone();
-            song_state = no_state;
+        BrowserMode::Artist => {
+            album_state = ListState::default();
+            song_state = ListState::default();
         }
-        crate::app::BrowserMode::Album => {
-            artist_state = no_state.clone();
-            song_state = no_state;
+        BrowserMode::Album => {
+            artist_state = ListState::default();
+            song_state = ListState::default();
         }
-        crate::app::BrowserMode::Song => {
-            artist_state = no_state.clone();
-            album_state = no_state;
+        BrowserMode::Song => {
+            artist_state = ListState::default();
+            album_state = ListState::default();
         }
     }
 
