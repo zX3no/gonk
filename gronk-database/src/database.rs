@@ -95,6 +95,7 @@ impl Database {
             "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
             artist
         );
+
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
 
@@ -111,6 +112,7 @@ impl Database {
             "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
             artist, album
         );
+
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
 

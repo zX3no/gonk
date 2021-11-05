@@ -32,7 +32,7 @@ impl Backend {
         let mut wav = audio::Wav::default();
         let bytes = std::fs::read(path).unwrap();
         // wav.load(path).unwrap();
-        wav.load_mem(bytes).unwrap();
+        wav.load_mem(&bytes).unwrap();
         self.wav = Some(wav);
     }
 
