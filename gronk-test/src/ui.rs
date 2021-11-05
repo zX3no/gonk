@@ -32,19 +32,19 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let a: Vec<_> = music
         .artist_names()
         .iter()
-        .map(|name| ListItem::new(name.clone()))
+        .map(|name| ListItem::new(name.as_str()))
         .collect();
 
     let b: Vec<_> = music
         .album_names()
         .iter()
-        .map(|name| ListItem::new(name.clone()))
+        .map(|name| ListItem::new(name.as_str()))
         .collect();
 
     let c: Vec<_> = music
         .song_names()
         .iter()
-        .map(|name| ListItem::new(name.clone()))
+        .map(|name| ListItem::new(name.as_str()))
         .collect();
 
     let artists = List::new(a)

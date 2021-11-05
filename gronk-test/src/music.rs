@@ -54,14 +54,14 @@ impl Music {
     pub fn get_selected_song(&self) -> Option<usize> {
         Some(self.selected_song.index)
     }
-    pub fn artist_names(&self) -> Vec<String> {
-        self.artists.clone()
+    pub fn artist_names(&self) -> &Vec<String> {
+        &self.artists
     }
-    pub fn album_names(&self) -> Vec<String> {
-        self.albums.clone()
+    pub fn album_names(&self) -> &Vec<String> {
+        &self.albums
     }
-    pub fn song_names(&self) -> Vec<String> {
-        self.songs.clone()
+    pub fn song_names(&self) -> &Vec<String> {
+        &self.songs
     }
     pub fn up(&mut self, mode: &BrowserMode) {
         let item = match mode {
