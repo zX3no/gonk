@@ -1,11 +1,40 @@
 use std::path::PathBuf;
 
-use gronk_indexer::database::Song;
+#[derive(Debug, Clone)]
+pub struct QueueSong {
+    pub path: PathBuf,
+    pub elapsed: Option<f64>,
+    pub duration: Option<f64>,
+}
+impl QueueSong {
+    pub fn from(path: PathBuf) -> Self {
+        Self {
+            path,
+            elapsed: None,
+            duration: None,
+        }
+    }
+    pub fn from_vec(songs: Vec<PathBuf>) -> Vec<Self> {
+        songs
+            .iter()
+            .map(|song| QueueSong::from(song.to_owned()))
+            .collect()
+    }
+    pub fn update(&mut self, elapsed: f64, duration: f64) {
+        self.elapsed = Some(elapsed);
+        self.duration = Some(duration);
+    }
+}
+impl PartialEq for QueueSong {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Queue {
-    pub songs: Vec<Song>,
-    pub now_playing: Option<Song>,
+    pub songs: Vec<QueueSong>,
+    pub now_playing: Option<QueueSong>,
     pub index: Option<usize>,
     pub percent: u16,
 }
@@ -18,14 +47,14 @@ impl Queue {
             percent: 0,
         }
     }
-    pub fn test() -> Self {
-        Self {
-            songs: vec![Song::from("music/2.flac"), Song::from("music/3.flac")],
-            now_playing: None,
-            index: Some(0),
-            percent: 0,
-        }
-    }
+    // pub fn test() -> Self {
+    //     Self {
+    //         songs: vec![Song::from("music/2.flac"), Song::from("music/3.flac")],
+    //         now_playing: None,
+    //         index: Some(0),
+    //         percent: 0,
+    //     }
+    // }
     pub fn next_song(&mut self) -> Option<PathBuf> {
         if self.now_playing.is_some() {
             if let Some(index) = &mut self.index {
@@ -55,8 +84,7 @@ impl Queue {
                     *index = queue.len() - 1;
                 }
             }
-            let song = song.clone();
-            Some(song.path)
+            Some(song.path.clone())
         } else {
             None
         }

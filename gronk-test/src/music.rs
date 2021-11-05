@@ -1,6 +1,6 @@
 use gronk_database::database::Database;
 
-use crate::app::BrowserMode;
+use crate::{app::BrowserMode, queue::Queue};
 pub struct Item {
     pub item: String,
     pub index: usize,
@@ -20,11 +20,14 @@ pub struct Music {
     artists: Vec<String>,
     albums: Vec<String>,
     songs: Vec<String>,
+    queue: Queue,
 }
 
 impl Music {
     pub fn new() -> Self {
         let database = Database::new();
+        //todo: check if db exists
+        // database.create_db();
 
         let artists = database.get_artists().unwrap();
         let artist = artists.first().unwrap().clone();
@@ -43,8 +46,18 @@ impl Music {
             artists,
             albums,
             songs,
+            queue: Queue::new(),
         }
     }
+    pub fn queue_artist(&self) {}
+    pub fn queue_album(&self) {
+        let songs = self
+            .database
+            .get_album_paths(&self.selected_artist.item, &self.selected_album.item);
+        dbg!(&songs);
+        self.queue.add(songs);
+    }
+    pub fn queue_song(&self) {}
     pub fn get_selected_artist(&self) -> Option<usize> {
         Some(self.selected_artist.index)
     }

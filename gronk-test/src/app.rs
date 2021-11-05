@@ -1,4 +1,4 @@
-use crate::music::Music;
+use crate::{music::Music, queue::Queue};
 
 pub enum BrowserMode {
     Artist,
@@ -47,6 +47,13 @@ impl App {
             music: Music::new(),
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::Browser,
+        }
+    }
+    pub fn add_to_queue(&mut self) {
+        match self.browser_mode {
+            BrowserMode::Artist => self.music.queue_artist(),
+            BrowserMode::Album => self.music.queue_album(),
+            BrowserMode::Song => self.music.queue_song(),
         }
     }
     pub fn ui_toggle(&mut self) {

@@ -4,14 +4,16 @@ use tui::style::*;
 use tui::widgets::*;
 use tui::Frame;
 
-use crate::app::App;
-use crate::app::BrowserMode;
-use crate::app::Mode;
+use crate::app::{App, BrowserMode, Mode};
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    if let Mode::Queue = app.ui_mode {
-        return;
+    match app.ui_mode {
+        Mode::Browser => draw_browser(f, app),
+        Mode::Queue => draw_queue(f, app),
     }
+}
+
+pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
     let music = &mut app.music;
@@ -27,7 +29,6 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             ]
             .as_ref(),
         )
-        .margin(1)
         .split(area);
 
     let a: Vec<_> = music
@@ -49,28 +50,43 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .collect();
 
     let artists = List::new(a)
-        .block(Block::default().title("Aritst").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Aritst")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default())
-        .highlight_symbol("> ");
+        .highlight_symbol(">");
 
     let mut artist_state = ListState::default();
     artist_state.select(music.get_selected_artist());
 
     let albums = List::new(b)
-        .block(Block::default().title("Album").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Album")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default())
-        .highlight_symbol("> ");
+        .highlight_symbol(">");
 
     let mut album_state = ListState::default();
     album_state.select(music.get_selected_album());
 
     let songs = List::new(c)
-        .block(Block::default().title("Song").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title("Song")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default())
-        .highlight_symbol("> ");
+        .highlight_symbol(">");
 
     let mut song_state = ListState::default();
     song_state.select(music.get_selected_song());
@@ -93,4 +109,25 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_stateful_widget(artists, chunks[0], &mut artist_state);
     f.render_stateful_widget(albums, chunks[1], &mut album_state);
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
+}
+pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    let area = f.size();
+
+    let b = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .border_type(BorderType::Rounded);
+
+    let queue = List::new(vec![ListItem::new("1. sus")])
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
+        .highlight_style(Style::default())
+        .highlight_symbol("> ");
+
+    let mut state = ListState::default();
+    state.select(Some(0));
+    f.render_stateful_widget(queue, area, &mut state);
 }

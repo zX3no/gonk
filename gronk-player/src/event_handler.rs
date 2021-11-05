@@ -1,14 +1,14 @@
-use backend::Backend;
-use gronk_indexer::database::Song;
+use std::path::PathBuf;
 
-use crate::queue::Queue;
+use crate::queue::{Queue, QueueSong};
+use backend::Backend;
 
 pub mod backend;
 
 #[derive(Debug)]
 pub enum Event {
-    Add(Vec<Song>),
-    Remove(Song),
+    Add(Vec<PathBuf>),
+    Remove(PathBuf),
     ClearQueue,
     Next,
     Previous,
@@ -90,16 +90,23 @@ impl EventHandler {
             self.backend.play_file(&song);
         }
     }
-    pub fn add(&mut self, songs: Vec<Song>) {
+    pub fn add(&mut self, songs: Vec<PathBuf>) {
+        let songs = QueueSong::from_vec(songs);
         self.queue.songs.extend(songs);
     }
-    pub fn remove(&mut self, song: Song) {
-        let queue = self.queue.clone();
-        for (i, s) in queue.songs.iter().enumerate() {
-            if s == &song {
-                self.queue.songs.remove(i);
-            }
-        }
+    pub fn remove(&mut self, song: PathBuf) {
+        self.queue.songs = self
+            .queue
+            .songs
+            .iter()
+            .filter_map(|s| {
+                if s.path == song {
+                    None
+                } else {
+                    Some(s.to_owned())
+                }
+            })
+            .collect();
     }
     pub fn clear_queue(&mut self) {
         self.queue.songs = Vec::new();
@@ -125,14 +132,16 @@ impl EventHandler {
     }
     pub fn get_duration(&self) -> String {
         if let Some(song) = &self.queue.now_playing {
-            let mins = song.duration / 60.0;
-            let rem = song.duration % 60.0;
-            return format!(
-                "{:0width$}:{:0width$}",
-                mins.trunc() as usize,
-                rem.trunc() as usize,
-                width = 2,
-            );
+            if let Some(duration) = &song.duration {
+                let mins = duration / 60.0;
+                let rem = duration % 60.0;
+                return format!(
+                    "{:0width$}:{:0width$}",
+                    mins.trunc() as usize,
+                    rem.trunc() as usize,
+                    width = 2,
+                );
+            }
         }
         String::from("00:00")
     }

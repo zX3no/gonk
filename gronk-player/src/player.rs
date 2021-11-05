@@ -1,4 +1,5 @@
 use std::{
+    path::PathBuf,
     sync::{
         mpsc::{channel, Sender},
         Arc, RwLock,
@@ -11,7 +12,6 @@ use crate::{
     event_handler::{Event, EventHandler},
     queue::Queue,
 };
-use gronk_indexer::database::Song;
 
 #[derive(Debug)]
 pub struct Player {
@@ -54,10 +54,10 @@ impl Player {
     pub fn volume(&self, v: f32) {
         self.tx.send(Event::Volume(v)).unwrap();
     }
-    pub fn add(&self, songs: Vec<Song>) {
+    pub fn add(&self, songs: Vec<PathBuf>) {
         self.tx.send(Event::Add(songs)).unwrap();
     }
-    pub fn remove(&self, song: Song) {
+    pub fn remove(&self, song: PathBuf) {
         self.tx.send(Event::Remove(song)).unwrap();
     }
     pub fn clear_queue(&self) {

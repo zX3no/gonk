@@ -16,6 +16,7 @@ use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
 mod music;
+mod queue;
 mod ui;
 
 enum Event {
@@ -86,6 +87,7 @@ fn main() {
                 KeyCode::Char('k') => app.browser_up(),
                 KeyCode::Char('h') => app.browser_prev(),
                 KeyCode::Char('l') => app.browser_next(),
+                KeyCode::Enter => app.add_to_queue(),
                 KeyCode::Tab => app.ui_toggle(),
                 _ => (),
             },

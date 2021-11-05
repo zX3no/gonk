@@ -29,12 +29,12 @@ impl Database {
 
         conn.execute(
             "CREATE TABLE song(
-                    name    TEXT,
-                    path    TEXT,
-                    track   INTEGER,
-                    disc    INTEGER,
-                    album   TEXT,
-                    artist  TEXT
+                    name    TEXT NOT NULL,
+                    path    TEXT NOT NULL,
+                    track   INTEGER NOT NULL,
+                    disc    INTEGER NOT NULL,
+                    album   TEXT NOT NULL,
+                    artist  TEXT NOT NULL
                 )",
             [],
         )?;
@@ -67,8 +67,8 @@ impl Database {
 
             connection
                 .execute(
-                    "INSERT INTO song (track, disc, name, album, artist) VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![song.track, song.disc, song.name, song.album, song.artist],
+                    "INSERT INTO song (track, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![song.track, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
                 )
                 .unwrap();
         });
@@ -170,6 +170,24 @@ impl Database {
 
         Ok(songs)
     }
+    pub fn get_artist_paths(&self, artist: &str) {}
+    pub fn get_album_paths(&self, artist: &str, album: &str) -> Vec<PathBuf> {
+        let query = format!(
+            "SELECT path FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
+            artist, album
+        );
+        let mut stmt = self.conn.prepare(&query).unwrap();
+        let mut rows = stmt.query([]).unwrap();
+
+        let mut songs = Vec::new();
+        while let Some(row) = rows.next().unwrap() {
+            let path: String = row.get(0).unwrap();
+            songs.push(PathBuf::from(path));
+        }
+
+        songs
+    }
+    pub fn get_song_path(&self, artist: &str, album: &str, song: &str) {}
 }
 
 #[derive(Debug, Clone)]
