@@ -1,5 +1,4 @@
 use std::{
-    path::PathBuf,
     sync::{
         mpsc::{channel, Sender},
         Arc, RwLock,

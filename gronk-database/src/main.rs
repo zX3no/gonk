@@ -1,14 +1,6 @@
 use database::Database;
 use rusqlite::Result;
 mod database;
-pub struct Song {
-    number: u16,
-    disc: u16,
-    name: String,
-    album: String,
-    artist: String,
-    path: std::path::PathBuf,
-}
 
 fn main() -> Result<()> {
     let database = Database::new();

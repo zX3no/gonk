@@ -104,10 +104,10 @@ impl Music {
             BrowserMode::Song => &mut self.selected_song,
         };
 
-        if item.index as i32 - 1 >= 0 {
-            item.index = item.index - 1;
+        if item.index > 0 {
+            item.index -= 1;
         } else {
-            item.index = item.len - 1;
+            item.index -= item.len - 1;
         }
 
         if let BrowserMode::Artist = mode {
@@ -124,7 +124,7 @@ impl Music {
         };
 
         if item.index + 1 < item.len {
-            item.index = item.index + 1;
+            item.index += 1;
         } else {
             item.index = 0;
         }

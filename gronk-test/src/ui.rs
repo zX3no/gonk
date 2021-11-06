@@ -111,13 +111,8 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_stateful_widget(albums, chunks[1], &mut album_state);
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
 }
-pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+pub fn draw_queue<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
     let area = f.size();
-
-    let b = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::White))
-        .border_type(BorderType::Rounded);
 
     let queue = List::new(vec![ListItem::new("1. sus")])
         .block(

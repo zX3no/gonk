@@ -62,10 +62,8 @@ impl Database {
         let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
         let pool_arc = Arc::new(sqlite_pool);
 
-        let pool = pool_arc.clone();
-
         songs.par_iter().for_each(|song| {
-            let connection = pool.get().unwrap();
+            let connection = pool_arc.get().unwrap();
 
             connection
                 .execute(
@@ -83,7 +81,7 @@ impl Database {
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
 
         let mut rows = stmt.query([])?;
-        while let Some(row) = rows.next()? {
+        if let Some(row) = rows.next()? {
             let artist: String = row.get(0)?;
             return Ok(artist);
         }
@@ -97,7 +95,7 @@ impl Database {
 
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
-        while let Some(row) = rows.next()? {
+        if let Some(row) = rows.next()? {
             let album: String = row.get(0)?;
             return Ok(album);
         }
@@ -112,7 +110,7 @@ impl Database {
         let mut stmt = self.conn.prepare(&query)?;
         let mut rows = stmt.query([])?;
 
-        while let Some(row) = rows.next()? {
+        if let Some(row) = rows.next()? {
             let track: u16 = row.get(0)?;
             let name: String = row.get(1)?;
             return Ok((track, name));
