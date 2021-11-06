@@ -133,19 +133,19 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .collect();
 
     if let Some(index) = queue.index {
-        let song = queue.songs.get(index).unwrap();
-
-        let row = Row::new(vec![
-            Cell::from(song.number.to_string()).style(Style::default().bg(Color::Green)),
-            Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
-            Cell::from(song.album.to_owned()).style(Style::default().bg(Color::Magenta)),
-            Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
-        ])
-        //make the text black
-        .style(Style::default().fg(Color::Black));
-        //i don't think this will realocate? need to test..
-        items.remove(index);
-        items.insert(index, row);
+        if let Some(song) = queue.songs.get(index) {
+            let row = Row::new(vec![
+                Cell::from(song.number.to_string()).style(Style::default().bg(Color::Green)),
+                Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
+                Cell::from(song.album.to_owned()).style(Style::default().bg(Color::Magenta)),
+                Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
+            ])
+            //make the text black
+            .style(Style::default().fg(Color::Black));
+            //i don't think this will realocate? need to test..
+            items.remove(index);
+            items.insert(index, row);
+        }
     }
 
     let t = Table::new(items)
