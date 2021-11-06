@@ -82,10 +82,10 @@ fn main() {
                         break;
                     }
                 }
-                KeyCode::Char('j') => app.browser_down(),
-                KeyCode::Char('k') => app.browser_up(),
-                KeyCode::Char('h') => app.browser_prev(),
-                KeyCode::Char('l') => app.browser_next(),
+                KeyCode::Char('j') | KeyCode::Down => app.browser_down(),
+                KeyCode::Char('k') | KeyCode::Up => app.browser_up(),
+                KeyCode::Char('h') | KeyCode::Left => app.browser_prev(),
+                KeyCode::Char('l') | KeyCode::Right => app.browser_next(),
                 KeyCode::Enter => app.add_to_queue(),
                 KeyCode::Tab => app.ui_toggle(),
                 _ => (),
