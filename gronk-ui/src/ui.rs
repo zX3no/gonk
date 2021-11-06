@@ -119,18 +119,34 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let queue = app.music.get_queue();
 
-    let items: Vec<Row> = queue
+    let mut items: Vec<Row> = queue
         .songs
         .iter()
         .map(|song| {
             Row::new(vec![
                 Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
                 Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Blue)),
-                Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Magenta)),
+                Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
+                Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
             ])
         })
         .collect();
+
+    if let Some(index) = queue.index {
+        let song = queue.songs.get(index).unwrap();
+
+        let row = Row::new(vec![
+            Cell::from(song.number.to_string()).style(Style::default().bg(Color::Green)),
+            Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
+            Cell::from(song.album.to_owned()).style(Style::default().bg(Color::Magenta)),
+            Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
+        ])
+        //make the text black
+        .style(Style::default().fg(Color::Black));
+        //i don't think this will realocate? need to test..
+        items.remove(index);
+        items.insert(index, row);
+    }
 
     let t = Table::new(items)
         // You can set the style of the entire Table.
@@ -153,9 +169,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             Constraint::Ratio(1, 4),
             Constraint::Ratio(1, 4),
             Constraint::Ratio(1, 4),
-        ])
-        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-        .highlight_symbol("> ");
+        ]);
 
     let mut state = TableState::default();
     state.select(queue.index);
