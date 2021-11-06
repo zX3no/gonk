@@ -1,8 +1,10 @@
+#![allow(dead_code)]
+
 use gronk_types::Song;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Result};
-use std::{fs::File, path::PathBuf, sync::Arc, time::Instant};
+use std::{fs::File, path::PathBuf, sync::Arc};
 use walkdir::WalkDir;
 
 pub struct Database {

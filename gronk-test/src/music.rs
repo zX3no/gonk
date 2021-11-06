@@ -1,6 +1,5 @@
 use gronk_database::database::Database;
 use gronk_player::player::Player;
-use gronk_types::Song;
 
 use crate::app::BrowserMode;
 pub struct Item {
@@ -60,13 +59,13 @@ impl Music {
     }
     pub fn queue_artist(&self) {
         let songs = self.database.get_artist(&self.selected_artist.item);
-        // self.queue.add(songs);
+        self.player.add(songs);
     }
     pub fn queue_album(&self) {
         let songs = self
             .database
             .get_album(&self.selected_artist.item, &self.selected_album.item);
-        // self.queue.add(songs);
+        self.player.add(songs);
     }
     pub fn queue_song(&self) {
         let song = self.database.get_song(
