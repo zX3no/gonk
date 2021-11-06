@@ -8,7 +8,7 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, DisableMouseCapture, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -72,12 +72,7 @@ fn main() {
                 KeyCode::Char('c') => {
                     if event.modifiers == KeyModifiers::CONTROL {
                         disable_raw_mode().unwrap();
-                        execute!(
-                            terminal.backend_mut(),
-                            LeaveAlternateScreen,
-                            DisableMouseCapture
-                        )
-                        .unwrap();
+                        execute!(terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
                         terminal.show_cursor().unwrap();
                         break;
                     } else {
@@ -93,6 +88,7 @@ fn main() {
                 KeyCode::Char('d') => app.music.next(),
                 KeyCode::Char('w') => app.music.volume_up(),
                 KeyCode::Char('s') => app.music.volume_down(),
+                KeyCode::Char('u') => app.music.update_db(),
                 KeyCode::Enter => app.add_to_queue(),
                 KeyCode::Tab => app.ui_toggle(),
                 _ => (),

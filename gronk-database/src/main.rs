@@ -7,9 +7,9 @@ mod database;
 fn main() -> Result<()> {
     let database = Database::new();
 
-    let now = Instant::now();
-    database.create_db()?;
-    println!("{:?}", now.elapsed());
+    // let now = Instant::now();
+    // database.create_db()?;
+    // println!("{:?}", now.elapsed());
 
     // database.get_artists()?;
     // database.get_albums_by_artist("JPEGMAFIA")?;
