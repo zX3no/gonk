@@ -29,6 +29,9 @@ pub struct Music {
     albums: Vec<String>,
     songs: Vec<(u16, String)>,
     player: Player,
+    //todo: serialize volume so
+    //it's the same when you reopen
+    //volume: f64,
 }
 
 impl Music {
@@ -56,6 +59,21 @@ impl Music {
             songs,
             player: Player::new(),
         }
+    }
+    pub fn volume_up(&self) {
+        self.player.volume(0.005);
+    }
+    pub fn volume_down(&self) {
+        self.player.volume(-0.005);
+    }
+    pub fn play_pause(&self) {
+        self.player.toggle_playback();
+    }
+    pub fn next(&self) {
+        self.player.next();
+    }
+    pub fn prev(&self) {
+        self.player.previous();
     }
     pub fn queue_artist(&self) {
         let songs = self.database.get_artist(&self.selected_artist.item);
