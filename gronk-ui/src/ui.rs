@@ -166,10 +166,12 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .widths(&[
             Constraint::Min(5),
-            Constraint::Ratio(1, 4),
+            Constraint::Ratio(1, 3),
             Constraint::Ratio(1, 4),
             Constraint::Ratio(1, 4),
         ]);
+    //TODO: calculate longest length of track, album, artist name and change the constraints to fit
+    //sometimes the track name is squished when it doesn't need too
 
     let mut state = TableState::default();
     state.select(queue.index);
