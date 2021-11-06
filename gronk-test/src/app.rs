@@ -1,4 +1,4 @@
-use crate::{music::Music, queue::Queue};
+use crate::music::Music;
 
 pub enum BrowserMode {
     Artist,

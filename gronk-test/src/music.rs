@@ -1,6 +1,8 @@
 use gronk_database::database::Database;
+use gronk_player::player::Player;
+use gronk_types::Song;
 
-use crate::{app::BrowserMode, queue::Queue};
+use crate::app::BrowserMode;
 pub struct Item {
     //optional track number, this can be done better
     pub prefix: Option<u16>,
@@ -27,7 +29,7 @@ pub struct Music {
     artists: Vec<String>,
     albums: Vec<String>,
     songs: Vec<(u16, String)>,
-    queue: Queue,
+    player: Player,
 }
 
 impl Music {
@@ -53,23 +55,27 @@ impl Music {
             artists,
             albums,
             songs,
-            queue: Queue::new(),
+            player: Player::new(),
         }
     }
-    pub fn queue_artist(&self) {}
+    pub fn queue_artist(&self) {
+        let songs = self.database.get_artist(&self.selected_artist.item);
+        // self.queue.add(songs);
+    }
     pub fn queue_album(&self) {
         let songs = self
             .database
-            .get_album_paths(&self.selected_artist.item, &self.selected_album.item);
-        self.queue.add(songs);
+            .get_album(&self.selected_artist.item, &self.selected_album.item);
+        // self.queue.add(songs);
     }
     pub fn queue_song(&self) {
-        let song = self.database.get_song_path(
+        let song = self.database.get_song(
             &self.selected_artist.item,
             &self.selected_album.item,
+            &self.selected_song.prefix.unwrap(),
             &self.selected_song.item,
         );
-        self.queue.add(song);
+        self.player.add(song);
     }
     pub fn get_selected_artist(&self) -> Option<usize> {
         Some(self.selected_artist.index)
@@ -106,7 +112,7 @@ impl Music {
         }
 
         if let BrowserMode::Artist = mode {
-            self.update();
+            self.reset_artist();
         } else if let BrowserMode::Album = mode {
             self.update_song();
         }
@@ -124,13 +130,18 @@ impl Music {
             item.index = 0;
         }
 
-        if let BrowserMode::Artist = mode {
-            self.update();
-        } else if let BrowserMode::Album = mode {
-            self.update_song();
+        match mode {
+            BrowserMode::Artist => self.reset_artist(),
+            BrowserMode::Album => self.reset_songs(),
+            BrowserMode::Song => self.update_song(),
         }
     }
-    pub fn update(&mut self) {
+    pub fn update_song(&mut self) {
+        let (number, name) = self.songs.get(self.selected_song.index).unwrap().clone();
+        self.selected_song.prefix = Some(number);
+        self.selected_song.item = name;
+    }
+    pub fn reset_artist(&mut self) {
         //Update the album based on artist selection
         self.selected_artist.item = self
             .artists
@@ -150,9 +161,9 @@ impl Music {
             self.albums.len(),
         );
 
-        self.update_song();
+        self.reset_songs();
     }
-    pub fn update_song(&mut self) {
+    pub fn reset_songs(&mut self) {
         //Update the song based on album selection
         self.selected_album.item = self
             .albums

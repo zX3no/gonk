@@ -2,13 +2,8 @@
 name = "gronk-player"
 version = "0.1.0"
 edition = "2018"
-
-[lib]
-name = "gronk_player"
-path = "src/lib.rs"
-
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 soloud = "1.0.0"
+gronk-types = {path = "../gronk-types"}

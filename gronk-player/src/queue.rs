@@ -1,20 +1,35 @@
 use std::path::PathBuf;
 
+use gronk_types::Song;
+
 #[derive(Debug, Clone)]
 pub struct QueueSong {
+    pub number: u16,
+    pub name: String,
     pub path: PathBuf,
     pub elapsed: Option<f64>,
     pub duration: Option<f64>,
 }
 impl QueueSong {
-    pub fn from(path: PathBuf) -> Self {
+    pub fn from(song: Song) -> Self {
         Self {
-            path,
+            number: song.number,
+            name: song.name,
+            path: song.path,
             elapsed: None,
             duration: None,
         }
     }
-    pub fn from_vec(songs: Vec<PathBuf>) -> Vec<Self> {
+    pub fn from_path(path: &str) -> Self {
+        Self {
+            number: 0,
+            name: String::new(),
+            path: PathBuf::from(path),
+            elapsed: None,
+            duration: None,
+        }
+    }
+    pub fn from_vec(songs: Vec<Song>) -> Vec<Self> {
         songs
             .iter()
             .map(|song| QueueSong::from(song.to_owned()))
@@ -25,9 +40,16 @@ impl QueueSong {
         self.duration = Some(duration);
     }
 }
+
 impl PartialEq for QueueSong {
     fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
+        self.number == other.number && self.name == other.name
+    }
+}
+
+impl PartialEq<Song> for QueueSong {
+    fn eq(&self, other: &Song) -> bool {
+        self.number == other.number && self.name == other.name
     }
 }
 
@@ -50,8 +72,8 @@ impl Queue {
     pub fn test() -> Self {
         Self {
             songs: vec![
-                QueueSong::from(PathBuf::from("music/2.flac")),
-                QueueSong::from(PathBuf::from("music/3.flac")),
+                QueueSong::from_path("music/2.flac"),
+                QueueSong::from_path("music/3.flac"),
             ],
             now_playing: None,
             index: Some(0),

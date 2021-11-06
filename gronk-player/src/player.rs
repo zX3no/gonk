@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+use gronk_types::Song;
+
 use crate::{
     event_handler::{Event, EventHandler},
     queue::Queue,
@@ -54,10 +56,10 @@ impl Player {
     pub fn volume(&self, v: f32) {
         self.tx.send(Event::Volume(v)).unwrap();
     }
-    pub fn add(&self, songs: Vec<PathBuf>) {
+    pub fn add(&self, songs: Vec<Song>) {
         self.tx.send(Event::Add(songs)).unwrap();
     }
-    pub fn remove(&self, song: PathBuf) {
+    pub fn remove(&self, song: Song) {
         self.tx.send(Event::Remove(song)).unwrap();
     }
     pub fn clear_queue(&self) {

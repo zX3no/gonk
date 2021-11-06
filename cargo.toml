@@ -2,11 +2,10 @@
 
 members = [
     "gronk-player",
-    "gronk-ui",
-    "gronk-indexer",
     "gronk-test",
     "gronk-database",
+    "gronk-types",
 ]
 
-exclude = ["gronk-old"]
+exclude = ["gronk-ui", "gronk-indexer"]
 

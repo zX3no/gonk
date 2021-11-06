@@ -1,5 +1,5 @@
-use gronk_player::player::Player;
-use std::path::PathBuf;
+// use gronk_player::player::Player;
+// use std::path::PathBuf;
 
 //could probably remove this struct and put contents into music
 
@@ -12,38 +12,31 @@ use std::path::PathBuf;
 //i suppose they queue can be stored twice?
 //once in the database and once in the player
 
-pub struct Queue {
-    player: Player,
-}
-impl Queue {
-    pub fn new() -> Self {
-        Self {
-            player: Player::new(),
-        }
-    }
-    pub fn add(&self, songs: Vec<PathBuf>) {
-        self.player.add(songs);
-    }
-    pub fn remove(&self, song: PathBuf) {
-        self.player.remove(song);
-    }
-    pub fn next(&self) {
-        self.player.next();
-    }
-    pub fn prev(&self) {
-        self.player.previous();
-    }
-    pub fn clear(&self) {
-        self.player.clear_queue();
-        self.player.stop()
-    }
-    pub fn pause(&self) {
-        self.player.toggle_playback();
-    }
-    pub fn volume_down(&self) {
-        self.player.volume(-0.005);
-    }
-    pub fn volume_up(&self) {
-        self.player.volume(0.005);
-    }
-}
+// pub struct Queue {}
+// impl Queue {
+//     pub fn add(&self, songs: Vec<Song>) {
+//         self.player.add(songs);
+//     }
+//     pub fn remove(&self, song: PathBuf) {
+//         self.player.remove(song);
+//     }
+//     pub fn next(&self) {
+//         self.player.next();
+//     }
+//     pub fn prev(&self) {
+//         self.player.previous();
+//     }
+//     pub fn clear(&self) {
+//         self.player.clear_queue();
+//         self.player.stop()
+//     }
+//     pub fn pause(&self) {
+//         self.player.toggle_playback();
+//     }
+//     pub fn volume_down(&self) {
+//         self.player.volume(-0.005);
+//     }
+//     pub fn volume_up(&self) {
+//         self.player.volume(0.005);
+//     }
+// }

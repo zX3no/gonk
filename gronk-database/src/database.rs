@@ -1,8 +1,8 @@
-use audiotags::Tag;
+use gronk_types::Song;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Result};
-use std::{fs::File, path::PathBuf, sync::Arc};
+use std::{fs::File, path::PathBuf, sync::Arc, time::Instant};
 use walkdir::WalkDir;
 
 pub struct Database {
@@ -29,12 +29,12 @@ impl Database {
 
         conn.execute(
             "CREATE TABLE song(
-                    name    TEXT NOT NULL,
-                    path    TEXT NOT NULL,
-                    track   INTEGER NOT NULL,
+                    number  INTEGER NOT NULL,
                     disc    INTEGER NOT NULL,
+                    name    TEXT NOT NULL,
                     album   TEXT NOT NULL,
-                    artist  TEXT NOT NULL
+                    artist  TEXT NOT NULL,
+                    path    TEXT NOT NULL
                 )",
             [],
         )?;
@@ -51,9 +51,9 @@ impl Database {
             })
             .collect();
 
-        let songs: Vec<MinSong> = paths
+        let songs: Vec<Song> = paths
             .par_iter()
-            .map(|path| MinSong::from(path.to_str().unwrap()))
+            .map(|path| Song::from(path.to_str().unwrap()))
             .collect();
 
         let sqlite_connection_manager = SqliteConnectionManager::file("music.db");
@@ -67,8 +67,8 @@ impl Database {
 
             connection
                 .execute(
-                    "INSERT INTO song (track, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    params![song.track, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
+                    "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
                 )
                 .unwrap();
         });
@@ -103,7 +103,7 @@ impl Database {
     }
     pub fn first_song(&self, artist: &str, album: &str) -> Result<(u16, String)> {
         let query = format!(
-            "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
+            "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
             artist, album
         );
 
@@ -154,7 +154,7 @@ impl Database {
 
     pub fn get_songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
         let query = format!(
-            "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
+            "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
             artist, album
         );
 
@@ -163,77 +163,57 @@ impl Database {
 
         let mut songs = Vec::new();
         while let Some(row) = rows.next()? {
-            let track: u16 = row.get(0)?;
+            let number: u16 = row.get(0)?;
             let name: String = row.get(1)?;
-            songs.push((track, name));
+            songs.push((number, name));
         }
 
         Ok(songs)
     }
-    pub fn get_artist_paths(&self, artist: &str) {}
-    pub fn get_album_paths(&self, artist: &str, album: &str) -> Vec<PathBuf> {
+
+    pub fn get_artist(&self, artist: &str) -> Vec<Song> {
         let query = format!(
-            "SELECT path FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
+            "SELECT * FROM song WHERE artist = '{}' ORDER BY album, disc, number",
+            artist,
+        );
+        self.collect_songs(query)
+    }
+    pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
+        let query = format!(
+            "SELECT * FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
             artist, album
         );
-        let mut stmt = self.conn.prepare(&query).unwrap();
-        let mut rows = stmt.query([]).unwrap();
 
-        let mut songs = Vec::new();
-        while let Some(row) = rows.next().unwrap() {
-            let path: String = row.get(0).unwrap();
-            songs.push(PathBuf::from(path));
-        }
-
-        songs
+        self.collect_songs(query)
     }
-    pub fn get_song_path(&self, artist: &str, album: &str, song: &str) -> Vec<PathBuf> {
+    pub fn get_song(&self, artist: &str, album: &str, number: &u16, name: &str) -> Vec<Song> {
+        //this seems bad but it only takes like 2us
+        let artist = artist.replace("\'", "\'\'");
+        let album = album.replace("\'", "\'\'");
+        let name = name.replace("\'", "\'\'");
+
         let query = format!(
-            "SELECT path FROM song WHERE artist = '{}' AND album = '{}' AND name = '{}'",
-            artist, album, song
+            "SELECT * FROM song WHERE number = '{}' AND name = '{}' AND album = '{}' AND artist = '{}'",
+            number, name, album, artist,
         );
-        let mut stmt = self.conn.prepare(&query).unwrap();
-        let mut rows = stmt.query([]).unwrap();
-
-        while let Some(row) = rows.next().unwrap() {
-            let path: String = row.get(0).unwrap();
-            return vec![PathBuf::from(path)];
-        }
-        panic!("could not find song");
+        self.collect_songs(query)
     }
-}
+    pub fn collect_songs(&self, query: String) -> Vec<Song> {
+        let mut stmt = self.conn.prepare(&query).unwrap();
 
-#[derive(Debug, Clone)]
-pub struct MinSong {
-    path: PathBuf,
-    album: String,
-    artist: String,
-    name: String,
-    disc: u16,
-    track: u16,
-}
-
-impl MinSong {
-    pub fn from(path: &str) -> Self {
-        //this is slow
-        if let Ok(tag) = Tag::new().read_from_path(&path) {
-            let artist = if let Some(artist) = tag.album_artist() {
-                artist.to_string()
-            } else if let Some(artist) = tag.artist() {
-                artist.to_string()
-            } else {
-                panic!("no artist for {:?}", path);
-            };
-            let disc = tag.disc_number().unwrap_or(1);
-            return MinSong {
-                album: tag.album_title().unwrap().to_string(),
-                artist,
+        stmt.query_map([], |row| {
+            let path: String = row.get(5).unwrap();
+            Ok(Song {
+                number: row.get(0).unwrap(),
+                disc: row.get(1).unwrap(),
+                name: row.get(2).unwrap(),
+                album: row.get(3).unwrap(),
+                artist: row.get(4).unwrap(),
                 path: PathBuf::from(path),
-                disc,
-                name: tag.title().unwrap().to_string(),
-                track: tag.track_number().unwrap(),
-            };
-        }
-        panic!();
+            })
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
 }

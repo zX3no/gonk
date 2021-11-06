@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use gronk_types::Song;
 
 use crate::queue::{Queue, QueueSong};
 use backend::Backend;
@@ -7,8 +7,8 @@ pub mod backend;
 
 #[derive(Debug)]
 pub enum Event {
-    Add(Vec<PathBuf>),
-    Remove(PathBuf),
+    Add(Vec<Song>),
+    Remove(Song),
     ClearQueue,
     Next,
     Previous,
@@ -90,22 +90,16 @@ impl EventHandler {
             self.backend.play_file(&song);
         }
     }
-    pub fn add(&mut self, songs: Vec<PathBuf>) {
+    pub fn add(&mut self, songs: Vec<Song>) {
         let songs = QueueSong::from_vec(songs);
         self.queue.songs.extend(songs);
     }
-    pub fn remove(&mut self, song: PathBuf) {
+    pub fn remove(&mut self, song: Song) {
         self.queue.songs = self
             .queue
             .songs
             .iter()
-            .filter_map(|s| {
-                if s.path == song {
-                    None
-                } else {
-                    Some(s.to_owned())
-                }
-            })
+            .filter_map(|s| if s == &song { None } else { Some(s.to_owned()) })
             .collect();
     }
     pub fn clear_queue(&mut self) {
