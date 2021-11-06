@@ -43,10 +43,11 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .map(|name| ListItem::new(name.as_str()))
         .collect();
 
+    //clone is not optional :(
     let c: Vec<_> = music
         .song_names()
         .iter()
-        .map(|name| ListItem::new(name.as_str()))
+        .map(|name| ListItem::new(name.clone()))
         .collect();
 
     let artists = List::new(a)

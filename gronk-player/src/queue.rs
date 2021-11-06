@@ -47,14 +47,17 @@ impl Queue {
             percent: 0,
         }
     }
-    // pub fn test() -> Self {
-    //     Self {
-    //         songs: vec![Song::from("music/2.flac"), Song::from("music/3.flac")],
-    //         now_playing: None,
-    //         index: Some(0),
-    //         percent: 0,
-    //     }
-    // }
+    pub fn test() -> Self {
+        Self {
+            songs: vec![
+                QueueSong::from(PathBuf::from("music/2.flac")),
+                QueueSong::from(PathBuf::from("music/3.flac")),
+            ],
+            now_playing: None,
+            index: Some(0),
+            percent: 0,
+        }
+    }
     pub fn next_song(&mut self) -> Option<PathBuf> {
         if self.now_playing.is_some() {
             if let Some(index) = &mut self.index {

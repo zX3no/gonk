@@ -2,13 +2,20 @@ use gronk_database::database::Database;
 
 use crate::{app::BrowserMode, queue::Queue};
 pub struct Item {
+    //optional track number, this can be done better
+    pub prefix: Option<u16>,
     pub item: String,
     pub index: usize,
     pub len: usize,
 }
 impl Item {
-    pub fn new(item: String, index: usize, len: usize) -> Self {
-        Self { item, index, len }
+    pub fn new(prefix: Option<u16>, item: String, index: usize, len: usize) -> Self {
+        Self {
+            prefix,
+            item,
+            index,
+            len,
+        }
     }
 }
 
@@ -19,7 +26,7 @@ pub struct Music {
     selected_song: Item,
     artists: Vec<String>,
     albums: Vec<String>,
-    songs: Vec<String>,
+    songs: Vec<(u16, String)>,
     queue: Queue,
 }
 
@@ -36,13 +43,13 @@ impl Music {
         let album = albums.first().unwrap().clone();
 
         let songs = database.get_songs_from_album(&artist, &album).unwrap();
-        let song = songs.first().unwrap().clone();
+        let (num, name) = songs.first().unwrap().clone();
 
         Self {
             database,
-            selected_artist: Item::new(artist, 0, artists.len()),
-            selected_album: Item::new(album, 0, albums.len()),
-            selected_song: Item::new(song, 0, songs.len()),
+            selected_artist: Item::new(None, artist, 0, artists.len()),
+            selected_album: Item::new(None, album, 0, albums.len()),
+            selected_song: Item::new(Some(num), name, 0, songs.len()),
             artists,
             albums,
             songs,
@@ -54,10 +61,16 @@ impl Music {
         let songs = self
             .database
             .get_album_paths(&self.selected_artist.item, &self.selected_album.item);
-        dbg!(&songs);
         self.queue.add(songs);
     }
-    pub fn queue_song(&self) {}
+    pub fn queue_song(&self) {
+        let song = self.database.get_song_path(
+            &self.selected_artist.item,
+            &self.selected_album.item,
+            &self.selected_song.item,
+        );
+        self.queue.add(song);
+    }
     pub fn get_selected_artist(&self) -> Option<usize> {
         Some(self.selected_artist.index)
     }
@@ -73,8 +86,11 @@ impl Music {
     pub fn album_names(&self) -> &Vec<String> {
         &self.albums
     }
-    pub fn song_names(&self) -> &Vec<String> {
-        &self.songs
+    pub fn song_names(&self) -> Vec<String> {
+        self.songs
+            .iter()
+            .map(|song| format!("{}. {}", song.0, song.1))
+            .collect()
     }
     pub fn up(&mut self, mode: &BrowserMode) {
         let item = match mode {
@@ -127,7 +143,12 @@ impl Music {
             .get_albums_by_artist(&self.selected_artist.item)
             .unwrap();
 
-        self.selected_album = Item::new(self.albums.first().unwrap().clone(), 0, self.albums.len());
+        self.selected_album = Item::new(
+            None,
+            self.albums.first().unwrap().clone(),
+            0,
+            self.albums.len(),
+        );
 
         self.update_song();
     }
@@ -144,6 +165,7 @@ impl Music {
             .get_songs_from_album(&self.selected_artist.item, &self.selected_album.item)
             .unwrap();
 
-        self.selected_song = Item::new(self.songs.first().unwrap().clone(), 0, self.songs.len());
+        let (num, name) = self.songs.first().unwrap().clone();
+        self.selected_song = Item::new(Some(num), name, 0, self.songs.len());
     }
 }

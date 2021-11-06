@@ -101,7 +101,7 @@ impl Database {
         }
         panic!("no albums");
     }
-    pub fn first_song(&self, artist: &str, album: &str) -> Result<String> {
+    pub fn first_song(&self, artist: &str, album: &str) -> Result<(u16, String)> {
         let query = format!(
             "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
             artist, album
@@ -111,9 +111,9 @@ impl Database {
         let mut rows = stmt.query([])?;
 
         while let Some(row) = rows.next()? {
-            let track: usize = row.get(0)?;
+            let track: u16 = row.get(0)?;
             let name: String = row.get(1)?;
-            return Ok(format!("{}: {}", track, name));
+            return Ok((track, name));
         }
 
         panic!("no albums");
@@ -152,7 +152,7 @@ impl Database {
         Ok(albums)
     }
 
-    pub fn get_songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<String>> {
+    pub fn get_songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
         let query = format!(
             "SELECT track, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, track",
             artist, album
@@ -163,9 +163,9 @@ impl Database {
 
         let mut songs = Vec::new();
         while let Some(row) = rows.next()? {
-            let track: usize = row.get(0)?;
+            let track: u16 = row.get(0)?;
             let name: String = row.get(1)?;
-            songs.push(format!("{}. {}", track, name));
+            songs.push((track, name));
         }
 
         Ok(songs)
@@ -187,7 +187,20 @@ impl Database {
 
         songs
     }
-    pub fn get_song_path(&self, artist: &str, album: &str, song: &str) {}
+    pub fn get_song_path(&self, artist: &str, album: &str, song: &str) -> Vec<PathBuf> {
+        let query = format!(
+            "SELECT path FROM song WHERE artist = '{}' AND album = '{}' AND name = '{}'",
+            artist, album, song
+        );
+        let mut stmt = self.conn.prepare(&query).unwrap();
+        let mut rows = stmt.query([]).unwrap();
+
+        while let Some(row) = rows.next().unwrap() {
+            let path: String = row.get(0).unwrap();
+            return vec![PathBuf::from(path)];
+        }
+        panic!("could not find song");
+    }
 }
 
 #[derive(Debug, Clone)]
