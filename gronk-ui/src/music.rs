@@ -29,7 +29,7 @@ pub struct Music {
     albums: Vec<String>,
     songs: Vec<(u16, String)>,
     player: Player,
-    //todo: serialize volume so
+    //TODO: serialize volume so
     //it's the same when you reopen
     //volume: f64,
 }
@@ -37,7 +37,7 @@ pub struct Music {
 impl Music {
     pub fn new() -> Self {
         let database = Database::new();
-        //todo: check if db exists
+        //TODO: check if db exists
         // database.create_db();
 
         let artists = database.get_artists().unwrap();
