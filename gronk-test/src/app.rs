@@ -25,6 +25,7 @@ impl BrowserMode {
 pub enum Mode {
     Browser,
     Queue,
+    //TODO: Search mode
 }
 impl Mode {
     fn toggle(&mut self) {
