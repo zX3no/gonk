@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::path::Path;
 
 use gronk_database::database::Database;
 use gronk_player::{player::Player, queue::Queue};
@@ -39,7 +39,8 @@ pub struct Music {
 impl Music {
     pub fn new() -> Self {
         let database = Database::new();
-        if let Err(_) = File::open("music.db") {
+
+        if Path::new("music.db").exists() {
             database.create_db().unwrap();
         }
 
