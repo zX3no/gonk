@@ -40,10 +40,6 @@ impl Music {
     pub fn new() -> Self {
         let database = Database::new();
 
-        if !Path::new("music.db").exists() {
-            database.create_db().unwrap();
-        }
-
         let artists = database.get_artists().unwrap();
         let artist = artists.first().unwrap().clone();
 
@@ -65,7 +61,7 @@ impl Music {
         }
     }
     pub fn update_db(&self) {
-        self.database.create_db().unwrap();
+        todo!();
     }
     pub fn volume_up(&self) {
         self.player.volume(0.005);

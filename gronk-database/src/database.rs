@@ -4,7 +4,12 @@ use gronk_types::Song;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Result};
-use std::{fs::File, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use walkdir::WalkDir;
 
 //TODO: move entire struct into lib.rs
@@ -15,13 +20,16 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> Self {
+        if !Path::new("music.db").exists() {
+            Database::create_db().unwrap();
+        }
         Self {
             conn: Connection::open("music.db").unwrap(),
         }
     }
 
-    pub fn create_db(&self) -> rusqlite::Result<()> {
-        let conn = &self.conn;
+    pub fn create_db() -> rusqlite::Result<()> {
+        let conn = Connection::open("music.db").unwrap();
 
         File::create("music.db").unwrap();
         conn.busy_timeout(Duration::from_millis(0))?;
