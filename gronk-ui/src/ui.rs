@@ -141,7 +141,11 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
             ])
             //make the text black
-            .style(Style::default().fg(Color::Black));
+            .style(
+                Style::default()
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::ITALIC),
+            );
             //i don't think this will realocate? need to test..
             items.remove(index);
             items.insert(index, row);
@@ -149,14 +153,14 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 
     let t = Table::new(items)
-        // You can set the style of the entire Table.
         .style(Style::default().fg(Color::White))
-        // It has an optional header, which is simply a Row always visible at the top.
         .header(
             Row::new(vec!["Track", "Title", "Album", "Artist"])
-                .style(Style::default().fg(Color::White))
-                // If you want some space between the header and the rest of the rows, you can always
-                // specify some margin at the bottom.
+                .style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .bottom_margin(1),
         )
         .block(
