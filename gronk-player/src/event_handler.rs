@@ -105,6 +105,7 @@ impl EventHandler {
     pub fn clear_queue(&mut self) {
         self.queue.songs = Vec::new();
         self.queue.now_playing = None;
+        self.backend.stop();
     }
     pub fn get_seeker(&self) -> String {
         format!("{}/{}", self.get_elapsed(), self.get_duration())

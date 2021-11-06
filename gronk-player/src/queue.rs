@@ -6,6 +6,8 @@ use gronk_types::Song;
 pub struct QueueSong {
     pub number: u16,
     pub name: String,
+    pub album: String,
+    pub artist: String,
     pub path: PathBuf,
     pub elapsed: Option<f64>,
     pub duration: Option<f64>,
@@ -15,6 +17,8 @@ impl QueueSong {
         Self {
             number: song.number,
             name: song.name,
+            album: song.album,
+            artist: song.artist,
             path: song.path,
             elapsed: None,
             duration: None,
@@ -24,6 +28,8 @@ impl QueueSong {
         Self {
             number: 0,
             name: String::new(),
+            album: String::new(),
+            artist: String::new(),
             path: PathBuf::from(path),
             elapsed: None,
             duration: None,

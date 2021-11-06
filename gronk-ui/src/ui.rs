@@ -111,28 +111,53 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_stateful_widget(albums, chunks[1], &mut album_state);
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
 }
+
+//Number - Name - Album - Artist - Duration
+//TODO: store the duration in the database
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
     let queue = app.music.get_queue();
 
-    let items: Vec<ListItem> = queue
+    let items: Vec<Row> = queue
         .songs
         .iter()
-        .map(|song| ListItem::new(song.title()))
+        .map(|song| {
+            Row::new(vec![
+                Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
+                Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Blue)),
+                Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Magenta)),
+            ])
+        })
         .collect();
 
-    let q = List::new(items)
+    let t = Table::new(items)
+        // You can set the style of the entire Table.
+        .style(Style::default().fg(Color::White))
+        // It has an optional header, which is simply a Row always visible at the top.
+        .header(
+            Row::new(vec!["Track", "Title", "Album", "Artist"])
+                .style(Style::default().fg(Color::White))
+                // If you want some space between the header and the rest of the rows, you can always
+                // specify some margin at the bottom.
+                .bottom_margin(1),
+        )
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
-        .highlight_style(Style::default())
+        .widths(&[
+            Constraint::Min(5),
+            Constraint::Ratio(1, 4),
+            Constraint::Ratio(1, 4),
+            Constraint::Ratio(1, 4),
+        ])
+        .highlight_style(Style::default().add_modifier(Modifier::BOLD))
         .highlight_symbol("> ");
 
-    let mut state = ListState::default();
+    let mut state = TableState::default();
     state.select(queue.index);
-
-    f.render_stateful_widget(q, area, &mut state);
+    f.render_stateful_widget(t, area, &mut state);
 }

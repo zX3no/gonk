@@ -40,7 +40,7 @@ fn main() {
     // Setup input handling
     let (tx, rx) = mpsc::channel();
 
-    let tick_rate = Duration::from_millis(1000);
+    let tick_rate = Duration::from_millis(50);
     thread::spawn(move || {
         let mut last_tick = Instant::now();
         loop {
@@ -80,6 +80,8 @@ fn main() {
                         .unwrap();
                         terminal.show_cursor().unwrap();
                         break;
+                    } else {
+                        app.music.clear();
                     }
                 }
                 KeyCode::Char('j') | KeyCode::Down => app.browser_down(),

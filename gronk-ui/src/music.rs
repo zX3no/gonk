@@ -78,6 +78,9 @@ impl Music {
     pub fn prev(&self) {
         self.player.previous();
     }
+    pub fn clear(&self) {
+        self.player.clear_queue();
+    }
     pub fn queue_artist(&self) {
         let songs = self.database.get_artist(&self.selected_artist.item);
         self.player.add(songs);
