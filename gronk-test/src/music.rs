@@ -107,7 +107,7 @@ impl Music {
         if item.index > 0 {
             item.index -= 1;
         } else {
-            item.index -= item.len - 1;
+            item.index = item.len - 1;
         }
 
         if let BrowserMode::Artist = mode {
