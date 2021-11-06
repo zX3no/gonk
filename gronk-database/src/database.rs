@@ -4,8 +4,10 @@ use gronk_types::Song;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Result};
-use std::{fs::File, path::PathBuf, sync::Arc};
+use std::{fs::File, path::PathBuf, sync::Arc, time::Duration};
 use walkdir::WalkDir;
+
+//TODO: move entire struct into lib.rs
 
 pub struct Database {
     conn: Connection,
@@ -22,12 +24,10 @@ impl Database {
         let conn = &self.conn;
 
         File::create("music.db").unwrap();
-        conn.execute("PRAGMA foregin_keys = ON", [])?;
-        // conn.execute("PRAGMA journal_mode = MEMORY", [])?;
-        conn.execute("PRAGMA synchronous = 0", [])?;
-        // conn.execute("PRAGMA cache_size = 1000000", [])?;
-        conn.execute("PRAGMA temp_store = MEMORY", [])?;
-        // conn.execute("PRAGMA busy_timeout = 5000", [])?;
+        conn.busy_timeout(Duration::from_millis(0))?;
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "synchronous", "0")?;
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
 
         conn.execute(
             "CREATE TABLE song(
@@ -58,8 +58,10 @@ impl Database {
             .map(|path| Song::from(path.to_str().unwrap()))
             .collect();
 
+        //TODO: there is definatly a better way to do this
         let sqlite_connection_manager = SqliteConnectionManager::file("music.db");
         let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
+
         let pool_arc = Arc::new(sqlite_pool);
 
         songs.par_iter().for_each(|song| {
