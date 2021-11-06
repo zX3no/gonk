@@ -1,5 +1,7 @@
+use std::fs::File;
+
 use gronk_database::database::Database;
-use gronk_player::player::Player;
+use gronk_player::{player::Player, queue::Queue};
 
 use crate::app::BrowserMode;
 pub struct Item {
@@ -37,8 +39,9 @@ pub struct Music {
 impl Music {
     pub fn new() -> Self {
         let database = Database::new();
-        //TODO: check if db exists
-        // database.create_db();
+        if let Err(_) = File::open("music.db") {
+            database.create_db().unwrap();
+        }
 
         let artists = database.get_artists().unwrap();
         let artist = artists.first().unwrap().clone();
@@ -195,5 +198,9 @@ impl Music {
 
         let (num, name) = self.songs.first().unwrap().clone();
         self.selected_song = Item::new(Some(num), name, 0, self.songs.len());
+    }
+
+    pub fn get_queue(&self) -> Queue {
+        self.player.get_queue()
     }
 }

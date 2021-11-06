@@ -111,10 +111,18 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_stateful_widget(albums, chunks[1], &mut album_state);
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
 }
-pub fn draw_queue<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
+pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
-    let queue = List::new(vec![ListItem::new("1. sus")])
+    let queue = app.music.get_queue();
+
+    let items: Vec<ListItem> = queue
+        .songs
+        .iter()
+        .map(|song| ListItem::new(song.title()))
+        .collect();
+
+    let q = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -124,6 +132,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
         .highlight_symbol("> ");
 
     let mut state = ListState::default();
-    state.select(Some(0));
-    f.render_stateful_widget(queue, area, &mut state);
+    state.select(queue.index);
+
+    f.render_stateful_widget(q, area, &mut state);
 }

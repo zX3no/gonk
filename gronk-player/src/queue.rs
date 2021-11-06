@@ -39,6 +39,9 @@ impl QueueSong {
         self.elapsed = Some(elapsed);
         self.duration = Some(duration);
     }
+    pub fn title(&self) -> String {
+        format!("{}. {}", self.number, self.name)
+    }
 }
 
 impl PartialEq for QueueSong {
