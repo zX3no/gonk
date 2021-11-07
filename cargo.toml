@@ -2,6 +2,7 @@
 
 members = [
     "gronk-player",
+    "gronk-player-new",
     "gronk-ui",
     "gronk-database",
     "gronk-types",

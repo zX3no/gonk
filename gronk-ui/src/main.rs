@@ -16,7 +16,6 @@ use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
 mod music;
-mod player;
 mod queue;
 mod ui;
 

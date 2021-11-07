@@ -1,10 +1,10 @@
+use gronk_player_new::Player;
 use gronk_types::Song;
-
-use crate::player::Player;
 
 pub struct Queue {
     pub index: Option<usize>,
     pub songs: Vec<Song>,
+    now_playing: Option<usize>,
     player: Player,
 }
 impl Queue {
@@ -12,6 +12,7 @@ impl Queue {
         Self {
             index: None,
             songs: Vec::new(),
+            now_playing: None,
             player: Player::new(),
         }
     }
@@ -27,8 +28,43 @@ impl Queue {
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
-    pub fn next(&self) {}
-    pub fn prev(&self) {}
+    pub fn run(&mut self) {
+        loop {
+            if self.now_playing.is_some() {
+                if !self.is_playing() {
+                    self.next();
+                }
+            } else {
+                if !self.songs.is_empty() {
+                    let song = self.songs.first().unwrap();
+                    self.player.play(song.path.clone())
+                }
+            }
+        }
+    }
+    pub fn is_playing(&self) -> bool {
+        self.player.is_playing()
+    }
+    pub fn next(&mut self) {
+        let len = self.songs.len();
+        if let Some(index) = &mut self.now_playing {
+            if *index > 0 {
+                *index -= 1;
+            } else {
+                *index = len - 1;
+            }
+        }
+    }
+    pub fn prev(&mut self) {
+        let len = self.songs.len();
+        if let Some(index) = &mut self.now_playing {
+            if *index + 1 < len {
+                *index += 1;
+            } else {
+                *index = 0;
+            }
+        }
+    }
     pub fn clear(&mut self) {
         self.songs = Vec::new();
         self.player.stop();
@@ -49,6 +85,28 @@ impl Queue {
     pub fn down(&mut self) {
         let len = self.songs.len();
         if let Some(index) = &mut self.index {
+            if *index + 1 < len {
+                *index += 1;
+            } else {
+                *index = 0;
+            }
+        }
+    }
+}
+
+//?
+pub trait UpDown {
+    fn up(index: &mut Option<usize>, len: usize) {
+        if let Some(index) = index {
+            if *index > 0 {
+                *index -= 1;
+            } else {
+                *index = len - 1;
+            }
+        }
+    }
+    fn down(index: &mut Option<usize>, len: usize) {
+        if let Some(index) = index {
             if *index + 1 < len {
                 *index += 1;
             } else {
