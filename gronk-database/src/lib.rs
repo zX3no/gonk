@@ -33,7 +33,7 @@ impl Database {
         conn.pragma_update(None, "temp_store", "MEMORY")?;
 
         conn.execute(
-            "CREATE TABLE song(
+            "CREATE VIRTUAL TABLE song USING FTS4(
                     number  INTEGER NOT NULL,
                     disc    INTEGER NOT NULL,
                     name    TEXT NOT NULL,
@@ -79,6 +79,33 @@ impl Database {
         });
 
         Ok(())
+    }
+    pub fn get_all_songs(&self) -> Vec<String> {
+        let mut stmt = self.conn.prepare("SELECT name FROM song").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let mut songs = Vec::new();
+        while let Some(row) = rows.next().unwrap() {
+            let song: String = row.get(0).unwrap();
+            songs.push(song);
+        }
+        songs
+    }
+    pub fn search(&self, query: &String) -> Option<Vec<String>> {
+        let q = format!("SELECT * FROM song WHERE name MATCH '{}*'", query);
+        let mut stmt = self.conn.prepare(&q).unwrap();
+
+        let mut rows = stmt.query([]).unwrap();
+        let mut results = Vec::new();
+        while let Some(row) = rows.next().unwrap() {
+            let r: String = row.get(2).unwrap();
+            results.push(r);
+        }
+
+        if results.is_empty() {
+            None
+        } else {
+            Some(results)
+        }
     }
     pub fn first_artist(&self) -> Result<String> {
         let mut stmt = self

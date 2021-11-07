@@ -120,9 +120,24 @@ impl App {
     pub fn ui_search(&mut self) {
         self.ui_mode = Mode::Search;
     }
+    //TODO: change this to song for pretty search printing
+    pub fn get_search(&self) -> Option<Vec<String>> {
+        self.database.search(&self.query)
+    }
+    // pub fn get_search_custom(&self) -> Option<Vec<String>> {
+    //     if self.query.is_empty() {
+    //         None
+    //     } else {
+    //         let songs = self.database.get_all_songs();
+    //         let fzf = songs.fzf(&self.query);
+    //         fzf
+    //     }
+    // }
     pub fn search_event(&mut self, code: KeyCode, modifier: KeyModifiers) {
         match code {
-            KeyCode::Char(c) => self.query.push(c),
+            KeyCode::Char(c) => {
+                self.query.push(c);
+            }
             KeyCode::Tab => self.ui_mode = Mode::Browser,
             KeyCode::Backspace => {
                 if modifier == KeyModifiers::CONTROL {
@@ -130,10 +145,6 @@ impl App {
                     if let Some(index) = rev.find(' ') {
                         let len = self.query.len();
                         let str = self.query.split_at(len - index - 1);
-                        println!();
-                        println!();
-                        println!();
-                        dbg!(str);
                         self.query = str.0.to_string();
                     } else {
                         self.query = String::new();
