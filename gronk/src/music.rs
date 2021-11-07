@@ -54,7 +54,6 @@ impl Music {
             songs,
         }
     }
-
     pub fn get_selected_artist(&self) -> Option<usize> {
         Some(self.selected_artist.index)
     }
@@ -76,42 +75,39 @@ impl Music {
             .map(|song| format!("{}. {}", song.0, song.1))
             .collect()
     }
-    pub fn up(&mut self, mode: &BrowserMode, database: &Database) {
-        let item = match mode {
-            BrowserMode::Artist => &mut self.selected_artist,
-            BrowserMode::Album => &mut self.selected_album,
-            BrowserMode::Song => &mut self.selected_song,
-        };
-
-        if item.index > 0 {
-            item.index -= 1;
-        } else {
-            item.index = item.len - 1;
-        }
+    pub fn update_browser(&mut self, mode: &BrowserMode, database: &Database) {
         match mode {
             BrowserMode::Artist => self.reset_artist(database),
             BrowserMode::Album => self.reset_songs(database),
             BrowserMode::Song => self.update_song(),
         }
     }
-    pub fn down(&mut self, mode: &BrowserMode, database: &Database) {
-        let item = match mode {
+    pub fn get_item(&mut self, mode: &BrowserMode) -> &mut Item {
+        match mode {
             BrowserMode::Artist => &mut self.selected_artist,
             BrowserMode::Album => &mut self.selected_album,
             BrowserMode::Song => &mut self.selected_song,
-        };
+        }
+    }
+    pub fn up(&mut self, mode: &BrowserMode, database: &Database) {
+        let item = self.get_item(mode);
+
+        if item.index > 0 {
+            item.index -= 1;
+        } else {
+            item.index = item.len - 1;
+        }
+        self.update_browser(mode, database);
+    }
+    pub fn down(&mut self, mode: &BrowserMode, database: &Database) {
+        let item = self.get_item(mode);
 
         if item.index + 1 < item.len {
             item.index += 1;
         } else {
             item.index = 0;
         }
-
-        match mode {
-            BrowserMode::Artist => self.reset_artist(database),
-            BrowserMode::Album => self.reset_songs(database),
-            BrowserMode::Song => self.update_song(),
-        }
+        self.update_browser(mode, database);
     }
     pub fn update_song(&mut self) {
         let (number, name) = self.songs.get(self.selected_song.index).unwrap().clone();
