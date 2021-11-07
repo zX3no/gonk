@@ -1,4 +1,4 @@
-use gronk_player_new::Player;
+use gronk_player::Player;
 use gronk_types::Song;
 
 pub struct Queue {
@@ -7,6 +7,7 @@ pub struct Queue {
     now_playing: Option<usize>,
     player: Player,
 }
+
 impl Queue {
     pub fn new() -> Self {
         Self {
@@ -20,25 +21,18 @@ impl Queue {
         (&self.songs, &self.index)
     }
     pub fn volume_up(&mut self) {
-        self.player.volume(0.005);
+        self.player.volume(0.01);
     }
     pub fn volume_down(&mut self) {
-        self.player.volume(-0.005);
+        self.player.volume(-0.01);
     }
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
-    pub fn run(&mut self) {
-        loop {
-            if self.now_playing.is_some() {
-                if !self.is_playing() {
-                    self.next();
-                }
-            } else {
-                if !self.songs.is_empty() {
-                    let song = self.songs.first().unwrap();
-                    self.player.play(song.path.clone())
-                }
+    pub fn update(&mut self) {
+        if self.now_playing.is_some() {
+            if !self.is_playing() {
+                self.next();
             }
         }
     }
@@ -67,10 +61,16 @@ impl Queue {
     }
     pub fn clear(&mut self) {
         self.songs = Vec::new();
+        self.now_playing = None;
         self.player.stop();
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
         self.songs.append(&mut songs);
+        if self.now_playing.is_none() && !self.songs.is_empty() {
+            self.now_playing = Some(0);
+            let song = self.songs.first().unwrap();
+            self.player.play(song.path.clone())
+        }
     }
     pub fn up(&mut self) {
         let len = self.songs.len();

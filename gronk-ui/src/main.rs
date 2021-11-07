@@ -60,7 +60,6 @@ fn main() {
             }
         }
     });
-
     let mut app = App::new();
 
     terminal.clear().unwrap();
@@ -95,7 +94,7 @@ fn main() {
                 _ => (),
             },
             Event::Tick => {
-                // app.on_tick();
+                app.on_tick();
             }
         }
     }

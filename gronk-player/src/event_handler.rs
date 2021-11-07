@@ -1,158 +1,98 @@
-use gronk_types::Song;
-
-use crate::queue::{Queue, QueueSong};
-use backend::Backend;
-
-pub mod backend;
+#![allow(dead_code)]
+use soloud::{AudioExt, Handle, LoadExt, Soloud, Wav};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub enum Event {
-    Add(Vec<Song>),
-    Remove(Song),
-    ClearQueue,
-    Next,
-    Previous,
     Volume(f32),
     TogglePlayback,
+    Play(PathBuf),
     Stop,
     Null,
 }
 
 pub struct EventHandler {
-    queue: Queue,
     volume: f32,
-    backend: Backend,
+    ctx: Soloud,
+    handle: Option<Handle>,
+    wav: Option<Wav>,
 }
 
 impl EventHandler {
     pub fn new() -> Self {
-        let mut backend = Backend::new();
-        let volume = 0.02;
-        backend.set_volume(volume);
         Self {
-            queue: Queue::new(),
-            // queue: Queue::test(),
-            volume,
-            backend,
-        }
-    }
-    fn handle_events(&mut self, event: Event) {
-        match event {
-            Event::Add(songs) => self.add(songs),
-            Event::ClearQueue => self.clear_queue(),
-            Event::Remove(song) => self.remove(song),
-            Event::Next => self.next(),
-            Event::Previous => self.prev(),
-            Event::Volume(v) => self.set_volume(v),
-            Event::TogglePlayback => self.backend.toggle_playback(),
-            Event::Stop => self.backend.stop(),
-            Event::Null => (),
+            volume: 0.005,
+            ctx: Soloud::default().unwrap(),
+            handle: None,
+            wav: None,
         }
     }
     pub fn update(&mut self, event: Event) {
-        self.handle_events(event);
+        match event {
+            Event::Volume(v) => self.set_volume(v),
+            Event::TogglePlayback => self.toggle_playback(),
+            Event::Play(song) => self.play_file(&song),
+            Event::Stop => self.stop(),
+            Event::Null => (),
+        }
+    }
+    pub fn play_file(&mut self, path: &Path) {
+        self.stop();
+        self.set_wav(path);
 
-        let Self {
-            queue,
-            volume: _,
-            backend,
-        } = self;
-
-        //check if anything is playing
-        if let Some(now_playing) = &mut queue.now_playing {
-            //update the time elapsed
-            if backend.is_playing() {
-                let elapsed = backend.get_elapsed();
-                let duration = backend.get_duration();
-                now_playing.update(elapsed, duration);
-                queue.percent = ((elapsed / duration * 100.0) as u16).clamp(0, 100);
-            } else {
-                self.next();
-            }
+        if let Some(wav) = &self.wav {
+            self.handle = Some(self.ctx.play(wav))
         } else {
-            //add the first song to the queue
-            if let Some(song) = &mut queue.songs.first() {
-                queue.now_playing = Some(song.clone());
-                queue.index = Some(0);
-                backend.play_file(&song.path);
+            panic!();
+        }
+    }
+    pub fn set_wav(&mut self, path: &Path) {
+        let mut wav = Wav::default();
+        let bytes = std::fs::read(path).unwrap();
+        wav.load_mem(&bytes).unwrap();
+        self.wav = Some(wav);
+    }
+    pub fn toggle_playback(&mut self) {
+        if let Some(handle) = self.handle {
+            let paused = self.ctx.pause(handle);
+            if paused {
+                self.ctx.set_pause_all(false);
             } else {
-                //Nothing to do...
+                self.ctx.set_pause_all(true);
             }
         }
     }
-    fn next(&mut self) {
-        if let Some(song) = self.queue.next_song() {
-            self.backend.play_file(&song);
+    pub fn stop(&mut self) {
+        self.ctx.stop_all();
+    }
+    pub fn get_elapsed(&self) -> f64 {
+        if let Some(handle) = self.handle {
+            return self.ctx.stream_position(handle);
         }
+        0.0
     }
-    fn prev(&mut self) {
-        if let Some(song) = self.queue.prev_song() {
-            self.backend.play_file(&song);
+    pub fn get_duration(&mut self) -> f64 {
+        if let Some(wav) = &self.wav {
+            return wav.length();
         }
+        0.0
     }
-    pub fn add(&mut self, songs: Vec<Song>) {
-        let songs = QueueSong::from_vec(songs);
-        self.queue.songs.extend(songs);
-    }
-    pub fn remove(&mut self, song: Song) {
-        self.queue.songs = self
-            .queue
-            .songs
-            .iter()
-            .filter_map(|s| if s == &song { None } else { Some(s.to_owned()) })
-            .collect();
-    }
-    pub fn clear_queue(&mut self) {
-        self.queue.songs = Vec::new();
-        self.queue.now_playing = None;
-        self.backend.stop();
-    }
-    pub fn get_seeker(&self) -> String {
-        format!("{}/{}", self.get_elapsed(), self.get_duration())
-    }
-    pub fn get_elapsed(&self) -> String {
-        if let Some(song) = &self.queue.now_playing {
-            if let Some(elapsed) = song.elapsed {
-                let mins = elapsed / 60.0;
-                let rem = elapsed % 60.0;
-                return format!(
-                    "{:0width$}:{:0width$}",
-                    mins.trunc() as usize,
-                    rem.trunc() as usize,
-                    width = 2,
-                );
-            }
+    pub fn is_playing(&self) -> bool {
+        if let Some(handle) = self.handle {
+            return self.ctx.is_valid_voice_handle(handle);
         }
-        String::from("00:00")
-    }
-    pub fn get_duration(&self) -> String {
-        if let Some(song) = &self.queue.now_playing {
-            if let Some(duration) = &song.duration {
-                let mins = duration / 60.0;
-                let rem = duration % 60.0;
-                return format!(
-                    "{:0width$}:{:0width$}",
-                    mins.trunc() as usize,
-                    rem.trunc() as usize,
-                    width = 2,
-                );
-            }
-        }
-        String::from("00:00")
-    }
-    pub fn get_volume(&self) -> String {
-        self.volume.to_string()
+        false
     }
     pub fn set_volume(&mut self, v: f32) {
         self.volume += v;
-        if self.volume > 0.1 {
-            self.volume = 0.1;
-        } else if self.volume < 0.0 {
+        if self.volume < 0.0 {
             self.volume = 0.0;
+        } else if self.volume > 1.0 {
+            self.volume = 1.0;
         }
-        self.backend.set_volume(self.volume);
+        self.ctx.set_global_volume(self.volume);
     }
-    pub fn get_queue(&self) -> Queue {
-        self.queue.clone()
+    pub fn fix_volume(&mut self) {
+        self.ctx.set_global_volume(0.01);
     }
 }

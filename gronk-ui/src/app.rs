@@ -2,6 +2,7 @@ use gronk_database::database::Database;
 
 use crate::{music::Music, queue::Queue};
 
+#[derive(Debug)]
 pub enum BrowserMode {
     Artist,
     Album,
@@ -101,5 +102,9 @@ impl App {
             BrowserMode::Song => self.database.get_song(&artist, &album, &track, &song),
         };
         self.queue.add(songs);
+    }
+
+    pub fn on_tick(&mut self) {
+        self.queue.update()
     }
 }
