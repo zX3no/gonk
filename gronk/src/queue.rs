@@ -24,7 +24,6 @@ impl Queue {
             temp: false,
         }
     }
-
     pub fn volume_up(&mut self) {
         self.player.volume(0.01);
     }
@@ -80,6 +79,7 @@ impl Queue {
     pub fn clear(&mut self) {
         self.songs = Vec::new();
         self.now_playing = None;
+        self.ui_index = None;
         self.temp = false;
         self.player.stop();
     }

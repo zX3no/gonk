@@ -201,10 +201,10 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .border_type(BorderType::Rounded),
         )
         .widths(&[
-            Constraint::Percentage(10),
-            Constraint::Percentage(40),
-            Constraint::Percentage(30),
-            Constraint::Percentage(20),
+            Constraint::Percentage(8),
+            Constraint::Percentage(34),
+            Constraint::Percentage(32),
+            Constraint::Percentage(26),
         ])
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
