@@ -31,3 +31,15 @@ impl Song {
         panic!();
     }
 }
+impl Default for Song {
+    fn default() -> Self {
+        Self {
+            number: Default::default(),
+            disc: Default::default(),
+            name: Default::default(),
+            album: Default::default(),
+            artist: Default::default(),
+            path: Default::default(),
+        }
+    }
+}

@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use gronk_database::database::Database;
 use gronk_player::{player::Player, queue::Queue};
 
