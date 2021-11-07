@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use tui::backend::Backend;
 use tui::layout::*;
 use tui::style::*;
