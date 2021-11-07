@@ -117,8 +117,11 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
-    //this is dumb i need to rethink my queue
-    let (songs, index) = app.queue.get_queue();
+    let (songs, index, ui_index) = (
+        &app.queue.songs,
+        &app.queue.now_playing,
+        &app.queue.ui_index,
+    );
 
     let mut items: Vec<Row> = songs
         .iter()
@@ -134,21 +137,53 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     if let Some(index) = index {
         if let Some(song) = songs.get(*index) {
-            let row = Row::new(vec![
-                Cell::from(song.number.to_string()).style(Style::default().bg(Color::Green)),
-                Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
-                Cell::from(song.album.to_owned()).style(Style::default().bg(Color::Magenta)),
-                Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
-            ])
-            //make the text black
-            .style(
-                Style::default()
-                    .fg(Color::Black)
-                    .add_modifier(Modifier::ITALIC),
-            );
-            //i don't think this will realocate? need to test..
-            items.remove(*index);
-            items.insert(*index, row);
+            if let Some(other_index) = ui_index {
+                //ui selection and now_playing match
+                let row = if index == other_index {
+                    Row::new(vec![
+                        Cell::from(song.number.to_string())
+                            .style(Style::default().bg(Color::Green)),
+                        Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
+                        Cell::from(song.album.to_owned())
+                            .style(Style::default().bg(Color::Magenta)),
+                        Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
+                    ])
+                    .style(Style::default().fg(Color::Black))
+                } else {
+                    Row::new(vec![
+                        Cell::from(song.number.to_string())
+                            .style(Style::default().fg(Color::Green)),
+                        Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                        Cell::from(song.album.to_owned())
+                            .style(Style::default().fg(Color::Magenta)),
+                        Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                    ])
+                    .style(
+                        Style::default()
+                            .fg(Color::Black)
+                            .add_modifier(Modifier::ITALIC),
+                    )
+                };
+                items.remove(*index);
+                items.insert(*index, row);
+
+                if let Some(other_song) = songs.get(*other_index) {
+                    let other_row = Row::new(vec![
+                        Cell::from(other_song.number.to_string())
+                            .style(Style::default().bg(Color::Green)),
+                        Cell::from(other_song.name.to_owned())
+                            .style(Style::default().bg(Color::Cyan)),
+                        Cell::from(other_song.album.to_owned())
+                            .style(Style::default().bg(Color::Magenta)),
+                        Cell::from(other_song.artist.to_owned())
+                            .style(Style::default().bg(Color::Blue)),
+                    ])
+                    .style(Style::default().fg(Color::Black));
+
+                    items.remove(*other_index);
+                    items.insert(*other_index, other_row);
+                }
+            }
         }
     }
 
@@ -172,7 +207,9 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             Constraint::Min(35),
             Constraint::Min(15),
             Constraint::Min(15),
-        ]);
+        ])
+        // ...and potentially show a symbol in front of the selection.
+        .highlight_symbol("> ");
     //TODO: calculate longest length of track, album, artist name and change the constraints to fit
     //sometimes the track name is squished when it doesn't need too
 

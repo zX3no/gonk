@@ -58,50 +58,54 @@ impl App {
             ui_mode: Mode::Browser,
         }
     }
-
     pub fn ui_toggle(&mut self) {
         self.ui_mode.toggle();
     }
-
     pub fn browser_next(&mut self) {
-        self.browser_mode.next();
+        if let Mode::Browser = self.ui_mode {
+            self.browser_mode.next();
+        }
     }
-
     pub fn browser_prev(&mut self) {
-        self.browser_mode.prev();
+        if let Mode::Browser = self.ui_mode {
+            self.browser_mode.prev();
+        }
     }
-
     pub fn up(&mut self) {
         match self.ui_mode {
             Mode::Browser => self.music.up(&self.browser_mode, &self.database),
-            _ => (),
-            // Mode::Queue => self.queue.up(),
+            Mode::Queue => self.queue.up(),
         }
     }
-
     pub fn down(&mut self) {
         match self.ui_mode {
             Mode::Browser => self.music.down(&self.browser_mode, &self.database),
-            _ => (),
-            // Mode::Queue => self.queue.up(),
+            Mode::Queue => self.queue.down(),
         }
     }
     pub fn update_db(&self) {
         todo!();
     }
     pub fn add_to_queue(&mut self) {
-        let (artist, album, track, song) = (
-            &self.music.selected_artist.item,
-            &self.music.selected_album.item,
-            self.music.selected_song.prefix.unwrap(),
-            &self.music.selected_song.item,
-        );
-        let songs = match self.browser_mode {
-            BrowserMode::Artist => self.database.get_artist(&artist),
-            BrowserMode::Album => self.database.get_album(&artist, &album),
-            BrowserMode::Song => self.database.get_song(&artist, &album, &track, &song),
-        };
-        self.queue.add(songs);
+        match self.ui_mode {
+            Mode::Browser => {
+                let (artist, album, track, song) = (
+                    &self.music.selected_artist.item,
+                    &self.music.selected_album.item,
+                    self.music.selected_song.prefix.unwrap(),
+                    &self.music.selected_song.item,
+                );
+                let songs = match self.browser_mode {
+                    BrowserMode::Artist => self.database.get_artist(&artist),
+                    BrowserMode::Album => self.database.get_album(&artist, &album),
+                    BrowserMode::Song => self.database.get_song(&artist, &album, &track, &song),
+                };
+                self.queue.add(songs);
+            }
+            Mode::Queue => {
+                self.queue.play_selected();
+            }
+        }
     }
 
     pub fn on_tick(&mut self) {

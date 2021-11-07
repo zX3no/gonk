@@ -21,7 +21,7 @@ pub struct EventHandler {
 impl EventHandler {
     pub fn new() -> Self {
         Self {
-            volume: 0.005,
+            volume: 0.03,
             ctx: Soloud::default().unwrap(),
             handle: None,
             wav: None,
@@ -93,6 +93,6 @@ impl EventHandler {
         self.ctx.set_global_volume(self.volume);
     }
     pub fn fix_volume(&mut self) {
-        self.ctx.set_global_volume(0.01);
+        self.ctx.set_global_volume(self.volume);
     }
 }
