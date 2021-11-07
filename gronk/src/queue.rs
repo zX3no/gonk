@@ -41,6 +41,8 @@ impl Queue {
         }
         if self.is_playing() {
             self.temp = true;
+        } else {
+            self.temp = false;
         }
     }
     pub fn is_playing(&self) -> bool {
@@ -61,9 +63,10 @@ impl Queue {
     pub fn next(&mut self) {
         let len = self.songs.len();
         if let Some(index) = &mut self.now_playing {
-            if *index + 1 < len {
+            if *index < len - 1 {
                 *index += 1;
             } else {
+                //TODO: check if this is working
                 *index = 0;
             }
             self.player.play(self.current_track());

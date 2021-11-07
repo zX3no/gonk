@@ -98,13 +98,16 @@ impl App {
                 let (artist, album, track, song) = (
                     &self.music.selected_artist.item,
                     &self.music.selected_album.item,
-                    self.music.selected_song.prefix.unwrap(),
+                    self.music.selected_song.prefix.as_ref().unwrap(),
                     &self.music.selected_song.item,
                 );
+                // dbg!(song);
+                // dbg!(self.music.selected_song.index);
+
                 let songs = match self.browser_mode {
-                    BrowserMode::Artist => self.database.get_artist(&artist),
-                    BrowserMode::Album => self.database.get_album(&artist, &album),
-                    BrowserMode::Song => self.database.get_song(&artist, &album, &track, &song),
+                    BrowserMode::Artist => self.database.get_artist(artist),
+                    BrowserMode::Album => self.database.get_album(artist, album),
+                    BrowserMode::Song => self.database.get_song(artist, album, track, song),
                 };
                 self.queue.add(songs);
             }

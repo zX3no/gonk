@@ -193,8 +193,12 @@ impl Database {
         Ok(albums)
     }
     pub fn get_songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
+        // let query = format!(
+        //     "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
+        //     artist, album
+        // );
         let query = format!(
-            "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
+            "SELECT number, name FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
             artist, album
         );
 
@@ -219,7 +223,7 @@ impl Database {
     }
     pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
         let query = format!(
-            "SELECT * FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
+            "SELECT * FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
             artist, album
         );
 
@@ -231,16 +235,15 @@ impl Database {
         let album = album.replace("\'", "\'\'");
         let name = name.replace("\'", "\'\'");
 
+        let artist = artist.replace(":", "\\:");
+        let album = album.replace(":", "\\:");
+        let name = name.replace(":", "\\:");
+
         //TODO: benchmark queries and swap to fts4 for others
-
-        // let query = format!(
-        //     "SELECT * FROM song WHERE number = '{}' AND name = '{}' AND album = '{}' AND artist = '{}'",
-        //     number, name, album, artist,
-        // );
-
+        //TODO: Disc number too?
         let query = format!(
-            "SELECT * FROM song WHERE song MATCH 'number:{} AND name:{} AND album:{} AND artist:{}'",
-            number, name, album, artist
+            "SELECT * FROM song WHERE song MATCH 'name:{} number:{} AND artist:{} AND album:{}'",
+            name, number, artist, album
         );
 
         self.collect_songs(query)

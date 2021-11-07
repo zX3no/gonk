@@ -2,6 +2,7 @@ use crate::app::BrowserMode;
 use gronk_database::Database;
 
 //TODO: wtf is this type??? change to templates
+#[derive(Debug)]
 pub struct Item {
     //optional track number, this can be done better
     pub prefix: Option<u16>,
@@ -87,11 +88,10 @@ impl Music {
         } else {
             item.index = item.len - 1;
         }
-
-        if let BrowserMode::Artist = mode {
-            self.reset_artist(database);
-        } else if let BrowserMode::Album = mode {
-            self.update_song();
+        match mode {
+            BrowserMode::Artist => self.reset_artist(database),
+            BrowserMode::Album => self.reset_songs(database),
+            BrowserMode::Song => self.update_song(),
         }
     }
     pub fn down(&mut self, mode: &BrowserMode, database: &Database) {

@@ -1,0 +1,17 @@
+   Compiling gronk-database v0.1.0 (C:\Users\Bay\Desktop\gronk\gronk-database)
+   Compiling gronk v0.0.1 (C:\Users\Bay\Desktop\gronk\gronk)
+    Finished dev [unoptimized + debuginfo] target(s) in 1.95s
+     Running `target\debug\gronk.exe`
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\01 Tekka.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\02 Dsco.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\03 Velocity.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\04 Fruitcake and Cookies.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\05 Sept.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\06 Pro Lov Ad.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\07 Design I.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\08 International.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\09 Dedicated.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\10 Chocolate Matter.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\11 To All the Dancers of the World A Round Form of Fantasy.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\12 Design 2 3.flac"
+[gronk-database\src\lib.rs:256] &path = "D:/OneDrive/Music\\Sweet Trip\\velocitydesigncomfort (Album)\\01 Tekka.flac"
