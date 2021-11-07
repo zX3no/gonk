@@ -93,8 +93,8 @@ impl Database {
         }
         songs
     }
-    pub fn search(&self, query: &String) -> Option<Vec<String>> {
-        let q = if !query.is_empty() && query != "" {
+    pub fn search(&self, query: &str) -> Option<Vec<String>> {
+        let q = if !query.is_empty() {
             format!(
                 "SELECT * FROM song WHERE name MATCH '{}*' ORDER BY artist COLLATE NOCASE",
                 query

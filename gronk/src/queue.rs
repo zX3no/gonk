@@ -1,7 +1,6 @@
-use std::path::PathBuf;
-
 use gronk_player::Player;
 use gronk_types::Song;
+use std::path::PathBuf;
 
 pub struct Queue {
     pub songs: Vec<Song>,
@@ -115,7 +114,6 @@ impl Queue {
             }
         }
     }
-
     pub fn play_selected(&mut self) {
         if let Some(index) = self.ui_index {
             if let Some(song) = self.songs.get(index) {
@@ -126,7 +124,7 @@ impl Queue {
     }
 }
 
-//?
+//TODO: find a way to actually use this
 pub trait UpDown {
     fn up(index: &mut Option<usize>, len: usize) {
         if let Some(index) = index {

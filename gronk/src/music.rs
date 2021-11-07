@@ -10,6 +10,7 @@ pub struct Item {
     pub index: usize,
     pub len: usize,
 }
+
 impl Item {
     pub fn new(prefix: Option<u16>, item: String, index: usize, len: usize) -> Self {
         Self {

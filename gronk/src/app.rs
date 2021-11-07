@@ -26,11 +26,13 @@ impl BrowserMode {
         }
     }
 }
+
 pub enum Mode {
     Browser,
     Queue,
     Search,
 }
+
 impl Mode {
     fn toggle(&mut self) {
         match self {
