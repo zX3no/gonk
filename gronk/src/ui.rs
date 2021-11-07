@@ -112,7 +112,6 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
 }
 
-//Number - Name - Album - Artist - Duration
 //TODO: store the duration in the database
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
@@ -203,10 +202,10 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .border_type(BorderType::Rounded),
         )
         .widths(&[
-            Constraint::Min(5),
-            Constraint::Min(35),
-            Constraint::Min(15),
-            Constraint::Min(15),
+            Constraint::Percentage(10),
+            Constraint::Percentage(40),
+            Constraint::Percentage(30),
+            Constraint::Percentage(20),
         ])
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
