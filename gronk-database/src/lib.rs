@@ -78,6 +78,9 @@ impl Database {
                 .unwrap();
         });
 
+        //idk if this does shit?
+        conn.execute("INSERT INTO song(song) VALUES('optimize')", [])?;
+
         Ok(())
     }
     pub fn get_all_songs(&self) -> Vec<String> {
@@ -220,10 +223,18 @@ impl Database {
         let album = album.replace("\'", "\'\'");
         let name = name.replace("\'", "\'\'");
 
+        //TODO: benchmark queries and swap to fts4 for others
+
+        // let query = format!(
+        //     "SELECT * FROM song WHERE number = '{}' AND name = '{}' AND album = '{}' AND artist = '{}'",
+        //     number, name, album, artist,
+        // );
+
         let query = format!(
-            "SELECT * FROM song WHERE number = '{}' AND name = '{}' AND album = '{}' AND artist = '{}'",
-            number, name, album, artist,
+            "SELECT * FROM song WHERE song MATCH 'number:{} AND name:{} AND album:{} AND artist:{}'",
+            number, name, album, artist
         );
+
         self.collect_songs(query)
     }
     pub fn collect_songs(&self, query: String) -> Vec<Song> {

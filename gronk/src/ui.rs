@@ -1,7 +1,6 @@
 use tui::backend::Backend;
 use tui::layout::*;
 use tui::style::*;
-use tui::text::Span;
 use tui::text::Spans;
 use tui::widgets::*;
 use tui::Frame;
