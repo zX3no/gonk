@@ -14,6 +14,8 @@ use crossterm::{
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
+use crate::app::Mode;
+
 mod app;
 mod music;
 mod queue;
@@ -68,31 +70,39 @@ fn main() {
     loop {
         terminal.draw(|f| ui::draw(f, &mut app)).unwrap();
         match rx.recv().unwrap() {
-            Event::Input(event) => match event.code {
-                KeyCode::Char('c') => {
+            Event::Input(event) => {
+                if let KeyCode::Char('c') = event.code {
                     if event.modifiers == KeyModifiers::CONTROL {
                         disable_raw_mode().unwrap();
                         execute!(terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
                         terminal.show_cursor().unwrap();
                         break;
-                    } else {
-                        app.queue.clear();
                     }
                 }
-                KeyCode::Char('j') | KeyCode::Down => app.down(),
-                KeyCode::Char('k') | KeyCode::Up => app.up(),
-                KeyCode::Char('h') | KeyCode::Left => app.browser_prev(),
-                KeyCode::Char('l') | KeyCode::Right => app.browser_next(),
-                KeyCode::Char(' ') => app.queue.play_pause(),
-                KeyCode::Char('a') => app.queue.prev(),
-                KeyCode::Char('d') => app.queue.next(),
-                KeyCode::Char('w') => app.queue.volume_up(),
-                KeyCode::Char('s') => app.queue.volume_down(),
-                KeyCode::Char('u') => app.update_db(),
-                KeyCode::Enter => app.add_to_queue(),
-                KeyCode::Tab => app.ui_toggle(),
-                _ => (),
-            },
+
+                if let Mode::Search = app.ui_mode {
+                    app.search_event(event.code, event.modifiers);
+                } else {
+                    match event.code {
+                        KeyCode::Char('c') => app.queue.clear(),
+                        KeyCode::Char('j') | KeyCode::Down => app.down(),
+                        KeyCode::Char('k') | KeyCode::Up => app.up(),
+                        KeyCode::Char('h') | KeyCode::Left => app.browser_prev(),
+                        KeyCode::Char('l') | KeyCode::Right => app.browser_next(),
+                        KeyCode::Char(' ') => app.queue.play_pause(),
+                        KeyCode::Char('a') => app.queue.prev(),
+                        KeyCode::Char('d') => app.queue.next(),
+                        KeyCode::Char('w') => app.queue.volume_up(),
+                        KeyCode::Char('s') => app.queue.volume_down(),
+                        KeyCode::Char('u') => app.update_db(),
+                        KeyCode::Char('/') => app.ui_search(),
+                        KeyCode::Enter => app.add_to_queue(),
+                        KeyCode::Tab => app.ui_toggle(),
+                        _ => (),
+                    }
+                }
+            }
+
             Event::Tick => {
                 app.on_tick();
             }

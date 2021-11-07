@@ -1,6 +1,7 @@
 use tui::backend::Backend;
 use tui::layout::*;
 use tui::style::*;
+use tui::text::Spans;
 use tui::widgets::*;
 use tui::Frame;
 
@@ -10,9 +11,36 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.ui_mode {
         Mode::Browser => draw_browser(f, app),
         Mode::Queue => draw_queue(f, app),
+        Mode::Search => draw_search(f, app),
     }
 }
+pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    let area = f.size();
+    if app.query.is_empty() {
+        f.set_cursor(1, 1);
+    } else {
+        let mut len = app.query.len() as u16;
+        //does this even work?
+        if len > area.width {
+            len = area.width;
+        }
+        f.set_cursor(len + 1, 1);
+    }
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Max(4), Constraint::Percentage(94)].as_ref())
+        .split(area);
 
+    let p = Paragraph::new(vec![Spans::from(app.query.as_str())])
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
+        .alignment(Alignment::Left);
+
+    f.render_widget(p, chunks[0]);
+}
 pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 

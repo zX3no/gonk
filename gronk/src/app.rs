@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use gronk_database::Database;
 
 use crate::{music::Music, queue::Queue};
@@ -28,13 +29,14 @@ impl BrowserMode {
 pub enum Mode {
     Browser,
     Queue,
-    //TODO: Search mode
+    Search,
 }
 impl Mode {
     fn toggle(&mut self) {
         match self {
             Mode::Browser => *self = Mode::Queue,
             Mode::Queue => *self = Mode::Browser,
+            Mode::Search => *self = Mode::Queue,
         }
     }
 }
@@ -45,6 +47,7 @@ pub struct App {
     database: Database,
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
+    pub query: String,
 }
 
 impl App {
@@ -56,6 +59,7 @@ impl App {
             database,
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::Browser,
+            query: String::new(),
         }
     }
     pub fn ui_toggle(&mut self) {
@@ -75,12 +79,14 @@ impl App {
         match self.ui_mode {
             Mode::Browser => self.music.up(&self.browser_mode, &self.database),
             Mode::Queue => self.queue.up(),
+            _ => (),
         }
     }
     pub fn down(&mut self) {
         match self.ui_mode {
             Mode::Browser => self.music.down(&self.browser_mode, &self.database),
             Mode::Queue => self.queue.down(),
+            _ => (),
         }
     }
     pub fn update_db(&self) {
@@ -105,10 +111,38 @@ impl App {
             Mode::Queue => {
                 self.queue.play_selected();
             }
+            _ => (),
         }
     }
-
     pub fn on_tick(&mut self) {
         self.queue.update()
+    }
+    pub fn ui_search(&mut self) {
+        self.ui_mode = Mode::Search;
+    }
+    pub fn search_event(&mut self, code: KeyCode, modifier: KeyModifiers) {
+        match code {
+            KeyCode::Char(c) => self.query.push(c),
+            KeyCode::Tab => self.ui_mode = Mode::Browser,
+            KeyCode::Backspace => {
+                if modifier == KeyModifiers::CONTROL {
+                    let rev: String = self.query.chars().rev().collect();
+                    if let Some(index) = rev.find(' ') {
+                        let len = self.query.len();
+                        let str = self.query.split_at(len - index - 1);
+                        println!();
+                        println!();
+                        println!();
+                        dbg!(str);
+                        self.query = str.0.to_string();
+                    } else {
+                        self.query = String::new();
+                    }
+                } else {
+                    self.query.pop();
+                }
+            }
+            _ => (),
+        }
     }
 }
