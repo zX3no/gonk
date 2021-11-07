@@ -1,4 +1,6 @@
-use crate::music::Music;
+use gronk_database::database::Database;
+
+use crate::{music::Music, queue::Queue};
 
 pub enum BrowserMode {
     Artist,
@@ -38,25 +40,24 @@ impl Mode {
 
 pub struct App {
     pub music: Music,
+    pub queue: Queue,
+    database: Database,
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
 }
 
 impl App {
     pub fn new() -> Self {
+        let database = Database::new();
         Self {
-            music: Music::new(),
+            music: Music::new(&database),
+            queue: Queue::new(),
+            database,
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::Browser,
         }
     }
-    pub fn add_to_queue(&mut self) {
-        match self.browser_mode {
-            BrowserMode::Artist => self.music.queue_artist(),
-            BrowserMode::Album => self.music.queue_album(),
-            BrowserMode::Song => self.music.queue_song(),
-        }
-    }
+
     pub fn ui_toggle(&mut self) {
         self.ui_mode.toggle();
     }
@@ -69,11 +70,36 @@ impl App {
         self.browser_mode.prev();
     }
 
-    pub fn browser_up(&mut self) {
-        self.music.up(&self.browser_mode);
+    pub fn up(&mut self) {
+        match self.ui_mode {
+            Mode::Browser => self.music.up(&self.browser_mode, &self.database),
+            _ => (),
+            // Mode::Queue => self.queue.up(),
+        }
     }
 
-    pub fn browser_down(&mut self) {
-        self.music.down(&self.browser_mode);
+    pub fn down(&mut self) {
+        match self.ui_mode {
+            Mode::Browser => self.music.down(&self.browser_mode, &self.database),
+            _ => (),
+            // Mode::Queue => self.queue.up(),
+        }
+    }
+    pub fn update_db(&self) {
+        todo!();
+    }
+    pub fn add_to_queue(&mut self) {
+        let (artist, album, track, song) = (
+            &self.music.selected_artist.item,
+            &self.music.selected_album.item,
+            self.music.selected_song.prefix.unwrap(),
+            &self.music.selected_song.item,
+        );
+        let songs = match self.browser_mode {
+            BrowserMode::Artist => self.database.get_artist(&artist),
+            BrowserMode::Album => self.database.get_album(&artist, &album),
+            BrowserMode::Song => self.database.get_song(&artist, &album, &track, &song),
+        };
+        self.queue.add(songs);
     }
 }

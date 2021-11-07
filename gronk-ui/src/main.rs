@@ -16,6 +16,8 @@ use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
 mod music;
+mod player;
+mod queue;
 mod ui;
 
 enum Event {
@@ -76,19 +78,19 @@ fn main() {
                         terminal.show_cursor().unwrap();
                         break;
                     } else {
-                        app.music.clear();
+                        app.queue.clear();
                     }
                 }
-                KeyCode::Char('j') | KeyCode::Down => app.browser_down(),
-                KeyCode::Char('k') | KeyCode::Up => app.browser_up(),
+                KeyCode::Char('j') | KeyCode::Down => app.down(),
+                KeyCode::Char('k') | KeyCode::Up => app.up(),
                 KeyCode::Char('h') | KeyCode::Left => app.browser_prev(),
                 KeyCode::Char('l') | KeyCode::Right => app.browser_next(),
-                KeyCode::Char(' ') => app.music.play_pause(),
-                KeyCode::Char('a') => app.music.prev(),
-                KeyCode::Char('d') => app.music.next(),
-                KeyCode::Char('w') => app.music.volume_up(),
-                KeyCode::Char('s') => app.music.volume_down(),
-                KeyCode::Char('u') => app.music.update_db(),
+                KeyCode::Char(' ') => app.queue.play_pause(),
+                KeyCode::Char('a') => app.queue.prev(),
+                KeyCode::Char('d') => app.queue.next(),
+                KeyCode::Char('w') => app.queue.volume_up(),
+                KeyCode::Char('s') => app.queue.volume_down(),
+                KeyCode::Char('u') => app.update_db(),
                 KeyCode::Enter => app.add_to_queue(),
                 KeyCode::Tab => app.ui_toggle(),
                 _ => (),

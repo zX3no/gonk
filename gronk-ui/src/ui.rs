@@ -117,10 +117,10 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
-    let queue = app.music.get_queue();
+    //this is dumb i need to rethink my queue
+    let (songs, index) = app.queue.get_queue();
 
-    let mut items: Vec<Row> = queue
-        .songs
+    let mut items: Vec<Row> = songs
         .iter()
         .map(|song| {
             Row::new(vec![
@@ -132,8 +132,8 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         })
         .collect();
 
-    if let Some(index) = queue.index {
-        if let Some(song) = queue.songs.get(index) {
+    if let Some(index) = index {
+        if let Some(song) = songs.get(*index) {
             let row = Row::new(vec![
                 Cell::from(song.number.to_string()).style(Style::default().bg(Color::Green)),
                 Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
@@ -147,13 +147,12 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                     .add_modifier(Modifier::ITALIC),
             );
             //i don't think this will realocate? need to test..
-            items.remove(index);
-            items.insert(index, row);
+            items.remove(*index);
+            items.insert(*index, row);
         }
     }
 
     let t = Table::new(items)
-        .style(Style::default().fg(Color::White))
         .header(
             Row::new(vec!["Track", "Title", "Album", "Artist"])
                 .style(
@@ -170,14 +169,14 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .widths(&[
             Constraint::Min(5),
-            Constraint::Ratio(1, 3),
-            Constraint::Ratio(1, 4),
-            Constraint::Ratio(1, 4),
+            Constraint::Min(35),
+            Constraint::Min(15),
+            Constraint::Min(15),
         ]);
     //TODO: calculate longest length of track, album, artist name and change the constraints to fit
     //sometimes the track name is squished when it doesn't need too
 
     let mut state = TableState::default();
-    state.select(queue.index);
+    state.select(*index);
     f.render_stateful_widget(t, area, &mut state);
 }

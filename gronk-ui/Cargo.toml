@@ -9,5 +9,5 @@ edition = "2021"
 crossterm = "0.22.1"
 tui = { version = "0.16.0", default-features = false, features = ['crossterm'] }
 gronk-database = {path = "../gronk-database"}
-gronk-player = {path = "../gronk-player"}
 gronk-types = {path = "../gronk-types"}
+rodio = "0.14.0"
