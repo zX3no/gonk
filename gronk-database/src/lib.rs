@@ -94,7 +94,15 @@ impl Database {
         songs
     }
     pub fn search(&self, query: &String) -> Option<Vec<String>> {
-        let q = format!("SELECT * FROM song WHERE name MATCH '{}*'", query);
+        let q = if !query.is_empty() && query != "" {
+            format!(
+                "SELECT * FROM song WHERE name MATCH '{}*' ORDER BY artist COLLATE NOCASE",
+                query
+            )
+        } else {
+            "SELECT * FROM song ORDER BY artist COLLATE NOCASE".to_string()
+        };
+
         let mut stmt = self.conn.prepare(&q).unwrap();
 
         let mut rows = stmt.query([]).unwrap();
