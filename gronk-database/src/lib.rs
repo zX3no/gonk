@@ -93,27 +93,20 @@ impl Database {
         }
         songs
     }
-    pub fn search(&self, search_query: &str) -> Option<Vec<Song>> {
-        let query = if !search_query.is_empty() {
-            let mut sq = search_query.to_string();
-            while sq.ends_with(' ') {
-                sq.pop();
+    pub fn search(&self, search: String) -> Vec<Song> {
+        let query = if !search.is_empty() {
+            let mut search = search.replace("\'", "\'\'");
+            while search.ends_with(' ') {
+                search.pop();
             }
             format!(
-                "SELECT * FROM song WHERE song MATCH 'name:{}* OR artist:{}* OR album:{}*' ORDER BY artist, album, disc, number COLLATE NOCASE",
-                sq, sq, sq
+                "SELECT * FROM song WHERE song MATCH '\"{}*\"' ORDER BY artist, album, disc, number COLLATE NOCASE",
+              search,
             )
         } else {
-            "SELECT * FROM song ORDER BY artist COLLATE NOCASE".to_string()
+            "SELECT * FROM song ORDER BY artist, album, disc, number COLLATE NOCASE".to_string()
         };
-
-        let results: Vec<Song> = self.collect_songs(&query);
-
-        if results.is_empty() {
-            None
-        } else {
-            Some(results)
-        }
+        self.collect_songs(&query)
     }
     pub fn first_artist(&self) -> Result<String> {
         let mut stmt = self

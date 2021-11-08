@@ -40,21 +40,18 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .alignment(Alignment::Left);
 
-    let items = if let Some(search) = app.get_search() {
-        search
-            .iter()
-            .map(|song| {
-                Row::new(vec![
-                    Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
-                    Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                    Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
-                    Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
-                ])
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let items: Vec<Row> = app
+        .get_search()
+        .iter()
+        .map(|song| {
+            Row::new(vec![
+                Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
+                Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
+                Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+            ])
+        })
+        .collect();
 
     let t = Table::new(items)
         .header(

@@ -95,8 +95,8 @@ impl App {
         self.ui_mode = UiMode::Search;
     }
     //TODO: change this to song for pretty search printing
-    pub fn get_search(&self) -> Option<Vec<Song>> {
-        self.database.search(&self.search.query)
+    pub fn get_search(&self) -> Vec<Song> {
+        self.database.search(self.search.query.clone())
     }
     pub fn search_event(&mut self, code: KeyCode, modifier: KeyModifiers) {
         match code {

@@ -1,3 +1,4 @@
+//TODO: do i need this?
 pub struct Search {
     pub query: String,
 }
