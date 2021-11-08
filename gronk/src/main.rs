@@ -110,7 +110,6 @@ fn main() {
                     }
                 }
             }
-
             Event::Tick => {
                 app.on_tick();
             }

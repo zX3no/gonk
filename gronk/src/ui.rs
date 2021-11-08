@@ -17,19 +17,10 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 }
 pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
-    if app.search.query.is_empty() {
-        f.set_cursor(1, 1);
-    } else {
-        let mut len = app.search.query.len() as u16;
-        //does this even work?
-        if len > area.width {
-            len = area.width;
-        }
-        f.set_cursor(len + 1, 1);
-    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Max(3), Constraint::Percentage(90)].as_ref())
+        .constraints([Constraint::Length(3), Constraint::Percentage(90)].as_ref())
         .split(area);
 
     let p = Paragraph::new(vec![Spans::from(app.search.query.as_str())])
@@ -69,16 +60,27 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .border_type(BorderType::Rounded),
         )
         .widths(&[
+            Constraint::Length(6),
+            Constraint::Percentage(40),
             Constraint::Percentage(25),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
+            Constraint::Percentage(100),
         ])
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
 
     f.render_widget(p, chunks[0]);
     f.render_widget(t, chunks[1]);
+
+    if app.search.query.is_empty() {
+        f.set_cursor(1, 1);
+    } else {
+        let mut len = app.search.query.len() as u16;
+        //does this even work?
+        if len > area.width {
+            len = area.width;
+        }
+        f.set_cursor(len + 1, 1);
+    }
 }
 pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
@@ -273,6 +275,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
+        //TODO: change number to length(6)
         .widths(&con)
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");

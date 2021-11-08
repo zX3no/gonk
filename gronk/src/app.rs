@@ -30,6 +30,7 @@ impl App {
             database,
             browser_mode: BrowserMode::Artist,
             ui_mode: UiMode::Browser,
+            //this could be [8, 42, 24, 100]
             constraint: [8, 42, 24, 26],
         }
     }
