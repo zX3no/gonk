@@ -93,24 +93,21 @@ impl Database {
         }
         songs
     }
-    pub fn search(&self, query: &str) -> Option<Vec<String>> {
-        let q = if !query.is_empty() {
+    pub fn search(&self, search_query: &str) -> Option<Vec<Song>> {
+        let query = if !search_query.is_empty() {
+            let mut sq = search_query.to_string();
+            while sq.ends_with(' ') {
+                sq.pop();
+            }
             format!(
-                "SELECT * FROM song WHERE name MATCH '{}*' ORDER BY artist COLLATE NOCASE",
-                query
+                "SELECT * FROM song WHERE song MATCH 'name:{}* OR artist:{}* OR album:{}*' ORDER BY artist, album, disc, number COLLATE NOCASE",
+                sq, sq, sq
             )
         } else {
             "SELECT * FROM song ORDER BY artist COLLATE NOCASE".to_string()
         };
 
-        let mut stmt = self.conn.prepare(&q).unwrap();
-
-        let mut rows = stmt.query([]).unwrap();
-        let mut results = Vec::new();
-        while let Some(row) = rows.next().unwrap() {
-            let r: String = row.get(2).unwrap();
-            results.push(r);
-        }
+        let results: Vec<Song> = self.collect_songs(&query);
 
         if results.is_empty() {
             None
@@ -219,7 +216,7 @@ impl Database {
             "SELECT * FROM song WHERE artist = '{}' ORDER BY album, disc, number",
             artist,
         );
-        self.collect_songs(query)
+        self.collect_songs(&query)
     }
     pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
         let query = format!(
@@ -227,7 +224,7 @@ impl Database {
             artist, album
         );
 
-        self.collect_songs(query)
+        self.collect_songs(&query)
     }
     pub fn get_song(&self, artist: &str, album: &str, number: &u16, name: &str) -> Vec<Song> {
         //this seems bad but it only takes like 2us
@@ -246,9 +243,9 @@ impl Database {
             name, number, artist, album
         );
 
-        self.collect_songs(query)
+        self.collect_songs(&query)
     }
-    pub fn collect_songs(&self, query: String) -> Vec<Song> {
+    pub fn collect_songs(&self, query: &str) -> Vec<Song> {
         let mut stmt = self.conn.prepare(&query).unwrap();
 
         stmt.query_map([], |row| {

@@ -1,10 +1,10 @@
+use crate::modes::{BrowserMode, UiMode};
 use browser::Browser;
 use crossterm::event::{KeyCode, KeyModifiers};
 use gronk_database::Database;
+use gronk_types::Song;
 use queue::Queue;
 use search::Search;
-
-use crate::modes::{BrowserMode, UiMode};
 
 mod browser;
 mod queue;
@@ -95,7 +95,7 @@ impl App {
         self.ui_mode = UiMode::Search;
     }
     //TODO: change this to song for pretty search printing
-    pub fn get_search(&self) -> Option<Vec<String>> {
+    pub fn get_search(&self) -> Option<Vec<Song>> {
         self.database.search(&self.search.query)
     }
     pub fn search_event(&mut self, code: KeyCode, modifier: KeyModifiers) {

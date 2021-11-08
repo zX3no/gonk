@@ -40,21 +40,48 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .alignment(Alignment::Left);
 
-    let spans = if let Some(search) = app.get_search() {
-        search.iter().map(|s| Spans::from(s.clone())).collect()
+    let items = if let Some(search) = app.get_search() {
+        search
+            .iter()
+            .map(|song| {
+                Row::new(vec![
+                    Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
+                    Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                ])
+            })
+            .collect()
     } else {
         Vec::new()
     };
-    let r = Paragraph::new(spans)
+
+    let t = Table::new(items)
+        .header(
+            Row::new(vec!["Track", "Title", "Album", "Artist"])
+                .style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .bottom_margin(1),
+        )
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
-        .alignment(Alignment::Left);
+        .widths(&[
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ])
+        // ...and potentially show a symbol in front of the selection.
+        .highlight_symbol("> ");
 
     f.render_widget(p, chunks[0]);
-    f.render_widget(r, chunks[1]);
+    f.render_widget(t, chunks[1]);
 }
 pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
