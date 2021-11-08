@@ -1,8 +1,6 @@
+use crate::{music::Music, queue::Queue};
 use crossterm::event::{KeyCode, KeyModifiers};
 use gronk_database::Database;
-use tui::layout::Constraint;
-
-use crate::{music::Music, queue::Queue};
 
 #[derive(Debug)]
 pub enum BrowserMode {
@@ -172,13 +170,18 @@ impl App {
                 self.constraint[i + 1] += 1;
             }
         } else {
-            self.constraint[i] += 1;
-            self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
+            if self.constraint[i + 1] != 0 {
+                self.constraint[i] += 1;
+                self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
+            }
         }
         for n in &mut self.constraint {
             if *n > 100 {
                 *n = 100;
             }
+        }
+        if self.constraint.iter().sum::<u16>() != 100 {
+            panic!("{:?}", self.constraint);
         }
     }
 }
