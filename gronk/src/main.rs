@@ -74,6 +74,8 @@ fn main() {
                         execute!(terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
                         terminal.show_cursor().unwrap();
                         break;
+                    } else {
+                        app.handle_input('c', event.modifiers);
                     }
                 } else {
                     match event.code {
