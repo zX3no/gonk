@@ -28,7 +28,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Max(4), Constraint::Percentage(94)].as_ref())
+        .constraints([Constraint::Max(3), Constraint::Percentage(90)].as_ref())
         .split(area);
 
     let p = Paragraph::new(vec![Spans::from(app.query.as_str())])
