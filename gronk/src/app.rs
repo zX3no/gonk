@@ -16,8 +16,6 @@ pub struct App {
     pub search: Search,
     database: Database,
     pub browser_mode: BrowserMode,
-    //current, prev
-    //why a pair doe?
     pub ui_mode: Mode,
     pub constraint: [u16; 4],
 }
@@ -92,7 +90,6 @@ impl App {
     pub fn ui_search(&mut self) {
         self.ui_mode.update(UiMode::Search);
     }
-    //TODO: change this to song for pretty search printing
     pub fn get_search(&self) -> Vec<Song> {
         self.database.search(self.search.query.clone())
     }
