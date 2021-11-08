@@ -1,54 +1,22 @@
-use crate::{music::Music, queue::Queue};
+use browser::Browser;
 use crossterm::event::{KeyCode, KeyModifiers};
 use gronk_database::Database;
+use queue::Queue;
+use search::Search;
 
-#[derive(Debug)]
-pub enum BrowserMode {
-    Artist,
-    Album,
-    Song,
-}
+use crate::modes::{BrowserMode, UiMode};
 
-impl BrowserMode {
-    fn next(&mut self) {
-        match self {
-            BrowserMode::Artist => *self = BrowserMode::Album,
-            BrowserMode::Album => *self = BrowserMode::Song,
-            BrowserMode::Song => (),
-        }
-    }
-    fn prev(&mut self) {
-        match self {
-            BrowserMode::Artist => (),
-            BrowserMode::Album => *self = BrowserMode::Artist,
-            BrowserMode::Song => *self = BrowserMode::Album,
-        }
-    }
-}
-
-pub enum Mode {
-    Browser,
-    Queue,
-    Search,
-}
-
-impl Mode {
-    fn toggle(&mut self) {
-        match self {
-            Mode::Browser => *self = Mode::Queue,
-            Mode::Queue => *self = Mode::Browser,
-            Mode::Search => *self = Mode::Queue,
-        }
-    }
-}
+mod browser;
+mod queue;
+mod search;
 
 pub struct App {
-    pub music: Music,
+    pub music: Browser,
     pub queue: Queue,
+    pub search: Search,
     database: Database,
     pub browser_mode: BrowserMode,
-    pub ui_mode: Mode,
-    pub query: String,
+    pub ui_mode: UiMode,
     pub constraint: [u16; 4],
 }
 
@@ -56,12 +24,12 @@ impl App {
     pub fn new() -> Self {
         let database = Database::new();
         Self {
-            music: Music::new(&database),
+            music: Browser::new(&database),
             queue: Queue::new(),
+            search: Search::new(),
             database,
             browser_mode: BrowserMode::Artist,
-            ui_mode: Mode::Browser,
-            query: String::new(),
+            ui_mode: UiMode::Browser,
             constraint: [8, 42, 24, 26],
         }
     }
@@ -69,26 +37,26 @@ impl App {
         self.ui_mode.toggle();
     }
     pub fn browser_next(&mut self) {
-        if let Mode::Browser = self.ui_mode {
+        if let UiMode::Browser = self.ui_mode {
             self.browser_mode.next();
         }
     }
     pub fn browser_prev(&mut self) {
-        if let Mode::Browser = self.ui_mode {
+        if let UiMode::Browser = self.ui_mode {
             self.browser_mode.prev();
         }
     }
     pub fn up(&mut self) {
         match self.ui_mode {
-            Mode::Browser => self.music.up(&self.browser_mode, &self.database),
-            Mode::Queue => self.queue.up(),
+            UiMode::Browser => self.music.up(&self.browser_mode, &self.database),
+            UiMode::Queue => self.queue.up(),
             _ => (),
         }
     }
     pub fn down(&mut self) {
         match self.ui_mode {
-            Mode::Browser => self.music.down(&self.browser_mode, &self.database),
-            Mode::Queue => self.queue.down(),
+            UiMode::Browser => self.music.down(&self.browser_mode, &self.database),
+            UiMode::Queue => self.queue.down(),
             _ => (),
         }
     }
@@ -97,7 +65,7 @@ impl App {
     }
     pub fn add_to_queue(&mut self) {
         match self.ui_mode {
-            Mode::Browser => {
+            UiMode::Browser => {
                 let (artist, album, track, song) = (
                     &self.music.selected_artist.item,
                     &self.music.selected_album.item,
@@ -114,7 +82,7 @@ impl App {
                 };
                 self.queue.add(songs);
             }
-            Mode::Queue => {
+            UiMode::Queue => {
                 self.queue.play_selected();
             }
             _ => (),
@@ -124,39 +92,30 @@ impl App {
         self.queue.update()
     }
     pub fn ui_search(&mut self) {
-        self.ui_mode = Mode::Search;
+        self.ui_mode = UiMode::Search;
     }
     //TODO: change this to song for pretty search printing
     pub fn get_search(&self) -> Option<Vec<String>> {
-        self.database.search(&self.query)
+        self.database.search(&self.search.query)
     }
-    // pub fn get_search_custom(&self) -> Option<Vec<String>> {
-    //     if self.query.is_empty() {
-    //         None
-    //     } else {
-    //         let songs = self.database.get_all_songs();
-    //         let fzf = songs.fzf(&self.query);
-    //         fzf
-    //     }
-    // }
     pub fn search_event(&mut self, code: KeyCode, modifier: KeyModifiers) {
         match code {
             KeyCode::Char(c) => {
-                self.query.push(c);
+                self.search.query.push(c);
             }
-            KeyCode::Tab => self.ui_mode = Mode::Browser,
+            KeyCode::Tab => self.ui_mode = UiMode::Browser,
             KeyCode::Backspace => {
                 if modifier == KeyModifiers::CONTROL {
-                    let rev: String = self.query.chars().rev().collect();
+                    let rev: String = self.search.query.chars().rev().collect();
                     if let Some(index) = rev.find(' ') {
-                        let len = self.query.len();
-                        let str = self.query.split_at(len - index - 1);
-                        self.query = str.0.to_string();
+                        let len = self.search.query.len();
+                        let str = self.search.query.split_at(len - index - 1);
+                        self.search.query = str.0.to_string();
                     } else {
-                        self.query = String::new();
+                        self.search.query = String::new();
                     }
                 } else {
-                    self.query.pop();
+                    self.search.query.pop();
                 }
             }
             _ => (),

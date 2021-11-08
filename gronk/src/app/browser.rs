@@ -1,4 +1,4 @@
-use crate::app::BrowserMode;
+use crate::modes::BrowserMode;
 use gronk_database::Database;
 
 //TODO: wtf is this type??? change to templates
@@ -22,8 +22,7 @@ impl Item {
     }
 }
 
-//TODO: why is this called music?
-pub struct Music {
+pub struct Browser {
     pub selected_artist: Item,
     pub selected_album: Item,
     pub selected_song: Item,
@@ -33,9 +32,10 @@ pub struct Music {
     //TODO: serialize volume so
     //it's the same when you reopen
     //volume: f64,
+    //maybe do this on queue?
 }
 
-impl Music {
+impl Browser {
     pub fn new(database: &Database) -> Self {
         let artists = database.get_artists().unwrap();
         let artist = artists.first().unwrap().clone();

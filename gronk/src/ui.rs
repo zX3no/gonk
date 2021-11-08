@@ -1,25 +1,26 @@
 use tui::backend::Backend;
 use tui::layout::*;
 use tui::style::*;
-use tui::text::Spans;
+use tui::text::*;
 use tui::widgets::*;
 use tui::Frame;
 
-use crate::app::{App, BrowserMode, Mode};
+use crate::app::App;
+use crate::modes::{BrowserMode, UiMode};
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.ui_mode {
-        Mode::Browser => draw_browser(f, app),
-        Mode::Queue => draw_queue(f, app),
-        Mode::Search => draw_search(f, app),
+        UiMode::Browser => draw_browser(f, app),
+        UiMode::Queue => draw_queue(f, app),
+        UiMode::Search => draw_search(f, app),
     }
 }
 pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
-    if app.query.is_empty() {
+    if app.search.query.is_empty() {
         f.set_cursor(1, 1);
     } else {
-        let mut len = app.query.len() as u16;
+        let mut len = app.search.query.len() as u16;
         //does this even work?
         if len > area.width {
             len = area.width;
@@ -31,7 +32,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints([Constraint::Max(3), Constraint::Percentage(90)].as_ref())
         .split(area);
 
-    let p = Paragraph::new(vec![Spans::from(app.query.as_str())])
+    let p = Paragraph::new(vec![Spans::from(app.search.query.as_str())])
         .block(
             Block::default()
                 .borders(Borders::ALL)

@@ -14,11 +14,10 @@ use crossterm::{
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
-use crate::app::Mode;
+use crate::modes::UiMode;
 
 mod app;
-mod music;
-mod queue;
+mod modes;
 mod ui;
 
 enum Event {
@@ -80,7 +79,7 @@ fn main() {
                     }
                 }
 
-                if let Mode::Search = app.ui_mode {
+                if let UiMode::Search = app.ui_mode {
                     app.search_event(event.code, event.modifiers);
                 } else {
                     match event.code {
