@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 use gronk_database::Database;
+use tui::layout::Constraint;
 
 use crate::{music::Music, queue::Queue};
 
@@ -50,6 +51,7 @@ pub struct App {
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
     pub query: String,
+    pub constraint: [u16; 4],
 }
 
 impl App {
@@ -62,6 +64,7 @@ impl App {
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::Browser,
             query: String::new(),
+            constraint: [8, 42, 24, 26],
         }
     }
     pub fn ui_toggle(&mut self) {
@@ -159,6 +162,23 @@ impl App {
                 }
             }
             _ => (),
+        }
+    }
+    pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
+        let i = (arg as usize) - 49;
+        if modifier == KeyModifiers::SHIFT {
+            if self.constraint[i] != 0 {
+                self.constraint[i] = self.constraint[i].saturating_sub(1);
+                self.constraint[i + 1] += 1;
+            }
+        } else {
+            self.constraint[i] += 1;
+            self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
+        }
+        for n in &mut self.constraint {
+            if *n > 100 {
+                *n = 100;
+            }
         }
     }
 }

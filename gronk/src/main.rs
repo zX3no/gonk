@@ -96,6 +96,15 @@ fn main() {
                         KeyCode::Char('s') => app.queue.volume_down(),
                         KeyCode::Char('u') => app.update_db(),
                         KeyCode::Char('/') => app.ui_search(),
+                        KeyCode::Char('1') | KeyCode::Char('!') => {
+                            app.move_constraint('1', event.modifiers)
+                        }
+                        KeyCode::Char('2') | KeyCode::Char('@') => {
+                            app.move_constraint('2', event.modifiers)
+                        }
+                        KeyCode::Char('3') | KeyCode::Char('#') => {
+                            app.move_constraint('3', event.modifiers)
+                        }
                         KeyCode::Enter => app.add_to_queue(),
                         KeyCode::Tab => app.ui_toggle(),
                         _ => (),

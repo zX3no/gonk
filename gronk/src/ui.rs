@@ -226,6 +226,12 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             }
         }
     }
+    let con = [
+        Constraint::Percentage(app.constraint[0]),
+        Constraint::Percentage(app.constraint[1]),
+        Constraint::Percentage(app.constraint[2]),
+        Constraint::Percentage(app.constraint[3]),
+    ];
 
     let t = Table::new(items)
         .header(
@@ -242,12 +248,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
-        .widths(&[
-            Constraint::Percentage(8),
-            Constraint::Percentage(40),
-            Constraint::Percentage(26),
-            Constraint::Percentage(26),
-        ])
+        .widths(&con)
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
 
