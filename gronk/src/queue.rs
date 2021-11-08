@@ -33,10 +33,8 @@ impl Queue {
         self.player.toggle_playback();
     }
     pub fn update(&mut self) {
-        if self.now_playing.is_some() {
-            if !self.is_playing() && !self.songs.is_empty() && self.temp {
-                self.next();
-            }
+        if self.now_playing.is_some() && !self.is_playing() && !self.songs.is_empty() && self.temp {
+            self.next();
         }
         if self.is_playing() {
             self.temp = true;

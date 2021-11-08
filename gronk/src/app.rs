@@ -163,18 +163,16 @@ impl App {
         }
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
+        //1 is 48, '1' - 49 = 0
         let i = (arg as usize) - 49;
-        if modifier == KeyModifiers::SHIFT {
-            if self.constraint[i] != 0 {
-                self.constraint[i] = self.constraint[i].saturating_sub(1);
-                self.constraint[i + 1] += 1;
-            }
-        } else {
-            if self.constraint[i + 1] != 0 {
-                self.constraint[i] += 1;
-                self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
-            }
+        if modifier == KeyModifiers::SHIFT && self.constraint[i] != 0 {
+            self.constraint[i] = self.constraint[i].saturating_sub(1);
+            self.constraint[i + 1] += 1;
+        } else if self.constraint[i + 1] != 0 {
+            self.constraint[i] += 1;
+            self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
         }
+
         for n in &mut self.constraint {
             if *n > 100 {
                 *n = 100;
