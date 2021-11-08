@@ -1,6 +1,6 @@
-use crate::modes::{BrowserMode, UiMode};
+use crate::modes::{BrowserMode, Mode, UiMode};
 use browser::Browser;
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::KeyModifiers;
 use gronk_database::Database;
 use gronk_types::Song;
 use queue::Queue;
@@ -16,7 +16,9 @@ pub struct App {
     pub search: Search,
     database: Database,
     pub browser_mode: BrowserMode,
-    pub ui_mode: UiMode,
+    //current, prev
+    //why a pair doe?
+    pub ui_mode: Mode,
     pub constraint: [u16; 4],
 }
 
@@ -29,33 +31,30 @@ impl App {
             search: Search::new(),
             database,
             browser_mode: BrowserMode::Artist,
-            ui_mode: UiMode::Browser,
+            ui_mode: Mode::new(),
             //this could be [8, 42, 24, 100]
             constraint: [8, 42, 24, 26],
         }
     }
-    pub fn ui_toggle(&mut self) {
-        self.ui_mode.toggle();
-    }
     pub fn browser_next(&mut self) {
-        if let UiMode::Browser = self.ui_mode {
+        if self.ui_mode == UiMode::Browser {
             self.browser_mode.next();
         }
     }
     pub fn browser_prev(&mut self) {
-        if let UiMode::Browser = self.ui_mode {
+        if self.ui_mode == UiMode::Browser {
             self.browser_mode.prev();
         }
     }
     pub fn up(&mut self) {
-        match self.ui_mode {
+        match self.ui_mode.current {
             UiMode::Browser => self.music.up(&self.browser_mode, &self.database),
             UiMode::Queue => self.queue.up(),
             _ => (),
         }
     }
     pub fn down(&mut self) {
-        match self.ui_mode {
+        match self.ui_mode.current {
             UiMode::Browser => self.music.down(&self.browser_mode, &self.database),
             UiMode::Queue => self.queue.down(),
             _ => (),
@@ -64,8 +63,8 @@ impl App {
     pub fn update_db(&self) {
         todo!();
     }
-    pub fn add_to_queue(&mut self) {
-        match self.ui_mode {
+    pub fn on_enter(&mut self) {
+        match self.ui_mode.current {
             UiMode::Browser => {
                 let (artist, album, track, song) = (
                     &self.music.selected_artist.item,
@@ -73,8 +72,6 @@ impl App {
                     self.music.selected_song.prefix.as_ref().unwrap(),
                     &self.music.selected_song.item,
                 );
-                // dbg!(song);
-                // dbg!(self.music.selected_song.index);
 
                 let songs = match self.browser_mode {
                     BrowserMode::Artist => self.database.get_artist(artist),
@@ -93,34 +90,11 @@ impl App {
         self.queue.update()
     }
     pub fn ui_search(&mut self) {
-        self.ui_mode = UiMode::Search;
+        self.ui_mode.update(UiMode::Search);
     }
     //TODO: change this to song for pretty search printing
     pub fn get_search(&self) -> Vec<Song> {
         self.database.search(self.search.query.clone())
-    }
-    pub fn search_event(&mut self, code: KeyCode, modifier: KeyModifiers) {
-        match code {
-            KeyCode::Char(c) => {
-                self.search.query.push(c);
-            }
-            KeyCode::Tab => self.ui_mode = UiMode::Browser,
-            KeyCode::Backspace => {
-                if modifier == KeyModifiers::CONTROL {
-                    let rev: String = self.search.query.chars().rev().collect();
-                    if let Some(index) = rev.find(' ') {
-                        let len = self.search.query.len();
-                        let str = self.search.query.split_at(len - index - 1);
-                        self.search.query = str.0.to_string();
-                    } else {
-                        self.search.query = String::new();
-                    }
-                } else {
-                    self.search.query.pop();
-                }
-            }
-            _ => (),
-        }
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -140,6 +114,51 @@ impl App {
         }
         if self.constraint.iter().sum::<u16>() != 100 {
             panic!("{:?}", self.constraint);
+        }
+    }
+    pub fn handle_input(&mut self, c: char, modifier: KeyModifiers) {
+        if self.ui_mode.current == UiMode::Search {
+            self.search.query.push(c);
+        } else {
+            match c {
+                'c' => self.queue.clear(),
+                'j' => self.down(),
+                'k' => self.up(),
+                'h' => self.browser_prev(),
+                'l' => self.browser_next(),
+                ' ' => self.queue.play_pause(),
+                'a' => self.queue.prev(),
+                'd' => self.queue.next(),
+                'w' => self.queue.volume_up(),
+                's' => self.queue.volume_down(),
+                'u' => self.update_db(),
+                '/' => self.ui_search(),
+                '1' | '!' => self.move_constraint('1', modifier),
+                '2' | '@' => self.move_constraint('2', modifier),
+                '3' | '#' => self.move_constraint('3', modifier),
+                _ => (),
+            }
+        }
+    }
+    pub fn on_tab(&mut self) {
+        if self.ui_mode == UiMode::Search {
+            self.ui_mode.flip()
+        } else {
+            self.ui_mode.toggle();
+        }
+    }
+    pub fn on_backspace(&mut self, modifier: KeyModifiers) {
+        if modifier == KeyModifiers::CONTROL {
+            let rev: String = self.search.query.chars().rev().collect();
+            if let Some(index) = rev.find(' ') {
+                let len = self.search.query.len();
+                let str = self.search.query.split_at(len - index - 1);
+                self.search.query = str.0.to_string();
+            } else {
+                self.search.query = String::new();
+            }
+        } else {
+            self.search.query.pop();
         }
     }
 }

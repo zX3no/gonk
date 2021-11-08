@@ -9,7 +9,7 @@ use crate::app::App;
 use crate::modes::{BrowserMode, UiMode};
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    match app.ui_mode {
+    match app.ui_mode.current {
         UiMode::Browser => draw_browser(f, app),
         UiMode::Queue => draw_queue(f, app),
         UiMode::Search => draw_search(f, app),

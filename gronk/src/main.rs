@@ -14,8 +14,6 @@ use crossterm::{
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
-use crate::modes::UiMode;
-
 mod app;
 mod modes;
 mod ui;
@@ -77,35 +75,16 @@ fn main() {
                         terminal.show_cursor().unwrap();
                         break;
                     }
-                }
-
-                if let UiMode::Search = app.ui_mode {
-                    app.search_event(event.code, event.modifiers);
                 } else {
                     match event.code {
-                        KeyCode::Char('c') => app.queue.clear(),
-                        KeyCode::Char('j') | KeyCode::Down => app.down(),
-                        KeyCode::Char('k') | KeyCode::Up => app.up(),
-                        KeyCode::Char('h') | KeyCode::Left => app.browser_prev(),
-                        KeyCode::Char('l') | KeyCode::Right => app.browser_next(),
-                        KeyCode::Char(' ') => app.queue.play_pause(),
-                        KeyCode::Char('a') => app.queue.prev(),
-                        KeyCode::Char('d') => app.queue.next(),
-                        KeyCode::Char('w') => app.queue.volume_up(),
-                        KeyCode::Char('s') => app.queue.volume_down(),
-                        KeyCode::Char('u') => app.update_db(),
-                        KeyCode::Char('/') => app.ui_search(),
-                        KeyCode::Char('1') | KeyCode::Char('!') => {
-                            app.move_constraint('1', event.modifiers)
-                        }
-                        KeyCode::Char('2') | KeyCode::Char('@') => {
-                            app.move_constraint('2', event.modifiers)
-                        }
-                        KeyCode::Char('3') | KeyCode::Char('#') => {
-                            app.move_constraint('3', event.modifiers)
-                        }
-                        KeyCode::Enter => app.add_to_queue(),
-                        KeyCode::Tab => app.ui_toggle(),
+                        KeyCode::Char(c) => app.handle_input(c, event.modifiers),
+                        KeyCode::Down => app.down(),
+                        KeyCode::Up => app.up(),
+                        KeyCode::Left => app.browser_prev(),
+                        KeyCode::Right => app.browser_next(),
+                        KeyCode::Enter => app.on_enter(),
+                        KeyCode::Tab => app.on_tab(),
+                        KeyCode::Backspace => app.on_backspace(event.modifiers),
                         _ => (),
                     }
                 }
