@@ -61,9 +61,9 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .widths(&[
             Constraint::Length(6),
-            Constraint::Percentage(40),
-            Constraint::Percentage(25),
-            Constraint::Percentage(100),
+            Constraint::Percentage(43),
+            Constraint::Percentage(29),
+            Constraint::Percentage(27),
         ])
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
