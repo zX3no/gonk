@@ -1,0 +1,12 @@
+   Compiling gronk v0.0.1 (C:\Users\Bay\Desktop\gronk\gronk)
+warning: associated function is never used: `get_search`
+  --> gronk\src\app.rs:94:12
+   |
+94 |     pub fn get_search(&self) -> Vec<Song> {
+   |            ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `gronk` (bin "gronk") generated 1 warning
+    Finished release [optimized] target(s) in 2.39s
+     Running `target\release\gronk.exe`

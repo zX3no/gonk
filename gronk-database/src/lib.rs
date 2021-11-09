@@ -83,13 +83,67 @@ impl Database {
 
         Ok(())
     }
-    pub fn get_all_songs(&self) -> Vec<String> {
+    pub fn get_all_song_names(&self) -> Vec<String> {
         let mut stmt = self.conn.prepare("SELECT name FROM song").unwrap();
         let mut rows = stmt.query([]).unwrap();
         let mut songs = Vec::new();
         while let Some(row) = rows.next().unwrap() {
             let song: String = row.get(0).unwrap();
             songs.push(song);
+        }
+        songs
+    }
+    pub fn get_all_songs(&self) -> Vec<Song> {
+        self.collect_songs("SELECT * FROM SONG")
+    }
+    pub fn get_ids(&self, ids: &Vec<u32>) -> Vec<Song> {
+        // let mut query = String::from("SELECT * FROM song");
+
+        // if ids.is_empty() {
+        //     // self.collect_songs(&query)
+        //     Vec::new()
+        // } else {
+        //     query.push_str(" where ");
+        //     for id in ids {
+        //         query.push_str(format!("rowid='{}' OR ", id).as_str());
+        //     }
+        //     let (query, _) = query.split_at(query.len() - 4);
+        //     dbg!(&query);
+        //     self.collect_songs(&query)
+        // }
+        if ids.is_empty() {
+            return Vec::new();
+        }
+
+        let mut songs = Vec::new();
+
+        for id in ids {
+            let query = format!("SELECT * FROM song WHERE rowid='{}'", id);
+            let mut stmt = self.conn.prepare(&query).unwrap();
+            let mut rows = stmt.query([]).unwrap();
+            if let Some(row) = rows.next().unwrap() {
+                let path: String = row.get(5).unwrap();
+                songs.push(Song {
+                    number: row.get(0).unwrap(),
+                    disc: row.get(1).unwrap(),
+                    name: row.get(2).unwrap(),
+                    album: row.get(3).unwrap(),
+                    artist: row.get(4).unwrap(),
+                    path: PathBuf::from(path),
+                });
+            }
+        }
+        songs
+    }
+    pub fn get_all_ids(&self) -> Vec<(usize, String)> {
+        let mut stmt = self.conn.prepare("SELECT rowid, name FROM song").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let mut songs = Vec::new();
+
+        while let Some(row) = rows.next().unwrap() {
+            let id: usize = row.get(0).unwrap();
+            let name: String = row.get(1).unwrap();
+            songs.push((id, name));
         }
         songs
     }
@@ -232,7 +286,7 @@ impl Database {
         //TODO: benchmark queries and swap to fts4 for others
         //TODO: Disc number too?
         let query = format!(
-            "SELECT * FROM song WHERE song MATCH 'name:{} number:{} AND artist:{} AND album:{}'",
+            "SELECT * FROM song WHERE song MATCH 'name:{} AND number:{} AND artist:{} AND album:{}'",
             name, number, artist, album
         );
 

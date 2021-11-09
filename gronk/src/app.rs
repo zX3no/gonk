@@ -5,6 +5,7 @@ use gronk_database::Database;
 use gronk_types::Song;
 use queue::Queue;
 use search::Search;
+use simsearch::SimSearch;
 
 mod browser;
 mod queue;
@@ -90,8 +91,20 @@ impl App {
     pub fn ui_search(&mut self) {
         self.ui_mode.update(UiMode::Search);
     }
-    pub fn get_search(&self) -> Vec<Song> {
-        self.database.search(self.search.query.clone())
+    // pub fn get_search(&self) -> Vec<Song> {
+    //     self.database.search(self.search.query.clone())
+    // }
+    pub fn get_new_search(&self) -> Vec<Song> {
+        let test = self.database.get_all_ids();
+        let mut engine: SimSearch<u32> = SimSearch::new();
+
+        for (id, name) in test {
+            // engine.insert_tokens(id, [name, artist]);
+            engine.insert(id as u32, &name);
+        }
+
+        let results: Vec<u32> = engine.search(&self.search.query);
+        self.database.get_ids(&results)
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0

@@ -32,7 +32,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .alignment(Alignment::Left);
 
     let items: Vec<Row> = app
-        .get_search()
+        .get_new_search()
         .iter()
         .map(|song| {
             Row::new(vec![
