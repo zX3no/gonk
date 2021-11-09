@@ -143,6 +143,7 @@ impl App {
                 's' => self.queue.volume_down(),
                 'u' => self.update_db(),
                 '/' => self.ui_search(),
+                'x' => self.delete_from_queue(),
                 '1' | '!' => self.move_constraint('1', modifier),
                 '2' | '@' => self.move_constraint('2', modifier),
                 '3' | '#' => self.move_constraint('3', modifier),
@@ -170,5 +171,8 @@ impl App {
         } else {
             self.search.query.pop();
         }
+    }
+    fn delete_from_queue(&mut self) {
+        self.queue.delete_selected();
     }
 }

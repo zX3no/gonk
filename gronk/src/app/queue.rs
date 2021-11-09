@@ -59,13 +59,15 @@ impl Queue {
     }
     pub fn next(&mut self) {
         let len = self.songs.len();
+
         if let Some(index) = &mut self.now_playing {
             if *index < len - 1 {
                 *index += 1;
             } else {
-                //TODO: check if this is working
                 *index = 0;
             }
+
+            dbg!(self.current_track(), self.now_playing);
             self.player.play(self.current_track());
         }
     }
@@ -80,6 +82,11 @@ impl Queue {
         self.songs = Vec::new();
         self.now_playing = None;
         self.ui_index = None;
+        self.temp = false;
+        self.player.stop();
+    }
+    pub fn stop(&mut self) {
+        self.now_playing = None;
         self.temp = false;
         self.player.stop();
     }
@@ -118,6 +125,40 @@ impl Queue {
                 self.player.play(song.path.clone());
                 self.now_playing = Some(index);
             }
+        }
+    }
+    //TODO: this is absolutley broken
+    pub fn delete_selected(&mut self) {
+        if let Some(ui) = self.ui_index {
+            if let Some(song) = self.now_playing {
+                if song == ui {
+                    //make sure we don't remove the currently playing song
+                    if ui == 0 && self.songs.get(ui + 1).is_some() {
+                        //skip to next avalible track
+                        self.next();
+                        self.now_playing = Some(0);
+                    } else if ui != 0 {
+                        if self.songs.get(ui - 1).is_some() {
+                            self.prev();
+                        }
+                    } else {
+                        self.stop();
+                    }
+                } else if ui == 0 {
+                    self.now_playing = Some(song - 1);
+                    dbg!(self.now_playing);
+                }
+            }
+
+            //remove the song and update the ui index
+            if ui == 0 {
+                if self.songs.get(ui + 1).is_none() {
+                    self.ui_index = None;
+                }
+            } else {
+                self.ui_index = Some(ui - 1);
+            }
+            self.songs.remove(ui);
         }
     }
 }
