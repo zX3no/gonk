@@ -181,6 +181,7 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 }
 
 //TODO: store the duration in the database
+//abstract selection color into it's own widget
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 

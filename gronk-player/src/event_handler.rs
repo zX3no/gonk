@@ -21,7 +21,7 @@ pub struct EventHandler {
 impl EventHandler {
     pub fn new() -> Self {
         Self {
-            volume: 0.03,
+            volume: 0.02,
             ctx: Soloud::default().unwrap(),
             handle: None,
             wav: None,
