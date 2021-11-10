@@ -80,7 +80,7 @@ impl App {
                 self.queue.add(songs);
             }
             UiMode::Queue => {
-                self.queue.update_selected();
+                self.queue.select();
             }
             _ => (),
         }

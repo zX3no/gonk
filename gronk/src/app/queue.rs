@@ -85,6 +85,7 @@ pub struct Queue {
     pub ui_index: Option<usize>,
     pub list: List,
     player: Player,
+    skip_fix: bool,
 }
 
 impl Queue {
@@ -93,6 +94,7 @@ impl Queue {
             ui_index: None,
             list: List::new(),
             player: Player::new(),
+            skip_fix: false,
         }
     }
     pub fn volume_up(&mut self) {
@@ -104,7 +106,16 @@ impl Queue {
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
-    pub fn update(&mut self) {}
+    pub fn update(&mut self) {
+        if !self.player.is_playing() && self.skip_fix {
+            self.next();
+        }
+        if self.player.is_playing() {
+            self.skip_fix = true;
+        } else {
+            self.skip_fix = false;
+        }
+    }
     pub fn prev(&mut self) {
         self.list.prev();
         self.play_selected();
@@ -148,7 +159,7 @@ impl Queue {
             }
         }
     }
-    pub fn update_selected(&mut self) {
+    pub fn select(&mut self) {
         if let Some(index) = self.ui_index {
             self.list.play(index);
             self.play_selected();
