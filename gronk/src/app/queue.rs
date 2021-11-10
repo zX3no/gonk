@@ -2,6 +2,7 @@ use gronk_player::Player;
 use gronk_types::Song;
 use std::path::PathBuf;
 
+//this makes the code worse but easier?
 pub struct List {
     pub songs: Vec<Song>,
     pub now_playing: Option<usize>,
@@ -169,28 +170,6 @@ impl Queue {
             self.player.play(path);
         } else {
             self.player.stop();
-        }
-    }
-}
-
-//TODO: find a way to actually use this
-pub trait UpDown {
-    fn up(index: &mut Option<usize>, len: usize) {
-        if let Some(index) = index {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = len - 1;
-            }
-        }
-    }
-    fn down(index: &mut Option<usize>, len: usize) {
-        if let Some(index) = index {
-            if *index + 1 < len {
-                *index += 1;
-            } else {
-                *index = 0;
-            }
         }
     }
 }
