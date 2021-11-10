@@ -44,7 +44,7 @@ impl Database {
             [],
         )?;
 
-        let paths: Vec<PathBuf> = WalkDir::new("D:/OneDrive/Music")
+        let paths: Vec<PathBuf> = WalkDir::new("D:/Music")
             .into_iter()
             .filter_map(|entry| {
                 if let Some(ex) = entry.as_ref().unwrap().path().extension() {

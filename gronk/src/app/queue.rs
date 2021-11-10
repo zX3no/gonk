@@ -2,25 +2,96 @@ use gronk_player::Player;
 use gronk_types::Song;
 use std::path::PathBuf;
 
-pub struct Queue {
+pub struct List {
     pub songs: Vec<Song>,
-    pub ui_index: Option<usize>,
     pub now_playing: Option<usize>,
+}
+impl List {
+    pub fn new() -> Self {
+        Self {
+            songs: Vec::new(),
+            now_playing: None,
+        }
+    }
+    pub fn add(&mut self, other: &mut Vec<Song>) {
+        self.songs.append(other);
+    }
+    pub fn next(&mut self) {
+        if let Some(mut playing) = self.now_playing {
+            if playing == self.songs.len() - 1 {
+                playing = 0;
+            } else {
+                playing += 1;
+            }
+            self.now_playing = Some(playing);
+        }
+    }
+    pub fn prev(&mut self) {
+        if let Some(mut playing) = self.now_playing {
+            if playing == 0 {
+                playing = self.songs.len() - 1;
+            } else {
+                playing -= 1;
+            }
+            self.now_playing = Some(playing);
+        }
+    }
+    pub fn playing(&self) -> Option<PathBuf> {
+        if let Some(index) = self.now_playing {
+            if let Some(song) = self.songs.get(index) {
+                return Some(song.path.clone());
+            }
+        }
+        return None;
+    }
+    pub fn clear(&mut self) {
+        self.songs = Vec::new();
+        self.now_playing = None;
+    }
+    pub fn len(&self) -> usize {
+        self.songs.len()
+    }
+    pub fn remove(&mut self, index: usize) -> bool {
+        self.songs.remove(index);
+        if let Some(playing) = self.now_playing {
+            //if the removed song was playing
+            let len = self.songs.len();
+            if len == 0 {
+                self.clear();
+            } else if playing == index && index == 0 {
+                self.now_playing = Some(0);
+            } else if playing == index && len == index {
+                self.now_playing = Some(len - 1);
+            } else if index < playing {
+                self.now_playing = Some(playing - 1);
+            } else if index > playing {
+                //do nothing
+                return false;
+            }
+            return true;
+        }
+        false
+    }
+    pub fn play(&mut self, index: usize) {
+        self.now_playing = Some(index);
+    }
+    pub fn empty(&self) -> bool {
+        self.songs.is_empty() && self.now_playing.is_none()
+    }
+}
+
+pub struct Queue {
+    pub ui_index: Option<usize>,
+    pub list: List,
     player: Player,
-    //this makes sure the song isn't skipped
-    //while it's being loaded
-    //this should be removed
-    temp: bool,
 }
 
 impl Queue {
     pub fn new() -> Self {
         Self {
-            songs: Vec::new(),
             ui_index: None,
-            now_playing: None,
+            list: List::new(),
             player: Player::new(),
-            temp: false,
         }
     }
     pub fn volume_up(&mut self) {
@@ -32,75 +103,32 @@ impl Queue {
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
-    pub fn update(&mut self) {
-        if self.now_playing.is_some() && !self.is_playing() && !self.songs.is_empty() && self.temp {
-            self.next();
-        }
-        if self.is_playing() {
-            self.temp = true;
-        } else {
-            self.temp = false;
-        }
-    }
-    pub fn is_playing(&self) -> bool {
-        self.player.is_playing()
-    }
+    pub fn update(&mut self) {}
     pub fn prev(&mut self) {
-        let len = self.songs.len();
-        if let Some(index) = &mut self.now_playing {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = len - 1;
-            }
-
-            self.player.play(self.current_track());
-        }
+        self.list.prev();
+        self.play_selected();
     }
     pub fn next(&mut self) {
-        let len = self.songs.len();
-
-        if let Some(index) = &mut self.now_playing {
-            if *index < len - 1 {
-                *index += 1;
-            } else {
-                *index = 0;
-            }
-
-            dbg!(self.current_track(), self.now_playing);
-            self.player.play(self.current_track());
-        }
-    }
-    pub fn current_track(&self) -> PathBuf {
-        self.songs
-            .get(self.now_playing.unwrap())
-            .unwrap()
-            .path
-            .clone()
+        self.list.next();
+        self.play_selected();
     }
     pub fn clear(&mut self) {
-        self.songs = Vec::new();
-        self.now_playing = None;
+        self.list.clear();
         self.ui_index = None;
-        self.temp = false;
-        self.player.stop();
-    }
-    pub fn stop(&mut self) {
-        self.now_playing = None;
-        self.temp = false;
         self.player.stop();
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
-        self.songs.append(&mut songs);
-        if self.now_playing.is_none() && !self.songs.is_empty() {
-            self.now_playing = Some(0);
+        if self.list.empty() {
+            self.list.add(&mut songs);
+            self.list.now_playing = Some(0);
             self.ui_index = Some(0);
-            let song = self.songs.first().unwrap();
-            self.player.play(song.path.clone());
+            self.play_selected();
+        } else {
+            self.list.add(&mut songs);
         }
     }
     pub fn up(&mut self) {
-        let len = self.songs.len();
+        let len = self.list.len();
         if let Some(index) = &mut self.ui_index {
             if *index > 0 {
                 *index -= 1;
@@ -110,7 +138,7 @@ impl Queue {
         }
     }
     pub fn down(&mut self) {
-        let len = self.songs.len();
+        let len = self.list.len();
         if let Some(index) = &mut self.ui_index {
             if *index + 1 < len {
                 *index += 1;
@@ -119,46 +147,28 @@ impl Queue {
             }
         }
     }
-    pub fn play_selected(&mut self) {
+    pub fn update_selected(&mut self) {
         if let Some(index) = self.ui_index {
-            if let Some(song) = self.songs.get(index) {
-                self.player.play(song.path.clone());
-                self.now_playing = Some(index);
+            self.list.play(index);
+            self.play_selected();
+        }
+    }
+    pub fn delete_selected(&mut self) {
+        if let Some(index) = self.ui_index {
+            let update = self.list.remove(index);
+            if index > self.list.len() - 1 {
+                self.ui_index = Some(self.list.len() - 1);
+            }
+            if update {
+                self.play_selected();
             }
         }
     }
-    //TODO: this is absolutley broken
-    pub fn delete_selected(&mut self) {
-        if let Some(ui) = self.ui_index {
-            if let Some(song) = self.now_playing {
-                if song == ui {
-                    //make sure we don't remove the currently playing song
-                    if ui == 0 && self.songs.get(ui + 1).is_some() {
-                        //skip to next avalible track
-                        self.next();
-                        self.now_playing = Some(0);
-                    } else if ui != 0 {
-                        if self.songs.get(ui - 1).is_some() {
-                            self.prev();
-                        }
-                    } else {
-                        self.stop();
-                    }
-                } else if ui == 0 {
-                    self.now_playing = Some(song - 1);
-                    dbg!(self.now_playing);
-                }
-            }
-
-            //remove the song and update the ui index
-            if ui == 0 {
-                if self.songs.get(ui + 1).is_none() {
-                    self.ui_index = None;
-                }
-            } else {
-                self.ui_index = Some(ui - 1);
-            }
-            self.songs.remove(ui);
+    pub fn play_selected(&self) {
+        if let Some(path) = self.list.playing() {
+            self.player.play(path);
+        } else {
+            self.player.stop();
         }
     }
 }

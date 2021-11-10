@@ -31,6 +31,16 @@ impl Song {
         panic!();
     }
 }
+impl PartialEq for Song {
+    fn eq(&self, other: &Self) -> bool {
+        self.number == other.number
+            && self.disc == other.disc
+            && self.name == other.name
+            && self.album == other.album
+            && self.artist == other.artist
+            && self.path == other.path
+    }
+}
 impl Default for Song {
     fn default() -> Self {
         Self {

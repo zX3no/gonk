@@ -186,8 +186,8 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
     let (songs, index, ui_index) = (
-        &app.queue.songs,
-        &app.queue.now_playing,
+        &app.queue.list.songs,
+        &app.queue.list.now_playing,
         &app.queue.ui_index,
     );
 

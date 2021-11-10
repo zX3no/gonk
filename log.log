@@ -1,3 +1,10 @@
+   Compiling gronk-types v0.1.0 (C:\Users\Bay\Desktop\gronk\gronk-types)
+   Compiling gronk-database v0.1.0 (C:\Users\Bay\Desktop\gronk\gronk-database)
+   Compiling gronk-player v0.1.0 (C:\Users\Bay\Desktop\gronk\gronk-player)
    Compiling gronk v0.0.1 (C:\Users\Bay\Desktop\gronk\gronk)
-    Finished dev [unoptimized + debuginfo] target(s) in 1.41s
+    Finished dev [unoptimized + debuginfo] target(s) in 2.68s
      Running `target\debug\gronk.exe`
+[gronk\src\app\queue.rs:156] index = 14
+[gronk\src\app\queue.rs:156] self.list.len() = 14
+[gronk\src\app\queue.rs:156] index = 13
+[gronk\src\app\queue.rs:156] self.list.len() = 13
