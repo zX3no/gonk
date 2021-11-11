@@ -96,7 +96,7 @@ impl Database {
     pub fn get_all_songs(&self) -> Vec<Song> {
         self.collect_songs("SELECT * FROM SONG")
     }
-    pub fn get_ids(&self, ids: &Vec<u32>) -> Vec<Song> {
+    pub fn get_songs_from_ids(&self, ids: &Vec<usize>) -> Vec<Song> {
         // let mut query = String::from("SELECT * FROM song");
 
         // if ids.is_empty() {

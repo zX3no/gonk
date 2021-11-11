@@ -23,7 +23,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints([Constraint::Length(3), Constraint::Percentage(90)].as_ref())
         .split(area);
 
-    let p = Paragraph::new(vec![Spans::from(app.search.query.as_str())])
+    let p = Paragraph::new(vec![Spans::from(app.search.query.clone())])
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -31,8 +31,9 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .alignment(Alignment::Left);
 
-    let items: Vec<Row> = app
-        .get_new_search()
+    let search = app.search();
+
+    let items: Vec<Row> = search
         .iter()
         .map(|song| {
             Row::new(vec![
