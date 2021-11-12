@@ -35,7 +35,8 @@ impl Song {
 }
 impl Indexable for Song {
     fn strings(&self) -> Vec<String> {
-        vec![self.name.clone(), self.album.clone(), self.artist.clone()]
+        // vec![self.name.clone(), self.album.clone(), self.artist.clone()]
+        vec![self.name.clone()]
     }
 }
 impl PartialEq for Song {

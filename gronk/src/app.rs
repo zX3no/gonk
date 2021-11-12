@@ -3,7 +3,6 @@ use browser::Browser;
 use crossterm::event::KeyModifiers;
 use gronk_database::Database;
 use gronk_types::Song;
-use indicium::simple::{SearchIndex, SearchIndexBuilder, SearchType};
 use queue::Queue;
 use search::Search;
 
@@ -25,11 +24,10 @@ impl App {
     pub fn new() -> Self {
         let database = Database::new();
 
-        let ids = database.get_all_ids();
         Self {
             music: Browser::new(&database),
             queue: Queue::new(),
-            search: Search::new(ids),
+            search: Search::new(),
             database,
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
@@ -91,25 +89,12 @@ impl App {
         self.queue.update()
     }
     pub fn search(&mut self) -> Vec<Song> {
-        let songs = self.database.test();
-        let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
-            .case_sensitive(&false)
-            .search_type(&SearchType::Live)
-            .build();
-
-        for (index, elem) in songs {
-            search_index.insert(&index, &elem);
+        if self.search.changed() {
+            let songs = self.database.test();
+            self.search.get_song_ids(&songs);
         }
-
-        let resulting_keys: Vec<&usize> = search_index.search(&self.search.query);
-
-        self.database.get_songs_from_ids(&resulting_keys)
-
-        // if self.search.changed() {
-        //     self.search.get_song_ids();
-        // }
-        // let ids = &self.search.results;
-        // self.database.get_songs_from_ids(&ids)
+        let ids = &self.search.results;
+        self.database.get_songs_from_ids(&ids)
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -165,6 +150,7 @@ impl App {
     }
     pub fn on_backspace(&mut self, modifier: KeyModifiers) {
         if modifier == KeyModifiers::CONTROL {
+            //TODO: maybe just reset the whole query
             let rev: String = self.search.query.chars().rev().collect();
             if let Some(index) = rev.find(' ') {
                 let len = self.search.query.len();

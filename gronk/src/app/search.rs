@@ -1,19 +1,17 @@
-use indicium::simple::{Indexable, SearchIndex};
-use simsearch::{SearchOptions, SimSearch};
+use gronk_types::Song;
+use indicium::simple::{SearchIndex, SearchIndexBuilder, SearchType};
 
 pub struct Search {
     pub query: String,
     pub prev_query: String,
-    pub ids: Vec<(usize, String)>,
     pub results: Vec<usize>,
 }
 
 impl Search {
-    pub fn new(ids: Vec<(usize, String)>) -> Self {
+    pub fn new() -> Self {
         Self {
             query: String::new(),
             prev_query: String::new(),
-            ids,
             results: Vec::new(),
         }
     }
@@ -21,15 +19,21 @@ impl Search {
         self.prev_query = self.query.clone();
         self.query.push(c);
     }
-    pub fn get_song_ids(&mut self) {
-        let options = SearchOptions::new().case_sensitive(false);
-        let mut engine: SimSearch<usize> = SimSearch::new_with(options);
+    pub fn get_song_ids(&mut self, songs: &Vec<(usize, Song)>) {
+        let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
+            .case_sensitive(&false)
+            .search_type(&SearchType::Live)
+            .build();
 
-        for (id, name) in &self.ids {
-            engine.insert(*id, &name);
+        for (index, elem) in songs {
+            search_index.insert(&index, elem);
         }
 
-        self.results = engine.search(self.query.as_str());
+        self.results = search_index
+            .search(&self.query)
+            .iter()
+            .map(|i| **i)
+            .collect();
     }
     pub fn changed(&mut self) -> bool {
         if self.query != self.prev_query {
