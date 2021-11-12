@@ -23,3 +23,24 @@ impl Search {
         engine.search(self.query.as_str())
     }
 }
+
+//My ideal search algorithm
+
+//"Burger", "b23u89r6g88e987r", "borger", "bugs", "test"
+
+//Query: burger
+
+//1: "burger"
+//2: "borger"
+//3: "bugs"
+//4: "b23u89r6g88e987r"
+
+//the most important part is the distance of the characters
+//not how many of them match
+
+//"Sketch 1", "s23c0et23"
+
+//query: scet
+
+//1: "sketch 1"
+//2: "s23c0et23"
