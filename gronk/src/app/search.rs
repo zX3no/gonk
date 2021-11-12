@@ -2,17 +2,25 @@ use simsearch::{SearchOptions, SimSearch};
 
 pub struct Search {
     pub query: String,
+    pub prev_query: String,
     pub ids: Vec<(usize, String)>,
+    pub results: Vec<usize>,
 }
 
 impl Search {
     pub fn new(ids: Vec<(usize, String)>) -> Self {
         Self {
             query: String::new(),
+            prev_query: String::new(),
             ids,
+            results: Vec::new(),
         }
     }
-    pub fn get_song_ids(&self) -> Vec<usize> {
+    pub fn push(&mut self, c: char) {
+        self.prev_query = self.query.clone();
+        self.query.push(c);
+    }
+    pub fn get_song_ids(&mut self) {
         let options = SearchOptions::new().case_sensitive(false);
         let mut engine: SimSearch<usize> = SimSearch::new_with(options);
 
@@ -20,7 +28,16 @@ impl Search {
             engine.insert(*id, &name);
         }
 
-        engine.search(self.query.as_str())
+        self.results = engine.search(self.query.as_str());
+    }
+
+    pub fn changed(&mut self) -> bool {
+        if self.query != self.prev_query {
+            self.prev_query = self.query.clone();
+            true
+        } else {
+            false
+        }
     }
 }
 

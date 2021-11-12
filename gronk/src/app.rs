@@ -89,11 +89,11 @@ impl App {
     pub fn on_tick(&mut self) {
         self.queue.update()
     }
-    pub fn ui_search(&mut self) {
-        self.ui_mode.update(UiMode::Search);
-    }
-    pub fn search(&self) -> Vec<Song> {
-        let ids = self.search.get_song_ids();
+    pub fn search(&mut self) -> Vec<Song> {
+        if self.search.changed() {
+            self.search.get_song_ids();
+        }
+        let ids = &self.search.results;
         self.database.get_songs_from_ids(&ids)
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
@@ -118,7 +118,7 @@ impl App {
     }
     pub fn handle_input(&mut self, c: char, modifier: KeyModifiers) {
         if self.ui_mode.current == UiMode::Search {
-            self.search.query.push(c);
+            self.search.push(c);
         } else {
             match c {
                 'c' => self.queue.clear(),
@@ -132,7 +132,7 @@ impl App {
                 'w' => self.queue.volume_up(),
                 's' => self.queue.volume_down(),
                 'u' => self.update_db(),
-                '/' => self.ui_search(),
+                '/' => self.ui_mode.update(UiMode::Search),
                 'x' => self.delete_from_queue(),
                 '1' | '!' => self.move_constraint('1', modifier),
                 '2' | '@' => self.move_constraint('2', modifier),
