@@ -3,6 +3,7 @@ use browser::Browser;
 use crossterm::event::KeyModifiers;
 use gronk_database::Database;
 use gronk_types::Song;
+use indicium::simple::{SearchIndex, SearchIndexBuilder, SearchType};
 use queue::Queue;
 use search::Search;
 
@@ -90,11 +91,25 @@ impl App {
         self.queue.update()
     }
     pub fn search(&mut self) -> Vec<Song> {
-        if self.search.changed() {
-            self.search.get_song_ids();
+        let songs = self.database.test();
+        let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
+            .case_sensitive(&false)
+            .search_type(&SearchType::Live)
+            .build();
+
+        for (index, elem) in songs {
+            search_index.insert(&index, &elem);
         }
-        let ids = &self.search.results;
-        self.database.get_songs_from_ids(&ids)
+
+        let resulting_keys: Vec<&usize> = search_index.search(&self.search.query);
+
+        self.database.get_songs_from_ids(&resulting_keys)
+
+        // if self.search.changed() {
+        //     self.search.get_song_ids();
+        // }
+        // let ids = &self.search.results;
+        // self.database.get_songs_from_ids(&ids)
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0

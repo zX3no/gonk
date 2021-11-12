@@ -14,3 +14,4 @@ gronk-types = {path = "../gronk-types"}
 gronk-player = {path = "../gronk-player"}
 rodio = "0.14.0"
 simsearch = "0.2.3"
+indicium = "0.3.4"

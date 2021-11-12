@@ -96,7 +96,7 @@ impl Database {
     pub fn get_all_songs(&self) -> Vec<Song> {
         self.collect_songs("SELECT * FROM SONG")
     }
-    pub fn get_songs_from_ids(&self, ids: &Vec<usize>) -> Vec<Song> {
+    pub fn get_songs_from_ids(&self, ids: &Vec<&usize>) -> Vec<Song> {
         // let mut query = String::from("SELECT * FROM song");
 
         // if ids.is_empty() {
@@ -146,6 +146,28 @@ impl Database {
             songs.push((id, name));
         }
         songs
+    }
+    pub fn test(&self) -> Vec<(usize, Song)> {
+        let mut stmt = self.conn.prepare("SELECT rowid, * FROM song").unwrap();
+
+        stmt.query_map([], |row| {
+            let id = row.get(0).unwrap();
+            let path: String = row.get(6).unwrap();
+            Ok(
+                (id,
+                Song {
+                    number: row.get(1).unwrap(),
+                    disc: row.get(2).unwrap(),
+                    name: row.get(3).unwrap(),
+                    album: row.get(4).unwrap(),
+                    artist: row.get(5).unwrap(),
+                    path: PathBuf::from(path),
+                }),
+            )
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
     pub fn search(&self, search: String) -> Vec<Song> {
         let query = if !search.is_empty() {

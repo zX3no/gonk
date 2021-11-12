@@ -1,3 +1,4 @@
+use indicium::simple::{Indexable, SearchIndex};
 use simsearch::{SearchOptions, SimSearch};
 
 pub struct Search {
@@ -30,7 +31,6 @@ impl Search {
 
         self.results = engine.search(self.query.as_str());
     }
-
     pub fn changed(&mut self) -> bool {
         if self.query != self.prev_query {
             self.prev_query = self.query.clone();
@@ -40,7 +40,6 @@ impl Search {
         }
     }
 }
-
 //My ideal search algorithm
 
 //"Burger", "b23u89r6g88e987r", "borger", "bugs", "test"

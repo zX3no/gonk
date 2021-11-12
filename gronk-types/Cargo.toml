@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 
 audiotags = "0.2.7182"
+indicium = "0.3.4"
