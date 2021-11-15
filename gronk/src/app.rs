@@ -18,6 +18,7 @@ pub struct App {
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
     pub constraint: [u16; 4],
+    pub seeker: u16,
 }
 
 impl App {
@@ -31,6 +32,7 @@ impl App {
             database,
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
+            seeker: 0,
             //this could be [8, 42, 24, 100]
             constraint: [8, 42, 24, 26],
         }
