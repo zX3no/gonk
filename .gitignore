@@ -4,3 +4,4 @@ Cargo.lock
 music.db
 music.db-shm
 music.db-wal
+*.log
