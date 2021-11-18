@@ -181,36 +181,6 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
 }
 
-pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    let area = f.size();
-    let width = area.width;
-    if app.seeker + 1 < width {
-        app.seeker += 1;
-    } else {
-        app.seeker = 0;
-    }
-
-    let mut string = String::new();
-
-    for i in 0..(width - 6) {
-        if i == app.seeker {
-            string.push_str(">");
-        } else {
-            string.push_str("=");
-        }
-    }
-
-    let p = Paragraph::new(string)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
-        .alignment(Alignment::Center);
-
-    f.render_widget(p, chunk)
-}
-
 //TODO: store the duration in the database
 //abstract selection color into it's own widget
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
@@ -220,6 +190,10 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(area);
 
+    draw_songs(f, app, chunks[0]);
+    // draw_seeker(f, app, chunks[1]);
+}
+pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let (songs, index, ui_index) = (
         &app.queue.list.songs,
         &app.queue.list.now_playing,
@@ -321,7 +295,34 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let mut state = TableState::default();
     state.select(*index);
-    f.render_stateful_widget(t, chunks[0], &mut state);
+    f.render_stateful_widget(t, chunk, &mut state);
+}
+pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
+    let area = f.size();
+    let width = area.width;
+    if app.seeker + 1 < width {
+        app.seeker += 1;
+    } else {
+        app.seeker = 0;
+    }
 
-    // draw_seeker(f, app, chunks[1]);
+    let mut string = String::new();
+
+    for i in 0..(width - 6) {
+        if i == app.seeker {
+            string.push_str(">");
+        } else {
+            string.push_str("=");
+        }
+    }
+
+    let p = Paragraph::new(string)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
+        .alignment(Alignment::Center);
+
+    f.render_widget(p, chunk)
 }
