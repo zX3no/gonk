@@ -191,7 +191,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .split(area);
 
     draw_songs(f, app, chunks[0]);
-    // draw_seeker(f, app, chunks[1]);
+    draw_seeker(f, app, chunks[1]);
 }
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let (songs, index, ui_index) = (
@@ -297,24 +297,25 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     state.select(*index);
     f.render_stateful_widget(t, chunk, &mut state);
 }
-pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    let area = f.size();
-    let width = area.width;
-    if app.seeker + 1 < width {
-        app.seeker += 1;
-    } else {
-        app.seeker = 0;
-    }
+pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
+    // let area = f.size();
+    // let width = area.width;
+    // if app.seeker + 1 < width {
+    //     app.seeker += 1;
+    // } else {
+    //     app.seeker = 0;
+    // }
 
-    let mut string = String::new();
+    // let mut string = String::new();
 
-    for i in 0..(width - 6) {
-        if i == app.seeker {
-            string.push_str(">");
-        } else {
-            string.push_str("=");
-        }
-    }
+    // for i in 0..(width - 6) {
+    //     if i == app.seeker {
+    //         string.push_str(">");
+    //     } else {
+    //         string.push_str("=");
+    //     }
+    // }
+    let string = "=============>---------------";
 
     let p = Paragraph::new(string)
         .block(
