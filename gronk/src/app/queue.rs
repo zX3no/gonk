@@ -130,12 +130,13 @@ impl Queue {
         self.player.stop();
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
-        self.list.add(&mut songs);
-
         if self.list.empty() {
+            self.list.add(&mut songs);
             self.list.now_playing = Some(0);
             self.ui_index = Some(0);
             self.play_selected();
+        } else {
+            self.list.add(&mut songs);
         }
     }
     pub fn up(&mut self) {
