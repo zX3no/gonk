@@ -25,10 +25,12 @@ impl App {
     pub fn new() -> Self {
         let database = Database::new();
 
+        let songs = database.test();
+
         Self {
             music: Browser::new(&database),
             queue: Queue::new(),
-            search: Search::new(),
+            search: Search::new(&songs),
             database,
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
@@ -92,8 +94,7 @@ impl App {
     }
     pub fn search(&mut self) -> Vec<Song> {
         if self.search.changed() {
-            let songs = self.database.test();
-            self.search.get_song_ids(&songs);
+            self.search.update_search();
         }
         let ids = &self.search.results;
         self.database.get_songs_from_ids(&ids)

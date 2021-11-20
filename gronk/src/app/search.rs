@@ -4,22 +4,13 @@ use indicium::simple::{SearchIndex, SearchIndexBuilder, SearchType};
 pub struct Search {
     pub query: String,
     pub prev_query: String,
+    pub search_index: SearchIndex<usize>,
     pub results: Vec<usize>,
 }
 
 impl Search {
-    pub fn new() -> Self {
-        Self {
-            query: String::new(),
-            prev_query: String::new(),
-            results: Vec::new(),
-        }
-    }
-    pub fn push(&mut self, c: char) {
-        self.prev_query = self.query.clone();
-        self.query.push(c);
-    }
-    pub fn get_song_ids(&mut self, songs: &Vec<(usize, Song)>) {
+    pub fn new(songs: &Vec<(usize, Song)>) -> Self {
+        //TODO: put searchindex here
         let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
             .case_sensitive(&false)
             .search_type(&SearchType::Live)
@@ -29,7 +20,20 @@ impl Search {
             search_index.insert(&index, elem);
         }
 
-        self.results = search_index
+        Self {
+            query: String::new(),
+            prev_query: String::new(),
+            search_index,
+            results: Vec::new(),
+        }
+    }
+    pub fn push(&mut self, c: char) {
+        self.prev_query = self.query.clone();
+        self.query.push(c);
+    }
+    pub fn update_search(&mut self) {
+        self.results = self
+            .search_index
             .search(&self.query)
             .iter()
             .map(|i| **i)
