@@ -1,11 +1,7 @@
 use app::App;
 use std::{
-    io::{stdout, Stdout},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver},
-        Arc, RwLock,
-    },
+    io::stdout,
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -13,9 +9,7 @@ use std::{
 use crossterm::{
     event::{self, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers},
     execute,
-    terminal::{
-        self, disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-    },
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
@@ -31,25 +25,17 @@ enum Event {
 fn main() {
     execute!(stdout(), EnterAlternateScreen).unwrap();
     enable_raw_mode().unwrap();
-
-    // Setup input handling
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.clear().unwrap();
     terminal.hide_cursor().unwrap();
 
-    run(terminal);
-}
-fn run(mut terminal: Terminal<CrosstermBackend<Stdout>>) {
     let mut app = App::new();
 
     let (tx, rx) = mpsc::channel();
-
     let tick_rate = Duration::from_millis(50);
-    let quit = Arc::new(AtomicBool::new(false));
 
-    let q = quit.clone();
-    let handle = thread::spawn(move || {
+    thread::spawn(move || {
         let mut last_tick = Instant::now();
         loop {
             // poll for tick rate duration, if no events, sent tick event.
@@ -65,13 +51,8 @@ fn run(mut terminal: Terminal<CrosstermBackend<Stdout>>) {
                 tx.send(Event::Tick).unwrap();
                 last_tick = Instant::now();
             }
-            if q.load(Ordering::Relaxed) {
-                break;
-            }
         }
     });
-
-    let mut update = false;
 
     loop {
         terminal.draw(|f| ui::draw(f, &mut app)).unwrap();
@@ -89,8 +70,7 @@ fn run(mut terminal: Terminal<CrosstermBackend<Stdout>>) {
                 } else {
                     match event.code {
                         KeyCode::Char('u') => {
-                            update = true;
-                            break;
+                            app.update();
                         }
                         KeyCode::Char(c) => app.handle_input(c, event.modifiers),
                         KeyCode::Down => app.down(),
@@ -108,15 +88,5 @@ fn run(mut terminal: Terminal<CrosstermBackend<Stdout>>) {
                 app.on_tick();
             }
         }
-    }
-
-    if update {
-        //still crashes?
-        quit.store(true, Ordering::Relaxed);
-        handle.join().unwrap();
-        drop(app);
-        drop(quit);
-        let app = App::new();
-        run(terminal);
     }
 }

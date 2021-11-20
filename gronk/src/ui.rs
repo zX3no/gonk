@@ -312,6 +312,7 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
     let pos = (width as f32 * percent) as usize;
 
     let mut string = String::new();
+    //TODO: replace 0 and len with ' '
     for i in 0..width - 2 {
         if (i as usize) < pos {
             string.push('=');

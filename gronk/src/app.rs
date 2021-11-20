@@ -14,7 +14,7 @@ pub struct App {
     pub music: Browser,
     pub queue: Queue,
     pub search: Search,
-    database: Database,
+    database: Option<Database>,
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
     pub constraint: [u16; 4],
@@ -24,16 +24,16 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let database = Database::new();
-
         let songs = database.test();
         let music = Browser::new(&database);
         let queue = Queue::new();
         let search = Search::new(&songs);
+
         Self {
             music,
             queue,
             search,
-            database,
+            database: Some(database),
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
             seeker: 0,
@@ -53,14 +53,18 @@ impl App {
     }
     pub fn up(&mut self) {
         match self.ui_mode.current {
-            UiMode::Browser => self.music.up(&self.browser_mode, &self.database),
+            UiMode::Browser => self
+                .music
+                .up(&self.browser_mode, &self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.up(),
             _ => (),
         }
     }
     pub fn down(&mut self) {
         match self.ui_mode.current {
-            UiMode::Browser => self.music.down(&self.browser_mode, &self.database),
+            UiMode::Browser => self
+                .music
+                .down(&self.browser_mode, &self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.down(),
             _ => (),
         }
@@ -75,12 +79,14 @@ impl App {
                     &self.music.selected_song.item,
                 );
 
-                let songs = match self.browser_mode {
-                    BrowserMode::Artist => self.database.get_artist(artist),
-                    BrowserMode::Album => self.database.get_album(artist, album),
-                    BrowserMode::Song => self.database.get_song(artist, album, track, song),
-                };
-                self.queue.add(songs);
+                if let Some(db) = &self.database {
+                    let songs = match self.browser_mode {
+                        BrowserMode::Artist => db.get_artist(artist),
+                        BrowserMode::Album => db.get_album(artist, album),
+                        BrowserMode::Song => db.get_song(artist, album, track, song),
+                    };
+                    self.queue.add(songs);
+                }
             }
             UiMode::Queue => {
                 self.queue.select();
@@ -96,7 +102,12 @@ impl App {
             self.search.update_search();
         }
         let ids = &self.search.results;
-        self.database.get_songs_from_ids(&ids)
+
+        if let Some(db) = &self.database {
+            db.get_songs_from_ids(&ids)
+        } else {
+            Vec::new()
+        }
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -166,5 +177,10 @@ impl App {
     }
     fn delete_from_queue(&mut self) {
         self.queue.delete_selected();
+    }
+    pub fn update(&mut self) {
+        self.database = None;
+        Database::create_db().unwrap();
+        self.database = Some(Database::new());
     }
 }
