@@ -83,19 +83,6 @@ impl Database {
 
         Ok(())
     }
-    pub fn get_all_song_names(&self) -> Vec<String> {
-        let mut stmt = self.conn.prepare("SELECT name FROM song").unwrap();
-        let mut rows = stmt.query([]).unwrap();
-        let mut songs = Vec::new();
-        while let Some(row) = rows.next().unwrap() {
-            let song: String = row.get(0).unwrap();
-            songs.push(song);
-        }
-        songs
-    }
-    pub fn get_all_songs(&self) -> Vec<Song> {
-        self.collect_songs("SELECT * FROM SONG ORDER BY artist, album, disc, number")
-    }
     pub fn get_songs_from_ids(&self, ids: &Vec<usize>) -> Vec<Song> {
         // let mut query = String::from("SELECT * FROM song");
 
@@ -135,19 +122,7 @@ impl Database {
         }
         songs
     }
-    pub fn get_all_ids(&self) -> Vec<(usize, String)> {
-        let mut stmt = self.conn.prepare("SELECT rowid, name FROM song").unwrap();
-        let mut rows = stmt.query([]).unwrap();
-        let mut songs = Vec::new();
-
-        while let Some(row) = rows.next().unwrap() {
-            let id: usize = row.get(0).unwrap();
-            let name: String = row.get(1).unwrap();
-            songs.push((id, name));
-        }
-        songs
-    }
-    pub fn test(&self) -> Vec<(usize, Song)> {
+    pub fn get_songs(&self) -> Vec<(usize, Song)> {
         let mut stmt = self.conn.prepare("SELECT rowid, * FROM song").unwrap();
 
         stmt.query_map([], |row| {
@@ -184,50 +159,7 @@ impl Database {
         };
         self.collect_songs(&query)
     }
-    pub fn first_artist(&self) -> Result<String> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
-
-        let mut rows = stmt.query([])?;
-        if let Some(row) = rows.next()? {
-            let artist: String = row.get(0)?;
-            return Ok(artist);
-        }
-        panic!("no artists");
-    }
-    pub fn first_album(&self, artist: &str) -> Result<String> {
-        let query = format!(
-            "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
-            artist
-        );
-
-        let mut stmt = self.conn.prepare(&query)?;
-        let mut rows = stmt.query([])?;
-        if let Some(row) = rows.next()? {
-            let album: String = row.get(0)?;
-            return Ok(album);
-        }
-        panic!("no albums");
-    }
-    pub fn first_song(&self, artist: &str, album: &str) -> Result<(u16, String)> {
-        let query = format!(
-            "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
-            artist, album
-        );
-
-        let mut stmt = self.conn.prepare(&query)?;
-        let mut rows = stmt.query([])?;
-
-        if let Some(row) = rows.next()? {
-            let track: u16 = row.get(0)?;
-            let name: String = row.get(1)?;
-            return Ok((track, name));
-        }
-
-        panic!("no albums");
-    }
-    pub fn get_artists(&self) -> Result<Vec<String>> {
+    pub fn artists(&self) -> Result<Vec<String>> {
         let mut stmt = self
             .conn
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
@@ -241,7 +173,7 @@ impl Database {
         }
         Ok(artists)
     }
-    pub fn get_albums_by_artist(&self, artist: &str) -> Result<Vec<String>> {
+    pub fn albums_by_artist(&self, artist: &str) -> Result<Vec<String>> {
         let query = format!(
             "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
             artist
@@ -258,7 +190,7 @@ impl Database {
 
         Ok(albums)
     }
-    pub fn get_songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
+    pub fn songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
         // let query = format!(
         //     "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
         //     artist, album

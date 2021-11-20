@@ -37,13 +37,13 @@ pub struct Browser {
 
 impl Browser {
     pub fn new(database: &Database) -> Self {
-        let artists = database.get_artists().unwrap();
+        let artists = database.artists().unwrap();
         let artist = artists.first().unwrap().clone();
 
-        let albums = database.get_albums_by_artist(&artist).unwrap();
+        let albums = database.albums_by_artist(&artist).unwrap();
         let album = albums.first().unwrap().clone();
 
-        let songs = database.get_songs_from_album(&artist, &album).unwrap();
+        let songs = database.songs_from_album(&artist, &album).unwrap();
         let (num, name) = songs.first().unwrap().clone();
 
         Self {
@@ -124,7 +124,7 @@ impl Browser {
             .to_owned();
 
         self.albums = database
-            .get_albums_by_artist(&self.selected_artist.item)
+            .albums_by_artist(&self.selected_artist.item)
             .unwrap();
 
         self.selected_album = Item::new(
@@ -145,7 +145,7 @@ impl Browser {
             .to_owned();
 
         self.songs = database
-            .get_songs_from_album(&self.selected_artist.item, &self.selected_album.item)
+            .songs_from_album(&self.selected_artist.item, &self.selected_album.item)
             .unwrap();
 
         let (num, name) = self.songs.first().unwrap().clone();

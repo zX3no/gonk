@@ -24,7 +24,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let database = Database::new();
-        let songs = database.test();
+        let songs = database.get_songs();
         let music = Browser::new(&database);
         let queue = Queue::new();
         let search = Search::new(&songs);
