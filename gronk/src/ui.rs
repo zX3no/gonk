@@ -298,24 +298,18 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     f.render_stateful_widget(t, chunk, &mut state);
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
-    // let area = f.size();
-    // let width = area.width;
-    // if app.seeker + 1 < width {
-    //     app.seeker += 1;
-    // } else {
-    //     app.seeker = 0;
-    // }
-
-    // let mut string = String::new();
-
-    // for i in 0..(width - 6) {
-    //     if i == app.seeker {
-    //         string.push_str(">");
-    //     } else {
-    //         string.push_str("=");
-    //     }
-    // }
-    let string = "=============>---------------";
+    let area = f.size();
+    let width = area.width;
+    let mut string = String::new();
+    for i in 0..width - 2 {
+        if i < 20 {
+            string.push('=');
+        } else {
+            string.push('-');
+        }
+    }
+    string.remove(20);
+    string.insert(20, '>');
 
     let p = Paragraph::new(string)
         .block(
