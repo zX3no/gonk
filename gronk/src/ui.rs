@@ -300,16 +300,19 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
     let area = f.size();
     let width = area.width;
+    let percent = 50.0 / 100.0;
+    let pos = (width as f32 * percent) as usize;
+
     let mut string = String::new();
     for i in 0..width - 2 {
-        if i < 20 {
+        if (i as usize) < pos {
             string.push('=');
         } else {
             string.push('-');
         }
     }
-    string.remove(20);
-    string.insert(20, '>');
+    string.remove(pos);
+    string.insert(pos, '>');
 
     let p = Paragraph::new(string)
         .block(
