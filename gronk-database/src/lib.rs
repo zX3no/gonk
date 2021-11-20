@@ -148,10 +148,7 @@ impl Database {
         songs
     }
     pub fn test(&self) -> Vec<(usize, Song)> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT rowid, * FROM song ORDER BY artist, album, disc, number")
-            .unwrap();
+        let mut stmt = self.conn.prepare("SELECT rowid, * FROM song").unwrap();
 
         stmt.query_map([], |row| {
             let id = row.get(0).unwrap();

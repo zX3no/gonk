@@ -26,11 +26,13 @@ impl App {
         let database = Database::new();
 
         let songs = database.test();
-
+        let music = Browser::new(&database);
+        let queue = Queue::new();
+        let search = Search::new(&songs);
         Self {
-            music: Browser::new(&database),
-            queue: Queue::new(),
-            search: Search::new(&songs),
+            music,
+            queue,
+            search,
             database,
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
@@ -62,9 +64,6 @@ impl App {
             UiMode::Queue => self.queue.down(),
             _ => (),
         }
-    }
-    pub fn update_db(&self) {
-        todo!();
     }
     pub fn on_enter(&mut self) {
         match self.ui_mode.current {
@@ -134,7 +133,6 @@ impl App {
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),
                 's' => self.queue.volume_down(),
-                'u' => self.update_db(),
                 '/' => self.ui_mode.update(UiMode::Search),
                 'x' => self.delete_from_queue(),
                 '1' | '!' => self.move_constraint('1', modifier),

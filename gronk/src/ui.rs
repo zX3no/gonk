@@ -185,9 +185,17 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 //abstract selection color into it's own widget
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
+
+    f.render_widget(
+        Block::default()
+            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+            .border_type(BorderType::Rounded),
+        area,
+    );
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
+        .constraints([Constraint::Min(0), Constraint::Length(2)])
         .split(area);
 
     draw_songs(f, app, chunks[0]);
@@ -282,7 +290,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         )
         .block(
             Block::default()
-                .borders(Borders::ALL)
+                .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                 .border_type(BorderType::Rounded),
         )
         //TODO: change number to length(6)
@@ -315,11 +323,11 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
     string.insert(pos, '>');
 
     let p = Paragraph::new(string)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
+        // .block(
+        //     Block::default()
+        //         .borders(Borders::ALL)
+        //         .border_type(BorderType::Rounded),
+        // )
         .alignment(Alignment::Center);
 
     f.render_widget(p, chunk)
