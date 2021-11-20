@@ -55,7 +55,7 @@ impl App {
         match self.ui_mode.current {
             UiMode::Browser => self
                 .music
-                .up(&self.browser_mode, &self.database.as_ref().unwrap()),
+                .up(&self.browser_mode, self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.up(),
             _ => (),
         }
@@ -64,7 +64,7 @@ impl App {
         match self.ui_mode.current {
             UiMode::Browser => self
                 .music
-                .down(&self.browser_mode, &self.database.as_ref().unwrap()),
+                .down(&self.browser_mode, self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.down(),
             _ => (),
         }
@@ -104,7 +104,7 @@ impl App {
         let ids = &self.search.results;
 
         if let Some(db) = &self.database {
-            db.get_songs_from_ids(&ids)
+            db.get_songs_from_ids(ids)
         } else {
             Vec::new()
         }

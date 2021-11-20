@@ -83,7 +83,7 @@ impl Database {
 
         Ok(())
     }
-    pub fn get_songs_from_ids(&self, ids: &Vec<usize>) -> Vec<Song> {
+    pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         // let mut query = String::from("SELECT * FROM song");
 
         // if ids.is_empty() {
@@ -247,7 +247,7 @@ impl Database {
         self.collect_songs(&query)
     }
     pub fn collect_songs(&self, query: &str) -> Vec<Song> {
-        let mut stmt = self.conn.prepare(&query).unwrap();
+        let mut stmt = self.conn.prepare(query).unwrap();
 
         stmt.query_map([], |row| {
             let path: String = row.get(5).unwrap();

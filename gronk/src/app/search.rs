@@ -9,7 +9,7 @@ pub struct Search {
 }
 
 impl Search {
-    pub fn new(songs: &Vec<(usize, Song)>) -> Self {
+    pub fn new(songs: &[(usize, Song)]) -> Self {
         //TODO: put searchindex here
         let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
             .case_sensitive(&false)
@@ -17,7 +17,7 @@ impl Search {
             .build();
 
         for (index, elem) in songs {
-            search_index.insert(&index, elem);
+            search_index.insert(index, elem);
         }
 
         Self {
