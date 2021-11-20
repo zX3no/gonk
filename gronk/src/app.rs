@@ -18,7 +18,7 @@ pub struct App {
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
     pub constraint: [u16; 4],
-    pub seeker: u16,
+    pub seeker: f64,
 }
 
 impl App {
@@ -36,7 +36,7 @@ impl App {
             database: Some(database),
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
-            seeker: 0,
+            seeker: 0.0,
             //this could be [8, 42, 24, 100]
             constraint: [8, 42, 24, 26],
         }
@@ -95,7 +95,9 @@ impl App {
         }
     }
     pub fn on_tick(&mut self) {
-        self.queue.update()
+        self.queue.update();
+
+        self.seeker = self.queue.seeker();
     }
     pub fn search(&mut self) -> Vec<Song> {
         if self.search.changed() {

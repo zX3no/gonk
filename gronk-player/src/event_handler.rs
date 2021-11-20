@@ -65,23 +65,25 @@ impl EventHandler {
     pub fn stop(&mut self) {
         self.ctx.stop_all();
     }
-    pub fn get_elapsed(&self) -> f64 {
-        if let Some(handle) = self.handle {
-            return self.ctx.stream_position(handle);
-        }
-        0.0
-    }
-    pub fn get_duration(&mut self) -> f64 {
-        if let Some(wav) = &self.wav {
-            return wav.length();
-        }
-        0.0
-    }
     pub fn is_playing(&self) -> bool {
         if let Some(handle) = self.handle {
             return self.ctx.is_valid_voice_handle(handle);
         }
         false
+    }
+    pub fn seeker(&self) -> f64 {
+        let duration = if let Some(wav) = &self.wav {
+            wav.length()
+        } else {
+            0.0
+        };
+        let elapsed = if let Some(handle) = self.handle {
+            self.ctx.stream_position(handle)
+        } else {
+            0.0
+        };
+
+        elapsed / duration
     }
     pub fn set_volume(&mut self, v: f32) {
         self.volume += v;

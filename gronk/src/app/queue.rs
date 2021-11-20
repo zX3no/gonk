@@ -106,6 +106,9 @@ impl Queue {
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
+    pub fn seeker(&self) -> f64 {
+        self.player.seeker()
+    }
     pub fn update(&mut self) {
         if !self.player.is_playing() && self.skip_fix {
             self.next();
@@ -130,6 +133,7 @@ impl Queue {
         self.player.stop();
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
+        //clippy will tell you this is wrong :/
         if self.list.empty() {
             self.list.add(&mut songs);
             self.list.now_playing = Some(0);

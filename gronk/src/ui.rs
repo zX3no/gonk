@@ -193,6 +193,9 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         area,
     );
 
+    //TODO: song is a little to close to seeker
+    //could change the seeker to /n ===>----
+    //and increase length to 4 or something
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(2)])
@@ -301,15 +304,21 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     //TODO: calculate longest length of track, album, artist name and change the constraints to fit
     //sometimes the track name is squished when it doesn't need too
 
+    //TODO: currently there are two selections
+    //the song playing and the ui index
+    //the ui index needs to move the list of songs
+    //up and down, however currently the song is
+    //responisible for that
     let mut state = TableState::default();
     state.select(*index);
     f.render_stateful_widget(t, chunk, &mut state);
 }
-pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
+pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
+    //TODO: bar does not update consistantly
     let area = f.size();
     let width = area.width;
-    let percent = 50.0 / 100.0;
-    let pos = (width as f32 * percent) as usize;
+    let percent = app.seeker;
+    let pos = (width as f64 * percent) as usize;
 
     let mut string = String::new();
     for i in 0..width - 2 {
@@ -321,8 +330,10 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
     }
 
     //place the seeker location
-    string.remove(pos);
-    string.insert(pos, '>');
+    if pos < string.len() - 1 {
+        string.remove(pos);
+        string.insert(pos, '>');
+    }
 
     //remove the first and last items
     //makes a nice gap
