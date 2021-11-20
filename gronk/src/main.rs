@@ -69,9 +69,6 @@ fn main() {
                     }
                 } else {
                     match event.code {
-                        KeyCode::Char('u') => {
-                            app.update();
-                        }
                         KeyCode::Char(c) => app.handle_input(c, event.modifiers),
                         KeyCode::Down => app.down(),
                         KeyCode::Up => app.up(),

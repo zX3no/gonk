@@ -134,6 +134,7 @@ impl App {
             self.search.push(c);
         } else {
             match c {
+                'u' => self.update(),
                 'c' => self.queue.clear(),
                 'j' => self.down(),
                 'k' => self.up(),
