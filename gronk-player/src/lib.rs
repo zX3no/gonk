@@ -65,4 +65,7 @@ impl Player {
     pub fn seeker(&self) -> f64 {
         *self.seeker.read().unwrap()
     }
+    pub fn seek(&self, amount: i32) {
+        self.tx.send(Event::Seek(amount as f64)).unwrap();
+    }
 }

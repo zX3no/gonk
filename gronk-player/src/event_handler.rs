@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 pub enum Event {
     Volume(f32),
     TogglePlayback,
+    Seek(f64),
     Play(PathBuf),
     Stop,
     Null,
@@ -32,6 +33,7 @@ impl EventHandler {
             Event::Volume(v) => self.set_volume(v),
             Event::TogglePlayback => self.toggle_playback(),
             Event::Play(song) => self.play_file(&song),
+            Event::Seek(amount) => self.seek(amount),
             Event::Stop => self.stop(),
             Event::Null => (),
         }
@@ -96,5 +98,28 @@ impl EventHandler {
     }
     pub fn fix_volume(&mut self) {
         self.ctx.set_global_volume(self.volume);
+    }
+    fn seek(&mut self, secs: f64) {
+        if let Some(handle) = self.handle {
+            if let Some(wav) = &self.wav {
+                let elapsed = self.ctx.stream_position(handle);
+                let length = wav.length();
+                let new_pos = elapsed + secs;
+
+                if new_pos < length && new_pos > 0.0 {
+                    self.ctx.seek(handle, new_pos).unwrap();
+                    eprintln!(
+                        "elapsed: {}, secs: {}, new_pos: {}, length: {}",
+                        elapsed, secs, new_pos, length,
+                    );
+                } else if new_pos > length {
+                    eprintln!("stop");
+                    self.stop();
+                } else {
+                    eprintln!("start");
+                    self.ctx.seek(handle, 0.0).unwrap();
+                }
+            }
+        }
     }
 }

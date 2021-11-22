@@ -13,6 +13,7 @@ pub struct Search {
 }
 
 impl Search {
+    //TODO: get albums and artists and insert them too
     pub fn new(songs: &[(usize, Song)]) -> Self {
         let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
             .case_sensitive(&false)
@@ -99,3 +100,15 @@ impl Search {
 
 //1: "sketch 1"
 //2: "s23c0et23"
+
+//Gronk Search
+
+//Data: Artist, Album and Song names
+
+//query: Badbadnotgood
+
+//Results:
+//Badbadnotgood
+//IV
+//Talk Memory
+//1. And That, Too

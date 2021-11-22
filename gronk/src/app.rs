@@ -158,6 +158,8 @@ impl App {
                 'h' => self.browser_prev(),
                 'l' => self.browser_next(),
                 ' ' => self.queue.play_pause(),
+                'q' => self.queue.seek(-10),
+                'e' => self.queue.seek(10),
                 'a' => self.queue.prev(),
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),

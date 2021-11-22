@@ -100,10 +100,10 @@ impl Queue {
         }
     }
     pub fn volume_up(&mut self) {
-        self.player.volume(0.01);
+        self.player.volume(0.008);
     }
     pub fn volume_down(&mut self) {
-        self.player.volume(-0.01);
+        self.player.volume(-0.008);
     }
     pub fn play_pause(&self) {
         self.player.toggle_playback();
@@ -176,5 +176,8 @@ impl Queue {
         } else {
             self.player.stop();
         }
+    }
+    pub fn seek(&self, amount: i32) {
+        self.player.seek(amount);
     }
 }
