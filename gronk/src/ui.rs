@@ -193,9 +193,6 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         area,
     );
 
-    //TODO: song is a little to close to seeker
-    //could change the seeker to /n ===>----
-    //and increase length to 4 or something
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(2)])
@@ -296,13 +293,8 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                 .border_type(BorderType::Rounded),
         )
-        //TODO: change number to length(6)
         .widths(&con)
-        // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
-
-    //TODO: calculate longest length of track, album, artist name and change the constraints to fit
-    //sometimes the track name is squished when it doesn't need too
 
     //TODO: currently there are two selections
     //the song playing and the ui index
@@ -314,11 +306,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     f.render_stateful_widget(t, chunk, &mut state);
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    //TODO: bar does not update consistantly
     let area = f.size();
     let width = area.width;
     let percent = app.seeker;
-    let pos = (width as f64 * percent) as usize;
+    let pos = (width as f64 * percent).ceil() as usize;
 
     let mut string = String::new();
     for i in 0..width - 2 {
@@ -339,14 +330,7 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     //makes a nice gap
     string.remove(0);
     string.pop();
-
-    let p = Paragraph::new(string)
-        // .block(
-        //     Block::default()
-        //         .borders(Borders::ALL)
-        //         .border_type(BorderType::Rounded),
-        // )
-        .alignment(Alignment::Center);
+    let p = Paragraph::new(string).alignment(Alignment::Center);
 
     f.render_widget(p, chunk)
 }
