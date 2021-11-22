@@ -202,7 +202,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     draw_seeker(f, app, chunks[1]);
 }
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    let (songs, index, ui_index) = (
+    let (songs, now_playing, ui_index) = (
         &app.queue.list.songs,
         &app.queue.list.now_playing,
         &app.queue.ui_index,
@@ -212,6 +212,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         .iter()
         .map(|song| {
             Row::new(vec![
+                Cell::from(""),
                 Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
                 Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
                 Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
@@ -220,12 +221,13 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         })
         .collect();
 
-    if let Some(index) = index {
+    if let Some(index) = now_playing {
         if let Some(song) = songs.get(*index) {
             if let Some(other_index) = ui_index {
                 //ui selection and now_playing match
                 let row = if index == other_index {
                     Row::new(vec![
+                        Cell::from(""),
                         Cell::from(song.number.to_string())
                             .style(Style::default().bg(Color::Green)),
                         Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
@@ -236,6 +238,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                     .style(Style::default().fg(Color::Black))
                 } else {
                     Row::new(vec![
+                        Cell::from(">"),
                         Cell::from(song.number.to_string())
                             .style(Style::default().fg(Color::Green)),
                         Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
@@ -253,7 +256,9 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 items.insert(*index, row);
 
                 if let Some(other_song) = songs.get(*other_index) {
+                    let selection = if *other_index == *index { ">" } else { "" };
                     let other_row = Row::new(vec![
+                        Cell::from(selection),
                         Cell::from(other_song.number.to_string())
                             .style(Style::default().bg(Color::Green)),
                         Cell::from(other_song.name.to_owned())
@@ -272,6 +277,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         }
     }
     let con = [
+        Constraint::Length(1),
         Constraint::Percentage(app.constraint[0]),
         Constraint::Percentage(app.constraint[1]),
         Constraint::Percentage(app.constraint[2]),
@@ -280,7 +286,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
     let t = Table::new(items)
         .header(
-            Row::new(vec!["Track", "Title", "Album", "Artist"])
+            Row::new(vec!["", "Track", "Title", "Album", "Artist"])
                 .style(
                     Style::default()
                         .fg(Color::White)
@@ -293,16 +299,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                 .border_type(BorderType::Rounded),
         )
-        .widths(&con)
-        .highlight_symbol("> ");
+        .widths(&con);
 
-    //TODO: currently there are two selections
-    //the song playing and the ui index
-    //the ui index needs to move the list of songs
-    //up and down, however currently the song is
-    //responisible for that
     let mut state = TableState::default();
-    state.select(*index);
+    state.select(*ui_index);
     f.render_stateful_widget(t, chunk, &mut state);
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
