@@ -2,6 +2,8 @@ use gronk_player::Player;
 use gronk_types::Song;
 use std::path::PathBuf;
 
+use crate::index::Index;
+
 //this makes the code worse but easier?
 pub struct List {
     pub songs: Vec<Song>,
@@ -82,7 +84,7 @@ impl List {
 }
 
 pub struct Queue {
-    pub ui_index: Option<usize>,
+    pub ui_index: Index,
     pub list: List,
     player: Player,
     skip_fix: bool,
@@ -91,7 +93,7 @@ pub struct Queue {
 impl Queue {
     pub fn new() -> Self {
         Self {
-            ui_index: None,
+            ui_index: Index::new(),
             list: List::new(),
             player: Player::new(),
             skip_fix: false,
@@ -129,51 +131,39 @@ impl Queue {
     }
     pub fn clear(&mut self) {
         self.list.clear();
-        self.ui_index = None;
+        self.ui_index.select(None);
         self.player.stop();
+    }
+    pub fn up(&mut self) {
+        let len = self.list.len();
+        self.ui_index.up(len);
+    }
+    pub fn down(&mut self) {
+        let len = self.list.len();
+        self.ui_index.down(len);
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
         //clippy will tell you this is wrong :/
         if self.list.empty() {
             self.list.add(&mut songs);
             self.list.now_playing = Some(0);
-            self.ui_index = Some(0);
+            self.ui_index.select(Some(0));
             self.play_selected();
         } else {
             self.list.add(&mut songs);
         }
     }
-    pub fn up(&mut self) {
-        let len = self.list.len();
-        if let Some(index) = &mut self.ui_index {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = len - 1;
-            }
-        }
-    }
-    pub fn down(&mut self) {
-        let len = self.list.len();
-        if let Some(index) = &mut self.ui_index {
-            if *index + 1 < len {
-                *index += 1;
-            } else {
-                *index = 0;
-            }
-        }
-    }
     pub fn select(&mut self) {
-        if let Some(index) = self.ui_index {
+        if let Some(index) = self.ui_index.index {
             self.list.play(index);
             self.play_selected();
         }
     }
     pub fn delete_selected(&mut self) {
-        if let Some(index) = self.ui_index {
+        if let Some(index) = self.ui_index.index {
             let update = self.list.remove(index);
             if index > self.list.len() - 1 {
-                self.ui_index = Some(self.list.len() - 1);
+                self.ui_index.select(Some(self.list.len() - 1));
             }
             if update {
                 self.play_selected();

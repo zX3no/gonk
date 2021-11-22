@@ -91,7 +91,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();
 
-    let music = &mut app.music;
+    let music = &mut app.browser;
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -210,7 +210,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let (songs, now_playing, ui_index) = (
         &app.queue.list.songs,
         &app.queue.list.now_playing,
-        &app.queue.ui_index,
+        &app.queue.ui_index.index,
     );
 
     let mut items: Vec<Row> = songs

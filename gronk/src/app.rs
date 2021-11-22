@@ -11,7 +11,7 @@ mod queue;
 mod search;
 
 pub struct App {
-    pub music: Browser,
+    pub browser: Browser,
     pub queue: Queue,
     pub search: Search,
     database: Option<Database>,
@@ -31,7 +31,7 @@ impl App {
         let search = Search::new(&songs);
 
         Self {
-            music,
+            browser: music,
             queue,
             search,
             database: Some(database),
@@ -55,7 +55,7 @@ impl App {
     pub fn up(&mut self) {
         match self.ui_mode.current {
             UiMode::Browser => self
-                .music
+                .browser
                 .up(&self.browser_mode, self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.up(),
             UiMode::Search => self.search.up(),
@@ -64,7 +64,7 @@ impl App {
     pub fn down(&mut self) {
         match self.ui_mode.current {
             UiMode::Browser => self
-                .music
+                .browser
                 .down(&self.browser_mode, self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.down(),
             UiMode::Search => self.search.down(),
@@ -74,10 +74,10 @@ impl App {
         match self.ui_mode.current {
             UiMode::Browser => {
                 let (artist, album, track, song) = (
-                    &self.music.selected_artist.item,
-                    &self.music.selected_album.item,
-                    self.music.selected_song.prefix.as_ref().unwrap(),
-                    &self.music.selected_song.item,
+                    &self.browser.selected_artist.item,
+                    &self.browser.selected_album.item,
+                    self.browser.selected_song.prefix.as_ref().unwrap(),
+                    &self.browser.selected_song.item,
                 );
 
                 if let Some(db) = &self.database {
