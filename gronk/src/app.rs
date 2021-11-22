@@ -58,7 +58,7 @@ impl App {
                 .music
                 .up(&self.browser_mode, self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.up(),
-            _ => (),
+            UiMode::Search => self.search.up(),
         }
     }
     pub fn down(&mut self) {
@@ -67,7 +67,7 @@ impl App {
                 .music
                 .down(&self.browser_mode, self.database.as_ref().unwrap()),
             UiMode::Queue => self.queue.down(),
-            _ => (),
+            UiMode::Search => self.search.down(),
         }
     }
     pub fn on_enter(&mut self) {
@@ -105,7 +105,6 @@ impl App {
                         let song = songs.get(index).unwrap();
                         self.queue.add(vec![song.clone()]);
                     }
-                    //add to queue
                 }
             }
         }
@@ -149,7 +148,7 @@ impl App {
     }
     pub fn handle_input(&mut self, c: char, modifier: KeyModifiers) {
         if self.ui_mode.current == UiMode::Search {
-            self.search.push(c);
+            self.search.on_key(c);
         } else {
             match c {
                 'u' => self.update(),

@@ -32,19 +32,25 @@ impl Search {
             index: Index::new(),
         }
     }
-    pub fn push(&mut self, c: char) {
+    pub fn on_key(&mut self, c: char) {
         if let SearchMode::Search = &self.mode {
             self.prev_query = self.query.clone();
             self.query.push(c);
         } else {
-            let len = self.results.len();
             match c {
-                'k' => self.index.up(len),
-                'j' => self.index.down(len),
+                'k' => self.up(),
+                'j' => self.down(),
                 _ => (),
             }
-            //move up and down
         }
+    }
+    pub fn up(&mut self) {
+        let len = self.results.len();
+        self.index.up(len);
+    }
+    pub fn down(&mut self) {
+        let len = self.results.len();
+        self.index.down(len);
     }
     pub fn update_search(&mut self) {
         self.results = self
