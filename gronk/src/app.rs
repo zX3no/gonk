@@ -1,4 +1,4 @@
-use crate::modes::{BrowserMode, Mode, UiMode};
+use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
 use crossterm::event::KeyModifiers;
 use gronk_database::Database;
@@ -15,6 +15,7 @@ pub struct App {
     pub queue: Queue,
     pub search: Search,
     database: Option<Database>,
+    //TODO: why are these modes so confusing
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
     pub constraint: [u16; 4],
@@ -91,7 +92,22 @@ impl App {
             UiMode::Queue => {
                 self.queue.select();
             }
-            _ => (),
+            UiMode::Search => {
+                let search = &mut self.search;
+                if let SearchMode::Search = search.mode {
+                    if !search.query.is_empty() && !search.results.is_empty() {
+                        search.mode.next();
+                        search.index.select(Some(0));
+                    }
+                } else {
+                    if let Some(index) = search.get_selected() {
+                        let songs = self.search();
+                        let song = songs.get(index).unwrap();
+                        self.queue.add(vec![song.clone()]);
+                    }
+                    //add to queue
+                }
+            }
         }
     }
     pub fn on_tick(&mut self) {
@@ -158,24 +174,29 @@ impl App {
     }
     pub fn on_tab(&mut self) {
         if self.ui_mode == UiMode::Search {
-            self.ui_mode.flip()
+            self.ui_mode.flip();
         } else {
             self.ui_mode.toggle();
         }
     }
     pub fn on_backspace(&mut self, modifier: KeyModifiers) {
-        if modifier == KeyModifiers::CONTROL {
-            //TODO: maybe just reset the whole query
-            let rev: String = self.search.query.chars().rev().collect();
-            if let Some(index) = rev.find(' ') {
-                let len = self.search.query.len();
-                let str = self.search.query.split_at(len - index - 1);
-                self.search.query = str.0.to_string();
-            } else {
-                self.search.query = String::new();
+        match self.search.mode {
+            SearchMode::Search => {
+                if modifier == KeyModifiers::CONTROL {
+                    // let rev: String = self.search.query.chars().rev().collect();
+                    // if let Some(index) = rev.find(' ') {
+                    //     let len = self.search.query.len();
+                    //     let str = self.search.query.split_at(len - index - 1);
+                    //     self.search.query = str.0.to_string();
+                    // } else {
+                    //     self.search.query = String::new();
+                    // }
+                    self.search.query = String::new();
+                } else {
+                    self.search.query.pop();
+                }
             }
-        } else {
-            self.search.query.pop();
+            SearchMode::Select => self.search.exit(),
         }
     }
     fn delete_from_queue(&mut self) {
@@ -185,5 +206,11 @@ impl App {
         self.database = None;
         Database::create_db().unwrap();
         self.database = Some(Database::new());
+    }
+
+    pub fn on_escape(&mut self) {
+        if self.ui_mode == UiMode::Search {
+            self.search.exit();
+        }
     }
 }

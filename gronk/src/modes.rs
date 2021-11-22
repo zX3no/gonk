@@ -67,3 +67,16 @@ impl BrowserMode {
         }
     }
 }
+
+pub enum SearchMode {
+    Search,
+    Select,
+}
+impl SearchMode {
+    pub fn next(&mut self) {
+        match self {
+            SearchMode::Search => *self = SearchMode::Select,
+            SearchMode::Select => *self = SearchMode::Search,
+        }
+    }
+}

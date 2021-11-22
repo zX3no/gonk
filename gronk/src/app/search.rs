@@ -1,16 +1,19 @@
 use gronk_types::Song;
 use indicium::simple::{SearchIndex, SearchIndexBuilder, SearchType};
 
+use crate::{index::Index, modes::SearchMode};
+
 pub struct Search {
     pub query: String,
     pub prev_query: String,
     pub search_index: SearchIndex<usize>,
     pub results: Vec<usize>,
+    pub mode: SearchMode,
+    pub index: Index,
 }
 
 impl Search {
     pub fn new(songs: &[(usize, Song)]) -> Self {
-        //TODO: put searchindex here
         let mut search_index: SearchIndex<usize> = SearchIndexBuilder::default()
             .case_sensitive(&false)
             .search_type(&SearchType::Live)
@@ -25,11 +28,23 @@ impl Search {
             prev_query: String::new(),
             search_index,
             results: Vec::new(),
+            mode: SearchMode::Search,
+            index: Index::new(),
         }
     }
     pub fn push(&mut self, c: char) {
-        self.prev_query = self.query.clone();
-        self.query.push(c);
+        if let SearchMode::Search = &self.mode {
+            self.prev_query = self.query.clone();
+            self.query.push(c);
+        } else {
+            let len = self.results.len();
+            match c {
+                'k' => self.index.up(len),
+                'j' => self.index.down(len),
+                _ => (),
+            }
+            //move up and down
+        }
     }
     pub fn update_search(&mut self) {
         self.results = self
@@ -46,6 +61,16 @@ impl Search {
         } else {
             false
         }
+    }
+    pub fn exit(&mut self) {
+        self.mode.next();
+        self.index.select(None);
+    }
+    pub fn state(&self) -> Option<usize> {
+        self.index.index
+    }
+    pub fn get_selected(&self) -> Option<usize> {
+        self.index.index
     }
 }
 //My ideal search algorithm

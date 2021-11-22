@@ -69,18 +69,23 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
 
-    f.render_widget(p, chunks[0]);
-    f.render_widget(t, chunks[1]);
+    let mut state = TableState::default();
+    state.select(app.search.state());
 
-    if app.search.query.is_empty() {
-        f.set_cursor(1, 1);
-    } else {
-        let mut len = app.search.query.len() as u16;
-        //does this even work?
-        if len > area.width {
-            len = area.width;
+    f.render_widget(p, chunks[0]);
+    f.render_stateful_widget(t, chunks[1], &mut state);
+
+    if app.search.index.is_none() {
+        if app.search.query.is_empty() {
+            f.set_cursor(1, 1);
+        } else {
+            let mut len = app.search.query.len() as u16;
+            //does this even work?
+            if len > area.width {
+                len = area.width;
+            }
+            f.set_cursor(len + 1, 1);
         }
-        f.set_cursor(len + 1, 1);
     }
 }
 pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {

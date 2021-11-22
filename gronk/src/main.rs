@@ -14,6 +14,7 @@ use crossterm::{
 use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
+mod index;
 mod modes;
 mod ui;
 
@@ -77,6 +78,7 @@ fn main() {
                         KeyCode::Enter => app.on_enter(),
                         KeyCode::Tab => app.on_tab(),
                         KeyCode::Backspace => app.on_backspace(event.modifiers),
+                        KeyCode::Esc => app.on_escape(),
                         _ => (),
                     }
                 }
