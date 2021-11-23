@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use soloud::{AudioExt, Handle, LoadExt, Soloud, Wav};
+use soloud::{AudioExt, Handle, Soloud, Wav, WavStream};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ pub struct EventHandler {
     volume: f32,
     ctx: Soloud,
     handle: Option<Handle>,
-    wav: Option<Wav>,
+    wav: Option<WavStream>,
 }
 
 impl EventHandler {
@@ -49,9 +49,8 @@ impl EventHandler {
         }
     }
     pub fn set_wav(&mut self, path: &Path) {
-        let mut wav = Wav::default();
-        let bytes = std::fs::read(path).unwrap();
-        wav.load_mem(&bytes).unwrap();
+        let mut wav = WavStream::default();
+        wav.load_to_mem(&path).unwrap();
         self.wav = Some(wav);
     }
     pub fn toggle_playback(&mut self) {
