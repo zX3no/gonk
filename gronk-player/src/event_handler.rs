@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use soloud::{AudioExt, Handle, Soloud, Wav, WavStream};
+use soloud::{AudioExt, Handle, Soloud, WavStream};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -50,7 +50,9 @@ impl EventHandler {
     }
     pub fn set_wav(&mut self, path: &Path) {
         let mut wav = WavStream::default();
+        //requires utf8 but is way faster
         wav.load_to_mem(&path).unwrap();
+
         self.wav = Some(wav);
     }
     pub fn toggle_playback(&mut self) {
@@ -107,15 +109,9 @@ impl EventHandler {
 
                 if new_pos < length && new_pos > 0.0 {
                     self.ctx.seek(handle, new_pos).unwrap();
-                    eprintln!(
-                        "elapsed: {}, secs: {}, new_pos: {}, length: {}",
-                        elapsed, secs, new_pos, length,
-                    );
                 } else if new_pos > length {
-                    eprintln!("stop");
                     self.stop();
                 } else {
-                    eprintln!("start");
                     self.ctx.seek(handle, 0.0).unwrap();
                 }
             }

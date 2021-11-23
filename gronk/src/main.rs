@@ -24,6 +24,13 @@ enum Event {
 }
 
 fn main() {
+    let orig_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        execute!(stdout(), LeaveAlternateScreen).unwrap();
+        orig_hook(panic_info);
+        std::process::exit(1);
+    }));
+
     execute!(stdout(), EnterAlternateScreen).unwrap();
     enable_raw_mode().unwrap();
     let backend = CrosstermBackend::new(stdout());
@@ -62,7 +69,7 @@ fn main() {
                 if let KeyCode::Char('c') = event.code {
                     if event.modifiers == KeyModifiers::CONTROL {
                         disable_raw_mode().unwrap();
-                        execute!(terminal.backend_mut(), LeaveAlternateScreen,).unwrap();
+                        execute!(terminal.backend_mut(), LeaveAlternateScreen).unwrap();
                         terminal.show_cursor().unwrap();
                         break;
                     } else {
