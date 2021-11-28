@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
 use crossterm::event::KeyModifiers;
@@ -158,8 +160,8 @@ impl App {
                 'h' => self.browser_prev(),
                 'l' => self.browser_next(),
                 ' ' => self.queue.play_pause(),
-                'q' => self.queue.seek(-10),
-                'e' => self.queue.seek(10),
+                'q' => self.queue.seek(Duration::from_secs_f32(-10.0)),
+                'e' => self.queue.seek(Duration::from_secs(10)),
                 'a' => self.queue.prev(),
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),

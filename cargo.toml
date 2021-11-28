@@ -2,7 +2,6 @@
 
 members = [
     "gronk",
-    "gronk-player",
     "gronk-database",
     "gronk-types",
 ]

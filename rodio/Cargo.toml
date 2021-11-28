@@ -1,0 +1,19 @@
+[package]
+description = "Music playback library"
+edition = "2021"
+name = "rodio"
+version = "0.0.1"
+
+[dependencies]
+cpal = {git = "https://github.com/aschey/cpal", rev = "6b758f4"}
+symphonia = {version = "0.4", optional = true}
+
+[features]
+default = ["symphonia-all"]
+
+symphonia-all = ["symphonia-aac", "symphonia-flac", "symphonia-isomp4", "symphonia-mp3", "symphonia-wav"]
+symphonia-aac = ["symphonia/aac"]
+symphonia-flac = ["symphonia/flac"]
+symphonia-isomp4 = ["symphonia/isomp4"]
+symphonia-mp3 = ["symphonia/mp3"]
+symphonia-wav = ["symphonia/wav", "symphonia/pcm"]

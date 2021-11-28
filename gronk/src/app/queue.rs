@@ -1,6 +1,5 @@
-use gronk_player::Player;
 use gronk_types::Song;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use crate::index::Index;
 
@@ -82,6 +81,7 @@ impl List {
         self.songs.is_empty() && self.now_playing.is_none()
     }
 }
+use rodio::Player;
 
 pub struct Queue {
     pub ui_index: Index,
@@ -100,10 +100,10 @@ impl Queue {
         }
     }
     pub fn volume_up(&mut self) {
-        self.player.volume(0.008);
+        self.player.set_volume(0.008);
     }
     pub fn volume_down(&mut self) {
-        self.player.volume(-0.008);
+        self.player.set_volume(-0.008);
     }
     pub fn play_pause(&self) {
         self.player.toggle_playback();
@@ -170,14 +170,14 @@ impl Queue {
             }
         }
     }
-    pub fn play_selected(&self) {
+    pub fn play_selected(&mut self) {
         if let Some(path) = self.list.playing() {
-            self.player.play(path);
+            self.player.play(path.as_path());
         } else {
             self.player.stop();
         }
     }
-    pub fn seek(&self, amount: i32) {
+    pub fn seek(&self, amount: Duration) {
         self.player.seek(amount);
     }
 }
