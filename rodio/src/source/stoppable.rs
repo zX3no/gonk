@@ -95,6 +95,6 @@ where
 
     #[inline]
     fn elapsed(&mut self) -> Duration {
-        Duration::from_secs(0)
+        self.input.elapsed()
     }
 }
