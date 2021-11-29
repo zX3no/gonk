@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
@@ -26,7 +26,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let database = Database::new();
+        let database = Database::new(vec![&Path::new("D:\\Music")]).unwrap();
         let songs = database.get_songs();
         let music = Browser::new(&database);
         let queue = Queue::new();
@@ -101,12 +101,10 @@ impl App {
                         search.mode.next();
                         search.index.select(Some(0));
                     }
-                } else {
-                    if let Some(index) = search.get_selected() {
-                        let songs = self.search();
-                        let song = songs.get(index).unwrap();
-                        self.queue.add(vec![song.clone()]);
-                    }
+                } else if let Some(index) = search.get_selected() {
+                    let songs = self.search();
+                    let song = songs.get(index).unwrap();
+                    self.queue.add(vec![song.clone()]);
                 }
             }
         }
@@ -152,9 +150,9 @@ impl App {
         self.queue.delete_selected();
     }
     pub fn update(&mut self) {
-        self.database = None;
-        Database::create_db().unwrap();
-        self.database = Some(Database::new());
+        // self.database = None;
+        // self.database = Some(Database::new(PathBuf::from("D:\\Music")).unwrap());
+        todo!();
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {

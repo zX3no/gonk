@@ -10,3 +10,4 @@ rayon = "1.5.1"
 rusqlite = { version = "0.26.1", features = ["bundled"] }
 walkdir = "2.3.2"
 gronk-types = {path = "../gronk-types"}
+dirs = "4.0.0"

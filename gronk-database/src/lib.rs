@@ -15,25 +15,25 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new() -> Self {
-        if !Path::new("music.db").exists() {
-            Database::create_db().unwrap();
-        }
-        Self {
-            conn: Connection::open("music.db").unwrap(),
-        }
-    }
-    pub fn create_db() -> rusqlite::Result<()> {
-        let conn = Connection::open("music.db").unwrap();
+    pub fn new(music_dirs: Vec<&Path>) -> rusqlite::Result<Self> {
+        let config = dirs::config_dir().unwrap();
+        let dir = format!("{}\\gronk", config.to_string_lossy());
 
-        File::create("music.db").unwrap();
-        conn.busy_timeout(Duration::from_millis(0))?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "synchronous", "0")?;
-        conn.pragma_update(None, "temp_store", "MEMORY")?;
+        if !Path::new(&dir).exists() {
+            std::fs::create_dir(&dir).unwrap();
+        }
 
-        conn.execute(
-            "CREATE VIRTUAL TABLE song USING FTS4(
+        let db = format!("{}\\music.db", dir);
+
+        if !Path::new(&db).exists() {
+            let conn = Connection::open(&db).unwrap();
+            conn.busy_timeout(Duration::from_millis(0))?;
+            conn.pragma_update(None, "journal_mode", "WAL")?;
+            conn.pragma_update(None, "synchronous", "0")?;
+            conn.pragma_update(None, "temp_store", "MEMORY")?;
+
+            conn.execute(
+                "CREATE VIRTUAL TABLE song USING FTS4(
                     number  INTEGER NOT NULL,
                     disc    INTEGER NOT NULL,
                     name    TEXT NOT NULL,
@@ -41,63 +41,56 @@ impl Database {
                     artist  TEXT NOT NULL,
                     path    TEXT NOT NULL
                 )",
-            [],
-        )?;
+                [],
+            )?;
 
-        let paths: Vec<PathBuf> = WalkDir::new("D:/Music")
-            .into_iter()
-            .filter_map(|entry| {
-                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                        return Some(entry.as_ref().unwrap().path().to_path_buf());
-                    }
-                }
-                None
-            })
-            .collect();
+            for dir in music_dirs {
+                let paths: Vec<PathBuf> = WalkDir::new(dir)
+                    .into_iter()
+                    .filter_map(|entry| {
+                        if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                            if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                                return Some(entry.as_ref().unwrap().path().to_path_buf());
+                            }
+                        }
+                        None
+                    })
+                    .collect();
 
-        let songs: Vec<Song> = paths
-            .par_iter()
-            .map(|path| Song::from(path.to_str().unwrap()))
-            .collect();
+                let songs: Vec<Song> = paths
+                    .par_iter()
+                    .map(|path| Song::from(path.to_str().unwrap()))
+                    .collect();
 
-        //TODO: there is definatly a better way to do this
-        let sqlite_connection_manager = SqliteConnectionManager::file("music.db");
-        let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
+                let sqlite_connection_manager = SqliteConnectionManager::file(&db);
+                let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
 
-        let pool_arc = Arc::new(sqlite_pool);
+                let pool_arc = Arc::new(sqlite_pool);
 
-        songs.par_iter().for_each(|song| {
-            let connection = pool_arc.get().unwrap();
+                songs.par_iter().for_each(|song| {
+                    let connection = pool_arc.get().unwrap();
+                    connection
+                        .execute(
+                            "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                            params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
+                        ).unwrap();
+                });
+            }
 
-            connection
-                .execute(
-                    "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
-                )
-                .unwrap();
-        });
+            conn.execute("INSERT INTO song(song) VALUES('optimize')", [])?;
+        }
 
-        //idk if this does shit?
-        conn.execute("INSERT INTO song(song) VALUES('optimize')", [])?;
-
-        Ok(())
+        Ok(Self {
+            conn: Connection::open(&db).unwrap(),
+        })
+    }
+    pub fn reset(&self, music_dirs: Vec<&Path>) {
+        let config = dirs::config_dir().unwrap();
+        let db = format!("{}\\gronk\\music.db", config.to_string_lossy());
+        File::create(db).unwrap();
+        Database::new(music_dirs).unwrap();
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
-        // let mut query = String::from("SELECT * FROM song");
-
-        // if ids.is_empty() {
-        //     // self.collect_songs(&query)
-        //     Vec::new()
-        // } else {
-        //     query.push_str(" where ");
-        //     for id in ids {
-        //         query.push_str(format!("rowid='{}' OR ", id).as_str());
-        //     }
-        //     let (query, _) = query.split_at(query.len() - 4);
-        //     dbg!(&query);
-        //     self.collect_songs(&query)
-        // }
         if ids.is_empty() {
             return Vec::new();
         }
@@ -191,10 +184,6 @@ impl Database {
         Ok(albums)
     }
     pub fn songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
-        // let query = format!(
-        //     "SELECT number, name FROM song WHERE artist = '{}' AND album = '{}' ORDER BY disc, number",
-        //     artist, album
-        // );
         let query = format!(
             "SELECT number, name FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
             artist, album
