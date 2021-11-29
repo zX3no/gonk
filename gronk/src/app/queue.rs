@@ -1,5 +1,5 @@
 use gronk_types::Song;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use crate::index::Index;
 
@@ -112,10 +112,10 @@ impl Queue {
         self.player.seeker()
     }
     pub fn update(&mut self) {
-        if !self.player.is_playing() && self.skip_fix {
+        if !self.player.is_done() && self.skip_fix {
             self.next();
         }
-        if self.player.is_playing() {
+        if self.player.is_done() {
             self.skip_fix = true;
         } else {
             self.skip_fix = false;
@@ -177,7 +177,10 @@ impl Queue {
             self.player.stop();
         }
     }
-    pub fn seek(&self, amount: Duration) {
-        self.player.seek(amount);
+    pub fn seek_fw(&mut self) {
+        self.player.seek_fw();
+    }
+    pub fn seek_bw(&mut self) {
+        self.player.seek_bw();
     }
 }

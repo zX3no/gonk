@@ -70,13 +70,32 @@ impl Player {
         self.sink.elapsed()
     }
     pub fn duration(&self) -> Option<Duration> {
+        //TODO: this is off by a second ?
         self.total_duration
     }
     pub fn toggle_playback(&self) {
         self.sink.toggle_playback();
     }
-    pub fn seek(&self, amount: Duration) {
-        self.sink.seek(amount);
+    pub fn seek_fw(&mut self) {
+        let seek = self.elapsed().as_secs_f64() + 10.0;
+        if let Some(duration) = self.duration() {
+            if seek > duration.as_secs_f64() {
+                self.stop()
+            } else {
+                self.seek_to(Duration::from_secs_f64(seek));
+            }
+        }
+    }
+    pub fn seek_bw(&mut self) {
+        let mut seek = self.elapsed().as_secs_f64() - 10.0;
+        if seek < 0.0 {
+            seek = 0.0;
+        }
+
+        self.seek_to(Duration::from_secs_f64(seek));
+    }
+    fn seek_to(&self, time: Duration) {
+        self.sink.seek(time);
     }
     pub fn seeker(&self) -> f64 {
         if let Some(duration) = self.duration() {
@@ -86,7 +105,15 @@ impl Player {
             0.0
         }
     }
-    pub fn is_playing(&self) -> bool {
-        self.elapsed() != Duration::from_secs(0)
+    pub fn is_done(&self) -> bool {
+        if let Some(duration) = self.duration() {
+            if self.elapsed().as_secs_f64() + 1.0 > duration.as_secs_f64() {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 }

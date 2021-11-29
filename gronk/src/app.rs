@@ -1,4 +1,4 @@
-use std::{path::Path, time::Duration};
+use std::path::Path;
 
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
@@ -150,9 +150,9 @@ impl App {
         self.queue.delete_selected();
     }
     pub fn update(&mut self) {
-        // self.database = None;
-        // self.database = Some(Database::new(PathBuf::from("D:\\Music")).unwrap());
-        todo!();
+        if let Some(db) = &mut self.database {
+            db.reset(vec![&Path::new("D:\\Music")])
+        }
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {
@@ -200,8 +200,8 @@ impl App {
                 'h' => self.browser_prev(),
                 'l' => self.browser_next(),
                 ' ' => self.queue.play_pause(),
-                'q' => self.queue.seek(Duration::from_secs_f32(-10.0)),
-                'e' => self.queue.seek(Duration::from_secs(10)),
+                'q' => self.queue.seek_bw(),
+                'e' => self.queue.seek_fw(),
                 'a' => self.queue.prev(),
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),

@@ -317,7 +317,7 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let pos = (width as f64 * percent).ceil() as usize;
 
     let mut string = String::new();
-    for i in 0..width - 2 {
+    for i in 0..(width - 6) {
         if (i as usize) < pos {
             string.push('=');
         } else {
@@ -329,12 +329,11 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     if pos < string.len() - 1 {
         string.remove(pos);
         string.insert(pos, '>');
+    } else {
+        string.pop();
+        string.push('>');
     }
 
-    //remove the first and last items
-    //makes a nice gap
-    string.remove(0);
-    string.pop();
     let p = Paragraph::new(string).alignment(Alignment::Center);
 
     f.render_widget(p, chunk)
