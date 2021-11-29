@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
-use crossterm::event::KeyModifiers;
+use crossterm::event::{KeyCode, KeyModifiers};
 use gronk_database::Database;
 use gronk_types::Song;
 use queue::Queue;
@@ -148,7 +148,49 @@ impl App {
             panic!("{:?}", self.constraint);
         }
     }
-    pub fn handle_input(&mut self, c: char, modifier: KeyModifiers) {
+    fn delete_from_queue(&mut self) {
+        self.queue.delete_selected();
+    }
+    pub fn update(&mut self) {
+        self.database = None;
+        Database::create_db().unwrap();
+        self.database = Some(Database::new());
+    }
+    pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        match code {
+            KeyCode::Char(c) => self.handle_char(c, modifiers),
+            KeyCode::Down => self.down(),
+            KeyCode::Up => self.up(),
+            KeyCode::Left => self.browser_prev(),
+            KeyCode::Right => self.browser_next(),
+            KeyCode::Enter => self.on_enter(),
+            KeyCode::Tab => {
+                if self.ui_mode == UiMode::Search {
+                    self.search.reset();
+                    self.ui_mode.flip();
+                } else {
+                    self.ui_mode.toggle();
+                }
+            }
+            KeyCode::Backspace => match self.search.mode {
+                SearchMode::Search => {
+                    if modifiers == KeyModifiers::CONTROL {
+                        self.search.query = String::new();
+                    } else {
+                        self.search.query.pop();
+                    }
+                }
+                SearchMode::Select => self.search.exit(),
+            },
+            KeyCode::Esc => {
+                if self.ui_mode == UiMode::Search {
+                    self.search.exit();
+                }
+            }
+            _ => (),
+        }
+    }
+    pub fn handle_char(&mut self, c: char, modifier: KeyModifiers) {
         if self.ui_mode.current == UiMode::Search {
             self.search.on_key(c);
         } else {
@@ -173,47 +215,6 @@ impl App {
                 '3' | '#' => self.move_constraint('3', modifier),
                 _ => (),
             }
-        }
-    }
-    pub fn on_tab(&mut self) {
-        if self.ui_mode == UiMode::Search {
-            self.ui_mode.flip();
-        } else {
-            self.ui_mode.toggle();
-        }
-    }
-    pub fn on_backspace(&mut self, modifier: KeyModifiers) {
-        match self.search.mode {
-            SearchMode::Search => {
-                if modifier == KeyModifiers::CONTROL {
-                    // let rev: String = self.search.query.chars().rev().collect();
-                    // if let Some(index) = rev.find(' ') {
-                    //     let len = self.search.query.len();
-                    //     let str = self.search.query.split_at(len - index - 1);
-                    //     self.search.query = str.0.to_string();
-                    // } else {
-                    //     self.search.query = String::new();
-                    // }
-                    self.search.query = String::new();
-                } else {
-                    self.search.query.pop();
-                }
-            }
-            SearchMode::Select => self.search.exit(),
-        }
-    }
-    fn delete_from_queue(&mut self) {
-        self.queue.delete_selected();
-    }
-    pub fn update(&mut self) {
-        self.database = None;
-        Database::create_db().unwrap();
-        self.database = Some(Database::new());
-    }
-
-    pub fn on_escape(&mut self) {
-        if self.ui_mode == UiMode::Search {
-            self.search.exit();
         }
     }
 }

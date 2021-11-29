@@ -79,6 +79,10 @@ impl Search {
     pub fn get_selected(&self) -> Option<usize> {
         self.index.index
     }
+    pub fn reset(&mut self) {
+        self.mode.reset();
+        self.index.select(None);
+    }
 }
 //My ideal search algorithm
 

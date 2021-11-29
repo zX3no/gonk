@@ -79,4 +79,8 @@ impl SearchMode {
             SearchMode::Select => *self = SearchMode::Search,
         }
     }
+
+    pub fn reset(&mut self) {
+        *self = SearchMode::Search;
+    }
 }

@@ -73,21 +73,10 @@ fn main() {
                         terminal.show_cursor().unwrap();
                         break;
                     } else {
-                        app.handle_input('c', event.modifiers);
+                        app.handle_char('c', event.modifiers);
                     }
                 } else {
-                    match event.code {
-                        KeyCode::Char(c) => app.handle_input(c, event.modifiers),
-                        KeyCode::Down => app.down(),
-                        KeyCode::Up => app.up(),
-                        KeyCode::Left => app.browser_prev(),
-                        KeyCode::Right => app.browser_next(),
-                        KeyCode::Enter => app.on_enter(),
-                        KeyCode::Tab => app.on_tab(),
-                        KeyCode::Backspace => app.on_backspace(event.modifiers),
-                        KeyCode::Esc => app.on_escape(),
-                        _ => (),
-                    }
+                    app.input(event.code, event.modifiers);
                 }
             }
             Event::Tick => {

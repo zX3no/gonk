@@ -61,7 +61,6 @@ impl Player {
         self.sink.append(decoder);
     }
     pub fn stop(&mut self) {
-        // self.sink.stop();
         self.sink.drop();
         self.sink = Sink::try_new(&self.handle).unwrap();
         self.sink.set_volume(self.volume);
