@@ -26,21 +26,21 @@ use std::{fs::File, io::BufReader};
 
 pub struct Player {
     _stream: OutputStream,
-    _handle: OutputStreamHandle,
+    handle: OutputStreamHandle,
     sink: Sink,
     total_duration: Option<Duration>,
     volume: f32,
 }
 impl Player {
     pub fn new() -> Self {
-        let (_stream, _handle) = OutputStream::try_default().unwrap();
-        let sink = Sink::try_new(&_handle).unwrap();
+        let (_stream, handle) = OutputStream::try_default().unwrap();
+        let sink = Sink::try_new(&handle).unwrap();
         let volume = 0.01;
         sink.set_volume(volume);
 
         Self {
             _stream,
-            _handle,
+            handle,
             sink,
             total_duration: None,
             volume,
@@ -54,13 +54,17 @@ impl Player {
         self.sink.sleep_until_end();
     }
     pub fn play(&mut self, path: &Path) {
+        self.stop();
         let file = File::open(path).unwrap();
         let decoder = Decoder::new(BufReader::new(file)).unwrap();
         self.total_duration = decoder.total_duration();
         self.sink.append(decoder);
     }
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         // self.sink.stop();
+        self.sink.drop();
+        self.sink = Sink::try_new(&self.handle).unwrap();
+        self.sink.set_volume(self.volume);
     }
     pub fn elapsed(&self) -> Duration {
         //TODO: change to option duration

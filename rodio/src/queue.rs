@@ -1,7 +1,7 @@
 //! Queue that plays sounds one after the other.
 
-use std::sync::mpsc::Receiver;
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use std::{
     collections::VecDeque,
@@ -27,7 +27,7 @@ where
     S: Sample + Send + 'static,
 {
     let input = Arc::new(SourcesQueueInput {
-        current_sound: RwLock::new(None),
+        next_sounds: Mutex::new(Vec::new()),
         keep_alive_if_empty: AtomicBool::new(keep_alive_if_empty),
     });
 
@@ -45,7 +45,7 @@ where
 
 /// The input of the queue.
 pub struct SourcesQueueInput<S> {
-    current_sound: RwLock<Option<(Box<dyn Source<Item = S> + Send>, Option<Sender<()>>)>>,
+    next_sounds: Mutex<Vec<(Box<dyn Source<Item = S> + Send>, Option<Sender<()>>)>>,
 
     // See constructor.
     keep_alive_if_empty: AtomicBool,
@@ -61,7 +61,10 @@ where
     where
         T: Source<Item = S> + Send + 'static,
     {
-        *self.current_sound.write().unwrap() = Some((Box::new(source) as Box<_>, None));
+        self.next_sounds
+            .lock()
+            .unwrap()
+            .push((Box::new(source) as Box<_>, None));
     }
 
     /// Adds a new source to the end of the queue.
@@ -73,7 +76,10 @@ where
         T: Source<Item = S> + Send + 'static,
     {
         let (tx, rx) = mpsc::channel();
-        *self.current_sound.write().unwrap() = Some((Box::new(source) as Box<_>, Some(tx)));
+        self.next_sounds
+            .lock()
+            .unwrap()
+            .push((Box::new(source) as Box<_>, Some(tx)));
         rx
     }
 
@@ -151,13 +157,12 @@ where
         None
     }
 
-    #[inline]
-    fn elapsed(&mut self) -> Duration {
-        Duration::from_secs(0)
-    }
-
     fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
         self.current.seek(time)
+    }
+
+    fn elapsed(&mut self) -> Duration {
+        Duration::from_secs(0)
     }
 }
 
@@ -206,11 +211,24 @@ where
         }
 
         let (next, signal_after_end) = {
-            if let Some(sound) = *self.input.current_sound.read().unwrap() {
-                let (mut sound, signal_after_end) = sound;
+            let mut next = self.input.next_sounds.lock().unwrap();
+
+            if next.len() == 0 {
+                if self.input.keep_alive_if_empty.load(Ordering::Acquire) {
+                    // Play a short silence in order to avoid spinlocking.
+                    let silence = Zero::<S>::new(1, 44100); // TODO: meh
+                    (
+                        Box::new(silence.take_duration(Duration::from_millis(10))) as Box<_>,
+                        None,
+                    )
+                } else {
+                    return Err(());
+                }
+            } else {
+                let (mut next, signal_after_end) = next.remove(0);
                 loop {
-                    let l = sound.next();
-                    let r = sound.next();
+                    let l = next.next();
+                    let r = next.next();
 
                     match (l, r) {
                         (Some(ll), Some(rr)) => {
@@ -229,18 +247,7 @@ where
                         }
                     }
                 }
-                (sound, signal_after_end)
-            } else {
-                if self.input.keep_alive_if_empty.load(Ordering::Acquire) {
-                    // Play a short silence in order to avoid spinlocking.
-                    let silence = Zero::<S>::new(1, 44100); // TODO: meh
-                    (
-                        Box::new(silence.take_duration(Duration::from_millis(10))) as Box<_>,
-                        None,
-                    )
-                } else {
-                    return Err(());
-                }
+                (next, signal_after_end)
             }
         };
 

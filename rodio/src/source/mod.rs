@@ -11,6 +11,7 @@ pub use self::fadein::FadeIn;
 pub use self::pausable::Pausable;
 pub use self::periodic::PeriodicAccess;
 pub use self::samples_converter::SamplesConverter;
+pub use self::stoppable::Stoppable;
 pub use self::take::TakeDuration;
 pub use self::uniform::UniformSourceIterator;
 pub use self::zero::Zero;
@@ -22,6 +23,7 @@ mod fadein;
 mod pausable;
 mod periodic;
 mod samples_converter;
+mod stoppable;
 mod take;
 mod uniform;
 mod zero;
@@ -188,5 +190,14 @@ where
         Self: Sized,
     {
         pausable::pausable(self, initially_paused)
+    }
+
+    /// Makes the sound stoppable.
+    #[inline]
+    fn stoppable(self) -> Stoppable<Self>
+    where
+        Self: Sized,
+    {
+        stoppable::stoppable(self)
     }
 }

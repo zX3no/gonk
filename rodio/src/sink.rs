@@ -29,6 +29,7 @@ struct Controls {
     pause: AtomicBool,
     volume: Mutex<f32>,
     seek: Mutex<Option<Duration>>,
+    stopped: AtomicBool,
 }
 
 impl Sink {
@@ -51,6 +52,7 @@ impl Sink {
             controls: Arc::new(Controls {
                 pause: AtomicBool::new(false),
                 volume: Mutex::new(1.0),
+                stopped: AtomicBool::new(false),
                 seek: Mutex::new(None),
             }),
             sound_count: Arc::new(AtomicUsize::new(0)),
@@ -74,14 +76,20 @@ impl Sink {
         let source = source
             .pausable(false)
             .amplify(1.0)
+            .stoppable()
             .periodic_access(Duration::from_millis(5), move |src| {
-                if let Some(seek_time) = controls.seek.lock().unwrap().take() {
-                    src.seek(seek_time).unwrap();
+                if controls.stopped.load(Ordering::SeqCst) {
+                    src.stop();
+                } else {
+                    if let Some(seek_time) = controls.seek.lock().unwrap().take() {
+                        src.seek(seek_time).unwrap();
+                    }
+                    *elapsed.write().unwrap() = src.elapsed();
+                    src.inner_mut().set_factor(*controls.volume.lock().unwrap());
+                    src.inner_mut()
+                        .inner_mut()
+                        .set_paused(controls.pause.load(Ordering::SeqCst));
                 }
-                *elapsed.write().unwrap() = src.elapsed();
-                src.set_factor(*controls.volume.lock().unwrap());
-                src.inner_mut()
-                    .set_paused(controls.pause.load(Ordering::SeqCst));
             })
             .convert_samples();
         self.sound_count.fetch_add(1, Ordering::Relaxed);
@@ -180,5 +188,12 @@ impl Sink {
     #[inline]
     pub fn elapsed(&self) -> Duration {
         *self.elapsed.read().unwrap()
+    }
+    pub fn drop(&mut self) {
+        self.queue_tx.set_keep_alive_if_empty(false);
+
+        if !self.detached {
+            self.controls.stopped.store(true, Ordering::Relaxed);
+        }
     }
 }
