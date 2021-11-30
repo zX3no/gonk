@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
 use gronk_types::Song;
 use queue::Queue;
@@ -213,6 +213,14 @@ impl App {
                 '3' | '#' => self.move_constraint('3', modifier),
                 _ => (),
             }
+        }
+    }
+
+    pub fn mouse(&mut self, event: MouseEvent) {
+        match event.kind {
+            MouseEventKind::ScrollDown => self.down(),
+            MouseEventKind::ScrollUp => self.up(),
+            _ => (),
         }
     }
 }

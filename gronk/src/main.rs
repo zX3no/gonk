@@ -7,7 +7,9 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers},
+    event::{
+        self, EnableMouseCapture, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers, MouseEvent,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -20,6 +22,7 @@ mod ui;
 
 enum Event {
     Input(KeyEvent),
+    MouseInput(MouseEvent),
     Tick,
 }
 
@@ -31,8 +34,9 @@ fn main() {
         std::process::exit(1);
     }));
 
-    execute!(stdout(), EnterAlternateScreen).unwrap();
+    execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
     enable_raw_mode().unwrap();
+
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.clear().unwrap();
@@ -50,11 +54,15 @@ fn main() {
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
+
             if event::poll(timeout).unwrap() {
-                if let CTEvent::Key(key) = event::read().unwrap() {
-                    tx.send(Event::Input(key)).unwrap();
+                match event::read().unwrap() {
+                    CTEvent::Key(key) => tx.send(Event::Input(key)).unwrap(),
+                    CTEvent::Mouse(mouse) => tx.send(Event::MouseInput(mouse)).unwrap(),
+                    _ => (),
                 }
             }
+
             if last_tick.elapsed() >= tick_rate {
                 tx.send(Event::Tick).unwrap();
                 last_tick = Instant::now();
@@ -81,6 +89,9 @@ fn main() {
             }
             Event::Tick => {
                 app.on_tick();
+            }
+            Event::MouseInput(event) => {
+                app.mouse(event);
             }
         }
     }
