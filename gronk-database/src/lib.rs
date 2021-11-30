@@ -167,6 +167,8 @@ impl Database {
         Ok(artists)
     }
     pub fn albums_by_artist(&self, artist: &str) -> Result<Vec<String>> {
+        let artist = fix(artist);
+
         let query = format!(
             "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
             artist
@@ -184,6 +186,9 @@ impl Database {
         Ok(albums)
     }
     pub fn songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
+        let artist = fix(artist);
+        let album = fix(album);
+
         let query = format!(
             "SELECT number, name FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
             artist, album
@@ -202,13 +207,19 @@ impl Database {
         Ok(songs)
     }
     pub fn get_artist(&self, artist: &str) -> Vec<Song> {
+        let artist = fix(artist);
+
         let query = format!(
             "SELECT * FROM song WHERE artist = '{}' ORDER BY album, disc, number",
             artist,
         );
+
         self.collect_songs(&query)
     }
     pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
+        let artist = fix(artist);
+        let album = fix(album);
+
         let query = format!(
             "SELECT * FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
             artist, album
@@ -217,14 +228,9 @@ impl Database {
         self.collect_songs(&query)
     }
     pub fn get_song(&self, artist: &str, album: &str, number: &u16, name: &str) -> Vec<Song> {
-        //this seems bad but it only takes like 2us
-        let artist = artist.replace("\'", "\'\'");
-        let album = album.replace("\'", "\'\'");
-        let name = name.replace("\'", "\'\'");
-
-        let artist = artist.replace(":", "\\:");
-        let album = album.replace(":", "\\:");
-        let name = name.replace(":", "\\:");
+        let artist = fix(artist);
+        let album = fix(album);
+        let name = fix(name);
 
         //TODO: benchmark queries and swap to fts4 for others
         //TODO: Disc number too?
@@ -235,7 +241,8 @@ impl Database {
 
         self.collect_songs(&query)
     }
-    pub fn collect_songs(&self, query: &str) -> Vec<Song> {
+
+    fn collect_songs(&self, query: &str) -> Vec<Song> {
         let mut stmt = self.conn.prepare(query).unwrap();
 
         stmt.query_map([], |row| {
@@ -253,4 +260,7 @@ impl Database {
         .flatten()
         .collect()
     }
+}
+fn fix(item: &str) -> String {
+    item.replace("\'", "\'\'").replace(":", "\\:").to_string()
 }
