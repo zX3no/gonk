@@ -46,9 +46,15 @@ impl Player {
             volume,
         }
     }
-    pub fn set_volume(&self, v: f32) {
+    pub fn set_volume(&mut self, v: f32) {
         //TODO: clamping
-        self.sink.set_volume(self.volume + v);
+        self.volume += v;
+        if self.volume < 0.0 {
+            self.volume = 0.0;
+        } else if self.volume > 0.1 {
+            self.volume = 0.1;
+        }
+        self.sink.set_volume(self.volume);
     }
     pub fn sleep_until_end(&self) {
         self.sink.sleep_until_end();

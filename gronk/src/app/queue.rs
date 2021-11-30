@@ -100,10 +100,10 @@ impl Queue {
         }
     }
     pub fn volume_up(&mut self) {
-        self.player.set_volume(0.008);
+        self.player.set_volume(0.005);
     }
     pub fn volume_down(&mut self) {
-        self.player.set_volume(-0.008);
+        self.player.set_volume(-0.005);
     }
     pub fn play_pause(&self) {
         self.player.toggle_playback();
