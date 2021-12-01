@@ -215,7 +215,6 @@ impl App {
             }
         }
     }
-
     pub fn mouse(&mut self, event: MouseEvent) {
         match event.kind {
             MouseEventKind::ScrollDown => self.down(),

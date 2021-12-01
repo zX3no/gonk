@@ -77,7 +77,7 @@ impl List {
     pub fn play(&mut self, index: usize) {
         self.now_playing = Some(index);
     }
-    pub fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.songs.is_empty() && self.now_playing.is_none()
     }
 }
@@ -144,7 +144,7 @@ impl Queue {
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
         //clippy will tell you this is wrong :/
-        if self.list.empty() {
+        if self.list.is_empty() {
             self.list.add(&mut songs);
             self.list.now_playing = Some(0);
             self.ui_index.select(Some(0));
@@ -182,5 +182,8 @@ impl Queue {
     }
     pub fn seek_bw(&mut self) {
         self.player.seek_bw();
+    }
+    pub fn is_empty(&self) -> bool {
+        self.list.is_empty()
     }
 }

@@ -311,6 +311,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     f.render_stateful_widget(t, chunk, &mut state);
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
+    if app.queue.is_empty() {
+        return;
+    }
+
     let area = f.size();
     let width = area.width;
     let percent = app.seeker;
