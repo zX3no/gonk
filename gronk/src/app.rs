@@ -27,10 +27,13 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let database = Database::new(vec![&Path::new("D:\\Music")]).unwrap();
-        let songs = database.get_songs();
         let music = Browser::new(&database);
         let queue = Queue::new();
-        let search = Search::new(&songs);
+
+        let songs = database.get_songs();
+        let artists = database.artists().unwrap();
+        let albums = database.albums();
+        let search = Search::new(&songs, &artists, &albums);
 
         Self {
             browser: music,
@@ -97,7 +100,7 @@ impl App {
             UiMode::Search => {
                 let search = &mut self.search;
                 if let SearchMode::Search = search.mode {
-                    if !search.query.is_empty() && !search.results.is_empty() {
+                    if !search.is_empty() {
                         search.mode.next();
                         search.index.select(Some(0));
                     }
@@ -115,16 +118,17 @@ impl App {
         self.seeker = self.queue.seeker();
     }
     pub fn search(&mut self) -> Vec<Song> {
-        if self.search.changed() {
-            self.search.update_search();
-        }
-        let ids = &self.search.results;
+        // if self.search.changed() {
+        //     self.search.update_search();
+        // }
+        // let ids = &self.search.results;
 
-        if let Some(db) = &self.database {
-            db.get_songs_from_ids(ids)
-        } else {
-            Vec::new()
-        }
+        // if let Some(db) = &self.database {
+        //     db.get_songs_from_ids(ids)
+        // } else {
+        //     Vec::new()
+        // }
+        Vec::new()
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -221,5 +225,11 @@ impl App {
             MouseEventKind::ScrollUp => self.up(),
             _ => (),
         }
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }

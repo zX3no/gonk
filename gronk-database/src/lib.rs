@@ -166,6 +166,23 @@ impl Database {
         }
         Ok(artists)
     }
+    pub fn albums(&self) -> Vec<(String, String)> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT artist, album FROM song ORDER BY artist COLLATE NOCASE")
+            .unwrap();
+
+        let mut rows = stmt.query([]).unwrap();
+
+        let mut albums = Vec::new();
+
+        while let Some(row) = rows.next().unwrap() {
+            let artist: String = row.get(0).unwrap();
+            let album: String = row.get(1).unwrap();
+            albums.push((artist, album));
+        }
+        albums
+    }
     pub fn albums_by_artist(&self, artist: &str) -> Result<Vec<String>> {
         let artist = fix(artist);
 
