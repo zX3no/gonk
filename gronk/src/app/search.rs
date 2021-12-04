@@ -52,51 +52,51 @@ impl Search {
         // let len = self.results.len();
         // self.index.down(len);
     }
-    pub fn search<T>(&mut self, query: &str, database: Database) {
-        self.query = query.to_string();
-        let songs: Vec<usize> = self
-            .search_index
-            .search(query)
-            .iter()
-            .map(|i| **i)
-            .collect();
+    // pub fn search<T>(&mut self, query: &str, database: Database) {
+    //     self.query = query.to_string();
+    //     let songs: Vec<usize> = self
+    //         .search_index
+    //         .search(query)
+    //         .iter()
+    //         .map(|i| **i)
+    //         .collect();
 
-        let songs = database.get_songs_from_ids(&songs);
+    //     let songs = database.get_songs_from_ids(&songs);
 
-        let artists: Vec<String> = self
-            .artists
-            .iter()
-            .filter_map(|artist| {
-                if artist.contains(query) {
-                    Some(artist.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+    //     let artists: Vec<String> = self
+    //         .artists
+    //         .iter()
+    //         .filter_map(|artist| {
+    //             if artist.contains(query) {
+    //                 Some(artist.clone())
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
 
-        let albums: Vec<(String, String)> = self
-            .albums
-            .iter()
-            .filter_map(|(album, artist)| {
-                if artist.contains(query) || album.contains(query) {
-                    Some((album.clone(), artist.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
+    //     let albums: Vec<(String, String)> = self
+    //         .albums
+    //         .iter()
+    //         .filter_map(|(album, artist)| {
+    //             if artist.contains(query) || album.contains(query) {
+    //                 Some((album.clone(), artist.clone()))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
 
-        let l = List {
-            songs,
-            albums,
-            artists,
-            selection: None,
-            results: Vec::new(),
-        };
+    //     let l = List {
+    //         songs,
+    //         albums,
+    //         artists,
+    //         selection: None,
+    //         results: Vec::new(),
+    //     };
 
-        dbg!(l.get());
-    }
+    //     dbg!(l.get());
+    // }
     // pub fn changed(&mut self) -> bool {
     //     if self.query != self.prev_query {
     //         self.prev_query = self.query.clone();

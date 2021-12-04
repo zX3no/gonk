@@ -98,17 +98,17 @@ impl App {
                 self.queue.select();
             }
             UiMode::Search => {
-                let search = &mut self.search;
-                if let SearchMode::Search = search.mode {
-                    if !search.is_empty() {
-                        search.mode.next();
-                        search.index.select(Some(0));
-                    }
-                } else if let Some(index) = search.get_selected() {
-                    let songs = self.search();
-                    let song = songs.get(index).unwrap();
-                    self.queue.add(vec![song.clone()]);
-                }
+                // let search = &mut self.search;
+                // if let SearchMode::Search = search.mode {
+                //     if !search.is_empty() {
+                //         search.mode.next();
+                //         search.index.select(Some(0));
+                //     }
+                // } else if let Some(index) = search.get_selected() {
+                //     let songs = self.search();
+                //     let song = songs.get(index).unwrap();
+                //     self.queue.add(vec![song.clone()]);
+                // }
             }
         }
     }
