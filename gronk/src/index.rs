@@ -32,4 +32,7 @@ impl Index {
     pub fn is_none(&self) -> bool {
         self.index.is_none()
     }
+    pub fn selected(&self) -> Option<usize> {
+        self.index
+    }
 }

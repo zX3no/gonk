@@ -115,14 +115,32 @@ impl Database {
         }
         songs
     }
-    pub fn get_songs(&self) -> Vec<(usize, Song)> {
+    pub fn get_song_from_id(&self, id: usize) -> Song {
+        let query = format!("SELECT * FROM song WHERE rowid='{}'", id);
+        let mut stmt = self.conn.prepare(&query).unwrap();
+        let mut rows = stmt.query([]).unwrap();
+
+        if let Some(row) = rows.next().unwrap() {
+            let path: String = row.get(5).unwrap();
+            return Song {
+                number: row.get(0).unwrap(),
+                disc: row.get(1).unwrap(),
+                name: row.get(2).unwrap(),
+                album: row.get(3).unwrap(),
+                artist: row.get(4).unwrap(),
+                path: PathBuf::from(path),
+            };
+        } else {
+            panic!();
+        }
+    }
+    pub fn get_songs(&self) -> Vec<(Song, usize)> {
         let mut stmt = self.conn.prepare("SELECT rowid, * FROM song").unwrap();
 
         stmt.query_map([], |row| {
             let id = row.get(0).unwrap();
             let path: String = row.get(6).unwrap();
             Ok((
-                id,
                 Song {
                     number: row.get(1).unwrap(),
                     disc: row.get(2).unwrap(),
@@ -131,6 +149,7 @@ impl Database {
                     artist: row.get(5).unwrap(),
                     path: PathBuf::from(path),
                 },
+                id,
             ))
         })
         .unwrap()
@@ -169,7 +188,7 @@ impl Database {
     pub fn albums(&self) -> Vec<(String, String)> {
         let mut stmt = self
             .conn
-            .prepare("SELECT DISTINCT artist, album FROM song ORDER BY artist COLLATE NOCASE")
+            .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
         let mut rows = stmt.query([]).unwrap();
@@ -177,9 +196,9 @@ impl Database {
         let mut albums = Vec::new();
 
         while let Some(row) = rows.next().unwrap() {
-            let artist: String = row.get(0).unwrap();
-            let album: String = row.get(1).unwrap();
-            albums.push((artist, album));
+            let album: String = row.get(0).unwrap();
+            let artist: String = row.get(1).unwrap();
+            albums.push((album, artist));
         }
         albums
     }
@@ -233,13 +252,13 @@ impl Database {
 
         self.collect_songs(&query)
     }
-    pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
-        let artist = fix(artist);
+    pub fn get_album(&self, album: &str, artist: &str) -> Vec<Song> {
         let album = fix(album);
+        let artist = fix(artist);
 
         let query = format!(
-            "SELECT * FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
-            artist, album
+            "SELECT * FROM song WHERE song MATCH 'album:{} AND artist:{}' ORDER BY disc, number",
+            album, artist
         );
 
         self.collect_songs(&query)

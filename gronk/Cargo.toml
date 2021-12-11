@@ -11,6 +11,7 @@ crossterm = "0.22.1"
 tui = { version = "0.16.0", default-features = false, features = ['crossterm'] }
 gronk-database = {path = "../gronk-database"}
 gronk-types = {path = "../gronk-types"}
+gronk-search = {path = "../gronk-search"}
 rodio = {path = "../rodio"}
 simsearch = "0.2.3"
 indicium = "0.3.4"

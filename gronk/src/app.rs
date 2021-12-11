@@ -4,7 +4,7 @@ use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
-use gronk_types::Song;
+use gronk_search::{ItemType, SearchItem};
 use queue::Queue;
 use search::Search;
 
@@ -16,7 +16,7 @@ pub struct App {
     pub browser: Browser,
     pub queue: Queue,
     pub search: Search,
-    database: Option<Database>,
+    pub database: Option<Database>,
     //TODO: why are these modes so confusing
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
@@ -33,7 +33,7 @@ impl App {
         let songs = database.get_songs();
         let artists = database.artists().unwrap();
         let albums = database.albums();
-        let search = Search::new(&songs, &artists, &albums);
+        let search = Search::new(&songs, &albums, &artists);
 
         Self {
             browser: music,
@@ -88,7 +88,7 @@ impl App {
                 if let Some(db) = &self.database {
                     let songs = match self.browser_mode {
                         BrowserMode::Artist => db.get_artist(artist),
-                        BrowserMode::Album => db.get_album(artist, album),
+                        BrowserMode::Album => db.get_album(album, artist),
                         BrowserMode::Song => db.get_song(artist, album, track, song),
                     };
                     self.queue.add(songs);
@@ -98,17 +98,30 @@ impl App {
                 self.queue.select();
             }
             UiMode::Search => {
-                // let search = &mut self.search;
-                // if let SearchMode::Search = search.mode {
-                //     if !search.is_empty() {
-                //         search.mode.next();
-                //         search.index.select(Some(0));
-                //     }
-                // } else if let Some(index) = search.get_selected() {
-                //     let songs = self.search();
-                //     let song = songs.get(index).unwrap();
-                //     self.queue.add(vec![song.clone()]);
-                // }
+                let search = &mut self.search;
+                if let SearchMode::Search = search.mode {
+                    if !search.is_empty() {
+                        search.mode.next();
+                        search.index.select(Some(0));
+                    }
+                } else if let Some(selected) = search.get_selected() {
+                    let db = self.database.as_ref().unwrap();
+                    match selected.item_type {
+                        ItemType::Song => {
+                            let song = db.get_song_from_id(selected.song_id.unwrap());
+                            self.queue.add(vec![song.clone()]);
+                        }
+                        ItemType::Album => {
+                            let songs = db
+                                .get_album(&selected.name, selected.album_artist.as_ref().unwrap());
+                            self.queue.add(songs);
+                        }
+                        ItemType::Artist => {
+                            let songs = db.get_artist(&selected.name);
+                            self.queue.add(songs);
+                        }
+                    }
+                }
             }
         }
     }
@@ -117,18 +130,8 @@ impl App {
 
         self.seeker = self.queue.seeker();
     }
-    pub fn search(&mut self) -> Vec<Song> {
-        // if self.search.changed() {
-        //     self.search.update_search();
-        // }
-        // let ids = &self.search.results;
-
-        // if let Some(db) = &self.database {
-        //     db.get_songs_from_ids(ids)
-        // } else {
-        //     Vec::new()
-        // }
-        Vec::new()
+    pub fn get_search(&self) -> &Vec<SearchItem> {
+        &self.search.results
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -157,6 +160,11 @@ impl App {
         if let Some(db) = &mut self.database {
             db.reset(vec![&Path::new("D:\\Music")])
         }
+
+        //update search results
+        if self.search.query_changed() {
+            self.search.update_search();
+        }
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {
@@ -175,13 +183,7 @@ impl App {
                 }
             }
             KeyCode::Backspace => match self.search.mode {
-                SearchMode::Search => {
-                    if modifiers == KeyModifiers::CONTROL {
-                        self.search.query = String::new();
-                    } else {
-                        self.search.query.pop();
-                    }
-                }
+                SearchMode::Search => self.search.on_backspace(modifiers),
                 SearchMode::Select => self.search.exit(),
             },
             KeyCode::Esc => {

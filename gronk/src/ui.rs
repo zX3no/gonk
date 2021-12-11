@@ -1,3 +1,4 @@
+use gronk_search::ItemType;
 use tui::backend::Backend;
 use tui::layout::*;
 use tui::style::*;
@@ -23,7 +24,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints([Constraint::Length(3), Constraint::Percentage(90)].as_ref())
         .split(area);
 
-    let p = Paragraph::new(vec![Spans::from(app.search.query.clone())])
+    let p = Paragraph::new(vec![Spans::from(app.search.get_query())])
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -31,55 +32,68 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .alignment(Alignment::Left);
 
-    let search = app.search();
+    let results = app.get_search();
 
-    let items: Vec<Row> = search
-        .iter()
-        .map(|song| {
-            Row::new(vec![
-                Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
-                Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
-                Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+    if let Some(db) = &app.database {
+        let items = results.iter().map(|r| match r.item_type {
+            ItemType::Song => {
+                let song = db.get_song_from_id(r.song_id.unwrap());
+                Row::new(vec![
+                    Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
+                    Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                ])
+            }
+            ItemType::Album => Row::new(vec![
+                Cell::from("").style(Style::default().fg(Color::Green)),
+                Cell::from("").style(Style::default().fg(Color::Cyan)),
+                Cell::from(r.name.to_owned()).style(Style::default().fg(Color::Magenta)),
+                Cell::from(r.album_artist.as_ref().unwrap().clone())
+                    .style(Style::default().fg(Color::Blue)),
+            ]),
+            ItemType::Artist => Row::new(vec![
+                Cell::from("").style(Style::default().fg(Color::Green)),
+                Cell::from("").style(Style::default().fg(Color::Cyan)),
+                Cell::from("").style(Style::default().fg(Color::Magenta)),
+                Cell::from(r.name.clone()).style(Style::default().fg(Color::Blue)),
+            ]),
+        });
+
+        let t = Table::new(items)
+            .header(
+                Row::new(vec!["Track", "Title", "Album", "Artist"])
+                    .style(
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .widths(&[
+                Constraint::Length(6),
+                Constraint::Percentage(43),
+                Constraint::Percentage(29),
+                Constraint::Percentage(27),
             ])
-        })
-        .collect();
+            // ...and potentially show a symbol in front of the selection.
+            .highlight_symbol("> ");
 
-    let t = Table::new(items)
-        .header(
-            Row::new(vec!["Track", "Title", "Album", "Artist"])
-                .style(
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
-        .widths(&[
-            Constraint::Length(6),
-            Constraint::Percentage(43),
-            Constraint::Percentage(29),
-            Constraint::Percentage(27),
-        ])
-        // ...and potentially show a symbol in front of the selection.
-        .highlight_symbol("> ");
+        let mut state = TableState::default();
+        state.select(app.search.state());
 
-    let mut state = TableState::default();
-    state.select(app.search.state());
+        f.render_widget(p, chunks[0]);
+        f.render_stateful_widget(t, chunks[1], &mut state);
 
-    f.render_widget(p, chunks[0]);
-    f.render_stateful_widget(t, chunks[1], &mut state);
-
-    if app.search.index.is_none() {
-        if app.search.query.is_empty() {
+        if app.search.set_cursor() {
             f.set_cursor(1, 1);
         } else {
-            let mut len = app.search.query.len() as u16;
+            let mut len = app.search.query_len();
             //does this even work?
             if len > area.width {
                 len = area.width;
