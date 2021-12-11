@@ -129,6 +129,11 @@ impl App {
         self.queue.update();
 
         self.seeker = self.queue.seeker();
+
+        //update search results
+        if self.search.query_changed() {
+            self.search.update_search();
+        }
     }
     pub fn get_search(&self) -> &Vec<SearchItem> {
         &self.search.results
@@ -156,14 +161,9 @@ impl App {
     fn delete_from_queue(&mut self) {
         self.queue.delete_selected();
     }
-    pub fn update(&mut self) {
+    pub fn reset_db(&mut self) {
         if let Some(db) = &mut self.database {
             db.reset(vec![&Path::new("D:\\Music")])
-        }
-
-        //update search results
-        if self.search.query_changed() {
-            self.search.update_search();
         }
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
@@ -199,7 +199,7 @@ impl App {
             self.search.on_key(c);
         } else {
             match c {
-                'u' => self.update(),
+                'u' => self.reset_db(),
                 'c' => self.queue.clear(),
                 'j' => self.down(),
                 'k' => self.up(),
