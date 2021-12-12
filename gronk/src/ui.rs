@@ -77,15 +77,17 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         f.render_widget(p, chunks[0]);
         f.render_stateful_widget(t, chunks[1], &mut state);
 
-        if app.search.set_cursor() {
-            f.set_cursor(1, 1);
-        } else {
-            let mut len = app.search.query_len();
-            //does this even work?
-            if len > area.width {
-                len = area.width;
+        if app.search.show_cursor() {
+            if app.search.empty_cursor() {
+                f.set_cursor(1, 1);
+            } else {
+                let mut len = app.search.query_len();
+                //does this even work?
+                if len > area.width {
+                    len = area.width;
+                }
+                f.set_cursor(len + 1, 1);
             }
-            f.set_cursor(len + 1, 1);
         }
     }
 }

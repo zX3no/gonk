@@ -89,9 +89,6 @@ impl Search {
         self.mode.reset();
         self.index.select(None);
     }
-    pub fn is_empty(&self) -> bool {
-        self.results.is_empty() && self.query.is_empty()
-    }
     pub fn on_backspace(&mut self, modifiers: KeyModifiers) {
         if modifiers == KeyModifiers::CONTROL {
             self.query = String::new();
@@ -107,8 +104,17 @@ impl Search {
             false
         }
     }
-    pub fn set_cursor(&self) -> bool {
+    pub fn empty_cursor(&self) -> bool {
         self.index.is_none() && self.query.is_empty()
+    }
+    pub fn show_cursor(&self) -> bool {
+        match self.mode {
+            SearchMode::Search => true,
+            SearchMode::Select => false,
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.results.is_empty() && self.query.is_empty()
     }
     pub fn query_len(&self) -> u16 {
         self.query.len() as u16
