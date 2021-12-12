@@ -1,5 +1,4 @@
 use std::fmt::Display;
-
 use strsim::{levenshtein, sorensen_dice};
 
 pub struct SearchEngine {
@@ -43,6 +42,7 @@ impl SearchEngine {
         results.into_iter().map(|(item, _)| item.clone()).collect()
     }
 }
+
 #[derive(Clone, Debug)]
 pub enum ItemType {
     Song,
@@ -84,6 +84,7 @@ impl SearchItem {
         }
     }
 }
+
 impl Display for SearchItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)

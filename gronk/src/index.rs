@@ -4,6 +4,7 @@
 pub struct Index {
     pub index: Option<usize>,
 }
+
 impl Index {
     pub fn new() -> Self {
         Self { index: None }

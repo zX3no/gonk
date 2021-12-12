@@ -39,44 +39,31 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             ItemType::Song => {
                 let song = db.get_song_from_id(r.song_id.unwrap());
                 Row::new(vec![
-                    Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
                     Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
                     Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
                     Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
                 ])
             }
             ItemType::Album => Row::new(vec![
-                Cell::from("").style(Style::default().fg(Color::Green)),
-                Cell::from("").style(Style::default().fg(Color::Cyan)),
-                Cell::from(r.name.to_owned()).style(Style::default().fg(Color::Magenta)),
+                Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(Color::Cyan)),
+                Cell::from("").style(Style::default().fg(Color::Magenta)),
                 Cell::from(r.album_artist.as_ref().unwrap().clone())
                     .style(Style::default().fg(Color::Blue)),
             ]),
             ItemType::Artist => Row::new(vec![
-                Cell::from("").style(Style::default().fg(Color::Green)),
-                Cell::from("").style(Style::default().fg(Color::Cyan)),
+                Cell::from(r.name.to_owned() + " (artist)").style(Style::default().fg(Color::Cyan)),
                 Cell::from("").style(Style::default().fg(Color::Magenta)),
-                Cell::from(r.name.clone()).style(Style::default().fg(Color::Blue)),
+                Cell::from("").style(Style::default().fg(Color::Blue)),
             ]),
         });
 
         let t = Table::new(items)
-            .header(
-                Row::new(vec!["Track", "Title", "Album", "Artist"])
-                    .style(
-                        Style::default()
-                            .fg(Color::White)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .bottom_margin(1),
-            )
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded),
             )
             .widths(&[
-                Constraint::Length(6),
                 Constraint::Percentage(43),
                 Constraint::Percentage(29),
                 Constraint::Percentage(27),

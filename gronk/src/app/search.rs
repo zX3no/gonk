@@ -13,6 +13,7 @@ pub struct Search {
     pub mode: SearchMode,
     pub index: Index,
 }
+
 impl Search {
     pub fn new(songs: &[(Song, usize)], albums: &[(String, String)], artists: &[String]) -> Self {
         let mut engine = SearchEngine::new();
