@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use strsim::{levenshtein, sorensen_dice};
 
 pub struct SearchEngine {
     data: Vec<SearchItem>,
@@ -18,23 +17,9 @@ impl SearchEngine {
     pub fn search(&self, query: &str) -> Vec<SearchItem> {
         let mut results = Vec::new();
         for item in &self.data {
-            let acc = sorensen_dice(&query.to_lowercase(), &item.name.to_lowercase());
+            let acc = strsim::jaro_winkler(&query.to_lowercase(), &item.name.to_lowercase());
 
-            //sometimes the algorithim is shit
-            //words like fortnite are favored over strings with the query????
-            //i guess we are using two algorithims
-            //only do this on single words otherwise bad things happen
-            let str = &item.name;
-            let mut skip = false;
-            let strs = str.split(' ').collect::<Vec<_>>();
-            if strs.len() <= 1 {
-                let l = levenshtein(&query.to_lowercase(), &str.to_lowercase());
-                if l > 5 {
-                    skip = true;
-                }
-            }
-
-            if !skip && acc > 0.0 {
+            if acc > 0.75 {
                 results.push((item, acc))
             }
         }
