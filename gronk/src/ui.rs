@@ -1,9 +1,11 @@
 use gronk_search::ItemType;
 use tui::backend::Backend;
-use tui::layout::*;
-use tui::style::*;
-use tui::text::*;
-use tui::widgets::*;
+use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use tui::style::{Color, Modifier, Style};
+use tui::text::Spans;
+use tui::widgets::{
+    Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, TableState,
+};
 use tui::Frame;
 
 use crate::app::App;
