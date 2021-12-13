@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
+use config::Config;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
 use gronk_search::{ItemType, SearchItem};
@@ -9,6 +10,7 @@ use queue::Queue;
 use search::Search;
 
 mod browser;
+mod config;
 mod queue;
 mod search;
 
@@ -17,6 +19,7 @@ pub struct App {
     pub queue: Queue,
     pub search: Search,
     pub database: Option<Database>,
+    pub config: Config,
     //TODO: why are these modes so confusing
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
@@ -40,6 +43,7 @@ impl App {
             queue,
             search,
             database: Some(database),
+            config: Config::new(),
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
             seeker: 0.0,

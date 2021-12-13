@@ -15,6 +15,9 @@ use crossterm::{
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
+#[macro_use]
+extern crate lazy_static;
+
 mod app;
 mod index;
 mod modes;
