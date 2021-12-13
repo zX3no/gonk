@@ -3,30 +3,38 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Result};
 use std::{
-    fs::File,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
 use walkdir::WalkDir;
 
+#[macro_use]
+extern crate lazy_static;
+
+lazy_static! {
+    static ref CONFIG_DIR: PathBuf = {
+        let config_dir = dirs::config_dir().unwrap();
+        config_dir.join("gronk")
+    };
+    static ref DB_DIR: PathBuf = {
+        let db_dir = dirs::config_dir().unwrap();
+        db_dir.join("music.db")
+    };
+}
+
 pub struct Database {
     conn: Connection,
 }
 
 impl Database {
-    pub fn new(music_dirs: Vec<&Path>) -> rusqlite::Result<Self> {
-        let config = dirs::config_dir().unwrap();
-        let dir = format!("{}\\gronk", config.to_string_lossy());
-
-        if !Path::new(&dir).exists() {
-            std::fs::create_dir(&dir).unwrap();
+    pub fn new() -> rusqlite::Result<Self> {
+        if !Path::new(CONFIG_DIR.as_path()).exists() {
+            std::fs::create_dir(CONFIG_DIR.as_path()).unwrap();
         }
 
-        let db = format!("{}\\music.db", dir);
-
-        if !Path::new(&db).exists() {
-            let conn = Connection::open(&db).unwrap();
+        if !Path::new(DB_DIR.as_path()).exists() {
+            let conn = Connection::open(DB_DIR.as_path()).unwrap();
             conn.busy_timeout(Duration::from_millis(0))?;
             conn.pragma_update(None, "journal_mode", "WAL")?;
             conn.pragma_update(None, "synchronous", "0")?;
@@ -44,30 +52,43 @@ impl Database {
                 [],
             )?;
 
-            for dir in music_dirs {
-                let paths: Vec<PathBuf> = WalkDir::new(dir)
-                    .into_iter()
-                    .filter_map(|entry| {
-                        if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                            if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                                return Some(entry.as_ref().unwrap().path().to_path_buf());
-                            }
-                        }
-                        None
-                    })
-                    .collect();
+            conn.execute(
+                "CREATE TABLE config(
+                    music_dir TEXT NOT NULL,
+                )",
+                [],
+            )
+            .unwrap();
+        }
 
-                let songs: Vec<Song> = paths
-                    .par_iter()
-                    .map(|path| Song::from(path.to_str().unwrap()))
-                    .collect();
+        Ok(Self {
+            conn: Connection::open(DB_DIR.as_path()).unwrap(),
+        })
+    }
+    pub fn add_music(&self, music_dir: &str) {
+        let paths: Vec<PathBuf> = WalkDir::new(music_dir)
+            .into_iter()
+            .filter_map(|entry| {
+                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                        return Some(entry.as_ref().unwrap().path().to_path_buf());
+                    }
+                }
+                None
+            })
+            .collect();
 
-                let sqlite_connection_manager = SqliteConnectionManager::file(&db);
-                let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
+        let songs: Vec<Song> = paths
+            .par_iter()
+            .map(|path| Song::from(path.to_str().unwrap()))
+            .collect();
 
-                let pool_arc = Arc::new(sqlite_pool);
+        let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
+        let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
 
-                songs.par_iter().for_each(|song| {
+        let pool_arc = Arc::new(sqlite_pool);
+
+        songs.par_iter().for_each(|song| {
                     let connection = pool_arc.get().unwrap();
                     connection
                         .execute(
@@ -75,20 +96,26 @@ impl Database {
                             params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
                         ).unwrap();
                 });
-            }
 
-            conn.execute("INSERT INTO song(song) VALUES('optimize')", [])?;
-        }
-
-        Ok(Self {
-            conn: Connection::open(&db).unwrap(),
-        })
+        self.conn
+            .execute("INSERT INTO song(song) VALUES('optimize')", [])
+            .unwrap();
     }
-    pub fn reset(&self, music_dirs: Vec<&Path>) {
-        let config = dirs::config_dir().unwrap();
-        let db = format!("{}\\gronk\\music.db", config.to_string_lossy());
-        File::create(db).unwrap();
-        Database::new(music_dirs).unwrap();
+    pub fn add_dir(&self, music_dir: &str) {
+        let conn = Connection::open(DB_DIR.as_path()).unwrap();
+        conn.execute(
+            "INSERT INTO config (music_dir) VALUES (?1)",
+            params![music_dir],
+        )
+        .unwrap();
+        self.add_music(music_dir);
+    }
+    pub fn reset(&self, _music_dirs: Vec<&Path>) {
+        // let config = dirs::config_dir().unwrap();
+        // let db = format!("{}\\gronk\\music.db", config.to_string_lossy());
+        // File::create(db).unwrap();
+        // Database::new(music_dirs).unwrap();
+        todo!();
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {

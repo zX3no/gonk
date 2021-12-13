@@ -2,7 +2,6 @@ use std::path::Path;
 
 use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
 use browser::Browser;
-use config::Config;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
 use gronk_search::{ItemType, SearchItem};
@@ -10,7 +9,6 @@ use queue::Queue;
 use search::Search;
 
 mod browser;
-mod config;
 mod queue;
 mod search;
 
@@ -19,7 +17,6 @@ pub struct App {
     pub queue: Queue,
     pub search: Search,
     pub database: Option<Database>,
-    pub config: Config,
     //TODO: why are these modes so confusing
     pub browser_mode: BrowserMode,
     pub ui_mode: Mode,
@@ -29,7 +26,18 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let database = Database::new(vec![&Path::new("D:\\Music")]).unwrap();
+        let database = Database::new().unwrap();
+
+        //check if user wants to add new database
+        let args: Vec<_> = std::env::args().skip(1).collect();
+        if let Some(first) = args.first() {
+            if first == "add" {
+                if let Some(dir) = args.get(1) {
+                    database.add_dir(dir);
+                }
+            }
+        }
+
         let music = Browser::new(&database);
         let queue = Queue::new();
 
@@ -43,7 +51,6 @@ impl App {
             queue,
             search,
             database: Some(database),
-            config: Config::new(),
             browser_mode: BrowserMode::Artist,
             ui_mode: Mode::new(),
             seeker: 0.0,

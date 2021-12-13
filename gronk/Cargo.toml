@@ -15,5 +15,4 @@ gronk-search = {path = "../gronk-search"}
 rodio = {path = "../rodio"}
 simsearch = "0.2.3"
 indicium = "0.3.4"
-lazy_static = "1.4.0"
 dirs = "4.0.0"
