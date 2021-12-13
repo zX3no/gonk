@@ -19,7 +19,7 @@ lazy_static! {
     };
     static ref DB_DIR: PathBuf = {
         let db_dir = dirs::config_dir().unwrap();
-        db_dir.join("music.db")
+        db_dir.join("gronk\\music.db")
     };
 }
 
@@ -54,7 +54,7 @@ impl Database {
 
             conn.execute(
                 "CREATE TABLE config(
-                    music_dir TEXT NOT NULL,
+                    music_dir TEXT NOT NULL
                 )",
                 [],
             )
