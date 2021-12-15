@@ -293,9 +293,10 @@ impl Database {
         let album = fix(album);
         let artist = fix(artist);
 
+        //the order of the query is important? artist must come first
         let query = format!(
-            "SELECT * FROM song WHERE song MATCH 'album:{} AND artist:{}' ORDER BY disc, number",
-            album, artist
+            "SELECT * FROM song WHERE song MATCH 'artist:{} album:{}' ORDER BY disc, number",
+            artist, album
         );
 
         self.collect_songs(&query)
