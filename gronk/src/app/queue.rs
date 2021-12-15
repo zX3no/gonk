@@ -1,5 +1,5 @@
 use gronk_types::Song;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use crate::index::Index;
 
@@ -185,5 +185,11 @@ impl Queue {
     }
     pub fn is_empty(&self) -> bool {
         self.list.is_empty()
+    }
+    pub fn duration(&self) -> Option<Duration> {
+        self.player.duration()
+    }
+    pub fn seek_to(&self, new_time: f64) {
+        self.player.seek_to(Duration::from_secs_f64(new_time));
     }
 }

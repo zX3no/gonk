@@ -100,7 +100,7 @@ impl Player {
 
         self.seek_to(Duration::from_secs_f64(seek));
     }
-    fn seek_to(&self, time: Duration) {
+    pub fn seek_to(&self, time: Duration) {
         self.sink.seek(time);
     }
     pub fn seeker(&self) -> f64 {

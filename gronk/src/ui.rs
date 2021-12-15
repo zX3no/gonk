@@ -320,6 +320,20 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         return;
     }
 
+    if let Some((column, row)) = app.clicked_pos {
+        let size = f.size();
+        //row = 28
+        //height = 30
+        if size.height - 3 == row || size.height - 2 == row || size.height - 1 == row {
+            let ratio = (column - 4) as f64 / size.width as f64;
+            let duration = app.queue.duration().unwrap().as_secs_f64();
+
+            let new_time = duration * ratio;
+            app.queue.seek_to(new_time);
+        }
+        app.clicked_pos = None;
+    }
+
     let area = f.size();
     let width = area.width;
     let percent = app.seeker;

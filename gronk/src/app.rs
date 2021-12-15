@@ -22,10 +22,13 @@ pub struct App {
     pub ui_mode: Mode,
     pub constraint: [u16; 4],
     pub seeker: f64,
+    pub clicked_pos: Option<(u16, u16)>,
 }
 
 impl App {
     pub fn new() -> Self {
+        //TODO: move all the config handling stuff to the main function
+        //so i can return without panicing
         let database = Database::new().unwrap();
 
         //check if user wants to add new database
@@ -60,6 +63,7 @@ impl App {
             seeker: 0.0,
             //this could be [8, 42, 24, 100]
             constraint: [8, 42, 24, 26],
+            clicked_pos: None,
         }
     }
     pub fn browser_next(&mut self) {
@@ -240,6 +244,9 @@ impl App {
         match event.kind {
             MouseEventKind::ScrollDown => self.down(),
             MouseEventKind::ScrollUp => self.up(),
+            MouseEventKind::Down(_) => {
+                self.clicked_pos = Some((event.column, event.row));
+            }
             _ => (),
         }
     }
