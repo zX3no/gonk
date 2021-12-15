@@ -5,7 +5,7 @@ name = "rodio"
 version = "0.0.1"
 
 [dependencies]
-cpal = {git = "https://github.com/aschey/cpal", rev = "6b758f4"}
+cpal = "0.13.4" 
 symphonia = {version = "0.4", optional = true}
 
 [features]
