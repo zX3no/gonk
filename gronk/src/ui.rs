@@ -330,6 +330,7 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
             let new_time = duration * ratio;
             app.queue.seek_to(new_time);
+            app.queue.play();
         }
         app.clicked_pos = None;
     }

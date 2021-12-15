@@ -105,6 +105,11 @@ impl Queue {
     pub fn volume_down(&mut self) {
         self.player.set_volume(-0.005);
     }
+    pub fn play(&self) {
+        if self.player.is_paused() {
+            self.player.toggle_playback();
+        }
+    }
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
