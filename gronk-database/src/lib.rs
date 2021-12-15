@@ -110,6 +110,16 @@ impl Database {
         .unwrap();
         self.add_music(music_dir);
     }
+    pub fn is_empty(&self) -> bool {
+        let mut stmt = self.conn.prepare(&"SELECT * FROM config").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let mut dirs = Vec::new();
+        if let Some(row) = rows.next().unwrap() {
+            let path: String = row.get(0).unwrap();
+            dirs.push(path);
+        }
+        dirs.is_empty()
+    }
     pub fn reset(&self, _music_dirs: Vec<&Path>) {
         // let config = dirs::config_dir().unwrap();
         // let db = format!("{}\\gronk\\music.db", config.to_string_lossy());

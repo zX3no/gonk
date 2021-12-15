@@ -38,6 +38,10 @@ impl App {
             }
         }
 
+        if database.is_empty() {
+            panic!("database is empty");
+        }
+
         let music = Browser::new(&database);
         let queue = Queue::new();
 
