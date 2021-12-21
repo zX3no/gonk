@@ -257,12 +257,22 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     };
 
     let center = if let Some(song) = app.queue.get_playing() {
+        //I wish that paragraphs had clipping
+        //I think constaints do
+        //I could render the -| |- on a seperate layer
+        //outside of the constraint which might work better?
+        let mut name = song.name.clone();
+        while (name.len() + song.artist.len() + "-| - |-".len()) > (chunk.width - 40) as usize {
+            name.pop();
+        }
+        let name = name.trim_end().to_string();
+
         vec![
             Spans::from(vec![
                 Span::raw("─| "),
                 Span::styled(&song.artist, Style::default().fg(ARTIST)),
                 Span::raw(" - "),
-                Span::styled(&song.name, Style::default().fg(TITLE)),
+                Span::styled(name, Style::default().fg(TITLE)),
                 Span::raw(" |─"),
             ]),
             Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
