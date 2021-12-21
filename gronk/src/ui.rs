@@ -11,6 +11,11 @@ use tui::Frame;
 use crate::app::App;
 use crate::modes::{BrowserMode, UiMode};
 
+static TRACK: Color = Color::Green;
+static TITLE: Color = Color::Cyan;
+static ALBUM: Color = Color::Magenta;
+static ARTIST: Color = Color::Blue;
+
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.ui_mode {
         UiMode::Browser => draw_browser(f, app),
@@ -41,21 +46,21 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             ItemType::Song => {
                 let song = db.get_song_from_id(r.song_id.unwrap());
                 Row::new(vec![
-                    Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                    Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
-                    Cell::from(song.artist).style(Style::default().fg(Color::Blue)),
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
+                    Cell::from(song.artist).style(Style::default().fg(ARTIST)),
                 ])
             }
             ItemType::Album => Row::new(vec![
-                Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(Color::Cyan)),
-                Cell::from("").style(Style::default().fg(Color::Magenta)),
+                Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(TITLE)),
+                Cell::from("").style(Style::default().fg(ALBUM)),
                 Cell::from(r.album_artist.as_ref().unwrap().clone())
-                    .style(Style::default().fg(Color::Blue)),
+                    .style(Style::default().fg(ARTIST)),
             ]),
             ItemType::Artist => Row::new(vec![
-                Cell::from(r.name.to_owned() + " (artist)").style(Style::default().fg(Color::Cyan)),
-                Cell::from("").style(Style::default().fg(Color::Magenta)),
-                Cell::from("").style(Style::default().fg(Color::Blue)),
+                Cell::from(r.name.to_owned() + " (artist)").style(Style::default().fg(TITLE)),
+                Cell::from("").style(Style::default().fg(ALBUM)),
+                Cell::from("").style(Style::default().fg(ARTIST)),
             ]),
         });
 
@@ -243,21 +248,27 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         "0:00/0:00".to_string()
     };
     let left = vec![Spans::from(time), Spans::from(playback)];
-    let (track, album) = if let Some(song) = app.queue.get_playing() {
-        (
-            format!("--| {} - {} |--", song.artist, song.name),
-            song.album.clone(),
-        )
+
+    let empty = String::new();
+
+    let (name, album, artist) = if let Some(song) = app.queue.get_playing() {
+        (&song.name, &song.album, &song.artist)
     } else {
-        (String::new(), String::new())
+        (&empty, &empty, &empty)
     };
     let spacer: String = {
         let width = chunk.width;
         (0..width - 4).map(|_| "-").collect()
     };
     let center = vec![
-        Spans::from(track),
-        Spans::from(album),
+        Spans::from(vec![
+            Span::raw("--| "),
+            Span::styled(artist, Style::default().fg(ARTIST)),
+            Span::raw(" - "),
+            Span::styled(name, Style::default().fg(TITLE)),
+            Span::raw(" |--"),
+        ]),
+        Spans::from(Span::styled(album, Style::default().fg(ALBUM))),
         Spans::from(""),
         Spans::from(spacer),
     ];
@@ -307,10 +318,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         .map(|song| {
             Row::new(vec![
                 Cell::from(""),
-                Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
-                Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
-                Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                Cell::from(song.number.to_string()).style(Style::default().fg(TRACK)),
+                Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
+                Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
+                Cell::from(song.artist.to_owned()).style(Style::default().fg(ARTIST)),
             ])
         })
         .collect();
@@ -327,13 +338,13 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
                         Cell::from(song.number.to_string())
-                            .style(Style::default().bg(Color::Green).fg(Color::Black)),
+                            .style(Style::default().bg(TRACK).fg(Color::Black)),
                         Cell::from(song.name.to_owned())
-                            .style(Style::default().bg(Color::Cyan).fg(Color::Black)),
+                            .style(Style::default().bg(TITLE).fg(Color::Black)),
                         Cell::from(song.album.to_owned())
-                            .style(Style::default().bg(Color::Magenta).fg(Color::Black)),
+                            .style(Style::default().bg(ALBUM).fg(Color::Black)),
                         Cell::from(song.artist.to_owned())
-                            .style(Style::default().bg(Color::Blue).fg(Color::Black)),
+                            .style(Style::default().bg(ARTIST).fg(Color::Black)),
                     ])
                 } else {
                     Row::new(vec![
@@ -342,12 +353,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                                 .fg(Color::White)
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
-                        Cell::from(song.number.to_string())
-                            .style(Style::default().fg(Color::Green)),
-                        Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                        Cell::from(song.album.to_owned())
-                            .style(Style::default().fg(Color::Magenta)),
-                        Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                        Cell::from(song.number.to_string()).style(Style::default().fg(TRACK)),
+                        Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
+                        Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
+                        Cell::from(song.artist.to_owned()).style(Style::default().fg(ARTIST)),
                     ])
                 };
                 items.remove(*playing_index);
@@ -358,12 +367,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                     let song = songs.get(*ui_index).unwrap();
                     let row = Row::new(vec![
                         Cell::from(""),
-                        Cell::from(song.number.to_string())
-                            .style(Style::default().bg(Color::Green)),
-                        Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
-                        Cell::from(song.album.to_owned())
-                            .style(Style::default().bg(Color::Magenta)),
-                        Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
+                        Cell::from(song.number.to_string()).style(Style::default().bg(TRACK)),
+                        Cell::from(song.name.to_owned()).style(Style::default().bg(TITLE)),
+                        Cell::from(song.album.to_owned()).style(Style::default().bg(ALBUM)),
+                        Cell::from(song.artist.to_owned()).style(Style::default().bg(ARTIST)),
                     ])
                     .style(Style::default().fg(Color::Black));
                     items.remove(*ui_index);
