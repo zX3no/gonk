@@ -2,9 +2,10 @@ use gronk_search::ItemType;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::text::Spans;
+use tui::text::{Span, Spans};
 use tui::widgets::{
     Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, TableState,
+    Wrap,
 };
 use tui::Frame;
 
@@ -194,24 +195,51 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 //TODO: store the duration in the database
 //abstract selection color into it's own widget
 pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    let area = f.size();
-
-    f.render_widget(
-        Block::default()
-            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-            .border_type(BorderType::Rounded),
-        area,
-    );
-
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(2)])
-        .split(area);
+        .constraints([
+            Constraint::Length(4),
+            Constraint::Min(20),
+            Constraint::Length(2),
+        ])
+        .split(f.size());
 
-    //TODO: draw header here with now playing song
-    //volume etc.
-    draw_songs(f, app, chunks[0]);
-    draw_seeker(f, app, chunks[1]);
+    draw_header(f, app, chunks[0]);
+    draw_songs(f, app, chunks[1]);
+    draw_seeker(f, app, chunks[2]);
+}
+
+pub fn draw_header<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
+    let left = vec![
+        Spans::from("0:42/2:10 (909 kbps)"),
+        Spans::from("[playing]"),
+    ];
+    let center = vec![Spans::from("-| Arca - Wound|-"), Spans::from("Xen")];
+    let right = vec![Spans::from("Vol: 55%"), Spans::from("[r----]")];
+
+    let b = Block::default()
+        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+        .border_type(BorderType::Rounded);
+
+    let left = Paragraph::new(left)
+        .block(b.clone())
+        .alignment(Alignment::Left);
+
+    let center = Paragraph::new(center)
+        .block(b.clone())
+        .alignment(Alignment::Center);
+
+    let right = Paragraph::new(right).block(b).alignment(Alignment::Right);
+
+    let chunk = Rect {
+        x: chunk.x,
+        y: chunk.y,
+        width: chunk.width,
+        height: chunk.height,
+    };
+    f.render_widget(left, chunk.clone());
+    f.render_widget(center, chunk.clone());
+    f.render_widget(right, chunk);
 }
 
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
@@ -311,7 +339,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         )
         .block(
             Block::default()
-                .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+                .borders(Borders::LEFT | Borders::RIGHT)
                 .border_type(BorderType::Rounded),
         )
         .widths(&con);
@@ -361,7 +389,11 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         string.push('>');
     }
 
-    let p = Paragraph::new(string).alignment(Alignment::Center);
+    let p = Paragraph::new(string).alignment(Alignment::Center).block(
+        Block::default()
+            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+            .border_type(BorderType::Rounded),
+    );
 
     f.render_widget(p, chunk)
 }
