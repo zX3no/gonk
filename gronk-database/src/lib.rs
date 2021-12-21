@@ -19,7 +19,7 @@ lazy_static! {
     };
     static ref DB_DIR: PathBuf = {
         let db_dir = dirs::config_dir().unwrap();
-        db_dir.join("gronk\\music.db")
+        db_dir.join("gronk\\gronk.db")
     };
 }
 
@@ -54,7 +54,8 @@ impl Database {
 
             conn.execute(
                 "CREATE TABLE config(
-                    music_dir TEXT NOT NULL
+                    music_dir TEXT NOT NULL,
+                    UNIQUE(music_dir)
                 )",
                 [],
             )
@@ -104,14 +105,14 @@ impl Database {
     pub fn add_dir(&self, music_dir: &str) {
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
         conn.execute(
-            "INSERT INTO config (music_dir) VALUES (?1)",
+            "INSERT OR IGNORE INTO config (music_dir) VALUES (?1)",
             params![music_dir],
         )
         .unwrap();
         self.add_music(music_dir);
     }
     pub fn is_empty(&self) -> bool {
-        let mut stmt = self.conn.prepare(&"SELECT * FROM config").unwrap();
+        let mut stmt = self.conn.prepare("SELECT * FROM config").unwrap();
         let mut rows = stmt.query([]).unwrap();
         let mut dirs = Vec::new();
         if let Some(row) = rows.next().unwrap() {
@@ -120,12 +121,21 @@ impl Database {
         }
         dirs.is_empty()
     }
-    pub fn reset(&self, _music_dirs: Vec<&Path>) {
-        // let config = dirs::config_dir().unwrap();
-        // let db = format!("{}\\gronk\\music.db", config.to_string_lossy());
-        // File::create(db).unwrap();
-        // Database::new(music_dirs).unwrap();
+    pub fn reset(&self) {
         todo!();
+        // let mut stmt = self.conn.prepare("SELECT * FROM config").unwrap();
+        // let dirs: Vec<String> = stmt
+        //     .query_map([], |row| {
+        //         let dir: String = row.get(0).unwrap();
+        //         Ok(dir)
+        //     })
+        //     .unwrap()
+        //     .flatten()
+        //     .collect();
+        // self.conn.execute("DROP TABLE song", []).unwrap();
+        // for dir in dirs {
+        //     self.add_music(&dir);
+        // }
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {

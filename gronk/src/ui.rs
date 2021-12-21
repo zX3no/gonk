@@ -231,26 +231,44 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
                 Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
             ])
-            .style(Style::default().add_modifier(Modifier::DIM))
         })
         .collect();
 
     if let Some(playing_index) = now_playing {
         if let Some(song) = songs.get(*playing_index) {
             if let Some(ui_index) = ui_index {
-                let selection = if ui_index == playing_index { ">" } else { "" };
                 //currently playing song
-                let row = Row::new(vec![
-                    Cell::from(selection).style(
-                        Style::default()
-                            .fg(Color::Black)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
-                    Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                    Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
-                    Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
-                ]);
+                let row = if ui_index == playing_index {
+                    Row::new(vec![
+                        Cell::from(">>").style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::DIM | Modifier::BOLD),
+                        ),
+                        Cell::from(song.number.to_string())
+                            .style(Style::default().bg(Color::Green).fg(Color::Black)),
+                        Cell::from(song.name.to_owned())
+                            .style(Style::default().bg(Color::Cyan).fg(Color::Black)),
+                        Cell::from(song.album.to_owned())
+                            .style(Style::default().bg(Color::Magenta).fg(Color::Black)),
+                        Cell::from(song.artist.to_owned())
+                            .style(Style::default().bg(Color::Blue).fg(Color::Black)),
+                    ])
+                } else {
+                    Row::new(vec![
+                        Cell::from(">>").style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::DIM | Modifier::BOLD),
+                        ),
+                        Cell::from(song.number.to_string())
+                            .style(Style::default().fg(Color::Green)),
+                        Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                        Cell::from(song.album.to_owned())
+                            .style(Style::default().fg(Color::Magenta)),
+                        Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                    ])
+                };
                 items.remove(*playing_index);
                 items.insert(*playing_index, row);
 
@@ -258,26 +276,15 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 if ui_index != playing_index {
                     let song = songs.get(*ui_index).unwrap();
                     let row = Row::new(vec![
-                        Cell::from(">").style(
-                            Style::default()
-                                .fg(Color::Black)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                        Cell::from(song.number.to_string()).style(
-                            Style::default()
-                                .fg(Color::Green)
-                                .add_modifier(Modifier::DIM),
-                        ),
-                        Cell::from(song.name.to_owned())
-                            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM)),
-                        Cell::from(song.album.to_owned()).style(
-                            Style::default()
-                                .fg(Color::Magenta)
-                                .add_modifier(Modifier::DIM),
-                        ),
-                        Cell::from(song.artist.to_owned())
-                            .style(Style::default().fg(Color::Blue).add_modifier(Modifier::DIM)),
-                    ]);
+                        Cell::from(""),
+                        Cell::from(song.number.to_string())
+                            .style(Style::default().bg(Color::Green)),
+                        Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
+                        Cell::from(song.album.to_owned())
+                            .style(Style::default().bg(Color::Magenta)),
+                        Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
+                    ])
+                    .style(Style::default().fg(Color::Black));
                     items.remove(*ui_index);
                     items.insert(*ui_index, row);
                 }
@@ -285,7 +292,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         }
     }
     let con = [
-        Constraint::Length(1),
+        Constraint::Length(2),
         Constraint::Percentage(app.constraint[0]),
         Constraint::Percentage(app.constraint[1]),
         Constraint::Percentage(app.constraint[2]),

@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use crate::modes::{BrowserMode, SearchMode, UiMode};
 use browser::Browser;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
@@ -182,7 +180,7 @@ impl App {
     }
     pub fn reset_db(&mut self) {
         if let Some(db) = &mut self.database {
-            db.reset(vec![&Path::new("D:\\Music")])
+            db.reset();
         }
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
