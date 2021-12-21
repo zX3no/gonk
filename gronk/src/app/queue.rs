@@ -1,13 +1,14 @@
-use gronk_types::Song;
-use std::{path::PathBuf, time::Duration};
-
 use crate::index::Index;
+use gronk_types::Song;
+use rodio::Player;
+use std::{path::PathBuf, time::Duration};
 
 //this makes the code worse but easier?
 pub struct List {
     pub songs: Vec<Song>,
     pub now_playing: Option<usize>,
 }
+
 impl List {
     pub fn new() -> Self {
         Self {
@@ -81,7 +82,6 @@ impl List {
         self.songs.is_empty() && self.now_playing.is_none()
     }
 }
-use rodio::Player;
 
 pub struct Queue {
     pub ui_index: Index,
@@ -167,7 +167,7 @@ impl Queue {
     pub fn delete_selected(&mut self) {
         if let Some(index) = self.ui_index.index {
             let update = self.list.remove(index);
-            if index > self.list.len() - 1 {
+            if index > self.list.len().saturating_sub(1) {
                 self.ui_index.select(Some(self.list.len() - 1));
             }
             if update {

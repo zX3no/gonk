@@ -259,14 +259,14 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let center = if let Some(song) = app.queue.get_playing() {
         vec![
             Spans::from(vec![
-                Span::raw("--| "),
+                Span::raw("─| "),
                 Span::styled(&song.artist, Style::default().fg(ARTIST)),
                 Span::raw(" - "),
                 Span::styled(&song.name, Style::default().fg(TITLE)),
-                Span::raw(" |--"),
+                Span::raw(" |─"),
             ]),
             Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
-            Spans::from(""),
+            Spans::default(),
             Spans::from(spacer),
         ]
     } else {
@@ -280,37 +280,44 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
     let volume = app.queue.get_volume_percent();
 
-    let right = vec![Spans::from(vec![
-        Span::raw(format!("Vol: {}%", volume)),
-        //TODO: what does hidden even do?
-        //this does align properly
-        Span::styled("ㅤ", Style::default().add_modifier(Modifier::HIDDEN)),
-    ])];
+    let right = Spans::from(format!("Vol: {}%", volume));
+
+    let left = Paragraph::new(left).alignment(Alignment::Left);
+    let center = Paragraph::new(center).alignment(Alignment::Center);
+    let right = Paragraph::new(right).alignment(Alignment::Right);
 
     let b = Block::default()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .border_type(BorderType::Rounded);
 
-    let left = Paragraph::new(left)
-        .block(b.clone())
-        .alignment(Alignment::Left);
+    f.render_widget(b, chunk);
 
-    let center = Paragraph::new(center)
-        .block(b.clone())
-        .alignment(Alignment::Center);
+    let c = Rect {
+        x: chunk.x + 2,
+        y: chunk.y,
+        width: chunk.width - 2,
+        height: chunk.height,
+    };
 
-    let right = Paragraph::new(right).block(b).alignment(Alignment::Right);
+    f.render_widget(left, c);
 
-    let chunk = Rect {
+    let c = Rect {
         x: chunk.x,
         y: chunk.y,
         width: chunk.width,
         height: chunk.height,
     };
 
-    f.render_widget(left, chunk);
-    f.render_widget(center, chunk);
-    f.render_widget(right, chunk);
+    f.render_widget(center, c);
+
+    let c = Rect {
+        x: chunk.x,
+        y: chunk.y,
+        width: chunk.width - 2,
+        height: chunk.height,
+    };
+
+    f.render_widget(right, c);
 }
 
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
