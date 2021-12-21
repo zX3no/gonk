@@ -221,6 +221,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     } else {
         "[paused]"
     };
+
     let time = if let Some(duration) = app.queue.duration() {
         let elapsed = app.queue.elapsed().as_secs_f64();
         let duration = duration.as_secs_f64();
@@ -245,35 +246,40 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
         format!("{}/{}", e, d)
     } else {
-        "0:00/0:00".to_string()
+        String::from("0:00/0:00")
     };
+
     let left = vec![Spans::from(time), Spans::from(playback)];
 
-    let empty = String::new();
-
-    let (name, album, artist) = if let Some(song) = app.queue.get_playing() {
-        (&song.name, &song.album, &song.artist)
-    } else {
-        (&empty, &empty, &empty)
-    };
     let spacer: String = {
         let width = chunk.width;
         (0..width - 4).map(|_| "-").collect()
     };
-    let center = vec![
-        Spans::from(vec![
-            Span::raw("--| "),
-            Span::styled(artist, Style::default().fg(ARTIST)),
-            Span::raw(" - "),
-            Span::styled(name, Style::default().fg(TITLE)),
-            Span::raw(" |--"),
-        ]),
-        Spans::from(Span::styled(album, Style::default().fg(ALBUM))),
-        Spans::from(""),
-        Spans::from(spacer),
-    ];
+
+    let center = if let Some(song) = app.queue.get_playing() {
+        vec![
+            Spans::from(vec![
+                Span::raw("--| "),
+                Span::styled(&song.artist, Style::default().fg(ARTIST)),
+                Span::raw(" - "),
+                Span::styled(&song.name, Style::default().fg(TITLE)),
+                Span::raw(" |--"),
+            ]),
+            Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
+            Spans::from(""),
+            Spans::from(spacer),
+        ]
+    } else {
+        vec![
+            Spans::default(),
+            Spans::default(),
+            Spans::default(),
+            Spans::from(spacer),
+        ]
+    };
 
     let volume = app.queue.get_volume_percent();
+
     let right = vec![Spans::from(vec![
         Span::raw(format!("Vol: {}%", volume)),
         //TODO: what does hidden even do?
@@ -301,6 +307,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         width: chunk.width,
         height: chunk.height,
     };
+
     f.render_widget(left, chunk);
     f.render_widget(center, chunk);
     f.render_widget(right, chunk);
@@ -379,6 +386,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
             }
         }
     }
+
     let con = [
         Constraint::Length(2),
         Constraint::Percentage(app.constraint[0]),
