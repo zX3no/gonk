@@ -251,11 +251,15 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     } else {
         (String::new(), String::new())
     };
+    let spacer: String = {
+        let width = chunk.width;
+        (0..width - 4).map(|_| "-").collect()
+    };
     let center = vec![
         Spans::from(track),
         Spans::from(album),
         Spans::from(""),
-        Spans::from("------------------------------------------------------------------------------------------------------------------------------------------"),
+        Spans::from(spacer),
     ];
 
     let volume = app.queue.get_volume_percent();
