@@ -209,7 +209,9 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 }
 
 pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    let playback = if app.queue.is_playing() {
+    let playback = if app.queue.is_empty() {
+        "[stopped]"
+    } else if app.queue.is_playing() {
         "[playing]"
     } else {
         "[paused]"
@@ -390,7 +392,12 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     if app.queue.is_empty() {
-        return;
+        return f.render_widget(
+            Block::default()
+                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+                .border_type(BorderType::Rounded),
+            chunk,
+        );
     }
 
     if let Some((column, row)) = app.clicked_pos {

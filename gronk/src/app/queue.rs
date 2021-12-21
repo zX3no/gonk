@@ -192,13 +192,7 @@ impl Queue {
         self.list.is_empty()
     }
     pub fn is_playing(&self) -> bool {
-        if self.is_empty() {
-            false
-        } else if !self.player.is_paused() {
-            true
-        } else {
-            false
-        }
+        !self.player.is_paused()
     }
     pub fn duration(&self) -> Option<Duration> {
         if self.is_empty() {

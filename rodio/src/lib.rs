@@ -126,6 +126,7 @@ impl Player {
     }
     pub fn volume_percent(&self) -> u16 {
         //TODO: change volume to u16
+        //volume should also go into the database for reloading
         let vol = self.volume;
         (vol / 0.1 * 100.0) as u16
     }
