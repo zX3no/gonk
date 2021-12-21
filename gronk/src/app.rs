@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::modes::{BrowserMode, Mode, SearchMode, UiMode};
+use crate::modes::{BrowserMode, SearchMode, UiMode};
 use browser::Browser;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
@@ -19,7 +19,7 @@ pub struct App {
     pub database: Option<Database>,
     //TODO: why are these modes so confusing
     pub browser_mode: BrowserMode,
-    pub ui_mode: Mode,
+    pub ui_mode: UiMode,
     pub constraint: [u16; 4],
     pub seeker: f64,
     pub clicked_pos: Option<(u16, u16)>,
@@ -59,7 +59,7 @@ impl App {
             search,
             database: Some(database),
             browser_mode: BrowserMode::Artist,
-            ui_mode: Mode::new(),
+            ui_mode: UiMode::Browser,
             seeker: 0.0,
             //this could be [8, 42, 24, 100]
             constraint: [8, 42, 24, 26],
@@ -77,7 +77,7 @@ impl App {
         }
     }
     pub fn up(&mut self) {
-        match self.ui_mode.current {
+        match self.ui_mode {
             UiMode::Browser => self
                 .browser
                 .up(&self.browser_mode, self.database.as_ref().unwrap()),
@@ -86,7 +86,7 @@ impl App {
         }
     }
     pub fn down(&mut self) {
-        match self.ui_mode.current {
+        match self.ui_mode {
             UiMode::Browser => self
                 .browser
                 .down(&self.browser_mode, self.database.as_ref().unwrap()),
@@ -95,7 +95,7 @@ impl App {
         }
     }
     pub fn on_enter(&mut self) {
-        match self.ui_mode.current {
+        match self.ui_mode {
             UiMode::Browser => {
                 let (artist, album, track, song) = (
                     &self.browser.selected_artist.item,
@@ -194,12 +194,14 @@ impl App {
             KeyCode::Right => self.browser_next(),
             KeyCode::Enter => self.on_enter(),
             KeyCode::Tab => {
-                if self.ui_mode == UiMode::Search {
-                    self.search.reset();
-                    self.ui_mode.flip();
-                } else {
-                    self.ui_mode.toggle();
-                }
+                self.ui_mode = match self.ui_mode {
+                    UiMode::Browser => UiMode::Queue,
+                    UiMode::Queue => UiMode::Browser,
+                    UiMode::Search => {
+                        self.search.reset();
+                        UiMode::Queue
+                    }
+                };
             }
             KeyCode::Backspace => match self.search.mode {
                 SearchMode::Search => self.search.on_backspace(modifiers),
@@ -214,7 +216,7 @@ impl App {
         }
     }
     pub fn handle_char(&mut self, c: char, modifier: KeyModifiers) {
-        if self.ui_mode.current == UiMode::Search {
+        if self.ui_mode == UiMode::Search {
             self.search.on_key(c);
         } else {
             match c {
@@ -231,7 +233,7 @@ impl App {
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),
                 's' => self.queue.volume_down(),
-                '/' => self.ui_mode.update(UiMode::Search),
+                '/' => self.ui_mode = UiMode::Search,
                 'x' => self.delete_from_queue(),
                 '1' | '!' => self.move_constraint('1', modifier),
                 '2' | '@' => self.move_constraint('2', modifier),
@@ -249,11 +251,5 @@ impl App {
             }
             _ => (),
         }
-    }
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self::new()
     }
 }
