@@ -191,10 +191,36 @@ impl Queue {
     pub fn is_empty(&self) -> bool {
         self.list.is_empty()
     }
+    pub fn is_playing(&self) -> bool {
+        if self.is_empty() {
+            false
+        } else if !self.player.is_paused() {
+            true
+        } else {
+            false
+        }
+    }
     pub fn duration(&self) -> Option<Duration> {
-        self.player.duration()
+        if self.is_empty() {
+            None
+        } else {
+            self.player.duration()
+        }
+    }
+    pub fn elapsed(&self) -> Duration {
+        self.player.elapsed()
     }
     pub fn seek_to(&self, new_time: f64) {
         self.player.seek_to(Duration::from_secs_f64(new_time));
+    }
+    pub fn get_playing(&self) -> Option<&Song> {
+        if let Some(i) = self.list.now_playing {
+            self.list.songs.get(i)
+        } else {
+            None
+        }
+    }
+    pub fn get_volume_percent(&self) -> u16 {
+        self.player.volume_percent()
     }
 }

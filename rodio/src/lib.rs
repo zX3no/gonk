@@ -47,7 +47,6 @@ impl Player {
         }
     }
     pub fn set_volume(&mut self, v: f32) {
-        //TODO: clamping
         self.volume += v;
         if self.volume < 0.0 {
             self.volume = 0.0;
@@ -124,5 +123,10 @@ impl Player {
         } else {
             false
         }
+    }
+    pub fn volume_percent(&self) -> u16 {
+        //TODO: change volume to u16
+        let vol = self.volume;
+        (vol / 0.1 * 100.0) as u16
     }
 }

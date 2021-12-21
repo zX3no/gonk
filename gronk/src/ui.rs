@@ -2,10 +2,9 @@ use gronk_search::ItemType;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
+use tui::text::Spans;
 use tui::widgets::{
     Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, TableState,
-    Wrap,
 };
 use tui::Frame;
 
@@ -198,7 +197,7 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),
+            Constraint::Length(5),
             Constraint::Min(20),
             Constraint::Length(2),
         ])
@@ -209,13 +208,56 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     draw_seeker(f, app, chunks[2]);
 }
 
-pub fn draw_header<B: Backend>(f: &mut Frame<B>, _app: &mut App, chunk: Rect) {
-    let left = vec![
-        Spans::from("0:42/2:10 (909 kbps)"),
-        Spans::from("[playing]"),
+pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
+    let playback = if app.queue.is_playing() {
+        "[playing]"
+    } else {
+        "[paused]"
+    };
+    let time = if let Some(duration) = app.queue.duration() {
+        let elapsed = app.queue.elapsed().as_secs_f64();
+        let duration = duration.as_secs_f64();
+
+        let mins = elapsed / 60.0;
+        let rem = elapsed % 60.0;
+        let e = format!(
+            "{:0width$}:{:0width$}",
+            mins.trunc() as usize,
+            rem.trunc() as usize,
+            width = 2,
+        );
+
+        let mins = duration / 60.0;
+        let rem = duration % 60.0;
+        let d = format!(
+            "{:0width$}:{:0width$}",
+            mins.trunc() as usize,
+            rem.trunc() as usize,
+            width = 2,
+        );
+
+        format!("{}/{}", e, d)
+    } else {
+        "0:00/0:00".to_string()
+    };
+    let left = vec![Spans::from(time), Spans::from(playback)];
+    let (track, album) = if let Some(song) = app.queue.get_playing() {
+        (
+            format!("--| {} - {} |--", song.artist, song.name),
+            song.album.clone(),
+        )
+    } else {
+        (String::new(), String::new())
+    };
+    let center = vec![
+        Spans::from(track),
+        Spans::from(album),
+        Spans::from(""),
+        Spans::from("------------------------------------------------------------------------------------------------------------------------------------------"),
     ];
-    let center = vec![Spans::from("-| Arca - Wound|-"), Spans::from("Xen")];
-    let right = vec![Spans::from("Vol: 55%"), Spans::from("[r----]")];
+
+    let volume = app.queue.get_volume_percent();
+    let right = vec![Spans::from(format!("Vol: {}%", volume))];
 
     let b = Block::default()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
