@@ -30,7 +30,7 @@ impl Search {
 
         let artists: Vec<_> = artists
             .iter()
-            .map(|name| SearchItem::artist(&name))
+            .map(|name| SearchItem::artist(name))
             .collect();
 
         engine.insert_vec(songs);

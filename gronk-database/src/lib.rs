@@ -169,14 +169,14 @@ impl Database {
 
         if let Some(row) = rows.next().unwrap() {
             let path: String = row.get(5).unwrap();
-            return Song {
+            Song {
                 number: row.get(0).unwrap(),
                 disc: row.get(1).unwrap(),
                 name: row.get(2).unwrap(),
                 album: row.get(3).unwrap(),
                 artist: row.get(4).unwrap(),
                 path: PathBuf::from(path),
-            };
+            }
         } else {
             panic!();
         }
@@ -346,5 +346,5 @@ impl Database {
     }
 }
 fn fix(item: &str) -> String {
-    item.replace("\'", "\'\'").replace(":", "\\:").to_string()
+    item.replace("\'", "\'\'").replace(":", "\\:")
 }

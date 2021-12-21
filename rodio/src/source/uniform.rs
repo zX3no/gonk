@@ -153,7 +153,7 @@ where
             UniformSourceIterator::bootstrap(input, self.target_channels, self.target_sample_rate);
 
         self.inner = Some(input);
-        return ret;
+        ret
     }
 }
 

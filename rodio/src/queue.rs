@@ -175,7 +175,7 @@ where
     #[inline]
     fn next(&mut self) -> Option<S> {
         loop {
-            if self.sample_cache.len() > 0 {
+            if !self.sample_cache.is_empty() {
                 return self.sample_cache.pop_front().unwrap();
             }
             // Basic situation that will happen most of the time.

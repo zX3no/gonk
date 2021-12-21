@@ -2,7 +2,7 @@ use gronk_search::ItemType;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::text::Spans;
+use tui::text::{Span, Spans};
 use tui::widgets::{
     Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, TableState,
 };
@@ -43,7 +43,7 @@ pub fn draw_search<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 Row::new(vec![
                     Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
                     Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
-                    Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                    Cell::from(song.artist).style(Style::default().fg(Color::Blue)),
                 ])
             }
             ItemType::Album => Row::new(vec![
@@ -263,7 +263,12 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     ];
 
     let volume = app.queue.get_volume_percent();
-    let right = vec![Spans::from(format!("Vol: {}%", volume))];
+    let right = vec![Spans::from(vec![
+        Span::raw(format!("Vol: {}%", volume)),
+        //TODO: what does hidden even do?
+        //this does align properly
+        Span::styled("ㅤ", Style::default().add_modifier(Modifier::HIDDEN)),
+    ])];
 
     let b = Block::default()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -285,8 +290,8 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         width: chunk.width,
         height: chunk.height,
     };
-    f.render_widget(left, chunk.clone());
-    f.render_widget(center, chunk.clone());
+    f.render_widget(left, chunk);
+    f.render_widget(center, chunk);
     f.render_widget(right, chunk);
 }
 

@@ -126,7 +126,7 @@ impl App {
                     match selected.item_type {
                         ItemType::Song => {
                             let song = db.get_song_from_id(selected.song_id.unwrap());
-                            self.queue.add(vec![song.clone()]);
+                            self.queue.add(vec![song]);
                         }
                         ItemType::Album => {
                             let songs = db

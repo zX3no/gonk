@@ -19,7 +19,9 @@ impl Decoder {
     /// Builds a new decoder.
     ///
     /// Attempts to automatically detect the format of the source of data.
-    pub fn new<R: Read + Seek + Send + 'static>(data: R) -> Result<SymphoniaDecoder, DecoderError> {
+    pub fn new_decoder<R: Read + Seek + Send + 'static>(
+        data: R,
+    ) -> Result<SymphoniaDecoder, DecoderError> {
         let mss = MediaSourceStream::new(
             Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
             Default::default(),
@@ -27,9 +29,7 @@ impl Decoder {
 
         match symphonia::SymphoniaDecoder::new(mss, None) {
             Err(e) => Err(e),
-            Ok(decoder) => {
-                return Ok(decoder);
-            }
+            Ok(decoder) => Ok(decoder),
         }
     }
 }

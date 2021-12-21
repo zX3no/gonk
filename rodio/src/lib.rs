@@ -61,7 +61,7 @@ impl Player {
     pub fn play(&mut self, path: &Path) {
         self.stop();
         let file = File::open(path).unwrap();
-        let decoder = Decoder::new(BufReader::new(file)).unwrap();
+        let decoder = Decoder::new_decoder(BufReader::new(file)).unwrap();
         self.total_duration = decoder.total_duration();
         self.sink.append(decoder);
     }
@@ -115,11 +115,8 @@ impl Player {
     }
     pub fn is_done(&self) -> bool {
         if let Some(duration) = self.duration() {
-            if self.elapsed().as_secs_f64() + 1.0 > duration.as_secs_f64() {
-                true
-            } else {
-                false
-            }
+            //TODO: why is +1 needed?
+            self.elapsed().as_secs_f64() + 1.0 > duration.as_secs_f64()
         } else {
             false
         }

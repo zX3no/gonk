@@ -23,7 +23,7 @@ impl SearchEngine {
                 results.push((item, acc))
             }
         }
-        results.sort_by(|(_, a), (_, b)| b.partial_cmp(&a).unwrap());
+        results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
         results.into_iter().map(|(item, _)| item.clone()).collect()
     }
 }

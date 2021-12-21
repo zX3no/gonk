@@ -77,7 +77,7 @@ impl OutputStreamHandle {
     where
         R: Read + Seek + Send + 'static,
     {
-        let input = decoder::Decoder::new(input)?;
+        let input = decoder::Decoder::new_decoder(input)?;
         let sink = Sink::try_new(self)?;
         sink.append(input);
         Ok(sink)
