@@ -429,7 +429,11 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         )
         .widths(&con);
 
-    f.render_widget(t, chunk);
+    //this is so that scrolling works
+    let mut state = TableState::default();
+    state.select(*ui_index);
+
+    f.render_stateful_widget(t, chunk, &mut state);
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     if app.queue.is_empty() {
