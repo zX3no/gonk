@@ -208,9 +208,12 @@ pub fn draw_queue<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints([Constraint::Min(0), Constraint::Length(2)])
         .split(area);
 
+    //TODO: draw header here with now playing song
+    //volume etc.
     draw_songs(f, app, chunks[0]);
     draw_seeker(f, app, chunks[1]);
 }
+
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let (songs, now_playing, ui_index) = (
         &app.queue.list.songs,
@@ -228,60 +231,55 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
                 Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
             ])
+            .style(Style::default().add_modifier(Modifier::DIM))
         })
         .collect();
 
-    if let Some(index) = now_playing {
-        if let Some(song) = songs.get(*index) {
-            if let Some(other_index) = ui_index {
-                //ui selection and now_playing match
-                let row = if index == other_index {
-                    Row::new(vec![
-                        Cell::from(""),
-                        Cell::from(song.number.to_string())
-                            .style(Style::default().bg(Color::Green)),
-                        Cell::from(song.name.to_owned()).style(Style::default().bg(Color::Cyan)),
-                        Cell::from(song.album.to_owned())
-                            .style(Style::default().bg(Color::Magenta)),
-                        Cell::from(song.artist.to_owned()).style(Style::default().bg(Color::Blue)),
-                    ])
-                    .style(Style::default().fg(Color::Black))
-                } else {
-                    Row::new(vec![
-                        Cell::from(">"),
-                        Cell::from(song.number.to_string())
-                            .style(Style::default().fg(Color::Green)),
-                        Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
-                        Cell::from(song.album.to_owned())
-                            .style(Style::default().fg(Color::Magenta)),
-                        Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
-                    ])
-                    .style(
+    if let Some(playing_index) = now_playing {
+        if let Some(song) = songs.get(*playing_index) {
+            if let Some(ui_index) = ui_index {
+                let selection = if ui_index == playing_index { ">" } else { "" };
+                //currently playing song
+                let row = Row::new(vec![
+                    Cell::from(selection).style(
                         Style::default()
                             .fg(Color::Black)
-                            .add_modifier(Modifier::ITALIC),
-                    )
-                };
-                items.remove(*index);
-                items.insert(*index, row);
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Cell::from(song.number.to_string()).style(Style::default().fg(Color::Green)),
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(Color::Cyan)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(Color::Magenta)),
+                    Cell::from(song.artist.to_owned()).style(Style::default().fg(Color::Blue)),
+                ]);
+                items.remove(*playing_index);
+                items.insert(*playing_index, row);
 
-                if let Some(other_song) = songs.get(*other_index) {
-                    let selection = if *other_index == *index { ">" } else { "" };
-                    let other_row = Row::new(vec![
-                        Cell::from(selection),
-                        Cell::from(other_song.number.to_string())
-                            .style(Style::default().bg(Color::Green)),
-                        Cell::from(other_song.name.to_owned())
-                            .style(Style::default().bg(Color::Cyan)),
-                        Cell::from(other_song.album.to_owned())
-                            .style(Style::default().bg(Color::Magenta)),
-                        Cell::from(other_song.artist.to_owned())
-                            .style(Style::default().bg(Color::Blue)),
-                    ])
-                    .style(Style::default().fg(Color::Black));
-
-                    items.remove(*other_index);
-                    items.insert(*other_index, other_row);
+                //current selection
+                if ui_index != playing_index {
+                    let song = songs.get(*ui_index).unwrap();
+                    let row = Row::new(vec![
+                        Cell::from(">").style(
+                            Style::default()
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Cell::from(song.number.to_string()).style(
+                            Style::default()
+                                .fg(Color::Green)
+                                .add_modifier(Modifier::DIM),
+                        ),
+                        Cell::from(song.name.to_owned())
+                            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM)),
+                        Cell::from(song.album.to_owned()).style(
+                            Style::default()
+                                .fg(Color::Magenta)
+                                .add_modifier(Modifier::DIM),
+                        ),
+                        Cell::from(song.artist.to_owned())
+                            .style(Style::default().fg(Color::Blue).add_modifier(Modifier::DIM)),
+                    ]);
+                    items.remove(*ui_index);
+                    items.insert(*ui_index, row);
                 }
             }
         }
@@ -311,9 +309,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         )
         .widths(&con);
 
-    let mut state = TableState::default();
-    state.select(*ui_index);
-    f.render_stateful_widget(t, chunk, &mut state);
+    f.render_widget(t, chunk);
 }
 pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     if app.queue.is_empty() {
