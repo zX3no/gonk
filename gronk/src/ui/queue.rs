@@ -61,7 +61,16 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
             String::from("╭─0:00/0:00")
         };
 
-        let left = Paragraph::new(time).alignment(Alignment::Left);
+        let playback = if app.queue.is_empty() {
+            "│ [stopped]"
+        } else if app.queue.is_playing() {
+            "│ [playing]"
+        } else {
+            "│ [paused]"
+        };
+
+        let left = Paragraph::new(vec![Spans::from(time), Spans::from(playback)])
+            .alignment(Alignment::Left);
 
         f.render_widget(left, chunk);
     }
@@ -167,6 +176,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                         Cell::from(song.artist.to_owned()).style(Style::default().fg(ARTIST)),
                     ])
                 };
+
                 items.remove(*playing_index);
                 items.insert(*playing_index, row);
 
