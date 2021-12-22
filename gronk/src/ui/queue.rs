@@ -20,7 +20,6 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .split(f.size());
 
     draw_header(f, app, chunks[0]);
-    // draw_header_old(f, app, chunks[0]);
     draw_songs(f, app, chunks[1]);
     draw_seeker(f, app, chunks[2]);
 }
@@ -35,7 +34,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     //Left
     {
         let time = if app.queue.is_empty() {
-            String::from("╭─[stopped]")
+            String::from("╭─Stopped")
         } else if app.queue.is_playing() {
             if let Some(duration) = app.queue.duration() {
                 let elapsed = app.queue.elapsed().as_secs_f64();
@@ -64,7 +63,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                 String::from("╭─0:00/0:00")
             }
         } else {
-            String::from("╭─[paused]")
+            String::from("╭─Paused")
         };
 
         let left = Paragraph::new(time).alignment(Alignment::Left);
@@ -73,10 +72,6 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     }
     //Center
     {
-        // let spacer: String = {
-        //     let width = chunk.width;
-        //     (0..width - 2).map(|_| "─").collect()
-        // };
         let center = if let Some(song) = app.queue.get_playing() {
             //I wish that paragraphs had clipping
             //I think constaints do
@@ -98,16 +93,9 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
-                // Spans::default(),
-                // Spans::from(spacer),
             ]
         } else {
-            vec![
-                Spans::default(),
-                Spans::default(),
-                // Spans::default(),
-                // Spans::from(spacer),
-            ]
+            vec![Spans::default(), Spans::default()]
         };
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
