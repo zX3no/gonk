@@ -20,127 +20,100 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .split(f.size());
 
     draw_header(f, app, chunks[0]);
+    // draw_header_old(f, app, chunks[0]);
     draw_songs(f, app, chunks[1]);
     draw_seeker(f, app, chunks[2]);
 }
 
 pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    let playback = if app.queue.is_empty() {
-        "[stopped]"
-    } else if app.queue.is_playing() {
-        "[playing]"
-    } else {
-        "[paused]"
-    };
-
-    let time = if let Some(duration) = app.queue.duration() {
-        let elapsed = app.queue.elapsed().as_secs_f64();
-        let duration = duration.as_secs_f64();
-
-        let mins = elapsed / 60.0;
-        let rem = elapsed % 60.0;
-        let e = format!(
-            "{:0width$}:{:0width$}",
-            mins.trunc() as usize,
-            rem.trunc() as usize,
-            width = 2,
-        );
-
-        let mins = duration / 60.0;
-        let rem = duration % 60.0;
-        let d = format!(
-            "{:0width$}:{:0width$}",
-            mins.trunc() as usize,
-            rem.trunc() as usize,
-            width = 2,
-        );
-
-        format!("{}/{}", e, d)
-    } else {
-        String::from("0:00/0:00")
-    };
-
-    let left = vec![Spans::from(time), Spans::from(playback)];
-
-    let spacer: String = {
-        let width = chunk.width;
-        (0..width - 4).map(|_| "-").collect()
-    };
-
-    let center = if let Some(song) = app.queue.get_playing() {
-        //I wish that paragraphs had clipping
-        //I think constaints do
-        //I could render the -| |- on a seperate layer
-        //outside of the constraint which might work better?
-        let mut name = song.name.clone();
-        while (name.len() + song.artist.len() + "-| - |-".len()) > (chunk.width - 40) as usize {
-            name.pop();
-        }
-        let name = name.trim_end().to_string();
-
-        vec![
-            Spans::from(vec![
-                Span::raw("─| "),
-                Span::styled(&song.artist, Style::default().fg(ARTIST)),
-                Span::raw(" - "),
-                Span::styled(name, Style::default().fg(TITLE)),
-                Span::raw(" |─"),
-            ]),
-            Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
-            Spans::default(),
-            Spans::from(spacer),
-        ]
-    } else {
-        vec![
-            Spans::default(),
-            Spans::default(),
-            Spans::default(),
-            Spans::from(spacer),
-        ]
-    };
-
-    let volume = app.queue.get_volume_percent();
-
-    let right = Spans::from(format!("Vol: {}%", volume));
-
-    let left = Paragraph::new(left).alignment(Alignment::Left);
-    let center = Paragraph::new(center).alignment(Alignment::Center);
-    let right = Paragraph::new(right).alignment(Alignment::Right);
-
+    //Render the borders first
     let b = Block::default()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .border_type(BorderType::Rounded);
-
     f.render_widget(b, chunk);
 
-    let c = Rect {
-        x: chunk.x + 2,
-        y: chunk.y,
-        width: chunk.width - 2,
-        height: chunk.height,
-    };
+    //Left
+    {
+        let time = if let Some(duration) = app.queue.duration() {
+            let elapsed = app.queue.elapsed().as_secs_f64();
+            let duration = duration.as_secs_f64();
 
-    f.render_widget(left, c);
+            let mins = elapsed / 60.0;
+            let rem = elapsed % 60.0;
+            let e = format!(
+                "{:0width$}:{:0width$}",
+                mins.trunc() as usize,
+                rem.trunc() as usize,
+                width = 2,
+            );
 
-    let c = Rect {
-        x: chunk.x,
-        y: chunk.y,
-        width: chunk.width,
-        height: chunk.height,
-    };
+            let mins = duration / 60.0;
+            let rem = duration % 60.0;
+            let d = format!(
+                "{:0width$}:{:0width$}",
+                mins.trunc() as usize,
+                rem.trunc() as usize,
+                width = 2,
+            );
 
-    f.render_widget(center, c);
+            format!("╭─{}/{}", e, d)
+        } else {
+            String::from("╭─0:00/0:00")
+        };
 
-    let c = Rect {
-        x: chunk.x,
-        y: chunk.y,
-        width: chunk.width - 2,
-        height: chunk.height,
-    };
+        let left = Paragraph::new(time).alignment(Alignment::Left);
 
-    f.render_widget(right, c);
+        f.render_widget(left, chunk);
+    }
+    //Center
+    {
+        let spacer: String = {
+            let width = chunk.width;
+            (0..width - 4).map(|_| "-").collect()
+        };
+        let center = if let Some(song) = app.queue.get_playing() {
+            //I wish that paragraphs had clipping
+            //I think constaints do
+            //I could render the -| |- on a seperate layer
+            //outside of the constraint which might work better?
+            let mut name = song.name.clone();
+            while (name.len() + song.artist.len() + "─| - |─".len()) > (chunk.width - 40) as usize
+            {
+                name.pop();
+            }
+            let name = name.trim_end().to_string();
+
+            vec![
+                Spans::from(vec![
+                    Span::raw("─| "),
+                    Span::styled(&song.artist, Style::default().fg(ARTIST)),
+                    Span::raw(" - "),
+                    Span::styled(name, Style::default().fg(TITLE)),
+                    Span::raw(" |─"),
+                ]),
+                Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
+                Spans::default(),
+                Spans::from(spacer),
+            ]
+        } else {
+            vec![
+                Spans::default(),
+                Spans::default(),
+                Spans::default(),
+                Spans::from(spacer),
+            ]
+        };
+        let center = Paragraph::new(center).alignment(Alignment::Center);
+        f.render_widget(center, chunk);
+    }
+    //Right
+    {
+        let volume = app.queue.get_volume_percent();
+        let text = Spans::from(format!("Vol: {}%─╮", volume));
+        let right = Paragraph::new(text).alignment(Alignment::Right);
+        f.render_widget(right, chunk);
+    }
 }
-
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let (songs, now_playing, ui_index) = (
         &app.queue.list.songs,
