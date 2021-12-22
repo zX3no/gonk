@@ -253,14 +253,9 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     let percent = app.seeker;
     let pos = (width as f64 * percent).ceil() as usize;
 
-    let mut string = String::new();
-    for i in 0..(width - 6) {
-        if (i as usize) < pos {
-            string.push('=');
-        } else {
-            string.push('-');
-        }
-    }
+    let mut string: String = (0..width - 6)
+        .map(|i| if (i as usize) < pos { '=' } else { '-' })
+        .collect();
 
     //place the seeker location
     if pos < string.len() - 1 {

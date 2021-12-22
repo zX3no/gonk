@@ -59,6 +59,7 @@ impl Player {
         self.sink.sleep_until_end();
     }
     pub fn play(&mut self, path: &Path) {
+        //TODO: if the volume is zero the song will play really fast???
         self.stop();
         let file = File::open(path).unwrap();
         let decoder = Decoder::new_decoder(BufReader::new(file)).unwrap();
