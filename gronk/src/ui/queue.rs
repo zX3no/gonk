@@ -115,6 +115,15 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         &app.queue.ui_index.index,
     );
 
+    if app.queue.is_empty() {
+        return f.render_widget(
+            Block::default()
+                .borders(Borders::LEFT | Borders::RIGHT)
+                .border_type(BorderType::Rounded),
+            chunk,
+        );
+    }
+
     let mut items: Vec<Row> = songs
         .iter()
         .map(|song| {
@@ -226,15 +235,15 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
     if let Some((column, row)) = app.clicked_pos {
         let size = f.size();
-        //row = 28
-        //height = 30
         if size.height - 3 == row || size.height - 2 == row || size.height - 1 == row {
-            let ratio = (column - 4) as f64 / size.width as f64;
-            let duration = app.queue.duration().unwrap().as_secs_f64();
+            if column >= 3 && column < size.width - 2 {
+                let ratio = (column - 3) as f64 / size.width as f64;
+                let duration = app.queue.duration().unwrap().as_secs_f64();
 
-            let new_time = duration * ratio;
-            app.queue.seek_to(new_time);
-            app.queue.play();
+                let new_time = duration * ratio;
+                app.queue.seek_to(new_time);
+                app.queue.play();
+            }
         }
         app.clicked_pos = None;
     }
