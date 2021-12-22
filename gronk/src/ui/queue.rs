@@ -13,7 +13,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),
+            Constraint::Length(3),
             Constraint::Min(20),
             Constraint::Length(2),
         ])
@@ -34,52 +34,49 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
     //Left
     {
-        let time = if let Some(duration) = app.queue.duration() {
-            let elapsed = app.queue.elapsed().as_secs_f64();
-            let duration = duration.as_secs_f64();
-
-            let mins = elapsed / 60.0;
-            let rem = elapsed % 60.0;
-            let e = format!(
-                "{:0width$}:{:0width$}",
-                mins.trunc() as usize,
-                rem.trunc() as usize,
-                width = 2,
-            );
-
-            let mins = duration / 60.0;
-            let rem = duration % 60.0;
-            let d = format!(
-                "{:0width$}:{:0width$}",
-                mins.trunc() as usize,
-                rem.trunc() as usize,
-                width = 2,
-            );
-
-            format!("╭─{}/{}", e, d)
-        } else {
-            String::from("╭─0:00/0:00")
-        };
-
-        let playback = if app.queue.is_empty() {
-            "│ [stopped]"
+        let time = if app.queue.is_empty() {
+            String::from("╭─[stopped]")
         } else if app.queue.is_playing() {
-            "│ [playing]"
+            if let Some(duration) = app.queue.duration() {
+                let elapsed = app.queue.elapsed().as_secs_f64();
+                let duration = duration.as_secs_f64();
+
+                let mins = elapsed / 60.0;
+                let rem = elapsed % 60.0;
+                let e = format!(
+                    "{:0width$}:{:0width$}",
+                    mins.trunc() as usize,
+                    rem.trunc() as usize,
+                    width = 2,
+                );
+
+                let mins = duration / 60.0;
+                let rem = duration % 60.0;
+                let d = format!(
+                    "{:0width$}:{:0width$}",
+                    mins.trunc() as usize,
+                    rem.trunc() as usize,
+                    width = 2,
+                );
+
+                format!("╭─{}/{}", e, d)
+            } else {
+                String::from("╭─0:00/0:00")
+            }
         } else {
-            "│ [paused]"
+            String::from("╭─[paused]")
         };
 
-        let left = Paragraph::new(vec![Spans::from(time), Spans::from(playback)])
-            .alignment(Alignment::Left);
+        let left = Paragraph::new(time).alignment(Alignment::Left);
 
         f.render_widget(left, chunk);
     }
     //Center
     {
-        let spacer: String = {
-            let width = chunk.width;
-            (0..width - 4).map(|_| "-").collect()
-        };
+        // let spacer: String = {
+        //     let width = chunk.width;
+        //     (0..width - 2).map(|_| "─").collect()
+        // };
         let center = if let Some(song) = app.queue.get_playing() {
             //I wish that paragraphs had clipping
             //I think constaints do
@@ -101,15 +98,15 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(&song.album, Style::default().fg(ALBUM))),
-                Spans::default(),
-                Spans::from(spacer),
+                // Spans::default(),
+                // Spans::from(spacer),
             ]
         } else {
             vec![
                 Spans::default(),
                 Spans::default(),
-                Spans::default(),
-                Spans::from(spacer),
+                // Spans::default(),
+                // Spans::from(spacer),
             ]
         };
         let center = Paragraph::new(center).alignment(Alignment::Center);
