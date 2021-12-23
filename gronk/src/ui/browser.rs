@@ -3,9 +3,11 @@ use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState},
+    widgets::{Block, BorderType, Borders},
     Frame,
 };
+
+use super::list::{List, ListItem, ListState};
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let area = f.size();

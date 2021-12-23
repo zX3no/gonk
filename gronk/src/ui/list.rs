@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use tui::{
     buffer::Buffer,
     layout::{Corner, Rect},
