@@ -4,7 +4,6 @@ use crate::app::App;
 use crate::modes::UiMode;
 
 mod browser;
-mod list;
 mod queue;
 mod search;
 
