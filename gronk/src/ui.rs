@@ -1,8 +1,10 @@
-use crate::app::App;
-use crate::modes::UiMode;
 use tui::{backend::Backend, style::Color, Frame};
 
+use crate::app::App;
+use crate::modes::UiMode;
+
 mod browser;
+mod list;
 mod queue;
 mod search;
 
