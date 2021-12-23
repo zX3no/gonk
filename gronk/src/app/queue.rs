@@ -183,9 +183,11 @@ impl Queue {
         }
     }
     pub fn seek_fw(&mut self) {
+        self.play();
         self.player.seek_fw();
     }
     pub fn seek_bw(&mut self) {
+        self.play();
         self.player.seek_bw();
     }
     pub fn is_empty(&self) -> bool {
