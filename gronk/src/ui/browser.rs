@@ -1,4 +1,4 @@
-use crate::{app::App, modes::BrowserMode};
+use crate::{app::Browser, modes::BrowserMode};
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
@@ -7,10 +7,8 @@ use tui::{
     Frame,
 };
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     let area = f.size();
-
-    let music = &mut app.browser;
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -24,20 +22,20 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .split(area);
 
-    let a: Vec<_> = music
+    let a: Vec<_> = browser
         .artist_names()
         .iter()
         .map(|name| ListItem::new(name.as_str()))
         .collect();
 
-    let b: Vec<_> = music
+    let b: Vec<_> = browser
         .album_names()
         .iter()
         .map(|name| ListItem::new(name.as_str()))
         .collect();
 
     //clone is not optional :(
-    let c: Vec<_> = music
+    let c: Vec<_> = browser
         .song_names()
         .iter()
         .map(|name| ListItem::new(name.clone()))
@@ -55,7 +53,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">");
 
     let mut artist_state = ListState::default();
-    artist_state.select(music.get_selected_artist());
+    artist_state.select(browser.get_selected_artist());
 
     let albums = List::new(b)
         .block(
@@ -69,7 +67,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">");
 
     let mut album_state = ListState::default();
-    album_state.select(music.get_selected_album());
+    album_state.select(browser.get_selected_album());
 
     let songs = List::new(c)
         .block(
@@ -83,9 +81,9 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">");
 
     let mut song_state = ListState::default();
-    song_state.select(music.get_selected_song());
+    song_state.select(browser.get_selected_song());
 
-    match app.browser_mode {
+    match browser.mode() {
         BrowserMode::Artist => {
             album_state = ListState::default();
             song_state = ListState::default();

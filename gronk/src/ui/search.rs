@@ -1,5 +1,6 @@
-use crate::app::App;
+use crate::app::Search;
 use crate::ui::{ALBUM, ARTIST, TITLE};
+use gronk_database::Database;
 use gronk_search::ItemType;
 use tui::{
     backend::Backend,
@@ -10,7 +11,7 @@ use tui::{
     Frame,
 };
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
     let area = f.size();
 
     let chunks = Layout::default()
@@ -18,7 +19,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .constraints([Constraint::Length(3), Constraint::Percentage(90)].as_ref())
         .split(area);
 
-    let p = Paragraph::new(vec![Spans::from(app.search.get_query())])
+    let p = Paragraph::new(vec![Spans::from(search.get_query())])
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -26,11 +27,11 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         )
         .alignment(Alignment::Left);
 
-    let results = app.get_search();
+    let results = &search.results;
 
     let items = results.iter().map(|r| match r.item_type {
         ItemType::Song => {
-            let song = app.database.get_song_from_id(r.song_id.unwrap());
+            let song = db.get_song_from_id(r.song_id.unwrap());
             Row::new(vec![
                 Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
                 Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
@@ -64,16 +65,16 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol("> ");
 
     let mut state = TableState::default();
-    state.select(app.search.state());
+    state.select(search.state());
 
     f.render_widget(p, chunks[0]);
     f.render_stateful_widget(t, chunks[1], &mut state);
 
-    if app.search.show_cursor() {
-        if app.search.empty_cursor() {
+    if search.show_cursor() {
+        if search.empty_cursor() {
             f.set_cursor(1, 1);
         } else {
-            let mut len = app.search.query_len();
+            let mut len = search.query_len();
             //does this even work?
             if len > area.width {
                 len = area.width;

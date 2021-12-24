@@ -1,4 +1,5 @@
 use crate::index::Index;
+use crossterm::event::KeyModifiers;
 use gronk_types::Song;
 use rodio::Player;
 use std::{path::PathBuf, time::Duration};
@@ -86,6 +87,7 @@ impl List {
 pub struct Queue {
     pub ui_index: Index,
     pub list: List,
+    pub constraint: [u16; 4],
     player: Player,
     skip_fix: bool,
 }
@@ -95,6 +97,7 @@ impl Queue {
         Self {
             ui_index: Index::new(),
             list: List::new(),
+            constraint: [8, 42, 24, 26],
             player: Player::new(),
             skip_fix: false,
         }
@@ -218,5 +221,25 @@ impl Queue {
     }
     pub fn get_volume_percent(&self) -> u16 {
         self.player.volume_percent()
+    }
+    pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
+        //1 is 48, '1' - 49 = 0
+        let i = (arg as usize) - 49;
+        if modifier == KeyModifiers::SHIFT && self.constraint[i] != 0 {
+            self.constraint[i] = self.constraint[i].saturating_sub(1);
+            self.constraint[i + 1] += 1;
+        } else if self.constraint[i + 1] != 0 {
+            self.constraint[i] += 1;
+            self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
+        }
+
+        for n in &mut self.constraint {
+            if *n > 100 {
+                *n = 100;
+            }
+        }
+        if self.constraint.iter().sum::<u16>() != 100 {
+            panic!("{:?}", self.constraint);
+        }
     }
 }

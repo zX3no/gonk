@@ -1,10 +1,9 @@
 use crate::modes::{BrowserMode, SearchMode, UiMode};
-use browser::Browser;
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
-use gronk_search::{ItemType, SearchItem};
-use queue::Queue;
-use search::Search;
+use gronk_search::ItemType;
+
+pub use {browser::Browser, queue::Queue, search::Search};
 
 mod browser;
 mod queue;
@@ -15,9 +14,7 @@ pub struct App<'a> {
     pub queue: Queue,
     pub search: Search,
     pub database: &'a Database,
-    pub browser_mode: BrowserMode,
     pub ui_mode: UiMode,
-    pub constraint: [u16; 4],
     pub seeker: f64,
     pub clicked_pos: Option<(u16, u16)>,
 }
@@ -51,34 +48,32 @@ impl<'a> App<'a> {
             queue,
             search,
             database: db,
-            browser_mode: BrowserMode::Artist,
             ui_mode: UiMode::Browser,
             seeker: 0.0,
             //this could be [8, 42, 24, 100]
-            constraint: [8, 42, 24, 26],
             clicked_pos: None,
         }
     }
     pub fn browser_next(&mut self) {
         if self.ui_mode == UiMode::Browser {
-            self.browser_mode.next();
+            self.browser.next();
         }
     }
     pub fn browser_prev(&mut self) {
         if self.ui_mode == UiMode::Browser {
-            self.browser_mode.prev();
+            self.browser.prev();
         }
     }
     pub fn up(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => self.browser.up(&self.browser_mode),
+            UiMode::Browser => self.browser.up(),
             UiMode::Queue => self.queue.up(),
             UiMode::Search => self.search.up(),
         }
     }
     pub fn down(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => self.browser.down(&self.browser_mode),
+            UiMode::Browser => self.browser.down(),
             UiMode::Queue => self.queue.down(),
             UiMode::Search => self.search.down(),
         }
@@ -94,7 +89,7 @@ impl<'a> App<'a> {
                 );
 
                 let db = self.database;
-                let songs = match self.browser_mode {
+                let songs = match self.browser.mode() {
                     BrowserMode::Artist => db.get_artist(artist),
                     BrowserMode::Album => db.get_album(album, artist),
                     BrowserMode::Song => db.get_song(artist, album, track, song),
@@ -140,29 +135,6 @@ impl<'a> App<'a> {
         //update search results
         if self.search.query_changed() {
             self.search.update_search();
-        }
-    }
-    pub fn get_search(&self) -> &Vec<SearchItem> {
-        &self.search.results
-    }
-    pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
-        //1 is 48, '1' - 49 = 0
-        let i = (arg as usize) - 49;
-        if modifier == KeyModifiers::SHIFT && self.constraint[i] != 0 {
-            self.constraint[i] = self.constraint[i].saturating_sub(1);
-            self.constraint[i + 1] += 1;
-        } else if self.constraint[i + 1] != 0 {
-            self.constraint[i] += 1;
-            self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
-        }
-
-        for n in &mut self.constraint {
-            if *n > 100 {
-                *n = 100;
-            }
-        }
-        if self.constraint.iter().sum::<u16>() != 100 {
-            panic!("{:?}", self.constraint);
         }
     }
     fn delete_from_queue(&mut self) {
@@ -221,9 +193,9 @@ impl<'a> App<'a> {
                 's' => self.queue.volume_down(),
                 '/' => self.ui_mode = UiMode::Search,
                 'x' => self.delete_from_queue(),
-                '1' | '!' => self.move_constraint('1', modifier),
-                '2' | '@' => self.move_constraint('2', modifier),
-                '3' | '#' => self.move_constraint('3', modifier),
+                '1' | '!' => self.queue.move_constraint('1', modifier),
+                '2' | '@' => self.queue.move_constraint('2', modifier),
+                '3' | '#' => self.queue.move_constraint('3', modifier),
                 _ => (),
             }
         }

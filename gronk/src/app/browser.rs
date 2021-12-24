@@ -27,6 +27,7 @@ pub struct Browser<'a> {
     pub selected_artist: Item,
     pub selected_album: Item,
     pub selected_song: Item,
+    mode: BrowserMode,
     artists: Vec<String>,
     albums: Vec<String>,
     songs: Vec<(u16, String)>,
@@ -52,6 +53,7 @@ impl<'a> Browser<'a> {
             selected_artist: Item::new(None, artist, 0, artists.len()),
             selected_album: Item::new(None, album, 0, albums.len()),
             selected_song: Item::new(Some(num), name, 0, songs.len()),
+            mode: BrowserMode::Artist,
             artists,
             albums,
             songs,
@@ -78,39 +80,39 @@ impl<'a> Browser<'a> {
             .map(|song| format!("{}. {}", song.0, song.1))
             .collect()
     }
-    pub fn update_browser(&mut self, mode: &BrowserMode) {
-        match mode {
+    pub fn update_browser(&mut self) {
+        match self.mode {
             BrowserMode::Artist => self.reset_artist(),
             BrowserMode::Album => self.reset_songs(),
             BrowserMode::Song => self.update_song(),
         }
     }
-    pub fn get_item(&mut self, mode: &BrowserMode) -> &mut Item {
-        match mode {
+    pub fn get_item(&mut self) -> &mut Item {
+        match self.mode {
             BrowserMode::Artist => &mut self.selected_artist,
             BrowserMode::Album => &mut self.selected_album,
             BrowserMode::Song => &mut self.selected_song,
         }
     }
-    pub fn up(&mut self, mode: &BrowserMode) {
-        let item = self.get_item(mode);
+    pub fn up(&mut self) {
+        let item = self.get_item();
 
         if item.index > 0 {
             item.index -= 1;
         } else {
             item.index = item.len - 1;
         }
-        self.update_browser(mode);
+        self.update_browser();
     }
-    pub fn down(&mut self, mode: &BrowserMode) {
-        let item = self.get_item(mode);
+    pub fn down(&mut self) {
+        let item = self.get_item();
 
         if item.index + 1 < item.len {
             item.index += 1;
         } else {
             item.index = 0;
         }
-        self.update_browser(mode);
+        self.update_browser();
     }
     pub fn update_song(&mut self) {
         let (number, name) = self.songs.get(self.selected_song.index).unwrap().clone();
@@ -154,5 +156,14 @@ impl<'a> Browser<'a> {
 
         let (num, name) = self.songs.first().unwrap().clone();
         self.selected_song = Item::new(Some(num), name, 0, self.songs.len());
+    }
+    pub fn next(&mut self) {
+        self.mode.next();
+    }
+    pub fn prev(&mut self) {
+        self.mode.prev();
+    }
+    pub fn mode(&self) -> &BrowserMode {
+        &self.mode
     }
 }

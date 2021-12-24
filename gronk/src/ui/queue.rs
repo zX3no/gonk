@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, Queue};
 use crate::ui::{ALBUM, ARTIST, TITLE, TRACK};
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -20,7 +20,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .split(f.size());
 
     draw_header(f, app, chunks[0]);
-    draw_songs(f, app, chunks[1]);
+    draw_songs(f, &app.queue, chunks[1]);
     draw_seeker(f, app, chunks[2]);
 }
 
@@ -108,14 +108,14 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         f.render_widget(right, chunk);
     }
 }
-pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
+pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
     let (songs, now_playing, ui_index) = (
-        &app.queue.list.songs,
-        &app.queue.list.now_playing,
-        &app.queue.ui_index.index,
+        &queue.list.songs,
+        &queue.list.now_playing,
+        &queue.ui_index.index,
     );
 
-    if app.queue.is_empty() {
+    if queue.is_empty() {
         return f.render_widget(
             Block::default()
                 .borders(Borders::LEFT | Borders::RIGHT)
@@ -194,10 +194,10 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
     let con = [
         Constraint::Length(2),
-        Constraint::Percentage(app.constraint[0]),
-        Constraint::Percentage(app.constraint[1]),
-        Constraint::Percentage(app.constraint[2]),
-        Constraint::Percentage(app.constraint[3]),
+        Constraint::Percentage(queue.constraint[0]),
+        Constraint::Percentage(queue.constraint[1]),
+        Constraint::Percentage(queue.constraint[2]),
+        Constraint::Percentage(queue.constraint[3]),
     ];
 
     let t = Table::new(items)
