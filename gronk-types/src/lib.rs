@@ -1,5 +1,3 @@
-use indicium::simple::Indexable;
-
 #[derive(Debug, Clone)]
 pub struct Song {
     pub number: u16,
@@ -31,12 +29,6 @@ impl Song {
             };
         }
         panic!();
-    }
-}
-impl Indexable for Song {
-    fn strings(&self) -> Vec<String> {
-        // vec![self.name.clone(), self.album.clone(), self.artist.clone()]
-        vec![self.name.clone()]
     }
 }
 impl PartialEq for Song {
