@@ -53,18 +53,54 @@ impl Database {
             )?;
 
             conn.execute(
-                "CREATE TABLE config(
-                    music_dir TEXT NOT NULL,
-                    UNIQUE(music_dir)
+                "CREATE TABLE music(
+                    path TEXT NOT NULL,
+                    UNIQUE(path)
                 )",
                 [],
             )
             .unwrap();
+
+            conn.execute(
+                "CREATE TABLE config(
+                    volume INTEGER NOT NULL UNIQUE
+                )",
+                [],
+            )
+            .unwrap();
+
+            conn.execute("INSERT OR IGNORE INTO config (volume) VALUES (15)", [])
+                .unwrap();
         }
 
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
         })
+    }
+    pub fn get_volume(&self) -> u16 {
+        let mut stmt = self.conn.prepare("SELECT volume FROM config").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        if let Some(row) = rows.next().unwrap() {
+            row.get(0).unwrap()
+        } else {
+            panic!();
+        }
+    }
+    pub fn set_volume(&self, positive: bool) {
+        let mut volume = self.get_volume();
+        if positive {
+            if volume != 100 {
+                volume += 5;
+            }
+        } else {
+            if volume != 0 {
+                volume -= 5;
+            }
+        }
+
+        self.conn
+            .execute("UPDATE config SET volume = (?1)", [volume])
+            .unwrap();
     }
     pub fn add_music(&self, music_dir: &str) {
         let paths: Vec<PathBuf> = WalkDir::new(music_dir)
@@ -105,21 +141,20 @@ impl Database {
     pub fn add_dir(&self, music_dir: &str) {
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
         conn.execute(
-            "INSERT OR IGNORE INTO config (music_dir) VALUES (?1)",
+            "INSERT OR IGNORE INTO music (path) VALUES (?1)",
             params![music_dir],
         )
         .unwrap();
         self.add_music(music_dir);
     }
     pub fn is_empty(&self) -> bool {
-        let mut stmt = self.conn.prepare("SELECT * FROM config").unwrap();
+        let mut stmt = self.conn.prepare("SELECT * FROM music").unwrap();
         let mut rows = stmt.query([]).unwrap();
-        let mut dirs = Vec::new();
-        if let Some(row) = rows.next().unwrap() {
-            let path: String = row.get(0).unwrap();
-            dirs.push(path);
+        if let Some(_) = rows.next().unwrap() {
+            false
+        } else {
+            true
         }
-        dirs.is_empty()
     }
     pub fn reset(&self) {
         todo!();
