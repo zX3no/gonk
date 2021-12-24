@@ -24,19 +24,21 @@ use std::path::Path;
 use std::time::Duration;
 use std::{fs::File, io::BufReader};
 
+static VOLUME_STEP: u16 = 5;
+
 pub struct Player {
     _stream: OutputStream,
     handle: OutputStreamHandle,
     sink: Sink,
     total_duration: Option<Duration>,
-    volume: f32,
+    volume: u16,
 }
 impl Player {
     pub fn new() -> Self {
         let (_stream, handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&handle).unwrap();
-        let volume = 0.01;
-        sink.set_volume(volume);
+        let volume = 15;
+        sink.set_volume((volume / 1000) as f32);
 
         Self {
             _stream,
@@ -46,14 +48,17 @@ impl Player {
             volume,
         }
     }
-    pub fn set_volume(&mut self, v: f32) {
-        self.volume += v;
-        if self.volume < 0.0 {
-            self.volume = 0.0;
-        } else if self.volume > 0.1 {
-            self.volume = 0.1;
+    pub fn change_volume(&mut self, positive: bool) {
+        if positive {
+            if self.volume != 100 {
+                self.volume += VOLUME_STEP;
+            }
+        } else {
+            if self.volume != 0 {
+                self.volume -= VOLUME_STEP;
+            }
         }
-        self.sink.set_volume(self.volume);
+        self.sink.set_volume((self.volume / 1000) as f32);
     }
     pub fn sleep_until_end(&self) {
         self.sink.sleep_until_end();
@@ -69,7 +74,7 @@ impl Player {
     pub fn stop(&mut self) {
         self.sink.drop();
         self.sink = Sink::try_new(&self.handle).unwrap();
-        self.sink.set_volume(self.volume);
+        self.sink.set_volume((self.volume / 1000) as f32);
     }
     pub fn elapsed(&self) -> Duration {
         //TODO: change to option duration
@@ -123,9 +128,6 @@ impl Player {
         }
     }
     pub fn volume_percent(&self) -> u16 {
-        //TODO: change volume to u16
-        //volume should also go into the database for reloading
-        let vol = self.volume;
-        (vol / 0.1 * 100.0) as u16
+        self.volume
     }
 }
