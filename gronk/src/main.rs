@@ -1,4 +1,5 @@
 use app::App;
+use gronk_database::Database;
 use std::{
     io::stdout,
     sync::mpsc,
@@ -42,8 +43,6 @@ fn main() {
     terminal.clear().unwrap();
     terminal.hide_cursor().unwrap();
 
-    let mut app = App::new();
-
     let (tx, rx) = mpsc::channel();
     let tick_rate = Duration::from_millis(50);
 
@@ -71,6 +70,12 @@ fn main() {
             }
         }
     });
+
+    let db = Database::new().unwrap();
+    if db.is_empty() {
+        panic!("database is empty");
+    }
+    let mut app = App::new(&db);
 
     loop {
         terminal.draw(|f| ui::draw(f, &mut app)).unwrap();

@@ -10,12 +10,11 @@ mod browser;
 mod queue;
 mod search;
 
-pub struct App {
-    pub browser: Browser,
+pub struct App<'a> {
+    pub browser: Browser<'a>,
     pub queue: Queue,
     pub search: Search,
-    pub database: Option<Database>,
-    //TODO: why are these modes so confusing
+    pub database: &'a Database,
     pub browser_mode: BrowserMode,
     pub ui_mode: UiMode,
     pub constraint: [u16; 4],
@@ -23,39 +22,35 @@ pub struct App {
     pub clicked_pos: Option<(u16, u16)>,
 }
 
-impl App {
-    pub fn new() -> Self {
-        //TODO: move all the config handling stuff to the main function
-        //so i can return without panicing
-        let database = Database::new().unwrap();
-
+impl<'a> App<'a> {
+    pub fn new(db: &'a Database) -> Self {
         //check if user wants to add new database
         let args: Vec<_> = std::env::args().skip(1).collect();
         if let Some(first) = args.first() {
             if first == "add" {
                 if let Some(dir) = args.get(1) {
-                    database.add_dir(dir);
+                    db.add_dir(dir);
                 }
             }
         }
 
-        if database.is_empty() {
+        if db.is_empty() {
             panic!("database is empty");
         }
 
-        let music = Browser::new(&database);
+        let music = Browser::new(&db);
         let queue = Queue::new();
 
-        let songs = database.get_songs();
-        let artists = database.artists().unwrap();
-        let albums = database.albums();
+        let songs = db.get_songs();
+        let artists = db.artists().unwrap();
+        let albums = db.albums();
         let search = Search::new(&songs, &albums, &artists);
 
         Self {
             browser: music,
             queue,
             search,
-            database: Some(database),
+            database: db,
             browser_mode: BrowserMode::Artist,
             ui_mode: UiMode::Browser,
             seeker: 0.0,
@@ -76,18 +71,14 @@ impl App {
     }
     pub fn up(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => self
-                .browser
-                .up(&self.browser_mode, self.database.as_ref().unwrap()),
+            UiMode::Browser => self.browser.up(&self.browser_mode),
             UiMode::Queue => self.queue.up(),
             UiMode::Search => self.search.up(),
         }
     }
     pub fn down(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => self
-                .browser
-                .down(&self.browser_mode, self.database.as_ref().unwrap()),
+            UiMode::Browser => self.browser.down(&self.browser_mode),
             UiMode::Queue => self.queue.down(),
             UiMode::Search => self.search.down(),
         }
@@ -102,14 +93,13 @@ impl App {
                     &self.browser.selected_song.item,
                 );
 
-                if let Some(db) = &self.database {
-                    let songs = match self.browser_mode {
-                        BrowserMode::Artist => db.get_artist(artist),
-                        BrowserMode::Album => db.get_album(album, artist),
-                        BrowserMode::Song => db.get_song(artist, album, track, song),
-                    };
-                    self.queue.add(songs);
-                }
+                let db = self.database;
+                let songs = match self.browser_mode {
+                    BrowserMode::Artist => db.get_artist(artist),
+                    BrowserMode::Album => db.get_album(album, artist),
+                    BrowserMode::Song => db.get_song(artist, album, track, song),
+                };
+                self.queue.add(songs);
             }
             UiMode::Queue => {
                 self.queue.select();
@@ -122,7 +112,7 @@ impl App {
                         search.index.select(Some(0));
                     }
                 } else if let Some(selected) = search.get_selected() {
-                    let db = self.database.as_ref().unwrap();
+                    let db = self.database;
                     match selected.item_type {
                         ItemType::Song => {
                             let song = db.get_song_from_id(selected.song_id.unwrap());
@@ -179,9 +169,7 @@ impl App {
         self.queue.delete_selected();
     }
     pub fn reset_db(&mut self) {
-        if let Some(db) = &mut self.database {
-            db.reset();
-        }
+        self.database.reset();
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {

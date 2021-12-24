@@ -22,7 +22,8 @@ impl Item {
     }
 }
 
-pub struct Browser {
+pub struct Browser<'a> {
+    db: &'a Database,
     pub selected_artist: Item,
     pub selected_album: Item,
     pub selected_song: Item,
@@ -35,18 +36,19 @@ pub struct Browser {
     //maybe do this on queue?
 }
 
-impl Browser {
-    pub fn new(database: &Database) -> Self {
-        let artists = database.artists().unwrap();
+impl<'a> Browser<'a> {
+    pub fn new(db: &'a Database) -> Self {
+        let artists = db.artists().unwrap();
         let artist = artists.first().unwrap().clone();
 
-        let albums = database.albums_by_artist(&artist).unwrap();
+        let albums = db.albums_by_artist(&artist).unwrap();
         let album = albums.first().unwrap().clone();
 
-        let songs = database.songs_from_album(&artist, &album).unwrap();
+        let songs = db.songs_from_album(&artist, &album).unwrap();
         let (num, name) = songs.first().unwrap().clone();
 
         Self {
+            db,
             selected_artist: Item::new(None, artist, 0, artists.len()),
             selected_album: Item::new(None, album, 0, albums.len()),
             selected_song: Item::new(Some(num), name, 0, songs.len()),
@@ -76,10 +78,10 @@ impl Browser {
             .map(|song| format!("{}. {}", song.0, song.1))
             .collect()
     }
-    pub fn update_browser(&mut self, mode: &BrowserMode, database: &Database) {
+    pub fn update_browser(&mut self, mode: &BrowserMode) {
         match mode {
-            BrowserMode::Artist => self.reset_artist(database),
-            BrowserMode::Album => self.reset_songs(database),
+            BrowserMode::Artist => self.reset_artist(),
+            BrowserMode::Album => self.reset_songs(),
             BrowserMode::Song => self.update_song(),
         }
     }
@@ -90,7 +92,7 @@ impl Browser {
             BrowserMode::Song => &mut self.selected_song,
         }
     }
-    pub fn up(&mut self, mode: &BrowserMode, database: &Database) {
+    pub fn up(&mut self, mode: &BrowserMode) {
         let item = self.get_item(mode);
 
         if item.index > 0 {
@@ -98,9 +100,9 @@ impl Browser {
         } else {
             item.index = item.len - 1;
         }
-        self.update_browser(mode, database);
+        self.update_browser(mode);
     }
-    pub fn down(&mut self, mode: &BrowserMode, database: &Database) {
+    pub fn down(&mut self, mode: &BrowserMode) {
         let item = self.get_item(mode);
 
         if item.index + 1 < item.len {
@@ -108,14 +110,14 @@ impl Browser {
         } else {
             item.index = 0;
         }
-        self.update_browser(mode, database);
+        self.update_browser(mode);
     }
     pub fn update_song(&mut self) {
         let (number, name) = self.songs.get(self.selected_song.index).unwrap().clone();
         self.selected_song.prefix = Some(number);
         self.selected_song.item = name;
     }
-    pub fn reset_artist(&mut self, database: &Database) {
+    pub fn reset_artist(&mut self) {
         //Update the album based on artist selection
         self.selected_artist.item = self
             .artists
@@ -123,7 +125,8 @@ impl Browser {
             .unwrap()
             .to_owned();
 
-        self.albums = database
+        self.albums = self
+            .db
             .albums_by_artist(&self.selected_artist.item)
             .unwrap();
 
@@ -134,9 +137,9 @@ impl Browser {
             self.albums.len(),
         );
 
-        self.reset_songs(database);
+        self.reset_songs();
     }
-    pub fn reset_songs(&mut self, database: &Database) {
+    pub fn reset_songs(&mut self) {
         //Update the song based on album selection
         self.selected_album.item = self
             .albums
@@ -144,7 +147,8 @@ impl Browser {
             .unwrap()
             .to_owned();
 
-        self.songs = database
+        self.songs = self
+            .db
             .songs_from_album(&self.selected_artist.item, &self.selected_album.item)
             .unwrap();
 
