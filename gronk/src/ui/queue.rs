@@ -124,6 +124,33 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
         );
     }
 
+    //TODO: i will need to write custom logic to skip over the line seperators
+
+    // let mut prev_artist = String::new();
+    // let mut items = Vec::new();
+    // for (i, song) in songs.iter().enumerate() {
+    //     if i == 0 {
+    //         prev_artist = song.artist.clone();
+    //     } else if prev_artist != song.artist {
+    //         prev_artist = song.artist.clone();
+    //         //TODO: cleanup??
+    //         items.push(Row::new(vec![
+    //             Cell::from(""),
+    //             Cell::from((0..queue.constraint[0]).map(|_| "-").collect::<String>()),
+    //             Cell::from((0..queue.constraint[1]).map(|_| "-").collect::<String>()),
+    //             Cell::from((0..queue.constraint[2]).map(|_| "-").collect::<String>()),
+    //             Cell::from((0..queue.constraint[3]).map(|_| "-").collect::<String>()),
+    //         ]));
+    //     }
+    //     items.push(Row::new(vec![
+    //         Cell::from(""),
+    //         Cell::from(song.number.to_string()).style(Style::default().fg(TRACK)),
+    //         Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
+    //         Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
+    //         Cell::from(song.artist.to_owned()).style(Style::default().fg(ARTIST)),
+    //     ]));
+    // }
+
     let mut items: Vec<Row> = songs
         .iter()
         .map(|song| {
