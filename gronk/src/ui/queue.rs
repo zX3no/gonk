@@ -19,12 +19,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         ])
         .split(f.size());
 
-    draw_header(f, app, chunks[0]);
+    draw_header(f, &app.queue, chunks[0]);
     draw_songs(f, &app.queue, chunks[1]);
-    draw_seeker(f, app, chunks[2]);
+    draw_seeker(f, &mut app.queue, chunks[2]);
 }
 
-pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
+pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
     //Render the borders first
     let b = Block::default()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -33,11 +33,11 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
 
     //Left
     {
-        let time = if app.queue.is_empty() {
+        let time = if queue.is_empty() {
             String::from("╭─Stopped")
-        } else if app.queue.is_playing() {
-            if let Some(duration) = app.queue.duration() {
-                let elapsed = app.queue.elapsed().as_secs_f64();
+        } else if queue.is_playing() {
+            if let Some(duration) = queue.duration() {
+                let elapsed = queue.elapsed().as_secs_f64();
                 let duration = duration.as_secs_f64();
 
                 let mins = elapsed / 60.0;
@@ -72,7 +72,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     }
     //Center
     {
-        let center = if let Some(song) = app.queue.get_playing() {
+        let center = if let Some(song) = queue.get_playing() {
             //I wish that paragraphs had clipping
             //I think constaints do
             //I could render the -| |- on a seperate layer
@@ -102,7 +102,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
     }
     //Right
     {
-        let volume = app.queue.get_volume_percent();
+        let volume = queue.get_volume_percent();
         let text = Spans::from(format!("Vol: {}%─╮", volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
@@ -223,8 +223,8 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
 
     f.render_stateful_widget(t, chunk, &mut state);
 }
-pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
-    if app.queue.is_empty() {
+pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) {
+    if queue.is_empty() {
         return f.render_widget(
             Block::default()
                 .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
@@ -233,24 +233,24 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, app: &mut App, chunk: Rect) {
         );
     }
 
-    if let Some((column, row)) = app.clicked_pos {
+    if let Some((column, row)) = queue.clicked_pos {
         let size = f.size();
         if size.height - 3 == row || size.height - 2 == row || size.height - 1 == row {
             if column >= 3 && column < size.width - 2 {
                 let ratio = (column - 3) as f64 / size.width as f64;
-                let duration = app.queue.duration().unwrap().as_secs_f64();
+                let duration = queue.duration().unwrap().as_secs_f64();
 
                 let new_time = duration * ratio;
-                app.queue.seek_to(new_time);
-                app.queue.play();
+                queue.seek_to(new_time);
+                queue.play();
             }
         }
-        app.clicked_pos = None;
+        queue.clicked_pos = None;
     }
 
     let area = f.size();
     let width = area.width;
-    let percent = app.seeker;
+    let percent = queue.seeker();
     let pos = (width as f64 * percent).ceil() as usize;
 
     let mut string: String = (0..width - 6)

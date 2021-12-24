@@ -15,8 +15,7 @@ pub struct App<'a> {
     pub search: Search,
     pub database: &'a Database,
     pub ui_mode: UiMode,
-    pub seeker: f64,
-    pub clicked_pos: Option<(u16, u16)>,
+    //TODO: move these in proper structs?
 }
 
 impl<'a> App<'a> {
@@ -49,9 +48,6 @@ impl<'a> App<'a> {
             search,
             database: db,
             ui_mode: UiMode::Browser,
-            seeker: 0.0,
-            //this could be [8, 42, 24, 100]
-            clicked_pos: None,
         }
     }
     pub fn browser_next(&mut self) {
@@ -130,8 +126,6 @@ impl<'a> App<'a> {
     pub fn on_tick(&mut self) {
         self.queue.update();
 
-        self.seeker = self.queue.seeker();
-
         //update search results
         if self.search.query_changed() {
             self.search.update_search();
@@ -205,7 +199,7 @@ impl<'a> App<'a> {
             MouseEventKind::ScrollDown => self.down(),
             MouseEventKind::ScrollUp => self.up(),
             MouseEventKind::Down(_) => {
-                self.clicked_pos = Some((event.column, event.row));
+                self.queue.clicked_pos = Some((event.column, event.row));
             }
             _ => (),
         }

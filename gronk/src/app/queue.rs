@@ -88,6 +88,8 @@ pub struct Queue {
     pub ui_index: Index,
     pub list: List,
     pub constraint: [u16; 4],
+    //TODO: is there a better way of doing this?
+    pub clicked_pos: Option<(u16, u16)>,
     player: Player,
     skip_fix: bool,
 }
@@ -98,6 +100,7 @@ impl Queue {
             ui_index: Index::new(),
             list: List::new(),
             constraint: [8, 42, 24, 26],
+            clicked_pos: None,
             player: Player::new(),
             skip_fix: false,
         }
