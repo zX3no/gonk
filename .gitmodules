@@ -1,0 +1,3 @@
+[submodule "gronk/tui-rs"]
+	path = gronk/tui-rs
+	url = https://github.com/zX3no/tui-rs
