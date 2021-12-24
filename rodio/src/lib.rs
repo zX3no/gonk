@@ -38,7 +38,7 @@ impl Player {
         let (_stream, handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&handle).unwrap();
         let volume = 15;
-        sink.set_volume((volume / 1000) as f32);
+        sink.set_volume(volume as f32 / 1000.0);
 
         Self {
             _stream,
@@ -58,7 +58,7 @@ impl Player {
                 self.volume -= VOLUME_STEP;
             }
         }
-        self.sink.set_volume((self.volume / 1000) as f32);
+        self.sink.set_volume(self.volume as f32 / 1000.0);
     }
     pub fn sleep_until_end(&self) {
         self.sink.sleep_until_end();
@@ -74,7 +74,7 @@ impl Player {
     pub fn stop(&mut self) {
         self.sink.drop();
         self.sink = Sink::try_new(&self.handle).unwrap();
-        self.sink.set_volume((self.volume / 1000) as f32);
+        self.sink.set_volume(self.volume as f32 / 1000.0);
     }
     pub fn elapsed(&self) -> Duration {
         //TODO: change to option duration
