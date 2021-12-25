@@ -44,7 +44,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     let artists = List::new(a)
         .block(
             Block::default()
-                .title("Aritst")
+                .title("─Aritst")
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
@@ -58,7 +58,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     let albums = List::new(b)
         .block(
             Block::default()
-                .title("Album")
+                .title("─Album")
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
@@ -72,7 +72,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     let songs = List::new(c)
         .block(
             Block::default()
-                .title("Song")
+                .title("─Song")
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
