@@ -43,6 +43,7 @@ impl<'a> Browser<'a> {
         let artist = artists.first().unwrap().clone();
 
         let albums = db.albums_by_artist(&artist).unwrap();
+
         let album = albums.first().unwrap().clone();
 
         let songs = db.songs_from_album(&artist, &album).unwrap();

@@ -238,21 +238,6 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn search(&self, search: String) -> Vec<Song> {
-        let query = if !search.is_empty() {
-            let mut search = search.replace("\'", "\'\'");
-            while search.ends_with(' ') {
-                search.pop();
-            }
-            format!(
-                "SELECT * FROM song WHERE song MATCH '\"{}*\"' ORDER BY artist, album, disc, number COLLATE NOCASE",
-              search,
-            )
-        } else {
-            "SELECT * FROM song ORDER BY artist, album, disc, number COLLATE NOCASE".to_string()
-        };
-        self.collect_songs(&query)
-    }
     pub fn artists(&self) -> Result<Vec<String>> {
         let mut stmt = self
             .conn
@@ -308,7 +293,7 @@ impl Database {
         let album = fix(album);
 
         let query = format!(
-            "SELECT number, name FROM song WHERE song MATCH 'artist:{} AND album:{}' ORDER BY disc, number",
+            "SELECT number, name FROM song WHERE artist='{}' AND album='{}' ORDER BY disc, number",
             artist, album
         );
 
@@ -351,8 +336,6 @@ impl Database {
         let album = fix(album);
         let name = fix(name);
 
-        //TODO: benchmark queries and swap to fts4 for others
-        //TODO: Disc number too?
         let query = format!(
             "SELECT * FROM song WHERE song MATCH 'name:{} AND number:{} AND artist:{} AND album:{}'",
             name, number, artist, album

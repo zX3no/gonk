@@ -71,9 +71,19 @@ fn main() {
     });
 
     let db = Database::new().unwrap();
+    //check if user wants to add new database
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    if let Some(first) = args.first() {
+        if first == "add" {
+            if let Some(dir) = args.get(1) {
+                db.add_dir(dir);
+            }
+        }
+    }
     if db.is_empty() {
         panic!("database is empty");
     }
+
     let mut app = App::new(&db);
 
     loop {

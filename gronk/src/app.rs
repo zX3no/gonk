@@ -20,20 +20,6 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn new(db: &'a Database) -> Self {
-        //check if user wants to add new database
-        let args: Vec<_> = std::env::args().skip(1).collect();
-        if let Some(first) = args.first() {
-            if first == "add" {
-                if let Some(dir) = args.get(1) {
-                    db.add_dir(dir);
-                }
-            }
-        }
-
-        if db.is_empty() {
-            panic!("database is empty");
-        }
-
         let music = Browser::new(&db);
         let queue = Queue::new();
 
