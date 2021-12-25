@@ -364,5 +364,5 @@ impl Database {
     }
 }
 fn fix(item: &str) -> String {
-    item.replace("\'", "\'\'").replace(":", "\\:")
+    item.replace("\'", "\'\'")
 }
