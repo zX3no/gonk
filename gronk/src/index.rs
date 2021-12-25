@@ -1,13 +1,14 @@
 //TODO: would be nice to have a type that can handle all selectable data
 //data: Vec<T>
 //index: Option<usize>
+#[derive(Debug)]
 pub struct Index {
     pub index: Option<usize>,
 }
 
 impl Index {
-    pub fn new() -> Self {
-        Self { index: None }
+    pub fn new(index: Option<usize>) -> Self {
+        Self { index }
     }
     pub fn up(&mut self, len: usize) {
         if let Some(index) = &mut self.index {
@@ -35,5 +36,10 @@ impl Index {
     }
     pub fn selected(&self) -> Option<usize> {
         self.index
+    }
+}
+impl Default for Index {
+    fn default() -> Self {
+        Self { index: None }
     }
 }

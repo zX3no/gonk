@@ -1,7 +1,7 @@
 use gronk_types::Song;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -147,31 +147,6 @@ impl Database {
         .unwrap();
         self.add_music(music_dir);
     }
-    pub fn is_empty(&self) -> bool {
-        let mut stmt = self.conn.prepare("SELECT * FROM music").unwrap();
-        let mut rows = stmt.query([]).unwrap();
-        if let Some(_) = rows.next().unwrap() {
-            false
-        } else {
-            true
-        }
-    }
-    pub fn reset(&self) {
-        todo!();
-        // let mut stmt = self.conn.prepare("SELECT * FROM config").unwrap();
-        // let dirs: Vec<String> = stmt
-        //     .query_map([], |row| {
-        //         let dir: String = row.get(0).unwrap();
-        //         Ok(dir)
-        //     })
-        //     .unwrap()
-        //     .flatten()
-        //     .collect();
-        // self.conn.execute("DROP TABLE song", []).unwrap();
-        // for dir in dirs {
-        //     self.add_music(&dir);
-        // }
-    }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {
             return Vec::new();
@@ -238,19 +213,20 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn artists(&self) -> Result<Vec<String>> {
+    pub fn artists(&self) -> Vec<String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")?;
+            .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
+            .unwrap();
 
-        let mut rows = stmt.query([])?;
+        let mut rows = stmt.query([]).unwrap();
 
         let mut artists = Vec::new();
-        while let Some(row) = rows.next()? {
-            let artist: String = row.get(0)?;
+        while let Some(row) = rows.next().unwrap() {
+            let artist: String = row.get(0).unwrap();
             artists.push(artist);
         }
-        Ok(artists)
+        artists
     }
     pub fn albums(&self) -> Vec<(String, String)> {
         let mut stmt = self
@@ -269,7 +245,7 @@ impl Database {
         }
         albums
     }
-    pub fn albums_by_artist(&self, artist: &str) -> Result<Vec<String>> {
+    pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
         let artist = fix(artist);
 
         let query = format!(
@@ -277,18 +253,18 @@ impl Database {
             artist
         );
 
-        let mut stmt = self.conn.prepare(&query)?;
-        let mut rows = stmt.query([])?;
+        let mut stmt = self.conn.prepare(&query).unwrap();
+        let mut rows = stmt.query([]).unwrap();
 
         let mut albums = Vec::new();
-        while let Some(row) = rows.next()? {
-            let album: String = row.get(0)?;
+        while let Some(row) = rows.next().unwrap() {
+            let album: String = row.get(0).unwrap();
             albums.push(album);
         }
 
-        Ok(albums)
+        albums
     }
-    pub fn songs_from_album(&self, artist: &str, album: &str) -> Result<Vec<(u16, String)>> {
+    pub fn songs_from_album(&self, artist: &str, album: &str) -> Vec<(u16, String)> {
         let artist = fix(artist);
         let album = fix(album);
 
@@ -297,17 +273,17 @@ impl Database {
             artist, album
         );
 
-        let mut stmt = self.conn.prepare(&query)?;
-        let mut rows = stmt.query([])?;
+        let mut stmt = self.conn.prepare(&query).unwrap();
+        let mut rows = stmt.query([]).unwrap();
 
         let mut songs = Vec::new();
-        while let Some(row) = rows.next()? {
-            let number: u16 = row.get(0)?;
-            let name: String = row.get(1)?;
+        while let Some(row) = rows.next().unwrap() {
+            let number: u16 = row.get(0).unwrap();
+            let name: String = row.get(1).unwrap();
             songs.push((number, name));
         }
 
-        Ok(songs)
+        songs
     }
     pub fn get_artist(&self, artist: &str) -> Vec<Song> {
         let artist = fix(artist);
@@ -330,14 +306,14 @@ impl Database {
 
         self.collect_songs(&query)
     }
-    pub fn get_song(&self, artist: &str, album: &str, number: &u16, name: &str) -> Vec<Song> {
+    pub fn get_song(&self, artist: &str, album: &str, song: (u16, &str)) -> Vec<Song> {
         let artist = fix(artist);
         let album = fix(album);
-        let name = fix(name);
+        let name = fix(&song.1);
 
         let query = format!(
             "SELECT * FROM song WHERE name='{}' AND number='{}' AND artist='{}' AND album='{}'",
-            name, number, artist, album
+            name, song.0, artist, album
         );
 
         self.collect_songs(&query)

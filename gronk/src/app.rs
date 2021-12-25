@@ -24,7 +24,7 @@ impl<'a> App<'a> {
         let queue = Queue::new();
 
         let songs = db.get_songs();
-        let artists = db.artists().unwrap();
+        let artists = db.artists();
         let albums = db.albums();
         let search = Search::new(&songs, &albums, &artists);
 
@@ -63,20 +63,15 @@ impl<'a> App<'a> {
     pub fn on_enter(&mut self) {
         match self.ui_mode {
             UiMode::Browser => {
-                let (artist, album, track, song) = (
-                    &self.browser.selected_artist.item,
-                    &self.browser.selected_album.item,
-                    self.browser.selected_song.prefix.as_ref().unwrap(),
-                    &self.browser.selected_song.item,
-                );
-
-                let db = self.database;
-                let songs = match self.browser.mode() {
-                    BrowserMode::Artist => db.get_artist(artist),
-                    BrowserMode::Album => db.get_album(album, artist),
-                    BrowserMode::Song => db.get_song(artist, album, track, song),
-                };
-                self.queue.add(songs);
+                if let Some(data) = &self.browser.browser_data {
+                    let db = self.database;
+                    let songs = match self.browser.mode() {
+                        BrowserMode::Artist => db.get_artist(data.artist()),
+                        BrowserMode::Album => db.get_album(data.album(), data.artist()),
+                        BrowserMode::Song => db.get_song(data.artist(), data.album(), data.song()),
+                    };
+                    self.queue.add(songs);
+                }
             }
             UiMode::Queue => {
                 self.queue.select();
@@ -121,7 +116,7 @@ impl<'a> App<'a> {
         self.queue.delete_selected();
     }
     pub fn reset_db(&mut self) {
-        self.database.reset();
+        todo!();
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {

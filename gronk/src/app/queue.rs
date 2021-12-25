@@ -97,7 +97,7 @@ pub struct Queue {
 impl Queue {
     pub fn new() -> Self {
         Self {
-            ui_index: Index::new(),
+            ui_index: Index::default(),
             list: List::new(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,

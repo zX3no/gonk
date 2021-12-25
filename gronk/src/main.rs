@@ -80,9 +80,6 @@ fn main() {
             }
         }
     }
-    if db.is_empty() {
-        panic!("database is empty");
-    }
 
     let mut app = App::new(&db);
 

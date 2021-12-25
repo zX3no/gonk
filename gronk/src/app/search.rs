@@ -43,7 +43,7 @@ impl Search {
             prev_query: String::new(),
             results: Vec::new(),
             mode: SearchMode::Search,
-            index: Index::new(),
+            index: Index::default(),
         }
     }
     pub fn update_search(&mut self) {

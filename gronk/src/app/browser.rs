@@ -1,162 +1,219 @@
-use crate::modes::BrowserMode;
+use crate::{index::Index, modes::BrowserMode};
 use gronk_database::Database;
 
-//TODO: wtf is this type??? change to templates
-#[derive(Debug)]
-pub struct Item {
-    //optional track number, this can be done better
-    pub prefix: Option<u16>,
-    pub item: String,
-    pub index: usize,
-    pub len: usize,
-}
+struct Song(u16, String);
 
-impl Item {
-    pub fn new(prefix: Option<u16>, item: String, index: usize, len: usize) -> Self {
-        Self {
-            prefix,
-            item,
-            index,
-            len,
+static EMPTY: Vec<String> = Vec::new();
+
+#[derive(Debug)]
+struct Item<T> {
+    item: T,
+    index: Index,
+}
+impl Item<Song> {
+    pub fn new(number: u16, name: String) -> Self {
+        Item {
+            item: Song(number, name),
+            index: Index::new(Some(0)),
         }
     }
 }
-
-pub struct Browser<'a> {
-    db: &'a Database,
-    pub selected_artist: Item,
-    pub selected_album: Item,
-    pub selected_song: Item,
-    mode: BrowserMode,
+impl Item<String> {
+    pub fn new(name: String) -> Self {
+        Item {
+            item: name,
+            index: Index::new(Some(0)),
+        }
+    }
+}
+pub struct BrowserData {
+    selected_artist: Item<String>,
+    selected_album: Item<String>,
+    selected_song: Item<Song>,
     artists: Vec<String>,
     albums: Vec<String>,
     songs: Vec<(u16, String)>,
-    //TODO: serialize volume so
-    //it's the same when you reopen
-    //volume: f64,
-    //maybe do this on queue?
 }
-
-impl<'a> Browser<'a> {
-    pub fn new(db: &'a Database) -> Self {
-        let artists = db.artists().unwrap();
-        let artist = artists.first().unwrap().clone();
-
-        let albums = db.albums_by_artist(&artist).unwrap();
-
-        let album = albums.first().unwrap().clone();
-
-        let songs = db.songs_from_album(&artist, &album).unwrap();
-        let (num, name) = songs.first().unwrap().clone();
-
-        Self {
-            db,
-            selected_artist: Item::new(None, artist, 0, artists.len()),
-            selected_album: Item::new(None, album, 0, albums.len()),
-            selected_song: Item::new(Some(num), name, 0, songs.len()),
-            mode: BrowserMode::Artist,
-            artists,
-            albums,
-            songs,
-        }
-    }
-    pub fn get_selected_artist(&self) -> Option<usize> {
-        Some(self.selected_artist.index)
-    }
-    pub fn get_selected_album(&self) -> Option<usize> {
-        Some(self.selected_album.index)
-    }
-    pub fn get_selected_song(&self) -> Option<usize> {
-        Some(self.selected_song.index)
-    }
-    pub fn artist_names(&self) -> &Vec<String> {
-        &self.artists
-    }
-    pub fn album_names(&self) -> &Vec<String> {
-        &self.albums
-    }
-    pub fn song_names(&self) -> Vec<String> {
+impl BrowserData {
+    pub fn songs(&self) -> Vec<String> {
         self.songs
             .iter()
             .map(|song| format!("{}. {}", song.0, song.1))
             .collect()
     }
-    pub fn update_browser(&mut self) {
-        match self.mode {
-            BrowserMode::Artist => self.reset_artist(),
-            BrowserMode::Album => self.reset_songs(),
-            BrowserMode::Song => self.update_song(),
+    pub fn song(&self) -> (u16, &str) {
+        (self.selected_song.item.0, &self.selected_song.item.1)
+    }
+    pub fn album(&self) -> &String {
+        &self.selected_album.item
+    }
+    pub fn artist(&self) -> &String {
+        &self.selected_artist.item
+    }
+}
+
+pub struct Browser<'a> {
+    db: &'a Database,
+    pub browser_data: Option<BrowserData>,
+    mode: BrowserMode,
+}
+
+impl<'a> Browser<'a> {
+    pub fn new(db: &'a Database) -> Self {
+        let artists = db.artists();
+        if let Some(artist) = artists.first() {
+            let selected_artist = Item::<String>::new(artist.clone());
+
+            let albums = db.albums_by_artist(&artist);
+
+            if let Some(album) = albums.first() {
+                let selected_album = Item::<String>::new(album.clone());
+
+                let songs = db.songs_from_album(&artist, &album);
+
+                if let Some((number, name)) = songs.first() {
+                    let selected_song = Item::<Song>::new(*number, name.clone());
+
+                    return Self {
+                        db,
+                        browser_data: Some(BrowserData {
+                            selected_artist,
+                            selected_album,
+                            selected_song,
+                            artists,
+                            albums,
+                            songs,
+                        }),
+                        mode: BrowserMode::Artist,
+                    };
+                };
+            }
+        };
+
+        Self {
+            db,
+            mode: BrowserMode::Artist,
+            browser_data: None,
         }
     }
-    pub fn get_item(&mut self) -> &mut Item {
-        match self.mode {
-            BrowserMode::Artist => &mut self.selected_artist,
-            BrowserMode::Album => &mut self.selected_album,
-            BrowserMode::Song => &mut self.selected_song,
+    pub fn get_selected_artist(&self) -> Option<usize> {
+        if let Some(data) = &self.browser_data {
+            data.selected_artist.index.selected()
+        } else {
+            None
+        }
+    }
+    pub fn get_selected_album(&self) -> Option<usize> {
+        if let Some(data) = &self.browser_data {
+            data.selected_album.index.selected()
+        } else {
+            None
+        }
+    }
+    pub fn get_selected_song(&self) -> Option<usize> {
+        if let Some(data) = &self.browser_data {
+            data.selected_song.index.selected()
+        } else {
+            None
+        }
+    }
+    pub fn artist_names(&self) -> &Vec<String> {
+        if let Some(data) = &self.browser_data {
+            &data.artists
+        } else {
+            &EMPTY
+        }
+    }
+    pub fn album_names(&self) -> &Vec<String> {
+        if let Some(data) = &self.browser_data {
+            &data.albums
+        } else {
+            &EMPTY
+        }
+    }
+    pub fn song_names(&self) -> Vec<String> {
+        if let Some(data) = &self.browser_data {
+            data.songs()
+        } else {
+            Vec::new()
         }
     }
     pub fn up(&mut self) {
-        let item = self.get_item();
-
-        if item.index > 0 {
-            item.index -= 1;
-        } else {
-            item.index = item.len - 1;
+        if let Some(data) = &mut self.browser_data {
+            match self.mode {
+                BrowserMode::Artist => {
+                    data.selected_artist.index.up(data.artists.len());
+                }
+                BrowserMode::Album => {
+                    data.selected_album.index.up(data.albums.len());
+                }
+                BrowserMode::Song => {
+                    data.selected_song.index.up(data.songs.len());
+                }
+            }
         }
         self.update_browser();
     }
     pub fn down(&mut self) {
-        let item = self.get_item();
-
-        if item.index + 1 < item.len {
-            item.index += 1;
-        } else {
-            item.index = 0;
+        if let Some(data) = &mut self.browser_data {
+            match self.mode {
+                BrowserMode::Artist => {
+                    data.selected_artist.index.down(data.artists.len());
+                }
+                BrowserMode::Album => {
+                    data.selected_album.index.down(data.albums.len());
+                }
+                BrowserMode::Song => {
+                    data.selected_song.index.down(data.songs.len());
+                }
+            }
         }
         self.update_browser();
     }
-    pub fn update_song(&mut self) {
-        let (number, name) = self.songs.get(self.selected_song.index).unwrap().clone();
-        self.selected_song.prefix = Some(number);
-        self.selected_song.item = name;
+    pub fn update_browser(&mut self) {
+        match self.mode {
+            BrowserMode::Artist => self.update_albums(),
+            BrowserMode::Album => self.update_songs(),
+            BrowserMode::Song => self.update_selected_song(),
+        }
     }
-    pub fn reset_artist(&mut self) {
+    pub fn update_albums(&mut self) {
         //Update the album based on artist selection
-        self.selected_artist.item = self
-            .artists
-            .get(self.selected_artist.index)
-            .unwrap()
-            .to_owned();
+        if let Some(data) = &mut self.browser_data {
+            let artist = &mut data.selected_artist;
+            if let Some(index) = artist.index.selected() {
+                let name = data.artists.get(index).unwrap();
+                artist.item = name.clone();
 
-        self.albums = self
-            .db
-            .albums_by_artist(&self.selected_artist.item)
-            .unwrap();
+                data.albums = self.db.albums_by_artist(&name);
 
-        self.selected_album = Item::new(
-            None,
-            self.albums.first().unwrap().clone(),
-            0,
-            self.albums.len(),
-        );
+                data.selected_album = Item::<String>::new(data.albums.first().unwrap().to_string());
 
-        self.reset_songs();
+                self.update_songs();
+            }
+        }
     }
-    pub fn reset_songs(&mut self) {
+    pub fn update_songs(&mut self) {
         //Update the song based on album selection
-        self.selected_album.item = self
-            .albums
-            .get(self.selected_album.index)
-            .unwrap()
-            .to_owned();
+        if let Some(data) = &mut self.browser_data {
+            let album = &mut data.selected_album;
+            let index = album.index.selected().unwrap_or(0);
+            let name = data.albums.get(index).unwrap();
+            album.item = name.clone();
+            data.songs = self.db.songs_from_album(&data.selected_artist.item, name);
 
-        self.songs = self
-            .db
-            .songs_from_album(&self.selected_artist.item, &self.selected_album.item)
-            .unwrap();
-
-        let (num, name) = self.songs.first().unwrap().clone();
-        self.selected_song = Item::new(Some(num), name, 0, self.songs.len());
+            let (number, name) = data.songs.first().unwrap();
+            data.selected_song = Item::<Song>::new(*number, name.clone());
+        }
+    }
+    pub fn update_selected_song(&mut self) {
+        if let Some(data) = &mut self.browser_data {
+            let (sel, songs) = (&mut data.selected_song, &data.songs);
+            let index = sel.index.selected().unwrap_or(0);
+            if let Some((number, name)) = songs.get(index) {
+                sel.item = Song(*number, name.clone());
+            }
+        }
     }
     pub fn next(&mut self) {
         self.mode.next();
