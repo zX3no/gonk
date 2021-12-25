@@ -85,16 +85,16 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
 
     match browser.mode() {
         BrowserMode::Artist => {
-            album_state = ListState::default();
-            song_state = ListState::default();
+            album_state.select(None);
+            song_state.select(None);
         }
         BrowserMode::Album => {
-            artist_state = ListState::default();
-            song_state = ListState::default();
+            artist_state.select(None);
+            song_state.select(None);
         }
         BrowserMode::Song => {
-            artist_state = ListState::default();
-            album_state = ListState::default();
+            artist_state.select(None);
+            album_state.select(None);
         }
     }
 

@@ -1,18 +1,17 @@
 use app::App;
-use gronk_database::Database;
-use std::{
-    io::stdout,
-    sync::mpsc,
-    thread,
-    time::{Duration, Instant},
-};
-
 use crossterm::{
     event::{
         self, EnableMouseCapture, Event as CTEvent, KeyCode, KeyEvent, KeyModifiers, MouseEvent,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use gronk_database::Database;
+use std::{
+    io::stdout,
+    sync::mpsc,
+    thread,
+    time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
