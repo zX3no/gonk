@@ -41,7 +41,7 @@ impl Database {
             conn.pragma_update(None, "temp_store", "MEMORY")?;
 
             conn.execute(
-                "CREATE VIRTUAL TABLE song USING FTS4(
+                "CREATE TABLE song (
                     number  INTEGER NOT NULL,
                     disc    INTEGER NOT NULL,
                     name    TEXT NOT NULL,
@@ -323,9 +323,8 @@ impl Database {
         let album = fix(album);
         let artist = fix(artist);
 
-        //the order of the query is important? artist must come first
         let query = format!(
-            "SELECT * FROM song WHERE song MATCH 'artist:{} album:{}' ORDER BY disc, number",
+            "SELECT * FROM song WHERE artist='{}' AND album='{}' ORDER BY disc, number",
             artist, album
         );
 
@@ -337,13 +336,12 @@ impl Database {
         let name = fix(name);
 
         let query = format!(
-            "SELECT * FROM song WHERE song MATCH 'name:{} AND number:{} AND artist:{} AND album:{}'",
+            "SELECT * FROM song WHERE name='{}' AND number='{}' AND artist='{}' AND album='{}'",
             name, number, artist, album
         );
 
         self.collect_songs(&query)
     }
-
     fn collect_songs(&self, query: &str) -> Vec<Song> {
         let mut stmt = self.conn.prepare(query).unwrap();
 
