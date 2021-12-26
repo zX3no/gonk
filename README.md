@@ -1,6 +1,6 @@
 ## Gronk
 
-![](C:\Users\Bay\AppData\Roaming\marktext\images\2021-12-26-12-21-03-image.png)
+![](photos/1.png)
 
 ### TODO:
 
