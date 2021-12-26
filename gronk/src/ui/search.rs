@@ -27,7 +27,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
         )
         .alignment(Alignment::Left);
 
-    let results = &search.results;
+    let results = search.results();
 
     let items = results.iter().map(|r| match r.item_type {
         ItemType::Song => {
@@ -65,7 +65,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
         .highlight_symbol("> ");
 
     let mut state = TableState::default();
-    state.select(search.state());
+    state.select(search.selected());
 
     f.render_widget(p, chunks[0]);
     f.render_stateful_widget(t, chunks[1], &mut state);

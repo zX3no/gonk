@@ -17,7 +17,6 @@ use tui::{backend::CrosstermBackend, Terminal};
 
 mod app;
 mod index;
-mod modes;
 mod ui;
 
 enum Event {

@@ -1,20 +1,25 @@
-use crate::modes::{BrowserMode, SearchMode, UiMode};
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gronk_database::Database;
-use gronk_search::ItemType;
 
 pub use {browser::Browser, queue::Queue, search::Search};
 
-mod browser;
+pub mod browser;
 mod queue;
 mod search;
+
+#[derive(PartialEq)]
+pub enum AppMode {
+    Browser,
+    Queue,
+    Search,
+}
 
 pub struct App<'a> {
     pub browser: Browser<'a>,
     pub queue: Queue,
-    pub search: Search,
+    pub search: Search<'a>,
     pub database: &'a Database,
-    pub ui_mode: UiMode,
+    pub ui_mode: AppMode,
     //TODO: move these in proper structs?
 }
 
@@ -26,80 +31,50 @@ impl<'a> App<'a> {
         let songs = db.get_songs();
         let artists = db.artists();
         let albums = db.albums();
-        let search = Search::new(&songs, &albums, &artists);
+        let search = Search::new(&db, &songs, &albums, &artists);
 
         Self {
             browser: music,
             queue,
             search,
             database: db,
-            ui_mode: UiMode::Browser,
+            ui_mode: AppMode::Browser,
         }
     }
     pub fn browser_next(&mut self) {
-        if self.ui_mode == UiMode::Browser {
+        if self.ui_mode == AppMode::Browser {
             self.browser.next();
         }
     }
     pub fn browser_prev(&mut self) {
-        if self.ui_mode == UiMode::Browser {
+        if self.ui_mode == AppMode::Browser {
             self.browser.prev();
         }
     }
     pub fn up(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => self.browser.up(),
-            UiMode::Queue => self.queue.up(),
-            UiMode::Search => self.search.up(),
+            AppMode::Browser => self.browser.up(),
+            AppMode::Queue => self.queue.up(),
+            AppMode::Search => self.search.up(),
         }
     }
     pub fn down(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => self.browser.down(),
-            UiMode::Queue => self.queue.down(),
-            UiMode::Search => self.search.down(),
+            AppMode::Browser => self.browser.down(),
+            AppMode::Queue => self.queue.down(),
+            AppMode::Search => self.search.down(),
         }
     }
     pub fn on_enter(&mut self) {
         match self.ui_mode {
-            UiMode::Browser => {
-                if let Some(data) = &self.browser.browser_data {
-                    let db = self.database;
-                    let songs = match self.browser.mode() {
-                        BrowserMode::Artist => db.get_artist(data.artist()),
-                        BrowserMode::Album => db.get_album(data.album(), data.artist()),
-                        BrowserMode::Song => db.get_song(data.artist(), data.album(), data.song()),
-                    };
+            AppMode::Browser => {
+                let songs = self.browser.on_enter();
+                self.queue.add(songs);
+            }
+            AppMode::Queue => self.queue.select(),
+            AppMode::Search => {
+                if let Some(songs) = self.search.get_songs() {
                     self.queue.add(songs);
-                }
-            }
-            UiMode::Queue => {
-                self.queue.select();
-            }
-            UiMode::Search => {
-                let search = &mut self.search;
-                if let SearchMode::Search = search.mode {
-                    if !search.is_empty() {
-                        search.mode.next();
-                        search.index.select(Some(0));
-                    }
-                } else if let Some(selected) = search.get_selected() {
-                    let db = self.database;
-                    match selected.item_type {
-                        ItemType::Song => {
-                            let song = db.get_song_from_id(selected.song_id.unwrap());
-                            self.queue.add(vec![song]);
-                        }
-                        ItemType::Album => {
-                            let songs = db
-                                .get_album(&selected.name, selected.album_artist.as_ref().unwrap());
-                            self.queue.add(songs);
-                        }
-                        ItemType::Artist => {
-                            let songs = db.get_artist(&selected.name);
-                            self.queue.add(songs);
-                        }
-                    }
                 }
             }
         }
@@ -128,20 +103,17 @@ impl<'a> App<'a> {
             KeyCode::Enter => self.on_enter(),
             KeyCode::Tab => {
                 self.ui_mode = match self.ui_mode {
-                    UiMode::Browser => UiMode::Queue,
-                    UiMode::Queue => UiMode::Browser,
-                    UiMode::Search => {
+                    AppMode::Browser => AppMode::Queue,
+                    AppMode::Queue => AppMode::Browser,
+                    AppMode::Search => {
                         self.search.reset();
-                        UiMode::Queue
+                        AppMode::Queue
                     }
                 };
             }
-            KeyCode::Backspace => match self.search.mode {
-                SearchMode::Search => self.search.on_backspace(modifiers),
-                SearchMode::Select => self.search.exit(),
-            },
+            KeyCode::Backspace => self.search.on_backspace(modifiers),
             KeyCode::Esc => {
-                if self.ui_mode == UiMode::Search {
+                if self.ui_mode == AppMode::Search {
                     self.search.exit();
                 }
             }
@@ -149,7 +121,7 @@ impl<'a> App<'a> {
         }
     }
     pub fn handle_char(&mut self, c: char, modifier: KeyModifiers) {
-        if self.ui_mode == UiMode::Search {
+        if self.ui_mode == AppMode::Search {
             self.search.on_key(c);
         } else {
             match c {
@@ -166,7 +138,7 @@ impl<'a> App<'a> {
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),
                 's' => self.queue.volume_down(),
-                '/' => self.ui_mode = UiMode::Search,
+                '/' => self.ui_mode = AppMode::Search,
                 'x' => self.delete_from_queue(),
                 '1' | '!' => self.queue.move_constraint('1', modifier),
                 '2' | '@' => self.queue.move_constraint('2', modifier),

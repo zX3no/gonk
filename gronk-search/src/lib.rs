@@ -35,6 +35,7 @@ pub enum ItemType {
     Artist,
 }
 
+//TODO: change this to use generics
 #[derive(Clone, Debug)]
 pub struct SearchItem {
     pub name: String,

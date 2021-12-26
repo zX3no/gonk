@@ -109,12 +109,6 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
     }
 }
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
-    let (songs, now_playing, ui_index) = (
-        &queue.list.songs,
-        &queue.list.now_playing,
-        &queue.ui_index.index,
-    );
-
     if queue.is_empty() {
         return f.render_widget(
             Block::default()
@@ -123,6 +117,8 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
             chunk,
         );
     }
+
+    let (songs, now_playing, ui_index) = (&queue.list.data, queue.list.index(), queue.ui.index());
 
     //TODO: i will need to write custom logic to skip over the line seperators
 
@@ -165,7 +161,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
         .collect();
 
     if let Some(playing_index) = now_playing {
-        if let Some(song) = songs.get(*playing_index) {
+        if let Some(song) = songs.get(playing_index) {
             if let Some(ui_index) = ui_index {
                 //currently playing song
                 let row = if ui_index == playing_index {
@@ -198,12 +194,12 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
                     ])
                 };
 
-                items.remove(*playing_index);
-                items.insert(*playing_index, row);
+                items.remove(playing_index);
+                items.insert(playing_index, row);
 
                 //current selection
                 if ui_index != playing_index {
-                    let song = songs.get(*ui_index).unwrap();
+                    let song = songs.get(ui_index).unwrap();
                     let row = Row::new(vec![
                         Cell::from(""),
                         Cell::from(song.number.to_string()).style(Style::default().bg(TRACK)),
@@ -212,8 +208,8 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
                         Cell::from(song.artist.to_owned()).style(Style::default().bg(ARTIST)),
                     ])
                     .style(Style::default().fg(Color::Black));
-                    items.remove(*ui_index);
-                    items.insert(*ui_index, row);
+                    items.remove(ui_index);
+                    items.insert(ui_index, row);
                 }
             }
         }
@@ -246,7 +242,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
 
     //this is so that scrolling works
     let mut state = TableState::default();
-    state.select(*ui_index);
+    state.select(ui_index);
 
     f.render_stateful_widget(t, chunk, &mut state);
 }

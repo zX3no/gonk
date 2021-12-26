@@ -1,7 +1,6 @@
 use tui::{backend::Backend, style::Color, Frame};
 
-use crate::app::App;
-use crate::modes::UiMode;
+use crate::app::{App, AppMode};
 
 mod browser;
 mod queue;
@@ -14,8 +13,8 @@ static ARTIST: Color = Color::Blue;
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.ui_mode {
-        UiMode::Browser => browser::draw(f, &app.browser),
-        UiMode::Queue => queue::draw(f, app),
-        UiMode::Search => search::draw(f, &app.search, app.database),
+        AppMode::Browser => browser::draw(f, &app.browser),
+        AppMode::Queue => queue::draw(f, app),
+        AppMode::Search => search::draw(f, &app.search, app.database),
     }
 }

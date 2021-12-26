@@ -1,4 +1,4 @@
-use crate::{app::Browser, modes::BrowserMode};
+use crate::app::{browser::BrowserMode, Browser};
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
@@ -83,7 +83,8 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     let mut song_state = ListState::default();
     song_state.select(browser.get_selected_song());
 
-    match browser.mode() {
+    //TODO: better way of doing this?
+    match browser.mode {
         BrowserMode::Artist => {
             album_state.select(None);
             song_state.select(None);

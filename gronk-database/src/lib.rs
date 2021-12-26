@@ -306,7 +306,7 @@ impl Database {
 
         self.collect_songs(&query)
     }
-    pub fn get_song(&self, artist: &str, album: &str, song: (u16, &str)) -> Vec<Song> {
+    pub fn get_song(&self, artist: &str, album: &str, song: &(u16, String)) -> Vec<Song> {
         let artist = fix(artist);
         let album = fix(album);
         let name = fix(&song.1);
