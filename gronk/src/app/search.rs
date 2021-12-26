@@ -133,7 +133,7 @@ impl<'a> Search<'a> {
             SearchMode::Select => self.exit(),
         }
     }
-    pub fn query_changed(&mut self) -> bool {
+    pub fn has_query_changed(&mut self) -> bool {
         if self.query != self.prev_query {
             self.prev_query = self.query.clone();
             true

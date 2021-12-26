@@ -61,9 +61,7 @@ fn main() {
             }
 
             if last_tick.elapsed() >= tick_rate {
-                if let Err(_) = tx.send(Event::Tick) {
-                    //ignore error?
-                }
+                tx.send(Event::Tick).ok();
                 last_tick = Instant::now();
             }
         }

@@ -15,29 +15,28 @@ pub enum AppMode {
 }
 
 pub struct App<'a> {
+    pub db: &'a Database,
     pub browser: Browser<'a>,
     pub queue: Queue,
     pub search: Search<'a>,
-    pub database: &'a Database,
     pub ui_mode: AppMode,
-    //TODO: move these in proper structs?
 }
 
 impl<'a> App<'a> {
     pub fn new(db: &'a Database) -> Self {
-        let music = Browser::new(&db);
+        let music = Browser::new(db);
         let queue = Queue::new();
 
         let songs = db.get_songs();
         let artists = db.artists();
         let albums = db.albums();
-        let search = Search::new(&db, &songs, &albums, &artists);
+        let search = Search::new(db, &songs, &albums, &artists);
 
         Self {
             browser: music,
             queue,
             search,
-            database: db,
+            db,
             ui_mode: AppMode::Browser,
         }
     }
@@ -82,8 +81,7 @@ impl<'a> App<'a> {
     pub fn on_tick(&mut self) {
         self.queue.update();
 
-        //update search results
-        if self.search.query_changed() {
+        if self.search.has_query_changed() {
             self.search.update_search();
         }
     }

@@ -41,7 +41,7 @@ impl<'a> Browser<'a> {
             let albums = Index::new(db.albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = db.songs_from_album(&first_artist, &first_album);
+                let songs = db.songs_from_album(first_artist, first_album);
                 (albums, Index::new(songs, Some(0)))
             } else {
                 (albums, Index::default())
@@ -106,7 +106,7 @@ impl<'a> Browser<'a> {
     pub fn update_albums(&mut self) {
         //Update the album based on artist selection
         if let Some(name) = self.artists.selected() {
-            self.albums.data = self.db.albums_by_artist(&name);
+            self.albums.data = self.db.albums_by_artist(name);
             self.albums.select(Some(0));
 
             self.update_songs();

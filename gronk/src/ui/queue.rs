@@ -258,15 +258,16 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect)
 
     if let Some((column, row)) = queue.clicked_pos {
         let size = f.size();
-        if size.height - 3 == row || size.height - 2 == row || size.height - 1 == row {
-            if column >= 3 && column < size.width - 2 {
-                let ratio = (column - 3) as f64 / size.width as f64;
-                let duration = queue.duration().unwrap().as_secs_f64();
+        if size.height - 3 == row
+            || size.height - 2 == row
+            || size.height - 1 == row && column >= 3 && column < size.width - 2
+        {
+            let ratio = (column - 3) as f64 / size.width as f64;
+            let duration = queue.duration().unwrap().as_secs_f64();
 
-                let new_time = duration * ratio;
-                queue.seek_to(new_time);
-                queue.play();
-            }
+            let new_time = duration * ratio;
+            queue.seek_to(new_time);
+            queue.play();
         }
         queue.clicked_pos = None;
     }

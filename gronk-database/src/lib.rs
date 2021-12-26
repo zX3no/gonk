@@ -88,14 +88,10 @@ impl Database {
     }
     pub fn set_volume(&self, positive: bool) {
         let mut volume = self.get_volume();
-        if positive {
-            if volume != 100 {
-                volume += 5;
-            }
-        } else {
-            if volume != 0 {
-                volume -= 5;
-            }
+        if positive && volume != 100 {
+            volume += 5;
+        } else if volume != 0 {
+            volume -= 5;
         }
 
         self.conn
