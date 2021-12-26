@@ -22,10 +22,10 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn get_artists(stream: &mut TcpStream) {
-    stream.write_all(b"list albumartist\n").unwrap();
-    read(stream).unwrap();
-}
+// fn get_artists(stream: &mut TcpStream) {
+//     stream.write_all(b"list albumartist\n").unwrap();
+//     read(stream).unwrap();
+// }
 
 fn get_albums_by_artist(stream: &mut TcpStream) {
     stream

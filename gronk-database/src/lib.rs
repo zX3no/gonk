@@ -295,7 +295,7 @@ impl Database {
 
         self.collect_songs(&query)
     }
-    pub fn get_album(&self, album: &str, artist: &str) -> Vec<Song> {
+    pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
         let album = fix(album);
         let artist = fix(artist);
 
@@ -303,6 +303,7 @@ impl Database {
             "SELECT * FROM song WHERE artist='{}' AND album='{}' ORDER BY disc, number",
             artist, album
         );
+        dbg!(&query);
 
         self.collect_songs(&query)
     }
