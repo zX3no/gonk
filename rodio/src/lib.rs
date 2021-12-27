@@ -79,12 +79,15 @@ impl Player {
         self.sink.set_volume(self.volume as f32 / 1000.0);
     }
     pub fn elapsed(&self) -> Duration {
-        //TODO: change to option duration
         self.sink.elapsed()
     }
-    pub fn duration(&self) -> Option<Duration> {
-        //TODO: this is off by a second ?
-        self.total_duration
+    pub fn duration(&self) -> Option<f64> {
+        if let Some(duration) = self.total_duration {
+            //TODO: this is off by a little bit for some reason?
+            Some(duration.as_secs_f64() - 0.19)
+        } else {
+            None
+        }
     }
     pub fn toggle_playback(&self) {
         self.sink.toggle_playback();
@@ -95,7 +98,7 @@ impl Player {
     pub fn seek_fw(&mut self) {
         let seek = self.elapsed().as_secs_f64() + 15.0;
         if let Some(duration) = self.duration() {
-            if seek >= duration.as_secs_f64() + 0.44 {
+            if seek > duration {
                 self.safe_guard = true;
             } else {
                 self.seek_to(Duration::from_secs_f64(seek));
@@ -116,14 +119,14 @@ impl Player {
     pub fn seeker(&self) -> f64 {
         if let Some(duration) = self.duration() {
             let elapsed = self.elapsed();
-            elapsed.as_secs_f64() / duration.as_secs_f64()
+            elapsed.as_secs_f64() / duration
         } else {
             0.0
         }
     }
     pub fn trigger_next(&mut self) -> bool {
         if let Some(duration) = self.duration() {
-            if self.elapsed().as_secs_f64() + 0.44 >= duration.as_secs_f64() {
+            if self.elapsed().as_secs_f64() > duration {
                 self.safe_guard = true;
             }
         }

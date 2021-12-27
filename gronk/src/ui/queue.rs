@@ -38,7 +38,6 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
         } else if queue.is_playing() {
             if let Some(duration) = queue.duration() {
                 let elapsed = queue.elapsed().as_secs_f64();
-                let duration = duration.as_secs_f64();
 
                 let mins = elapsed / 60.0;
                 let rem = elapsed % 60.0;
@@ -263,7 +262,7 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect)
             || size.height - 1 == row && column >= 3 && column < size.width - 2
         {
             let ratio = (column - 3) as f64 / size.width as f64;
-            let duration = queue.duration().unwrap().as_secs_f64() - 0.44;
+            let duration = queue.duration().unwrap();
 
             let new_time = duration * ratio;
             queue.seek_to(new_time);

@@ -128,7 +128,7 @@ impl Queue {
     pub fn is_playing(&self) -> bool {
         !self.player.is_paused()
     }
-    pub fn duration(&self) -> Option<Duration> {
+    pub fn duration(&self) -> Option<f64> {
         if self.is_empty() {
             None
         } else {
