@@ -11,7 +11,6 @@ pub struct Queue {
     //TODO: is there a better way of doing this?
     pub clicked_pos: Option<(u16, u16)>,
     player: Player,
-    skip_fix: bool,
 }
 
 impl Queue {
@@ -22,7 +21,6 @@ impl Queue {
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             player: Player::new(),
-            skip_fix: false,
         }
     }
     pub fn volume_up(&mut self) {
@@ -43,13 +41,8 @@ impl Queue {
         self.player.seeker()
     }
     pub fn update(&mut self) {
-        if !self.player.is_done() && self.skip_fix {
+        if self.player.trigger_next() {
             self.next();
-        }
-        if self.player.is_done() {
-            self.skip_fix = true;
-        } else {
-            self.skip_fix = false;
         }
     }
     pub fn prev(&mut self) {

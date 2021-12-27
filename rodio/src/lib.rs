@@ -32,6 +32,7 @@ pub struct Player {
     sink: Sink,
     total_duration: Option<Duration>,
     volume: u16,
+    safe_guard: bool,
 }
 impl Player {
     pub fn new() -> Self {
@@ -46,6 +47,7 @@ impl Player {
             sink,
             total_duration: None,
             volume,
+            safe_guard: true,
         }
     }
     pub fn change_volume(&mut self, positive: bool) {
@@ -93,8 +95,8 @@ impl Player {
     pub fn seek_fw(&mut self) {
         let seek = self.elapsed().as_secs_f64() + 15.0;
         if let Some(duration) = self.duration() {
-            if seek > duration.as_secs_f64() {
-                self.stop()
+            if seek >= duration.as_secs_f64() + 0.44 {
+                self.safe_guard = true;
             } else {
                 self.seek_to(Duration::from_secs_f64(seek));
             }
@@ -119,10 +121,16 @@ impl Player {
             0.0
         }
     }
-    pub fn is_done(&self) -> bool {
+    pub fn trigger_next(&mut self) -> bool {
         if let Some(duration) = self.duration() {
-            //TODO: why is +1 needed?
-            self.elapsed().as_secs_f64() + 1.0 > duration.as_secs_f64()
+            if self.elapsed().as_secs_f64() + 0.44 >= duration.as_secs_f64() {
+                self.safe_guard = true;
+            }
+        }
+
+        if self.safe_guard {
+            self.safe_guard = false;
+            true
         } else {
             false
         }
