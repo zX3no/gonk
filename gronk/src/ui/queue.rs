@@ -14,13 +14,13 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
-            Constraint::Min(20),
+            Constraint::Min(0),
             Constraint::Length(2),
         ])
         .split(f.size());
 
     draw_header(f, &app.queue, chunks[0]);
-    draw_songs(f, &app.queue, chunks[1]);
+    draw_songs(f, &mut app.queue, chunks[1]);
     draw_seeker(f, &mut app.queue, chunks[2]);
 }
 
@@ -107,7 +107,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
         f.render_widget(right, chunk);
     }
 }
-pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
+pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) {
     if queue.is_empty() {
         return f.render_widget(
             Block::default()
@@ -115,6 +115,24 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
                 .border_type(BorderType::Rounded),
             chunk,
         );
+    }
+
+    if let Some((_, row)) = queue.clicked_pos {
+        let size = f.size();
+        let height = size.height as usize;
+        if height > 7 {
+            if height - 7 < queue.list.len() {
+                //TODO: what happends if some songs are not being rendered
+            } else {
+                let start_row = 5;
+                if row >= start_row {
+                    let index = (row - start_row) as usize;
+                    if index < queue.list.len() {
+                        queue.ui.select(Some(index));
+                    }
+                }
+            }
+        }
     }
 
     let (songs, now_playing, ui_index) = (&queue.list.data, queue.list.index(), queue.ui.index());
