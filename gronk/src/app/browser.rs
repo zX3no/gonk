@@ -136,4 +136,23 @@ impl<'a> Browser<'a> {
             BrowserMode::Song => self.db.get_song(artist, album, song),
         }
     }
+    pub fn refresh(&mut self) {
+        //TODO: this does not update in the way I want it too
+        if self.artists.is_empty() {
+            self.artists = Index::new(self.db.artists(), Some(0));
+        }
+        if self.albums.is_empty() {
+            if let Some(first_artist) = self.artists.selected() {
+                self.albums = Index::new(self.db.albums_by_artist(first_artist), Some(0));
+            }
+        }
+        if self.songs.is_empty() {
+            if let Some(first_artist) = self.artists.selected() {
+                if let Some(first_album) = self.albums.selected() {
+                    self.songs =
+                        Index::new(self.db.songs_from_album(first_artist, first_album), Some(0));
+                }
+            }
+        }
+    }
 }

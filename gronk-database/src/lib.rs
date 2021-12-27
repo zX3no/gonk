@@ -5,6 +5,7 @@ use rusqlite::{params, Connection};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
+    thread,
     time::Duration,
 };
 use walkdir::WalkDir;
@@ -67,29 +68,31 @@ impl Database {
         })
     }
     pub fn add_music(&self, music_dir: &str) {
-        let paths: Vec<PathBuf> = WalkDir::new(music_dir)
-            .into_iter()
-            .filter_map(|entry| {
-                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                        return Some(entry.as_ref().unwrap().path().to_path_buf());
+        let music_dir = music_dir.to_string();
+        thread::spawn(move || {
+            let paths: Vec<PathBuf> = WalkDir::new(music_dir)
+                .into_iter()
+                .filter_map(|entry| {
+                    if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                        if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                            return Some(entry.as_ref().unwrap().path().to_path_buf());
+                        }
                     }
-                }
-                None
-            })
-            .collect();
+                    None
+                })
+                .collect();
 
-        let songs: Vec<Song> = paths
-            .par_iter()
-            .map(|path| Song::from(path.to_str().unwrap()))
-            .collect();
+            let songs: Vec<Song> = paths
+                .par_iter()
+                .map(|path| Song::from(path.to_str().unwrap()))
+                .collect();
 
-        let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
-        let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
+            let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
+            let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
 
-        let pool_arc = Arc::new(sqlite_pool);
+            let pool_arc = Arc::new(sqlite_pool);
 
-        songs.par_iter().for_each(|song| {
+            songs.par_iter().for_each(|song| {
                     let connection = pool_arc.get().unwrap();
                     connection
                         .execute(
@@ -97,6 +100,7 @@ impl Database {
                             params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
                         ).unwrap();
                 });
+        });
     }
     pub fn add_dir(&self, music_dir: &str) {
         let conn = Connection::open(DB_DIR.as_path()).unwrap();

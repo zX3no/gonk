@@ -80,6 +80,7 @@ impl<'a> App<'a> {
     }
     pub fn on_tick(&mut self) {
         self.queue.update();
+        self.browser.refresh();
 
         if self.search.has_query_changed() {
             self.search.update_search();
