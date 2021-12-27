@@ -60,43 +60,11 @@ impl Database {
                 [],
             )
             .unwrap();
-
-            conn.execute(
-                "CREATE TABLE config(
-                    volume INTEGER NOT NULL UNIQUE
-                )",
-                [],
-            )
-            .unwrap();
-
-            conn.execute("INSERT OR IGNORE INTO config (volume) VALUES (15)", [])
-                .unwrap();
         }
 
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
         })
-    }
-    pub fn get_volume(&self) -> u16 {
-        let mut stmt = self.conn.prepare("SELECT volume FROM config").unwrap();
-        let mut rows = stmt.query([]).unwrap();
-        if let Some(row) = rows.next().unwrap() {
-            row.get(0).unwrap()
-        } else {
-            panic!();
-        }
-    }
-    pub fn set_volume(&self, positive: bool) {
-        let mut volume = self.get_volume();
-        if positive && volume != 100 {
-            volume += 5;
-        } else if volume != 0 {
-            volume -= 5;
-        }
-
-        self.conn
-            .execute("UPDATE config SET volume = (?1)", [volume])
-            .unwrap();
     }
     pub fn add_music(&self, music_dir: &str) {
         let paths: Vec<PathBuf> = WalkDir::new(music_dir)
@@ -129,10 +97,6 @@ impl Database {
                             params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
                         ).unwrap();
                 });
-
-        self.conn
-            .execute("INSERT INTO song(song) VALUES('optimize')", [])
-            .unwrap();
     }
     pub fn add_dir(&self, music_dir: &str) {
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
