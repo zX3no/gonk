@@ -267,7 +267,6 @@ impl Database {
             "SELECT * FROM song WHERE artist='{}' AND album='{}' ORDER BY disc, number",
             artist, album
         );
-        dbg!(&query);
 
         self.collect_songs(&query)
     }
