@@ -107,6 +107,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
         f.render_widget(right, chunk);
     }
 }
+
 pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) {
     if queue.is_empty() {
         return f.render_widget(
@@ -120,14 +121,15 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) 
     if let Some((_, row)) = queue.clicked_pos {
         let size = f.size();
         let height = size.height as usize;
+        let len = queue.list.len();
         if height > 7 {
-            if height - 7 < queue.list.len() {
-                //TODO: what happends if some songs are not being rendered
+            if height - 7 < len {
+                //TODO: I have no idea how to figure out what index i clicked on
             } else {
                 let start_row = 5;
                 if row >= start_row {
                     let index = (row - start_row) as usize;
-                    if index < queue.list.len() {
+                    if index < len {
                         queue.ui.select(Some(index));
                     }
                 }
@@ -136,33 +138,6 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) 
     }
 
     let (songs, now_playing, ui_index) = (&queue.list.data, queue.list.index(), queue.ui.index());
-
-    //TODO: i will need to write custom logic to skip over the line seperators
-
-    // let mut prev_artist = String::new();
-    // let mut items = Vec::new();
-    // for (i, song) in songs.iter().enumerate() {
-    //     if i == 0 {
-    //         prev_artist = song.artist.clone();
-    //     } else if prev_artist != song.artist {
-    //         prev_artist = song.artist.clone();
-    //         //TODO: cleanup??
-    //         items.push(Row::new(vec![
-    //             Cell::from(""),
-    //             Cell::from((0..queue.constraint[0]).map(|_| "-").collect::<String>()),
-    //             Cell::from((0..queue.constraint[1]).map(|_| "-").collect::<String>()),
-    //             Cell::from((0..queue.constraint[2]).map(|_| "-").collect::<String>()),
-    //             Cell::from((0..queue.constraint[3]).map(|_| "-").collect::<String>()),
-    //         ]));
-    //     }
-    //     items.push(Row::new(vec![
-    //         Cell::from(""),
-    //         Cell::from(song.number.to_string()).style(Style::default().fg(TRACK)),
-    //         Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
-    //         Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
-    //         Cell::from(song.artist.to_owned()).style(Style::default().fg(ARTIST)),
-    //     ]));
-    // }
 
     let mut items: Vec<Row> = songs
         .iter()
