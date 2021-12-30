@@ -32,13 +32,12 @@ pub struct Search<'a> {
 }
 
 impl<'a> Search<'a> {
-    pub fn new(
-        db: &'a Database,
-        songs: &[(Song, usize)],
-        albums: &[(String, String)],
-        artists: &[String],
-    ) -> Self {
+    fn update_engine(db: &Database) -> SearchEngine {
         let mut engine = SearchEngine::new();
+
+        let songs = db.get_songs();
+        let artists = db.artists();
+        let albums = db.albums();
 
         let songs: Vec<_> = songs
             .iter()
@@ -59,6 +58,14 @@ impl<'a> Search<'a> {
         engine.insert_vec(albums);
         engine.insert_vec(artists);
 
+        engine
+    }
+    pub fn refresh(&mut self) {
+        self.engine = Search::update_engine(self.db);
+    }
+    pub fn new(db: &'a Database) -> Self {
+        let engine = Search::update_engine(db);
+
         Self {
             db,
             engine,
@@ -69,7 +76,6 @@ impl<'a> Search<'a> {
         }
     }
     //TODO: this function name is misleading
-    //fix?
     pub fn get_songs(&mut self) -> Option<Vec<Song>> {
         if let SearchMode::Search = self.mode {
             if !self.is_empty() {

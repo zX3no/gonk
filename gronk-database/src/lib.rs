@@ -4,7 +4,10 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection};
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -26,6 +29,7 @@ lazy_static! {
 
 pub struct Database {
     conn: Connection,
+    adding_songs: Arc<AtomicBool>,
 }
 
 impl Database {
@@ -65,10 +69,18 @@ impl Database {
 
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
+            adding_songs: Arc::new(AtomicBool::new(false)),
         })
+    }
+    pub fn busy(&self) -> bool {
+        self.adding_songs.load(Ordering::Relaxed)
     }
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
+
+        let adding_songs = self.adding_songs.clone();
+        adding_songs.store(true, Ordering::Relaxed);
+
         thread::spawn(move || {
             let paths: Vec<PathBuf> = WalkDir::new(music_dir)
                 .into_iter()
@@ -100,6 +112,8 @@ impl Database {
                             params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
                         ).unwrap();
                 });
+
+            adding_songs.store(false, Ordering::Relaxed);
         });
     }
     pub fn add_dir(&self, music_dir: &str) {

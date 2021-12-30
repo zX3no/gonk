@@ -26,11 +26,7 @@ impl<'a> App<'a> {
     pub fn new(db: &'a Database) -> Self {
         let music = Browser::new(db);
         let queue = Queue::new();
-
-        let songs = db.get_songs();
-        let artists = db.artists();
-        let albums = db.albums();
-        let search = Search::new(db, &songs, &albums, &artists);
+        let search = Search::new(db);
 
         Self {
             browser: music,
@@ -80,7 +76,11 @@ impl<'a> App<'a> {
     }
     pub fn on_tick(&mut self) {
         self.queue.update();
-        self.browser.refresh();
+
+        if self.db.busy() {
+            self.browser.refresh();
+            self.search.refresh();
+        }
 
         if self.search.has_query_changed() {
             self.search.update_search();
