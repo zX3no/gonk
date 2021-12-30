@@ -82,7 +82,7 @@ impl<'a> Search<'a> {
                 ItemType::Song => Some(vec![self.db.get_song_from_id(item.song_id.unwrap())]),
                 ItemType::Album => Some(
                     self.db
-                        .get_album(&item.name, item.album_artist.as_ref().unwrap()),
+                        .get_album(item.album_artist.as_ref().unwrap(), &item.name),
                 ),
                 ItemType::Artist => Some(self.db.get_artist(&item.name)),
             }
