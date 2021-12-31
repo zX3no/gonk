@@ -1,4 +1,13 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
+use symphonia::core::{
+    formats::FormatOptions,
+    io::MediaSourceStream,
+    meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+    probe::Hint,
+};
 
 #[derive(Debug, Clone)]
 pub struct Song {
@@ -7,30 +16,63 @@ pub struct Song {
     pub name: String,
     pub album: String,
     pub artist: String,
-    pub path: std::path::PathBuf,
+    pub path: PathBuf,
 }
 impl Song {
-    pub fn from(path: &Path) -> Self {
-        if let Ok(tag) = audiotags::Tag::new().read_from_path(&path) {
-            let artist = if let Some(artist) = tag.album_artist() {
-                artist.to_string()
-            } else if let Some(artist) = tag.artist() {
-                artist.to_string()
-            } else {
-                panic!("no artist for {:?}", path);
-            };
-            let disc = tag.disc_number().unwrap_or(1);
+    pub fn from(path: &Path) -> Song {
+        let mut hint = Hint::new();
+        let ext = path.extension().unwrap().to_str().unwrap();
+        hint.with_extension(&ext);
 
-            return Self {
-                number: tag.track_number().unwrap(),
-                disc,
-                name: tag.title().unwrap().to_string(),
-                album: tag.album_title().unwrap().to_string(),
-                artist,
-                path: PathBuf::from(path),
-            };
+        let file = Box::new(File::open(path).unwrap());
+
+        // Create the media source stream using the boxed media source from above.
+        let mss = MediaSourceStream::new(file, Default::default());
+
+        // Use the default options for metadata and format readers.
+        let format_opts: FormatOptions = Default::default();
+        let metadata_opts: MetadataOptions = Default::default();
+
+        let mut probe = symphonia::default::get_probe()
+            .format(&hint, mss, &format_opts, &metadata_opts)
+            .unwrap();
+
+        let mut song = Song::default();
+        song.path = path.to_path_buf();
+
+        let mut get_songs = |metadata: &MetadataRevision| {
+            for tag in metadata.tags() {
+                if let Some(std_key) = tag.std_key {
+                    match std_key {
+                        StandardTagKey::AlbumArtist => song.artist = tag.value.to_string(),
+                        StandardTagKey::Artist if song.artist.is_empty() => {
+                            song.artist = tag.value.to_string()
+                        }
+                        StandardTagKey::Album => song.album = tag.value.to_string(),
+                        StandardTagKey::TrackTitle => song.name = tag.value.to_string(),
+                        StandardTagKey::TrackNumber => {
+                            song.number = tag.value.to_string().parse::<u16>().unwrap_or(1)
+                        }
+                        StandardTagKey::DiscNumber => {
+                            song.disc = tag.value.to_string().parse::<u16>().unwrap_or(1)
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        };
+
+        if let Some(metadata) = probe.metadata.get() {
+            get_songs(metadata.current().unwrap());
+        } else if let Some(metadata) = probe.format.metadata().current() {
+            get_songs(metadata);
         }
-        panic!();
+
+        if song.artist.is_empty() {
+            //TODO: unknown artist
+            panic!("no artist???");
+        }
+        song
     }
 }
 impl PartialEq for Song {
