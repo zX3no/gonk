@@ -136,30 +136,4 @@ impl<'a> Browser<'a> {
             BrowserMode::Song => self.db.get_song(artist, album, song),
         }
     }
-    pub fn refresh(&mut self) {
-        if self.artists.is_empty() {
-            self.artists = Index::new(self.db.artists(), Some(0));
-        } else {
-            self.artists.data = self.db.artists();
-        }
-
-        if let Some(first_artist) = self.artists.selected() {
-            if self.albums.is_empty() {
-                self.albums = Index::new(self.db.albums_by_artist(first_artist), Some(0));
-            } else {
-                self.albums.data = self.db.albums_by_artist(first_artist);
-            }
-        }
-
-        if let Some(first_artist) = self.artists.selected() {
-            if let Some(first_album) = self.albums.selected() {
-                if self.songs.is_empty() {
-                    self.songs =
-                        Index::new(self.db.songs_from_album(first_artist, first_album), Some(0));
-                } else {
-                    self.songs.data = self.db.songs_from_album(first_artist, first_album);
-                }
-            }
-        }
-    }
 }

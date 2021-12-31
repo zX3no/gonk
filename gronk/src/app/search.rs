@@ -60,9 +60,6 @@ impl<'a> Search<'a> {
 
         engine
     }
-    pub fn refresh(&mut self) {
-        self.engine = Search::update_engine(self.db);
-    }
     pub fn new(db: &'a Database) -> Self {
         let engine = Search::update_engine(db);
 
