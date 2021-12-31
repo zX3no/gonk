@@ -11,7 +11,7 @@ use std::{
         Arc,
     },
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 #[macro_use]
@@ -76,15 +76,13 @@ impl Database {
     pub fn busy(&self) -> bool {
         self.adding_songs.load(Ordering::Relaxed)
     }
-    pub fn fast_add_music(&self, music_dir: &str) {
+    pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
 
         let adding_songs = self.adding_songs.clone();
         adding_songs.store(true, Ordering::Relaxed);
 
         thread::spawn(move || {
-            let total = Instant::now();
-
             let paths: Vec<PathBuf> = WalkDir::new(music_dir)
                 .into_iter()
                 .filter_map(|entry| {
@@ -97,13 +95,7 @@ impl Database {
                 })
                 .collect();
 
-            eprintln!("paths: {:?}", total.elapsed());
-            let now = Instant::now();
-
             let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
-
-            eprintln!("songs: {:?}", now.elapsed());
-            let now = Instant::now();
 
             let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
             let sqlite_pool = Pool::new(sqlite_connection_manager).unwrap();
@@ -117,8 +109,6 @@ impl Database {
                         ).unwrap();
                 });
 
-            eprintln!("database: {:?}", now.elapsed());
-            eprintln!("total: {:?}", total.elapsed());
             adding_songs.store(false, Ordering::Relaxed);
         });
     }
@@ -129,7 +119,7 @@ impl Database {
             params![music_dir],
         )
         .unwrap();
-        self.fast_add_music(music_dir);
+        self.add_music(music_dir);
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {

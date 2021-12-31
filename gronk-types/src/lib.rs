@@ -62,6 +62,7 @@ impl Song {
             }
         };
 
+        //TODO: why are there two different ways to get metadata
         if let Some(metadata) = probe.metadata.get() {
             get_songs(metadata.current().unwrap());
         } else if let Some(metadata) = probe.format.metadata().current() {
