@@ -110,6 +110,9 @@ impl<'a> Search<'a> {
             }
         }
     }
+    pub fn refresh(&mut self) {
+        self.engine = Search::update_engine(self.db);
+    }
     pub fn exit(&mut self) {
         self.mode.next();
         self.results.select(None);

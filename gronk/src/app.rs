@@ -85,7 +85,9 @@ impl<'a> App<'a> {
         self.queue.delete_selected();
     }
     pub fn reset_db(&mut self) {
-        todo!();
+        self.db.reset();
+        self.browser.refresh();
+        self.search.refresh();
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {

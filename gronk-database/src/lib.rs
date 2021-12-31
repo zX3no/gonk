@@ -110,6 +110,19 @@ impl Database {
         .unwrap();
         self.add_music(music_dir);
     }
+    pub fn reset(&self) {
+        self.conn.execute("DELETE FROM song", []).unwrap();
+        let mut stmt = self.conn.prepare("SELECT path FROM music").unwrap();
+        let paths: Vec<String> = stmt
+            .query_map([], |row| Ok(row.get(0).unwrap()))
+            .unwrap()
+            .flatten()
+            .collect();
+
+        for path in paths {
+            self.add_music(&path);
+        }
+    }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {
             return Vec::new();
