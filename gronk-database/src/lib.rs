@@ -5,6 +5,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection};
 use std::{
+    fs::File,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -12,6 +13,12 @@ use std::{
     },
     thread,
     time::{Duration, Instant},
+};
+use symphonia::core::{
+    formats::FormatOptions,
+    io::MediaSourceStream,
+    meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+    probe::Hint,
 };
 
 #[macro_use]
@@ -101,17 +108,65 @@ impl Database {
             let sqlite_pool = Pool::new(sqlite_connection_manager).unwrap();
 
             paths.par_iter().for_each(|path| {
-                let song = Song::from(path);
-                    let conn = sqlite_pool.get().unwrap();
-                    conn
-                        .execute(
-                            "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                            params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
-                        ).unwrap();
+                let song = Database::song(path);
+                let conn = sqlite_pool.get().unwrap();
+                conn
+                    .execute(
+                        "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
+                    ).unwrap();
             });
 
             eprintln!("total: {:?}", now.elapsed());
         });
+    }
+    pub fn song(path: &Path) -> Song {
+        let mut hint = Hint::new();
+        let ext = path.extension().unwrap().to_str().unwrap();
+        hint.with_extension(&ext);
+
+        let file = Box::new(File::open(path).unwrap());
+
+        // Create the media source stream using the boxed media source from above.
+        let mss = MediaSourceStream::new(file, Default::default());
+
+        // Use the default options for metadata and format readers.
+        let format_opts: FormatOptions = Default::default();
+        let metadata_opts: MetadataOptions = Default::default();
+
+        let mut probe = symphonia::default::get_probe()
+            .format(&hint, mss, &format_opts, &metadata_opts)
+            .unwrap();
+
+        let mut song = Song::default();
+        song.path = path.to_path_buf();
+
+        let mut get_songs = |metadata: &MetadataRevision| {
+            for tag in metadata.tags() {
+                if let Some(std_key) = tag.std_key {
+                    if let StandardTagKey::AlbumArtist = std_key {
+                        song.artist = tag.value.to_string();
+                    } else if let StandardTagKey::Album = std_key {
+                        song.album = tag.value.to_string();
+                    } else if let StandardTagKey::TrackTitle = std_key {
+                        song.name = tag.value.to_string();
+                    } else if let StandardTagKey::TrackNumber = std_key {
+                        song.number = tag.value.to_string().parse::<u16>().unwrap_or(1);
+                    } else if let StandardTagKey::DiscNumber = std_key {
+                        song.disc = tag.value.to_string().parse::<u16>().unwrap_or(1);
+                    }
+                }
+            }
+        };
+
+        if let Some(metadata) = probe.metadata.get() {
+            let metadata = metadata.current().unwrap();
+            get_songs(metadata);
+        } else if let Some(metadata) = probe.format.metadata().current() {
+            get_songs(metadata);
+        }
+        song
+        // dbg!(song)
     }
     pub fn fast_add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
@@ -137,7 +192,7 @@ impl Database {
             eprintln!("paths: {:?}", total.elapsed());
             let now = Instant::now();
 
-            let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
+            let songs: Vec<Song> = paths.par_iter().map(|path| Database::song(path)).collect();
 
             eprintln!("songs: {:?}", now.elapsed());
             let now = Instant::now();
@@ -166,7 +221,7 @@ impl Database {
             params![music_dir],
         )
         .unwrap();
-        self.add_music(music_dir);
+        self.fast_add_music(music_dir);
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {

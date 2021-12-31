@@ -68,6 +68,7 @@ fn main() {
     });
 
     let db = Database::new().unwrap();
+    db.add_dir("D:\\Music");
     //check if user wants to add new database
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some(first) = args.first() {

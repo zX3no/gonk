@@ -1,0 +1,8 @@
+   Compiling gronk-database v0.1.0 (C:\Users\Bay\Desktop\gronk\gronk-database)
+   Compiling gronk v0.0.1 (C:\Users\Bay\Desktop\gronk\gronk)
+    Finished dev [unoptimized + debuginfo] target(s) in 2.55s
+     Running `target\debug\gronk.exe`
+paths: 9.9086ms
+songs: 194.8186ms
+database: 1.4723948s
+total: 1.6772501s
