@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 #[derive(Debug, Clone)]
 pub struct Song {
     pub number: u16,
@@ -8,7 +10,7 @@ pub struct Song {
     pub path: std::path::PathBuf,
 }
 impl Song {
-    pub fn from(path: &str) -> Self {
+    pub fn from(path: &Path) -> Self {
         if let Ok(tag) = audiotags::Tag::new().read_from_path(&path) {
             let artist = if let Some(artist) = tag.album_artist() {
                 artist.to_string()
@@ -25,7 +27,7 @@ impl Song {
                 name: tag.title().unwrap().to_string(),
                 album: tag.album_title().unwrap().to_string(),
                 artist,
-                path: std::path::PathBuf::from(path),
+                path: PathBuf::from(path),
             };
         }
         panic!();

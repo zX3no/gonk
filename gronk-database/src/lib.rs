@@ -1,4 +1,6 @@
 use gronk_types::Song;
+use jwalk::WalkDir;
+use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection};
@@ -9,9 +11,8 @@ use std::{
         Arc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
-use walkdir::WalkDir;
 
 #[macro_use]
 extern crate lazy_static;
@@ -82,30 +83,70 @@ impl Database {
         adding_songs.store(true, Ordering::Relaxed);
 
         thread::spawn(move || {
+            let now = Instant::now();
+
             let paths: Vec<PathBuf> = WalkDir::new(music_dir)
                 .into_iter()
                 .filter_map(|entry| {
                     if let Some(ex) = entry.as_ref().unwrap().path().extension() {
                         if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                            return Some(entry.as_ref().unwrap().path().to_path_buf());
+                            return Some(entry.as_ref().unwrap().path());
                         }
                     }
                     None
                 })
                 .collect();
 
-            let songs: Vec<Song> = paths
-                .par_iter()
-                .map(|path| Song::from(path.to_str().unwrap()))
+            let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
+            let sqlite_pool = Pool::new(sqlite_connection_manager).unwrap();
+
+            paths.par_iter().for_each(|path| {
+                let song = Song::from(path);
+                    let conn = sqlite_pool.get().unwrap();
+                    conn
+                        .execute(
+                            "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                            params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
+                        ).unwrap();
+            });
+
+            eprintln!("total: {:?}", now.elapsed());
+        });
+    }
+    pub fn fast_add_music(&self, music_dir: &str) {
+        let music_dir = music_dir.to_string();
+
+        let adding_songs = self.adding_songs.clone();
+        adding_songs.store(true, Ordering::Relaxed);
+
+        thread::spawn(move || {
+            let total = Instant::now();
+
+            let paths: Vec<PathBuf> = WalkDir::new(music_dir)
+                .into_iter()
+                .filter_map(|entry| {
+                    if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                        if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                            return Some(entry.as_ref().unwrap().path());
+                        }
+                    }
+                    None
+                })
                 .collect();
 
-            let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
-            let sqlite_pool = r2d2::Pool::new(sqlite_connection_manager).unwrap();
+            eprintln!("paths: {:?}", total.elapsed());
+            let now = Instant::now();
 
-            let pool_arc = Arc::new(sqlite_pool);
+            let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
+
+            eprintln!("songs: {:?}", now.elapsed());
+            let now = Instant::now();
+
+            let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
+            let sqlite_pool = Pool::new(sqlite_connection_manager).unwrap();
 
             songs.par_iter().for_each(|song| {
-                    let connection = pool_arc.get().unwrap();
+                    let connection = sqlite_pool.get().unwrap();
                     connection
                         .execute(
                             "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -113,6 +154,8 @@ impl Database {
                         ).unwrap();
                 });
 
+            eprintln!("database: {:?}", now.elapsed());
+            eprintln!("total: {:?}", total.elapsed());
             adding_songs.store(false, Ordering::Relaxed);
         });
     }
