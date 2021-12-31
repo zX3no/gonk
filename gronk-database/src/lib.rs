@@ -1,16 +1,9 @@
 use gronk_types::Song;
 use jwalk::WalkDir;
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection};
 use std::{
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
     time::Duration,
 };
 
@@ -28,9 +21,12 @@ lazy_static! {
     };
 }
 
+fn fix(item: &str) -> String {
+    item.replace(r"'", r"''")
+}
+
 pub struct Database {
     conn: Connection,
-    adding_songs: Arc<AtomicBool>,
 }
 
 impl Database {
@@ -70,47 +66,40 @@ impl Database {
 
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
-            adding_songs: Arc::new(AtomicBool::new(false)),
         })
-    }
-    pub fn busy(&self) -> bool {
-        self.adding_songs.load(Ordering::Relaxed)
     }
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
 
-        let adding_songs = self.adding_songs.clone();
-        adding_songs.store(true, Ordering::Relaxed);
-
-        thread::spawn(move || {
-            let paths: Vec<PathBuf> = WalkDir::new(music_dir)
-                .into_iter()
-                .filter_map(|entry| {
-                    if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                        if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                            return Some(entry.as_ref().unwrap().path());
-                        }
+        let paths: Vec<PathBuf> = WalkDir::new(music_dir)
+            .into_iter()
+            .filter_map(|entry| {
+                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                        return Some(entry.as_ref().unwrap().path());
                     }
-                    None
-                })
-                .collect();
+                }
+                None
+            })
+            .collect();
 
-            let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
+        let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
 
-            let sqlite_connection_manager = SqliteConnectionManager::file(DB_DIR.as_path());
-            let sqlite_pool = Pool::new(sqlite_connection_manager).unwrap();
+        let stmts:Vec<_> = songs.iter().map(|song| {
+                let artist = fix(&song.artist);
+                let album = fix(&song.album);
+                let name = fix(&song.name);
+                let path = fix(&song.path.to_str().unwrap());
+                format!("INSERT INTO song (number, disc, name, album, artist, path) VALUES ('{}', '{}', '{}', '{}', '{}', '{}');",
+                            song.number, song.disc, name, album, artist, path)
+            }).collect();
 
-            songs.par_iter().for_each(|song| {
-                    let connection = sqlite_pool.get().unwrap();
-                    connection
-                        .execute(
-                            "INSERT INTO song (number, disc, name, album, artist, path) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                            params![song.number, song.disc, song.name, song.album, song.artist, song.path.to_str().unwrap()],
-                        ).unwrap();
-                });
+        let mut stmt = stmts.join("\n");
 
-            adding_songs.store(false, Ordering::Relaxed);
-        });
+        stmt.insert_str(0, "BEGIN;\n");
+        stmt.push_str("COMMIT;\n");
+
+        self.conn.execute_batch(&stmt).unwrap();
     }
     pub fn add_dir(&self, music_dir: &str) {
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
@@ -310,7 +299,4 @@ impl Database {
         .flatten()
         .collect()
     }
-}
-fn fix(item: &str) -> String {
-    item.replace("\'", "\'\'")
 }

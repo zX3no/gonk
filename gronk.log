@@ -1,6 +1,2 @@
-    Finished dev [unoptimized + debuginfo] target(s) in 0.15s
-     Running `target\debug\gronk.exe`
-paths: 8.8697ms
-songs: 203.2037ms
-database: 1.5414742s
-total: 1.7536598s
+    Finished release [optimized] target(s) in 0.15s
+     Running `target\release\gronk.exe add D:\music`
