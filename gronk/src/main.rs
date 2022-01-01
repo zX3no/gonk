@@ -42,7 +42,7 @@ fn main() {
     terminal.hide_cursor().unwrap();
 
     let (tx, rx) = mpsc::channel();
-    let tick_rate = Duration::from_millis(50);
+    let tick_rate = Duration::from_millis(16);
 
     thread::spawn(move || {
         let mut last_tick = Instant::now();

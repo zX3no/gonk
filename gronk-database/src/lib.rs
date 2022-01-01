@@ -4,6 +4,11 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection};
 use std::{
     path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
     time::Duration,
 };
 
@@ -27,6 +32,7 @@ fn fix(item: &str) -> String {
 
 pub struct Database {
     conn: Connection,
+    busy: Arc<AtomicBool>,
 }
 
 impl Database {
@@ -66,26 +72,30 @@ impl Database {
 
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
+            busy: Arc::new(AtomicBool::new(false)),
         })
     }
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
+        let busy = self.busy.clone();
+        busy.store(true, Ordering::SeqCst);
 
-        let paths: Vec<PathBuf> = WalkDir::new(music_dir)
-            .into_iter()
-            .filter_map(|entry| {
-                if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                    if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                        return Some(entry.as_ref().unwrap().path());
+        thread::spawn(move || {
+            let paths: Vec<PathBuf> = WalkDir::new(music_dir)
+                .into_iter()
+                .filter_map(|entry| {
+                    if let Some(ex) = entry.as_ref().unwrap().path().extension() {
+                        if ex == "flac" || ex == "mp3" || ex == "m4a" {
+                            return Some(entry.as_ref().unwrap().path());
+                        }
                     }
-                }
-                None
-            })
-            .collect();
+                    None
+                })
+                .collect();
 
-        let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
+            let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
 
-        let stmts:Vec<_> = songs.iter().map(|song| {
+            let stmts:Vec<_> = songs.iter().map(|song| {
                 let artist = fix(&song.artist);
                 let album = fix(&song.album);
                 let name = fix(&song.name);
@@ -94,20 +104,30 @@ impl Database {
                             song.number, song.disc, name, album, artist, path)
             }).collect();
 
-        let mut stmt = stmts.join("\n");
+            let mut stmt = stmts.join("\n");
 
-        stmt.insert_str(0, "BEGIN;\n");
-        stmt.push_str("COMMIT;\n");
+            stmt.insert_str(0, "BEGIN;\n");
+            stmt.push_str("COMMIT;\n");
 
-        self.conn.execute_batch(&stmt).unwrap();
+            let conn = Connection::open(DB_DIR.as_path()).unwrap();
+
+            conn.execute_batch(&stmt).unwrap();
+
+            //slow down to make sure the app has time to update
+            thread::sleep(Duration::from_millis(16));
+            busy.store(false, Ordering::SeqCst);
+        });
+    }
+    pub fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::SeqCst)
     }
     pub fn add_dir(&self, music_dir: &str) {
-        let conn = Connection::open(DB_DIR.as_path()).unwrap();
-        conn.execute(
-            "INSERT OR IGNORE INTO music (path) VALUES (?1)",
-            params![music_dir],
-        )
-        .unwrap();
+        self.conn
+            .execute(
+                "INSERT OR IGNORE INTO music (path) VALUES (?1)",
+                params![music_dir],
+            )
+            .unwrap();
         self.add_music(music_dir);
     }
     pub fn reset(&self) {

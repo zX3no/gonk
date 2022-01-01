@@ -1,2 +1,3 @@
-    Finished release [optimized] target(s) in 0.15s
-     Running `target\release\gronk.exe add D:\music`
+   Compiling gronk v0.0.1 (C:\Users\Bay\Desktop\gronk\gronk)
+    Finished release [optimized] target(s) in 2.41s
+     Running `target\release\gronk.exe`

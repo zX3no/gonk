@@ -77,17 +77,17 @@ impl<'a> App<'a> {
     pub fn on_tick(&mut self) {
         self.queue.update();
 
+        if self.db.is_busy() {
+            self.browser.refresh();
+            self.search.refresh();
+        }
+
         if self.search.has_query_changed() {
             self.search.update_search();
         }
     }
     fn delete_from_queue(&mut self) {
         self.queue.delete_selected();
-    }
-    pub fn reset_db(&mut self) {
-        self.db.reset();
-        self.browser.refresh();
-        self.search.refresh();
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {
@@ -121,7 +121,7 @@ impl<'a> App<'a> {
             self.search.on_key(c);
         } else {
             match c {
-                'u' => self.reset_db(),
+                'u' => self.db.reset(),
                 'c' => self.queue.clear(),
                 'j' => self.down(),
                 'k' => self.up(),
