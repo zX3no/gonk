@@ -4,7 +4,7 @@
 
 ### TODO:
 
-- [ ] Song metadata (duration)
+- [x] Song metadata (duration)
 
 - [ ] Toggles for artist/album/song only search
 

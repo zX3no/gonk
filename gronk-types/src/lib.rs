@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use symphonia::core::{
     formats::FormatOptions,
@@ -17,6 +18,7 @@ pub struct Song {
     pub album: String,
     pub artist: String,
     pub path: PathBuf,
+    pub duration: Duration,
 }
 impl Song {
     pub fn from(path: &Path) -> Song {
@@ -73,6 +75,23 @@ impl Song {
             //TODO: unknown artist
             panic!("no artist???");
         }
+
+        //duration
+        let track = probe.format.default_track().unwrap();
+        let tb = track.codec_params.time_base.unwrap();
+        let ts = track.codec_params.start_ts;
+
+        let dur = track
+            .codec_params
+            .n_frames
+            .map(|frames| track.codec_params.start_ts + frames)
+            .unwrap();
+
+        let d = tb.calc_time(dur.saturating_sub(ts));
+        let secs = f64::from((d.seconds % 60) as u32) + d.frac;
+
+        song.duration = Duration::from_secs_f64(secs);
+
         song
     }
 }
@@ -84,6 +103,7 @@ impl PartialEq for Song {
             && self.album == other.album
             && self.artist == other.artist
             && self.path == other.path
+            && self.duration == other.duration
     }
 }
 impl Default for Song {
@@ -95,6 +115,7 @@ impl Default for Song {
             album: Default::default(),
             artist: Default::default(),
             path: Default::default(),
+            duration: Default::default(),
         }
     }
 }

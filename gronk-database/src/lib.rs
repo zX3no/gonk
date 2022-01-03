@@ -1,7 +1,7 @@
 use gronk_types::Song;
 use jwalk::WalkDir;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, Row};
 use std::{
     path::{Path, PathBuf},
     sync::{
@@ -50,12 +50,13 @@ impl Database {
 
             conn.execute(
                 "CREATE TABLE song (
-                    number  INTEGER NOT NULL,
-                    disc    INTEGER NOT NULL,
-                    name    TEXT NOT NULL,
-                    album   TEXT NOT NULL,
-                    artist  TEXT NOT NULL,
-                    path    TEXT NOT NULL
+                    number   INTEGER NOT NULL,
+                    disc     INTEGER NOT NULL,
+                    name     TEXT NOT NULL,
+                    album    TEXT NOT NULL,
+                    artist   TEXT NOT NULL,
+                    path     TEXT NOT NULL,
+                    duration DOUBLE NOT NULL
                 )",
                 [],
             )?;
@@ -100,8 +101,8 @@ impl Database {
                 let album = fix(&song.album);
                 let name = fix(&song.name);
                 let path = fix(&song.path.to_str().unwrap());
-                format!("INSERT INTO song (number, disc, name, album, artist, path) VALUES ('{}', '{}', '{}', '{}', '{}', '{}');",
-                            song.number, song.disc, name, album, artist, path)
+                format!("INSERT INTO song (number, disc, name, album, artist, path, duration) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                            song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64())
             }).collect();
 
             let mut stmt = stmts.join("\n");
@@ -155,55 +156,30 @@ impl Database {
             let mut stmt = self.conn.prepare(&query).unwrap();
             let mut rows = stmt.query([]).unwrap();
             if let Some(row) = rows.next().unwrap() {
-                let path: String = row.get(5).unwrap();
-                songs.push(Song {
-                    number: row.get(0).unwrap(),
-                    disc: row.get(1).unwrap(),
-                    name: row.get(2).unwrap(),
-                    album: row.get(3).unwrap(),
-                    artist: row.get(4).unwrap(),
-                    path: PathBuf::from(path),
-                });
+                songs.push(Database::song(row));
             }
         }
         songs
     }
+
     pub fn get_song_from_id(&self, id: usize) -> Song {
         let query = format!("SELECT * FROM song WHERE rowid='{}'", id);
         let mut stmt = self.conn.prepare(&query).unwrap();
         let mut rows = stmt.query([]).unwrap();
 
         if let Some(row) = rows.next().unwrap() {
-            let path: String = row.get(5).unwrap();
-            Song {
-                number: row.get(0).unwrap(),
-                disc: row.get(1).unwrap(),
-                name: row.get(2).unwrap(),
-                album: row.get(3).unwrap(),
-                artist: row.get(4).unwrap(),
-                path: PathBuf::from(path),
-            }
+            Database::song(row)
         } else {
             panic!();
         }
     }
     pub fn get_songs(&self) -> Vec<(Song, usize)> {
-        let mut stmt = self.conn.prepare("SELECT rowid, * FROM song").unwrap();
+        let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
 
         stmt.query_map([], |row| {
-            let id = row.get(0).unwrap();
-            let path: String = row.get(6).unwrap();
-            Ok((
-                Song {
-                    number: row.get(1).unwrap(),
-                    disc: row.get(2).unwrap(),
-                    name: row.get(3).unwrap(),
-                    album: row.get(4).unwrap(),
-                    artist: row.get(5).unwrap(),
-                    path: PathBuf::from(path),
-                },
-                id,
-            ))
+            let id = row.get(7).unwrap();
+            let song = Database::song(row);
+            Ok((song, id))
         })
         .unwrap()
         .flatten()
@@ -317,19 +293,22 @@ impl Database {
     fn collect_songs(&self, query: &str) -> Vec<Song> {
         let mut stmt = self.conn.prepare(query).unwrap();
 
-        stmt.query_map([], |row| {
-            let path: String = row.get(5).unwrap();
-            Ok(Song {
-                number: row.get(0).unwrap(),
-                disc: row.get(1).unwrap(),
-                name: row.get(2).unwrap(),
-                album: row.get(3).unwrap(),
-                artist: row.get(4).unwrap(),
-                path: PathBuf::from(path),
-            })
-        })
-        .unwrap()
-        .flatten()
-        .collect()
+        stmt.query_map([], |row| Ok(Database::song(row)))
+            .unwrap()
+            .flatten()
+            .collect()
+    }
+    fn song(row: &Row) -> Song {
+        let path: String = row.get(5).unwrap();
+        let dur: f64 = row.get(6).unwrap();
+        Song {
+            number: row.get(0).unwrap(),
+            disc: row.get(1).unwrap(),
+            name: row.get(2).unwrap(),
+            album: row.get(3).unwrap(),
+            artist: row.get(4).unwrap(),
+            duration: Duration::from_secs_f64(dur),
+            path: PathBuf::from(path),
+        }
     }
 }
