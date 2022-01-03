@@ -10,7 +10,7 @@ use symphonia::core::{
     probe::Hint,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Song {
     pub number: u16,
     pub disc: u16,
@@ -24,7 +24,7 @@ impl Song {
     pub fn from(path: &Path) -> Song {
         let mut hint = Hint::new();
         let ext = path.extension().unwrap().to_str().unwrap();
-        hint.with_extension(&ext);
+        hint.with_extension(ext);
 
         let file = Box::new(File::open(path).unwrap());
 
@@ -39,8 +39,10 @@ impl Song {
             .format(&hint, mss, &format_opts, &metadata_opts)
             .unwrap();
 
-        let mut song = Song::default();
-        song.path = path.to_path_buf();
+        let mut song = Song {
+            path: path.to_path_buf(),
+            ..Default::default()
+        };
 
         let mut get_songs = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
@@ -88,9 +90,7 @@ impl Song {
             .unwrap();
 
         let d = tb.calc_time(dur.saturating_sub(ts));
-        let sec = d.seconds;
-        let frac = d.frac;
-        let duration = Duration::from_secs(sec) + Duration::from_secs_f64(frac);
+        let duration = Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac);
         song.duration = duration;
 
         song
@@ -105,18 +105,5 @@ impl PartialEq for Song {
             && self.artist == other.artist
             && self.path == other.path
             && self.duration == other.duration
-    }
-}
-impl Default for Song {
-    fn default() -> Self {
-        Self {
-            number: Default::default(),
-            disc: Default::default(),
-            name: Default::default(),
-            album: Default::default(),
-            artist: Default::default(),
-            path: Default::default(),
-            duration: Default::default(),
-        }
     }
 }

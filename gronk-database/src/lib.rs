@@ -100,7 +100,7 @@ impl Database {
                 let artist = fix(&song.artist);
                 let album = fix(&song.album);
                 let name = fix(&song.name);
-                let path = fix(&song.path.to_str().unwrap());
+                let path = fix(song.path.to_str().unwrap());
                 format!("INSERT INTO song (number, disc, name, album, artist, path, duration) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                             song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64())
             }).collect();
