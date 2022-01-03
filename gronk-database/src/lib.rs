@@ -161,7 +161,6 @@ impl Database {
         }
         songs
     }
-
     pub fn get_song_from_id(&self, id: usize) -> Song {
         let query = format!("SELECT * FROM song WHERE rowid='{}'", id);
         let mut stmt = self.conn.prepare(&query).unwrap();

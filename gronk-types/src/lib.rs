@@ -88,9 +88,10 @@ impl Song {
             .unwrap();
 
         let d = tb.calc_time(dur.saturating_sub(ts));
-        let secs = f64::from((d.seconds % 60) as u32) + d.frac;
-
-        song.duration = Duration::from_secs_f64(secs);
+        let sec = d.seconds;
+        let frac = d.frac;
+        let duration = Duration::from_secs(sec) + Duration::from_secs_f64(frac);
+        song.duration = duration;
 
         song
     }
