@@ -84,7 +84,7 @@ impl Player {
     pub fn duration(&self) -> Option<f64> {
         if let Some(duration) = self.total_duration {
             //TODO: this is off by a little bit for some reason?
-            Some(duration.as_secs_f64() - 0.19)
+            Some(duration.as_secs_f64() - 0.29)
         } else {
             None
         }
@@ -96,7 +96,7 @@ impl Player {
         self.sink.is_paused()
     }
     pub fn seek_fw(&mut self) {
-        let seek = self.elapsed().as_secs_f64() + 15.0;
+        let seek = self.elapsed().as_secs_f64() + 10.0;
         if let Some(duration) = self.duration() {
             if seek > duration {
                 self.safe_guard = true;
@@ -106,7 +106,7 @@ impl Player {
         }
     }
     pub fn seek_bw(&mut self) {
-        let mut seek = self.elapsed().as_secs_f64() - 15.0;
+        let mut seek = self.elapsed().as_secs_f64() - 10.0;
         if seek < 0.0 {
             seek = 0.0;
         }

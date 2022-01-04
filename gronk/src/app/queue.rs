@@ -41,6 +41,7 @@ impl Queue {
         self.player.seeker()
     }
     pub fn update(&mut self) {
+        dbg!(self.duration(), self.elapsed());
         if self.player.trigger_next() {
             self.next();
         }
