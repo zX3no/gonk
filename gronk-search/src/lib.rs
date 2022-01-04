@@ -1,13 +1,11 @@
 use std::fmt::Display;
 
+#[derive(Default)]
 pub struct SearchEngine {
     data: Vec<SearchItem>,
 }
 
 impl SearchEngine {
-    pub fn new() -> Self {
-        Self { data: Vec::new() }
-    }
     pub fn insert(&mut self, item: SearchItem) {
         self.data.push(item);
     }

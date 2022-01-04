@@ -6,7 +6,7 @@ use std::{
 use anyhow::Result;
 fn read(stream: &mut TcpStream) -> Result<()> {
     let mut rx_bytes = [0u8; 9999];
-    stream.read(&mut rx_bytes)?;
+    stream.read_exact(&mut rx_bytes)?;
     let received = std::str::from_utf8(&rx_bytes).expect("valid utf8");
     eprintln!("{}", received);
     Ok(())

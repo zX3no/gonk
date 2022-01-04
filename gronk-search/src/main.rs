@@ -18,7 +18,7 @@ fn main() {
         SearchItem::artist("JPEGMAFIA"),
     ];
 
-    let mut engine = SearchEngine::new();
+    let mut engine = SearchEngine::default();
     engine.insert_vec(items);
 
     for result in engine.search(query) {

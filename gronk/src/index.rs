@@ -1,10 +1,7 @@
-//TODO: would be nice to have a type that can handle all selectable data
-//data: Vec<T>
-//index: Option<usize>
 #[derive(Debug)]
 pub struct Index<T> {
-    index: Option<usize>,
     pub data: Vec<T>,
+    index: Option<usize>,
 }
 
 impl<T> Index<T> {

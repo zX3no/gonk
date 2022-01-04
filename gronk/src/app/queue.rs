@@ -20,7 +20,7 @@ impl Queue {
             list: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
-            player: Player::new(),
+            player: Player::default(),
         }
     }
     pub fn volume_up(&mut self) {
@@ -41,7 +41,6 @@ impl Queue {
         self.player.seeker()
     }
     pub fn update(&mut self) {
-        dbg!(self.duration(), self.elapsed());
         if self.player.trigger_next() {
             self.next();
         }

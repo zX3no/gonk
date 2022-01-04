@@ -34,8 +34,8 @@ pub struct Player {
     volume: u16,
     safe_guard: bool,
 }
-impl Player {
-    pub fn new() -> Self {
+impl Default for Player {
+    fn default() -> Self {
         let (_stream, handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&handle).unwrap();
         let volume = 15;
@@ -50,15 +50,13 @@ impl Player {
             safe_guard: true,
         }
     }
+}
+impl Player {
     pub fn change_volume(&mut self, positive: bool) {
-        if positive {
-            if self.volume != 100 {
-                self.volume += VOLUME_STEP;
-            }
-        } else {
-            if self.volume != 0 {
-                self.volume -= VOLUME_STEP;
-            }
+        if positive && self.volume != 100 {
+            self.volume += VOLUME_STEP;
+        } else if self.volume != 0 {
+            self.volume -= VOLUME_STEP;
         }
         self.sink.set_volume(self.volume as f32 / 1000.0);
     }
@@ -74,7 +72,7 @@ impl Player {
         self.sink.append(decoder);
     }
     pub fn stop(&mut self) {
-        self.sink.drop();
+        self.sink.destroy();
         self.sink = Sink::try_new(&self.handle).unwrap();
         self.sink.set_volume(self.volume as f32 / 1000.0);
     }
@@ -82,12 +80,8 @@ impl Player {
         self.sink.elapsed()
     }
     pub fn duration(&self) -> Option<f64> {
-        if let Some(duration) = self.total_duration {
-            //TODO: this is off by a little bit for some reason?
-            Some(duration.as_secs_f64() - 0.29)
-        } else {
-            None
-        }
+        self.total_duration
+            .map(|duration| duration.as_secs_f64() - 0.29)
     }
     pub fn toggle_playback(&self) {
         self.sink.toggle_playback();

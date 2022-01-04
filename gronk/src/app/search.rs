@@ -9,6 +9,7 @@ pub enum SearchMode {
     Search,
     Select,
 }
+
 impl SearchMode {
     pub fn next(&mut self) {
         match self {
@@ -33,7 +34,7 @@ pub struct Search<'a> {
 
 impl<'a> Search<'a> {
     fn update_engine(db: &Database) -> SearchEngine {
-        let mut engine = SearchEngine::new();
+        let mut engine = SearchEngine::default();
 
         let songs = db.get_songs();
         let artists = db.artists();
