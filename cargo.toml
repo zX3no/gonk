@@ -5,5 +5,4 @@ members = [
     "gronk-database",
     "gronk-types",
     "gronk-search",
-    "gronk-mpd"
 ]
