@@ -5,7 +5,7 @@ use rusqlite::{params, Connection, Row};
 use std::{
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, SyncSender},
         Arc,
     },
     thread,
@@ -32,7 +32,8 @@ fn fix(item: &str) -> String {
 
 pub struct Database {
     conn: Connection,
-    busy: Arc<AtomicBool>,
+    tx: Arc<SyncSender<bool>>,
+    rx: Receiver<bool>,
 }
 
 impl Database {
@@ -71,15 +72,16 @@ impl Database {
             .unwrap();
         }
 
+        let (tx, rx) = mpsc::sync_channel(1);
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
-            busy: Arc::new(AtomicBool::new(false)),
+            tx: Arc::new(tx),
+            rx,
         })
     }
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
-        let busy = self.busy.clone();
-        busy.store(true, Ordering::SeqCst);
+        let tx = self.tx.clone();
 
         thread::spawn(move || {
             let mut stmt: String = WalkDir::new(music_dir)
@@ -110,13 +112,15 @@ impl Database {
 
             conn.execute_batch(&stmt).unwrap();
 
-            //slow down to make sure the app has time to update
-            thread::sleep(Duration::from_millis(25));
-            busy.store(false, Ordering::SeqCst);
+            tx.send(true).unwrap();
         });
     }
     pub fn is_busy(&self) -> bool {
-        self.busy.load(Ordering::SeqCst)
+        if let Ok(recv) = self.rx.try_recv() {
+            recv
+        } else {
+            false
+        }
     }
     pub fn add_dir(&self, music_dir: &str) {
         self.conn
