@@ -1,6 +1,6 @@
+use dpc_pariter::IteratorExt;
 use gronk_types::Song;
 use jwalk::WalkDir;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Row};
 use std::{
     path::{Path, PathBuf},
@@ -82,30 +82,26 @@ impl Database {
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
-            let paths: Vec<PathBuf> = WalkDir::new(music_dir)
+            let mut stmt: String = WalkDir::new(music_dir)
                 .into_iter()
-                .filter_map(|entry| {
-                    if let Some(ex) = entry.as_ref().unwrap().path().extension() {
-                        if ex == "flac" || ex == "mp3" || ex == "m4a" {
-                            return Some(entry.as_ref().unwrap().path());
-                        }
+                .map(|dir| dir.unwrap().path())
+                .filter(|dir| {
+                    if let Some(ex) = dir.extension() {
+                        matches!(ex.to_str(), Some("flac") | Some("mp3"))
+                    } else {
+                        false
                     }
-                    None
                 })
-                .collect();
-
-            let songs: Vec<Song> = paths.par_iter().map(|path| Song::from(path)).collect();
-
-            let stmts:Vec<_> = songs.iter().map(|song| {
-                let artist = fix(&song.artist);
-                let album = fix(&song.album);
-                let name = fix(&song.name);
-                let path = fix(song.path.to_str().unwrap());
-                format!("INSERT INTO song (number, disc, name, album, artist, path, duration) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                            song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64())
-            }).collect();
-
-            let mut stmt = stmts.join("\n");
+                .parallel_map(|dir| Song::from(&dir))
+                .map(|song| {
+                    let artist = fix(&song.artist);
+                    let album = fix(&song.album);
+                    let name = fix(&song.name);
+                    let path = fix(song.path.to_str().unwrap());
+                    format!("INSERT INTO song (number, disc, name, album, artist, path, duration) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                                song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64())
+                })
+                .collect::<Vec<_>>().join("\n");
 
             stmt.insert_str(0, "BEGIN;\n");
             stmt.push_str("COMMIT;\n");
@@ -115,7 +111,7 @@ impl Database {
             conn.execute_batch(&stmt).unwrap();
 
             //slow down to make sure the app has time to update
-            thread::sleep(Duration::from_millis(16));
+            thread::sleep(Duration::from_millis(25));
             busy.store(false, Ordering::SeqCst);
         });
     }
