@@ -75,8 +75,17 @@ impl SymphoniaDecoder {
             .codec_params
             .n_frames
             .map(|frames| stream.codec_params.start_ts + frames);
-        let d = tb.unwrap().calc_time(dur.unwrap());
-        let total_duration = Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac);
+
+        let total_duration = if let Some(dur) = dur {
+            if let Some(tb) = tb {
+                let d = tb.calc_time(dur);
+                Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac)
+            } else {
+                Duration::from_secs(0)
+            }
+        } else {
+            Duration::from_secs(0)
+        };
 
         let current_frame = probed.format.next_packet()?;
         let decoded = decoder.decode(&current_frame)?;
