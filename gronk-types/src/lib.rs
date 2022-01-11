@@ -74,8 +74,7 @@ impl Song {
         }
 
         if song.artist.is_empty() {
-            //TODO: unknown artist
-            panic!("no artist???");
+            song.artist = String::from("Unknown Artist");
         }
 
         //duration

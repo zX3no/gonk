@@ -3,6 +3,7 @@ name = "gronk"
 version = "0.0.1"
 edition = "2021"
 default-run = "gronk"
+authors = ["Bay <example@email.com>"]
 
 [dependencies]
 crossterm = "0.22.1"

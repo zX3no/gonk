@@ -40,8 +40,8 @@ fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some(first) = args.first() {
         if first == "add" {
-            if let Some(dir) = args.get(1) {
-                db.add_dir(dir);
+            if let Some(dir) = args.get(1..) {
+                db.add_dir(&dir.join(" "));
             }
         }
     }
