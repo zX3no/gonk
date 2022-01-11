@@ -73,6 +73,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
                 Event::Key(key) => {
                     if let KeyCode::Char('c') = key.code {
                         if key.modifiers == KeyModifiers::CONTROL {
+                            app.save_volume();
                             return Ok(());
                         } else {
                             app.handle_char('c', key.modifiers);

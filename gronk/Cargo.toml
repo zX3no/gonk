@@ -13,3 +13,4 @@ gronk-types = {path = "../gronk-types"}
 gronk-search = {path = "../gronk-search"}
 rodio = {path = "../rodio"}
 dirs = "4.0.0"
+rand = "0.8.4"

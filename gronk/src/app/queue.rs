@@ -1,6 +1,7 @@
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gronk_types::Song;
+use rand::{prelude::SliceRandom, thread_rng};
 use rodio::Player;
 use std::time::Duration;
 
@@ -165,6 +166,19 @@ impl Queue {
         }
         if self.constraint.iter().sum::<u16>() != 100 {
             panic!("{:?}", self.constraint);
+        }
+    }
+    pub fn randomize(&mut self) {
+        if let Some(song) = self.list.selected().cloned() {
+            self.list.data.shuffle(&mut thread_rng());
+
+            let mut index = 0;
+            for (i, s) in self.list.data.iter().enumerate() {
+                if s == &song {
+                    index = i;
+                }
+            }
+            self.list.select(Some(index));
         }
     }
 }

@@ -136,6 +136,7 @@ impl<'a> App<'a> {
                 's' => self.queue.volume_down(),
                 '/' => self.ui_mode = AppMode::Search,
                 'x' => self.delete_from_queue(),
+                'r' => self.queue.randomize(),
                 '1' | '!' => self.queue.move_constraint('1', modifier),
                 '2' | '@' => self.queue.move_constraint('2', modifier),
                 '3' | '#' => self.queue.move_constraint('3', modifier),
@@ -153,4 +154,6 @@ impl<'a> App<'a> {
             _ => (),
         }
     }
+
+    pub fn save_volume(&self) {}
 }
