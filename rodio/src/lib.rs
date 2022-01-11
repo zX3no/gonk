@@ -53,11 +53,16 @@ impl Default for Player {
 }
 impl Player {
     pub fn change_volume(&mut self, positive: bool) {
-        if positive && self.volume != 100 {
+        if positive {
             self.volume += VOLUME_STEP;
         } else if self.volume != 0 {
             self.volume -= VOLUME_STEP;
         }
+
+        if self.volume > 100 {
+            self.volume = 100;
+        }
+
         self.sink.set_volume(self.volume as f32 / 1000.0);
     }
     pub fn sleep_until_end(&self) {
