@@ -55,10 +55,20 @@ impl Song {
                         StandardTagKey::Album => song.album = tag.value.to_string(),
                         StandardTagKey::TrackTitle => song.name = tag.value.to_string(),
                         StandardTagKey::TrackNumber => {
-                            song.number = tag.value.to_string().parse::<u16>().unwrap_or(1)
+                            let number = tag.value.to_string();
+                            if let Some((num, _)) = number.split_once('/') {
+                                song.number = num.parse::<u16>().unwrap_or(1);
+                            } else {
+                                song.number = tag.value.to_string().parse::<u16>().unwrap_or(1);
+                            }
                         }
                         StandardTagKey::DiscNumber => {
-                            song.disc = tag.value.to_string().parse::<u16>().unwrap_or(1)
+                            let number = tag.value.to_string();
+                            if let Some((num, _)) = number.split_once('/') {
+                                song.disc = num.parse::<u16>().unwrap_or(1);
+                            } else {
+                                song.disc = tag.value.to_string().parse::<u16>().unwrap_or(1);
+                            }
                         }
                         _ => (),
                     }

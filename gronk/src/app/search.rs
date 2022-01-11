@@ -95,8 +95,6 @@ impl<'a> Search<'a> {
     }
     pub fn update_search(&mut self) {
         self.results.data = self.engine.search(&self.query);
-        // dbg!(&self.query);
-        // dbg!(&self.results);
     }
     pub fn on_key(&mut self, c: char) {
         if let SearchMode::Search = &self.mode {
