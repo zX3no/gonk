@@ -84,7 +84,7 @@ impl Database {
         let tx = self.tx.clone();
 
         thread::spawn(move || {
-            let mut stmt: String = WalkDir::new(music_dir)
+            let songs: Vec<Song> = WalkDir::new(music_dir)
                 .into_iter()
                 .map(|dir| dir.unwrap().path())
                 .filter(|dir| {
@@ -95,6 +95,13 @@ impl Database {
                     }
                 })
                 .parallel_map(|dir| Song::from(&dir))
+                .collect();
+
+            if songs.is_empty() {
+                panic!("Directory has no songs!");
+            }
+
+            let mut stmt = songs.iter()
                 .map(|song| {
                     let artist = fix(&song.artist);
                     let album = fix(&song.album);
