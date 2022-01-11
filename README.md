@@ -1,4 +1,14 @@
 ## Gronk
+Install:
+```
+git clone https://github.com/zX3no/gronk
+cd gronk
+cargo install --path gronk
+```
+Then add some music:
+```
+gronk add D:/Music
+```
 
 ![](photos/1.png)
 
