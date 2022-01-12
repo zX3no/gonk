@@ -7,16 +7,30 @@ use crossterm::{
 use gronk_database::Database;
 use std::{
     io::{stdout, Result},
+    sync::{
+        mpsc::{self, SyncSender},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
+use win_hotkey::*;
 
 mod app;
 mod index;
 mod ui;
+
+#[derive(Debug, Clone)]
+enum HotkeyEvent {
+    PlayPause,
+    Next,
+    Prev,
+    VolUp,
+    VolDown,
+}
 
 fn main() -> Result<()> {
     let orig_hook = std::panic::take_hook();
@@ -26,11 +40,11 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }));
 
-    execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
-    enable_raw_mode()?;
-
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
+
+    execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    enable_raw_mode()?;
     terminal.clear()?;
     terminal.hide_cursor()?;
 
@@ -61,7 +75,21 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(16);
 
+    let (rx, tx) = mpsc::sync_channel(1);
+    let rx = Arc::new(rx);
+
+    register_hotkeys(rx);
+
     loop {
+        if let Ok(recv) = tx.try_recv() {
+            match recv {
+                HotkeyEvent::VolUp => app.queue.volume_up(),
+                HotkeyEvent::VolDown => app.queue.volume_down(),
+                HotkeyEvent::PlayPause => app.queue.play_pause(),
+                HotkeyEvent::Prev => app.queue.prev(),
+                HotkeyEvent::Next => app.queue.next(),
+            }
+        }
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
         let timeout = tick_rate
@@ -86,9 +114,42 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
                 _ => (),
             }
         }
+
         if last_tick.elapsed() >= tick_rate {
             app.on_tick();
             last_tick = Instant::now();
         }
     }
+}
+
+fn register_hotkeys(rx: Arc<SyncSender<HotkeyEvent>>) {
+    std::thread::spawn(move || {
+        let mut hk = Listener::<HotkeyEvent>::new();
+        hk.register_hotkey(
+            modifiers::SHIFT | modifiers::CONTROL,
+            'W' as u32,
+            HotkeyEvent::VolUp,
+        );
+        hk.register_hotkey(
+            modifiers::SHIFT | modifiers::CONTROL,
+            'Q' as u32,
+            HotkeyEvent::VolDown,
+        );
+        hk.register_hotkey(
+            modifiers::SHIFT | modifiers::CONTROL,
+            'A' as u32,
+            HotkeyEvent::Prev,
+        );
+        hk.register_hotkey(
+            modifiers::SHIFT | modifiers::CONTROL,
+            'S' as u32,
+            HotkeyEvent::Next,
+        );
+        hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
+        loop {
+            if let Some(event) = hk.listen() {
+                rx.send(event.clone()).unwrap();
+            }
+        }
+    });
 }
