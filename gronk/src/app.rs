@@ -25,7 +25,7 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(db: &'a Database) -> Self {
         let music = Browser::new(db);
-        let queue = Queue::new();
+        let queue = Queue::new(db.get_volume());
         let search = Search::new(db);
 
         Self {
@@ -157,6 +157,7 @@ impl<'a> App<'a> {
             _ => (),
         }
     }
-
-    pub fn save_volume(&self) {}
+    pub fn save_volume(&self) {
+        self.db.set_volume(self.queue.get_volume());
+    }
 }

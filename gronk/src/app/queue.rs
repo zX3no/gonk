@@ -16,13 +16,13 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new() -> Self {
+    pub fn new(volume: u16) -> Self {
         Self {
             ui: Index::default(),
             list: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
-            player: Player::default(),
+            player: Player::default().volume(volume),
             random: false,
         }
     }
@@ -147,7 +147,7 @@ impl Queue {
     pub fn get_playing(&self) -> Option<&Song> {
         self.list.selected()
     }
-    pub fn get_volume_percent(&self) -> u16 {
+    pub fn get_volume(&self) -> u16 {
         self.player.volume_percent()
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {

@@ -70,6 +70,21 @@ impl Database {
                 [],
             )
             .unwrap();
+
+            conn.execute(
+                "CREATE TABLE settings(
+                    volume INTEGER NOT NULL,
+                    UNIQUE(volume)
+                )",
+                [],
+            )
+            .unwrap();
+
+            conn.execute(
+                "INSERT OR IGNORE INTO settings (volume) VALUES (?1)",
+                params![15],
+            )
+            .unwrap();
         }
 
         let (tx, rx) = mpsc::sync_channel(1);
@@ -78,6 +93,21 @@ impl Database {
             tx: Arc::new(tx),
             rx,
         })
+    }
+    pub fn get_volume(&self) -> u16 {
+        let mut stmt = self.conn.prepare("SELECT volume FROM settings").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+
+        if let Some(row) = rows.next().unwrap() {
+            row.get(0).unwrap()
+        } else {
+            15
+        }
+    }
+    pub fn set_volume(&self, volume: u16) {
+        self.conn
+            .execute("UPDATE settings SET volume = (?1)", params![volume])
+            .unwrap();
     }
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();

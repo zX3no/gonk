@@ -52,6 +52,10 @@ impl Default for Player {
     }
 }
 impl Player {
+    pub fn volume(mut self, volume: u16) -> Player {
+        self.volume = volume;
+        self
+    }
     pub fn change_volume(&mut self, positive: bool) {
         if positive {
             self.volume += VOLUME_STEP;

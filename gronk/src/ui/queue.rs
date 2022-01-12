@@ -101,7 +101,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
     }
     //Right
     {
-        let volume = queue.get_volume_percent();
+        let volume = queue.get_volume();
         let text = Spans::from(format!("Vol: {}%─╮", volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
