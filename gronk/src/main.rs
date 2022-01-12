@@ -8,7 +8,7 @@ use gronk_database::Database;
 use std::{
     io::{stdout, Result},
     sync::{
-        mpsc::{self, SyncSender},
+        mpsc::{self, Receiver},
         Arc,
     },
     time::{Duration, Instant},
@@ -23,6 +23,7 @@ mod app;
 mod index;
 mod ui;
 
+#[cfg(windows)]
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
     PlayPause,
@@ -75,12 +76,11 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(16);
 
-    let (rx, tx) = mpsc::sync_channel(1);
-    let rx = Arc::new(rx);
-
-    register_hotkeys(rx);
+    #[cfg(windows)]
+    let tx = register_hotkeys();
 
     loop {
+        #[cfg(windows)]
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => app.queue.volume_up(),
@@ -90,6 +90,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
                 HotkeyEvent::Next => app.queue.next(),
             }
         }
+
         terminal.draw(|f| ui::draw(f, &mut app))?;
 
         let timeout = tick_rate
@@ -122,7 +123,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     }
 }
 
-fn register_hotkeys(rx: Arc<SyncSender<HotkeyEvent>>) {
+fn register_hotkeys() -> Receiver<HotkeyEvent> {
+    let (rx, tx) = mpsc::sync_channel(1);
+    let rx = Arc::new(rx);
     std::thread::spawn(move || {
         let mut hk = Listener::<HotkeyEvent>::new();
         hk.register_hotkey(
@@ -152,4 +155,5 @@ fn register_hotkeys(rx: Arc<SyncSender<HotkeyEvent>>) {
             }
         }
     });
+    tx
 }
