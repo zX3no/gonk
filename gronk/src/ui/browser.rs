@@ -1,13 +1,22 @@
 use crate::app::{browser::BrowserMode, Browser};
 use tui::{
     backend::Backend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState},
+    text::Spans,
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
     Frame,
 };
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
+    draw_browser(f, browser);
+
+    if browser.is_busy() {
+        draw_popup(f);
+    }
+}
+
+pub fn draw_browser<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     let area = f.size();
 
     let chunks = Layout::default()
@@ -102,4 +111,45 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
     f.render_stateful_widget(artists, chunks[0], &mut artist_state);
     f.render_stateful_widget(albums, chunks[1], &mut album_state);
     f.render_stateful_widget(songs, chunks[2], &mut song_state);
+}
+
+pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
+    let area = f.size();
+
+    let v = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+            ]
+            .as_ref(),
+        )
+        .split(area);
+
+    let h = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+            ]
+            .as_ref(),
+        )
+        .margin(6)
+        .split(v[1]);
+
+    let text = vec![Spans::from("Scanning...")];
+
+    let p = Paragraph::new(text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        )
+        .alignment(Alignment::Center);
+
+    f.render_widget(p, h[1]);
 }

@@ -56,7 +56,7 @@ impl Database {
                     name     TEXT NOT NULL,
                     album    TEXT NOT NULL,
                     artist   TEXT NOT NULL,
-                    path     TEXT NOT NULL,
+                    path     TEXT NOT NULL UNIQUE,
                     duration DOUBLE NOT NULL
                 )",
                 [],
@@ -82,6 +82,7 @@ impl Database {
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();
         let tx = self.tx.clone();
+        tx.send(true).unwrap();
 
         thread::spawn(move || {
             let songs: Vec<Song> = WalkDir::new(music_dir)
@@ -107,7 +108,7 @@ impl Database {
                     let album = fix(&song.album);
                     let name = fix(&song.name);
                     let path = fix(song.path.to_str().unwrap());
-                    format!("INSERT INTO song (number, disc, name, album, artist, path, duration) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                    format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                                 song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64())
                 })
                 .collect::<Vec<_>>().join("\n");
@@ -120,13 +121,14 @@ impl Database {
             conn.execute_batch(&stmt).unwrap();
 
             tx.send(true).unwrap();
+            tx.send(false).unwrap();
         });
     }
-    pub fn is_busy(&self) -> bool {
+    pub fn is_busy(&self) -> Option<bool> {
         if let Ok(recv) = self.rx.try_recv() {
-            recv
+            Some(recv)
         } else {
-            false
+            None
         }
     }
     pub fn add_dir(&self, music_dir: &str) {

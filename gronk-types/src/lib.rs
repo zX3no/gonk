@@ -95,12 +95,15 @@ impl Song {
         let dur = track
             .codec_params
             .n_frames
-            .map(|frames| track.codec_params.start_ts + frames)
-            .unwrap();
+            .map(|frames| track.codec_params.start_ts + frames);
 
-        let d = tb.calc_time(dur.saturating_sub(ts));
-        let duration = Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac);
-        song.duration = duration;
+        if let Some(dur) = dur {
+            let d = tb.calc_time(dur.saturating_sub(ts));
+            let duration = Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac);
+            song.duration = duration;
+        } else {
+            song.duration = Duration::from_secs(0);
+        }
 
         song
     }

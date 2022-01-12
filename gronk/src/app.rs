@@ -77,9 +77,12 @@ impl<'a> App<'a> {
     pub fn on_tick(&mut self) {
         self.queue.update();
 
-        if self.db.is_busy() {
-            self.browser.refresh();
-            self.search.refresh();
+        if let Some(busy) = self.db.is_busy() {
+            if busy {
+                self.browser.refresh();
+                self.search.refresh();
+            }
+            self.browser.update_busy(busy);
         }
 
         if self.search.has_query_changed() {

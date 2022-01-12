@@ -31,6 +31,7 @@ pub struct Browser<'a> {
     albums: Index<String>,
     songs: Index<(u16, String)>,
     pub mode: BrowserMode,
+    is_busy: bool,
 }
 
 impl<'a> Browser<'a> {
@@ -56,7 +57,14 @@ impl<'a> Browser<'a> {
             albums,
             songs,
             mode: BrowserMode::Artist,
+            is_busy: false,
         }
+    }
+    pub fn update_busy(&mut self, busy: bool) {
+        self.is_busy = busy;
+    }
+    pub fn is_busy(&self) -> bool {
+        self.is_busy
     }
     pub fn get_selected_artist(&self) -> Option<usize> {
         self.artists.index()

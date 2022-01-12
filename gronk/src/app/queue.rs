@@ -12,6 +12,7 @@ pub struct Queue {
     //TODO: is there a better way of doing this?
     pub clicked_pos: Option<(u16, u16)>,
     player: Player,
+    random: bool,
 }
 
 impl Queue {
@@ -22,6 +23,7 @@ impl Queue {
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             player: Player::default(),
+            random: false,
         }
     }
     pub fn volume_up(&mut self) {
@@ -169,16 +171,22 @@ impl Queue {
         }
     }
     pub fn randomize(&mut self) {
-        if let Some(song) = self.list.selected().cloned() {
-            self.list.data.shuffle(&mut thread_rng());
+        self.random = !self.random;
 
-            let mut index = 0;
-            for (i, s) in self.list.data.iter().enumerate() {
-                if s == &song {
-                    index = i;
+        if self.random {
+            if let Some(song) = self.list.selected().cloned() {
+                self.list.data.shuffle(&mut thread_rng());
+
+                let mut index = 0;
+                for (i, s) in self.list.data.iter().enumerate() {
+                    if s == &song {
+                        index = i;
+                    }
                 }
+                self.list.select(Some(index));
             }
-            self.list.select(Some(index));
+        } else {
+            todo!("reorder items");
         }
     }
 }
