@@ -1,5 +1,0 @@
-    Finished release [optimized] target(s) in 0.14s
-     Running `target\release\gronk.exe add D:/music`
-[gronk\src\app\browser.rs:64] busy = true
-[gronk\src\app\browser.rs:64] busy = true
-[gronk\src\app\browser.rs:64] busy = false
