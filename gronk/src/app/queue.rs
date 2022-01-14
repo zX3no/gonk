@@ -104,7 +104,7 @@ impl Queue {
                 if index > end {
                     self.ui.select(Some(end));
                 }
-                if index < playing {
+                if index <= playing {
                     self.play_selected();
                 }
             };
