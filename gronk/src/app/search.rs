@@ -111,10 +111,6 @@ impl<'a> Search<'a> {
     pub fn refresh(&mut self) {
         self.engine = Search::update_engine(self.db);
     }
-    pub fn exit(&mut self) {
-        self.mode.next();
-        self.results.select(None);
-    }
     pub fn reset(&mut self) {
         self.mode.reset();
         self.results.select(None);
@@ -129,12 +125,12 @@ impl<'a> Search<'a> {
         match self.mode {
             SearchMode::Search => {
                 if modifiers == KeyModifiers::CONTROL {
-                    self.query = String::new();
+                    self.query.clear();
                 } else {
                     self.query.pop();
                 }
             }
-            SearchMode::Select => self.exit(),
+            SearchMode::Select => self.mode.next(),
         }
     }
     pub fn has_query_changed(&mut self) -> bool {
@@ -168,5 +164,22 @@ impl<'a> Search<'a> {
     }
     pub fn selected(&self) -> Option<usize> {
         self.results.index()
+    }
+    pub fn exit_search(&mut self) -> bool {
+        match self.mode {
+            SearchMode::Search => {
+                if let SearchMode::Search = self.mode {
+                    self.query.clear();
+                    true
+                } else {
+                    false
+                }
+            }
+            SearchMode::Select => {
+                self.mode.next();
+                self.results.select(None);
+                false
+            }
+        }
     }
 }

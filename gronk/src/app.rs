@@ -19,7 +19,7 @@ pub struct App<'a> {
     pub browser: Browser<'a>,
     pub queue: Queue,
     pub search: Search<'a>,
-    pub ui_mode: AppMode,
+    pub app_mode: AppMode,
 }
 
 impl<'a> App<'a> {
@@ -33,35 +33,35 @@ impl<'a> App<'a> {
             queue,
             search,
             db,
-            ui_mode: AppMode::Browser,
+            app_mode: AppMode::Browser,
         }
     }
     pub fn browser_next(&mut self) {
-        if self.ui_mode == AppMode::Browser {
+        if self.app_mode == AppMode::Browser {
             self.browser.next();
         }
     }
     pub fn browser_prev(&mut self) {
-        if self.ui_mode == AppMode::Browser {
+        if self.app_mode == AppMode::Browser {
             self.browser.prev();
         }
     }
     pub fn up(&mut self) {
-        match self.ui_mode {
+        match self.app_mode {
             AppMode::Browser => self.browser.up(),
             AppMode::Queue => self.queue.up(),
             AppMode::Search => self.search.up(),
         }
     }
     pub fn down(&mut self) {
-        match self.ui_mode {
+        match self.app_mode {
             AppMode::Browser => self.browser.down(),
             AppMode::Queue => self.queue.down(),
             AppMode::Search => self.search.down(),
         }
     }
     pub fn on_enter(&mut self) {
-        match self.ui_mode {
+        match self.app_mode {
             AppMode::Browser => {
                 let songs = self.browser.on_enter();
                 self.queue.add(songs);
@@ -101,7 +101,7 @@ impl<'a> App<'a> {
             KeyCode::Right => self.browser_next(),
             KeyCode::Enter => self.on_enter(),
             KeyCode::Tab => {
-                self.ui_mode = match self.ui_mode {
+                self.app_mode = match self.app_mode {
                     AppMode::Browser => AppMode::Queue,
                     AppMode::Queue => AppMode::Browser,
                     AppMode::Search => {
@@ -112,15 +112,15 @@ impl<'a> App<'a> {
             }
             KeyCode::Backspace => self.search.on_backspace(modifiers),
             KeyCode::Esc => {
-                if self.ui_mode == AppMode::Search {
-                    self.search.exit();
+                if self.search.exit_search() {
+                    self.app_mode = AppMode::Queue;
                 }
             }
             _ => (),
         }
     }
     pub fn handle_char(&mut self, c: char, modifier: KeyModifiers) {
-        if self.ui_mode == AppMode::Search {
+        if self.app_mode == AppMode::Search {
             self.search.on_key(c);
         } else {
             match c {
@@ -137,7 +137,7 @@ impl<'a> App<'a> {
                 'd' => self.queue.next(),
                 'w' => self.queue.volume_up(),
                 's' => self.queue.volume_down(),
-                '/' => self.ui_mode = AppMode::Search,
+                '/' => self.app_mode = AppMode::Search,
                 'x' => self.delete_from_queue(),
                 'r' => self.queue.randomize(),
                 '1' | '!' => self.queue.move_constraint('1', modifier),

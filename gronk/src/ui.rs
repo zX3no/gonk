@@ -12,7 +12,7 @@ static ALBUM: Color = Color::Magenta;
 static ARTIST: Color = Color::Blue;
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    match app.ui_mode {
+    match app.app_mode {
         AppMode::Browser => browser::draw(f, &app.browser),
         AppMode::Queue => queue::draw(f, app),
         AppMode::Search => search::draw(f, &app.search, app.db),
