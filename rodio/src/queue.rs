@@ -187,7 +187,7 @@ where
             // In order to avoid inlining this expensive operation, the code is in another function.
             if self.go_next().is_err() {
                 return None;
-            }
+            };
         }
     }
 

@@ -129,10 +129,16 @@ impl Player {
     }
     pub fn trigger_next(&mut self) -> bool {
         if let Some(duration) = self.duration() {
+            //TODO: duration is broken for certain files
+            //This will cause songs to play forever
+            if duration == -0.29 {
+                return false;
+            }
             if self.elapsed().as_secs_f64() > duration {
                 self.safe_guard = true;
             }
         }
+        dbg!(self.safe_guard);
 
         if self.safe_guard {
             self.safe_guard = false;
