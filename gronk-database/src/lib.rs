@@ -193,7 +193,13 @@ impl Database {
             .collect();
 
         for path in paths {
-            self.add_music(&path);
+            if Path::new(&path).exists() {
+                self.add_music(&path);
+            } else {
+                self.conn
+                    .execute("DELETE FROM music WHERE path=(?1)", [path])
+                    .unwrap();
+            }
         }
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {

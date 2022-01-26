@@ -114,32 +114,20 @@ pub fn draw_browser<B: Backend>(f: &mut Frame<B>, browser: &Browser) {
 }
 
 pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
-    let area = f.size();
+    let mut area = f.size();
 
-    let v = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Ratio(1, 3),
-                Constraint::Ratio(1, 3),
-                Constraint::Ratio(1, 3),
-            ]
-            .as_ref(),
-        )
-        .split(area);
+    if (area.width / 2) < 14 || (area.height / 2) < 3 {
+        return;
+    }
 
-    let h = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Ratio(1, 3),
-                Constraint::Ratio(1, 3),
-                Constraint::Ratio(1, 3),
-            ]
-            .as_ref(),
-        )
-        .margin(6)
-        .split(v[1]);
+    area.x = (area.width / 2) - 7;
+    if (area.width / 2) % 2 == 0 {
+        area.y = (area.height / 2) - 3;
+    } else {
+        area.y = (area.height / 2) - 2;
+    }
+    area.width = 14;
+    area.height = 3;
 
     let text = vec![Spans::from("Scanning...")];
 
@@ -151,5 +139,5 @@ pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
         )
         .alignment(Alignment::Center);
 
-    f.render_widget(p, h[1]);
+    f.render_widget(p, area);
 }

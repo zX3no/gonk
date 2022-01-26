@@ -13,7 +13,6 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
-
 #[cfg(windows)]
 use {
     std::sync::{
