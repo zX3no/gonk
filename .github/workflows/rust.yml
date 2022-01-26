@@ -16,5 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install libasound2-dev
+      run: sudo apt install -y libasound2-dev
     - name: Build
       run: cargo build --verbose
