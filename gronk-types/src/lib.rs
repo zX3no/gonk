@@ -86,6 +86,15 @@ impl Song {
         if song.artist.is_empty() {
             song.artist = String::from("Unknown Artist");
         }
+        if song.name.is_empty() {
+            song.name = String::from("Unknown Title");
+        }
+        if song.album.is_empty() {
+            song.album = String::from("Unknown Album");
+        }
+        if song.number == 0 {
+            song.number = 1;
+        }
 
         //duration
         let track = probe.format.default_track().unwrap();

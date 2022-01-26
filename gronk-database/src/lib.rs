@@ -120,7 +120,15 @@ impl Database {
                 .map(|dir| dir.unwrap().path())
                 .filter(|dir| {
                     if let Some(ex) = dir.extension() {
-                        matches!(ex.to_str(), Some("flac") | Some("mp3"))
+                        matches!(
+                            ex.to_str(),
+                            Some("flac")
+                                | Some("mp3")
+                                | Some("ogg")
+                                | Some("alac")
+                                | Some("m4a")
+                                | Some("wav")
+                        )
                     } else {
                         false
                     }
@@ -168,7 +176,12 @@ impl Database {
                 params![music_dir],
             )
             .unwrap();
-        self.add_music(music_dir);
+
+        if Path::new(music_dir).exists() {
+            self.add_music(music_dir);
+        } else {
+            panic!("Path does not exist!");
+        }
     }
     pub fn reset(&self) {
         self.conn.execute("DELETE FROM song", []).unwrap();

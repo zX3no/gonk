@@ -28,8 +28,9 @@ gronk add D:/Music
 ```
 
 ## ⚒️ Troubleshooting
+> A lot of non-FLAC files fail to play ¯\\\_(ツ)_/¯. I'm looking into it.
 
-If somethings goes wrong you can always delete the database.
+If somethings goes wrong with the database, you can always delete it here:
 
 | OS            | Path             |
 |---------------|------------------|
@@ -42,6 +43,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 
 ## TODO
+- [ ] Many files types fail to play correctly
 
 - [x] Song metadata (duration)
 
