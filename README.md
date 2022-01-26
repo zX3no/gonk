@@ -29,14 +29,14 @@ gronk add D:/Music
 
 ## ⚒️ Troubleshooting
 
-> If somethings goes wrong you can always delete the database.
+If somethings goes wrong you can always delete the database.
 
 | OS            | Path             |
 |---------------|------------------|
 | Windows       | %appdata%/gronk  |
 | Linux & MacOS | ~/.config/gronk/ |
 
-> If your music player has broken lines, just increase your zoom level or font size.
+If your music player has broken lines, just increase your zoom level or font size.
 
 ![](media/broken.png)
 
