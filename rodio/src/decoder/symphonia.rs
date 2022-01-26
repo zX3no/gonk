@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{ffi::OsStr, time::Duration};
 use symphonia::{
     core::{
         audio::{AudioBufferRef, SampleBuffer, SignalSpec},
@@ -28,7 +28,7 @@ pub struct SymphoniaDecoder {
 }
 
 impl SymphoniaDecoder {
-    pub fn new(mss: MediaSourceStream, extension: Option<&str>) -> Result<Self, DecoderError> {
+    pub fn new(mss: MediaSourceStream, extension: Option<&OsStr>) -> Result<Self, DecoderError> {
         match SymphoniaDecoder::init(mss, extension) {
             Err(e) => match e {
                 Error::IoError(e) => Err(DecoderError::IoError(e.to_string())),
@@ -51,43 +51,48 @@ impl SymphoniaDecoder {
 
     fn init(
         mss: MediaSourceStream,
-        extension: Option<&str>,
+        extension: Option<&OsStr>,
     ) -> symphonia::core::errors::Result<Option<SymphoniaDecoder>> {
         let mut hint = Hint::new();
         if let Some(ext) = extension {
-            hint.with_extension(ext);
+            hint.with_extension(ext.to_str().unwrap());
+        } else {
+            panic!("no hint");
         }
         let format_opts: FormatOptions = Default::default();
         let metadata_opts: MetadataOptions = Default::default();
-        let mut probed = get_probe().format(&hint, mss, &format_opts, &metadata_opts)?;
+        let probed = get_probe().format(&hint, mss, &format_opts, &metadata_opts)?;
 
-        let stream = match probed.format.default_track() {
-            Some(stream) => stream,
-            None => return Ok(None),
-        };
+        // let stream = match probed.format.default_track() {
+        //     Some(stream) => stream,
+        //     None => return Ok(None),
+        // };
 
-        let mut decoder = symphonia::default::get_codecs()
-            .make(&stream.codec_params, &DecoderOptions { verify: true })?;
+        // let mut decoder = symphonia::default::get_codecs()
+        //     .make(&stream.codec_params, &DecoderOptions { verify: true })?;
+        let mut format = probed.format;
+        let decoder_opts = &DecoderOptions { verify: true };
 
-        //Calculate total duraiton
-        let tb = stream.codec_params.time_base;
-        let dur = stream
-            .codec_params
-            .n_frames
-            .map(|frames| stream.codec_params.start_ts + frames);
+        let track = format.default_track().unwrap();
 
-        let total_duration = if let Some(dur) = dur {
-            if let Some(tb) = tb {
-                let d = tb.calc_time(dur);
-                Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac)
+        let mut decoder =
+            symphonia::default::get_codecs().make(&track.codec_params, decoder_opts)?;
+
+        let params = &track.codec_params;
+
+        //TODO: why are there no n_frames ????
+        let total_duration = if let Some(n_frames) = params.n_frames {
+            if let Some(tb) = params.time_base {
+                let time = tb.calc_time(n_frames);
+                Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
             } else {
-                Duration::from_secs(0)
+                panic!("no time base?");
             }
         } else {
-            Duration::from_secs(0)
+            panic!("no n_frames");
         };
 
-        let current_frame = probed.format.next_packet()?;
+        let current_frame = format.next_packet()?;
         let decoded = decoder.decode(&current_frame)?;
         let spec = decoded.spec().to_owned();
         let buffer = SymphoniaDecoder::get_buffer(decoded, &spec);
@@ -95,7 +100,7 @@ impl SymphoniaDecoder {
         Ok(Some(SymphoniaDecoder {
             decoder,
             current_frame_offset: 0,
-            format: probed.format,
+            format,
             buffer,
             spec,
             total_duration,

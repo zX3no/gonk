@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fmt;
 use std::io::{Read, Seek};
 use std::str::FromStr;
@@ -21,13 +22,14 @@ impl Decoder {
     /// Attempts to automatically detect the format of the source of data.
     pub fn new_decoder<R: Read + Seek + Send + 'static>(
         data: R,
+        ext: Option<&OsStr>,
     ) -> Result<SymphoniaDecoder, DecoderError> {
         let mss = MediaSourceStream::new(
             Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
             Default::default(),
         );
 
-        match symphonia::SymphoniaDecoder::new(mss, None) {
+        match symphonia::SymphoniaDecoder::new(mss, ext) {
             Err(e) => Err(e),
             Ok(decoder) => Ok(decoder),
         }

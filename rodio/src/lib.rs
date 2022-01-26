@@ -76,7 +76,7 @@ impl Player {
         //TODO: if the volume is zero the song will play really fast???
         self.stop();
         let file = File::open(path).unwrap();
-        let decoder = Decoder::new_decoder(BufReader::new(file)).unwrap();
+        let decoder = Decoder::new_decoder(BufReader::new(file), path.extension()).unwrap();
         self.total_duration = decoder.total_duration();
         self.sink.append(decoder);
     }
