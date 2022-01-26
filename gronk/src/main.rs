@@ -7,18 +7,21 @@ use crossterm::{
 use gronk_database::Database;
 use std::{
     io::{stdout, Result},
-    sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
     time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
+
 #[cfg(windows)]
-use win_hotkey::*;
+use {
+    std::sync::{
+        mpsc::{self, Receiver},
+        Arc,
+    },
+    win_hotkey::*,
+};
 
 mod app;
 mod index;
