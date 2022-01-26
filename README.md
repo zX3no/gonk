@@ -10,6 +10,7 @@
 - Easy to use
 - Fuzzy search
 - Mouse support
+- Windows and Linux support
 
 ## 📦 Installation
 
