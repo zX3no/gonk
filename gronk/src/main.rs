@@ -124,6 +124,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     }
 }
 
+#[cfg(windows)]
 fn register_hotkeys() -> Receiver<HotkeyEvent> {
     let (rx, tx) = mpsc::sync_channel(1);
     let rx = Arc::new(rx);
