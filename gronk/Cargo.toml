@@ -14,4 +14,6 @@ gronk-search = {path = "../gronk-search"}
 rodio = {path = "../rodio"}
 dirs = "4.0.0"
 rand = "0.8.4"
+
+[target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey" }
