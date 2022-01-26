@@ -13,7 +13,7 @@
 
 ## 📦 Installation
 
-> MacOS have not been testing
+> MacOS has not been testing
 
 #### From source
 > Debian requires libasound2-dev
