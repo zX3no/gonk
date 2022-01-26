@@ -17,6 +17,7 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
+#[cfg(windows)]
 use win_hotkey::*;
 
 mod app;

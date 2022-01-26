@@ -16,12 +16,17 @@
 > Linux and MacOS have not been testing
 
 #### From source
+> Debian requires libasound2-dev
+
+> Fedora requires alsa-lib-devel
 
 ```
 git clone https://github.com/zX3no/gronk
 cd gronk
 cargo install --path gronk
 ```
+
+
 Then add some music:
 ```
 gronk add D:/Music
