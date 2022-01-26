@@ -138,7 +138,6 @@ impl Player {
                 self.safe_guard = true;
             }
         }
-        dbg!(self.safe_guard);
 
         if self.safe_guard {
             self.safe_guard = false;
