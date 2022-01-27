@@ -114,6 +114,7 @@ impl<'a> Search<'a> {
     pub fn reset(&mut self) {
         self.mode.reset();
         self.results.select(None);
+        self.query.clear();
     }
     pub fn up(&mut self) {
         self.results.up();
@@ -130,7 +131,10 @@ impl<'a> Search<'a> {
                     self.query.pop();
                 }
             }
-            SearchMode::Select => self.mode.next(),
+            SearchMode::Select => {
+                self.results.select(None);
+                self.mode.next();
+            }
         }
     }
     pub fn has_query_changed(&mut self) -> bool {
