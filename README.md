@@ -6,27 +6,27 @@
 </div>
 
 ## ✨ Features
-- Vim-style keybindings
+- Vim-style key bindings
 - Easy to use
 - Fuzzy search
 - Mouse support
-- Windows and Linux support
+- Cross-platform
 
 ## 📦 Installation
 
 > MacOS has not been testing
 
-#### From source
-> Debian requires libasound2-dev
+Debian requires `libasound2-dev`
 
-> Fedora requires alsa-lib-devel
+Fedora requires `alsa-lib-devel`
+
+#### From source
 
 ```
 git clone https://github.com/zX3no/gronk
 cd gronk
 cargo install --path gronk
 ```
-
 
 Then add some music:
 ```
