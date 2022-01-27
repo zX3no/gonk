@@ -17,4 +17,4 @@ dirs = "4.0.0"
 rand = "0.8.4"
 
 [target.'cfg(windows)'.dependencies]
-win-hotkey = { git = "https://github.com/zX3no/win-hotkey" }
+win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev ="1d6cb22ba202a445f73bf51a7e785655440639b3" }
