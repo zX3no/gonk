@@ -20,9 +20,9 @@ pub use crate::sink::Sink;
 pub use crate::source::Source;
 pub use crate::stream::{OutputStream, OutputStreamHandle, PlayError, StreamError};
 
+use std::fs::File;
 use std::path::Path;
 use std::time::Duration;
-use std::{fs::File, io::BufReader};
 
 static VOLUME_STEP: u16 = 5;
 
@@ -79,7 +79,7 @@ impl Player {
         //TODO: if the volume is zero the song will play really fast???
         self.stop();
         let file = File::open(path).unwrap();
-        let decoder = Decoder::new(BufReader::new(file)).unwrap();
+        let decoder = Decoder::new(file).unwrap();
         self.total_duration = decoder.total_duration();
         self.sink.append(decoder);
     }
@@ -92,6 +92,7 @@ impl Player {
         self.sink.elapsed()
     }
     pub fn duration(&self) -> Option<f64> {
+        //TODO: wtf is this?
         self.total_duration
             .map(|duration| duration.as_secs_f64() - 0.29)
     }
@@ -132,11 +133,6 @@ impl Player {
     }
     pub fn trigger_next(&mut self) -> bool {
         if let Some(duration) = self.duration() {
-            //TODO: duration is broken for certain files
-            //This will cause songs to play forever
-            if duration == -0.29 {
-                return false;
-            }
             if self.elapsed().as_secs_f64() > duration {
                 self.safe_guard = true;
             }

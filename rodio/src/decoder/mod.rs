@@ -1,26 +1,18 @@
 use crate::Source;
-use std::{
-    fmt,
-    io::{Read, Seek},
-    time::Duration,
-};
+use std::{fmt, fs::File, time::Duration};
 use symphonia::{
     core::{
         audio::{AudioBufferRef, SampleBuffer, SignalSpec},
         codecs,
         errors::Error,
         formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
-        io::{MediaSource, MediaSourceStream},
+        io::MediaSourceStream,
         meta::MetadataOptions,
         probe::Hint,
         units::{Time, TimeBase},
     },
     default::get_probe,
 };
-
-use self::read_seek_source::ReadSeekSource;
-
-mod read_seek_source;
 
 pub struct Decoder {
     decoder: Box<dyn codecs::Decoder>,
@@ -33,11 +25,11 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn new<R: Read + Seek + Send + 'static>(data: R) -> Result<Self, DecoderError> {
-        let mss = MediaSourceStream::new(
-            Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
-            Default::default(),
-        );
+    pub fn new(file: File) -> Result<Self, DecoderError> {
+        let source = Box::new(file);
+
+        let mss = MediaSourceStream::new(source, Default::default());
+
         match Decoder::init(mss) {
             Err(e) => match e {
                 Error::IoError(e) => Err(DecoderError::IoError(e.to_string())),
@@ -63,13 +55,6 @@ impl Decoder {
         let metadata_opts: MetadataOptions = Default::default();
         let probed = get_probe().format(&Hint::new(), mss, &format_opts, &metadata_opts)?;
 
-        // let stream = match probed.format.default_track() {
-        //     Some(stream) => stream,
-        //     None => return Ok(None),
-        // };
-
-        // let mut decoder = symphonia::default::get_codecs()
-        //     .make(&stream.codec_params, &DecoderOptions { verify: true })?;
         let mut format = probed.format;
         let decoder_opts = &codecs::DecoderOptions { verify: true };
 
@@ -80,7 +65,6 @@ impl Decoder {
 
         let params = &track.codec_params;
 
-        //TODO: why are there no n_frames ????
         let total_duration = if let Some(n_frames) = params.n_frames {
             if let Some(tb) = params.time_base {
                 let time = tb.calc_time(n_frames);
