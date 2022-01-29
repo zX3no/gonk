@@ -14,7 +14,9 @@
 
 ## 📦 Installation
 
-> MacOS has not been testing
+> MacOS has not been testing.
+
+> I recommend using a font with ligatures for the best experience.
 
 Debian requires `libasound2-dev`
 
@@ -68,6 +70,7 @@ If somethings goes wrong with the database, you can always delete it here:
 If your music player has broken lines, just increase your zoom level or font size.
 
 ![](media/broken.png)
+
 
 
 ## TODO
