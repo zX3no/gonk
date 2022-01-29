@@ -3,6 +3,7 @@ pub use cpal::{
     self, traits::DeviceTrait, Device, Devices, DevicesError, InputDevices, OutputDevices,
     SupportedStreamConfig,
 };
+use decoder::Decoder;
 
 mod conversions;
 mod sink;
@@ -15,7 +16,6 @@ pub mod queue;
 pub mod source;
 
 pub use crate::conversions::Sample;
-pub use crate::decoder::Decoder;
 pub use crate::sink::Sink;
 pub use crate::source::Source;
 pub use crate::stream::{OutputStream, OutputStreamHandle, PlayError, StreamError};
@@ -79,7 +79,7 @@ impl Player {
         //TODO: if the volume is zero the song will play really fast???
         self.stop();
         let file = File::open(path).unwrap();
-        let decoder = Decoder::new_decoder(BufReader::new(file), path.extension()).unwrap();
+        let decoder = Decoder::new(BufReader::new(file)).unwrap();
         self.total_duration = decoder.total_duration();
         self.sink.append(decoder);
     }

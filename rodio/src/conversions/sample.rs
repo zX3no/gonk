@@ -72,9 +72,11 @@ pub trait Sample: CpalSample {
     /// `first * numerator / denominator + second * (1 - numerator / denominator)`.
     fn lerp(first: Self, second: Self, numerator: u32, denominator: u32) -> Self;
     /// Multiplies the value of this sample by the given amount.
+    #[must_use]
     fn amplify(self, value: f32) -> Self;
 
     /// Calls `saturating_add` on the sample.
+    #[must_use]
     fn saturating_add(self, other: Self) -> Self;
 
     /// Returns the value corresponding to the absence of sound.

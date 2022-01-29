@@ -1,81 +1,168 @@
-use std::error::Error;
-use std::ffi::OsStr;
-use std::fmt;
-use std::io::{Read, Seek};
-use std::str::FromStr;
-use std::time::Duration;
-
 use crate::Source;
+use std::{
+    fmt,
+    io::{Read, Seek},
+    time::Duration,
+};
+use symphonia::{
+    core::{
+        audio::{AudioBufferRef, SampleBuffer, SignalSpec},
+        codecs,
+        errors::Error,
+        formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
+        io::{MediaSource, MediaSourceStream},
+        meta::MetadataOptions,
+        probe::Hint,
+        units::{Time, TimeBase},
+    },
+    default::get_probe,
+};
 
-use self::{read_seek_source::ReadSeekSource, symphonia::SymphoniaDecoder};
-use ::symphonia::core::io::{MediaSource, MediaSourceStream};
+use self::read_seek_source::ReadSeekSource;
+
 mod read_seek_source;
-mod symphonia;
 
 pub struct Decoder {
-    decoder: SymphoniaDecoder,
+    decoder: Box<dyn codecs::Decoder>,
+    current_frame_offset: usize,
+    format: Box<dyn FormatReader>,
+    buffer: SampleBuffer<i16>,
+    spec: SignalSpec,
+    total_duration: Duration,
+    elapsed: Duration,
 }
 
 impl Decoder {
-    /// Builds a new decoder.
-    ///
-    /// Attempts to automatically detect the format of the source of data.
-    pub fn new_decoder<R: Read + Seek + Send + 'static>(
-        data: R,
-        ext: Option<&OsStr>,
-    ) -> Result<SymphoniaDecoder, DecoderError> {
+    pub fn new<R: Read + Seek + Send + 'static>(data: R) -> Result<Self, DecoderError> {
         let mss = MediaSourceStream::new(
             Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
             Default::default(),
         );
-
-        match symphonia::SymphoniaDecoder::new(mss, ext) {
-            Err(e) => Err(e),
-            Ok(decoder) => Ok(decoder),
+        match Decoder::init(mss) {
+            Err(e) => match e {
+                Error::IoError(e) => Err(DecoderError::IoError(e.to_string())),
+                Error::DecodeError(e) => Err(DecoderError::DecodeError(e)),
+                Error::SeekError(_) => {
+                    unreachable!("Seek errors should not occur during initialization")
+                }
+                Error::Unsupported(_) => Err(DecoderError::UnrecognizedFormat),
+                Error::LimitError(e) => Err(DecoderError::LimitError(e)),
+                Error::ResetRequired => Err(DecoderError::ResetRequired),
+            },
+            Ok(Some(decoder)) => Ok(decoder),
+            Ok(None) => Err(DecoderError::NoStreams),
         }
     }
-}
 
-#[derive(Debug)]
-pub enum Mp4Type {
-    Mp4,
-    M4a,
-    M4p,
-    M4b,
-    M4r,
-    M4v,
-    Mov,
-}
-
-impl FromStr for Mp4Type {
-    type Err = String;
-
-    fn from_str(input: &str) -> Result<Mp4Type, Self::Err> {
-        match &input.to_lowercase()[..] {
-            "mp4" => Ok(Mp4Type::Mp4),
-            "m4a" => Ok(Mp4Type::M4a),
-            "m4p" => Ok(Mp4Type::M4p),
-            "m4b" => Ok(Mp4Type::M4b),
-            "m4r" => Ok(Mp4Type::M4r),
-            "m4v" => Ok(Mp4Type::M4v),
-            "mov" => Ok(Mp4Type::Mov),
-            _ => Err(format!("{} is not a valid mp4 extension", input)),
-        }
+    pub fn into_inner(self) -> MediaSourceStream {
+        self.format.into_inner()
     }
-}
 
-impl fmt::Display for Mp4Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let text = match self {
-            Mp4Type::Mp4 => "mp4",
-            Mp4Type::M4a => "m4a",
-            Mp4Type::M4p => "m4p",
-            Mp4Type::M4b => "m4b",
-            Mp4Type::M4r => "m4r",
-            Mp4Type::M4v => "m4v",
-            Mp4Type::Mov => "mov",
+    fn init(mss: MediaSourceStream) -> symphonia::core::errors::Result<Option<Decoder>> {
+        let format_opts: FormatOptions = Default::default();
+        let metadata_opts: MetadataOptions = Default::default();
+        let probed = get_probe().format(&Hint::new(), mss, &format_opts, &metadata_opts)?;
+
+        // let stream = match probed.format.default_track() {
+        //     Some(stream) => stream,
+        //     None => return Ok(None),
+        // };
+
+        // let mut decoder = symphonia::default::get_codecs()
+        //     .make(&stream.codec_params, &DecoderOptions { verify: true })?;
+        let mut format = probed.format;
+        let decoder_opts = &codecs::DecoderOptions { verify: true };
+
+        let track = format.default_track().unwrap();
+
+        let mut decoder =
+            symphonia::default::get_codecs().make(&track.codec_params, decoder_opts)?;
+
+        let params = &track.codec_params;
+
+        //TODO: why are there no n_frames ????
+        let total_duration = if let Some(n_frames) = params.n_frames {
+            if let Some(tb) = params.time_base {
+                let time = tb.calc_time(n_frames);
+                Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
+            } else {
+                panic!("no time base?");
+            }
+        } else {
+            panic!("no n_frames");
         };
-        write!(f, "{}", text)
+
+        let current_frame = format.next_packet()?;
+        let decoded = decoder.decode(&current_frame)?;
+        let spec = decoded.spec().to_owned();
+        let buffer = Decoder::get_buffer(decoded, &spec);
+
+        Ok(Some(Decoder {
+            decoder,
+            current_frame_offset: 0,
+            format,
+            buffer,
+            spec,
+            total_duration,
+            elapsed: Duration::from_secs(0),
+        }))
+    }
+
+    #[inline]
+    fn get_buffer(decoded: AudioBufferRef, spec: &SignalSpec) -> SampleBuffer<i16> {
+        let duration = decoded.capacity() as u64;
+        let mut buffer = SampleBuffer::<i16>::new(duration, *spec);
+        buffer.copy_interleaved_ref(decoded);
+        buffer
+    }
+}
+
+impl Source for Decoder {
+    #[inline]
+    fn current_frame_len(&self) -> Option<usize> {
+        Some(self.buffer.samples().len())
+    }
+
+    #[inline]
+    fn channels(&self) -> u16 {
+        self.spec.channels.count() as u16
+    }
+
+    #[inline]
+    fn sample_rate(&self) -> u32 {
+        self.spec.rate
+    }
+
+    #[inline]
+    fn total_duration(&self) -> Option<Duration> {
+        Some(self.total_duration)
+    }
+
+    #[inline]
+    fn elapsed(&mut self) -> Duration {
+        self.elapsed
+    }
+
+    #[inline]
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        let nanos_per_sec = 1_000_000_000.0;
+        match self.format.seek(
+            SeekMode::Coarse,
+            SeekTo::Time {
+                time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / nanos_per_sec),
+                track_id: None,
+            },
+        ) {
+            Ok(seeked_to) => {
+                let base = TimeBase::new(1, self.sample_rate());
+                let time = base.calc_time(seeked_to.actual_ts);
+
+                Ok(Duration::from_millis(
+                    time.seconds * 1000 + ((time.frac * 60. * 1000.).round() as u64),
+                ))
+            }
+            Err(_) => Err(()),
+        }
     }
 }
 
@@ -84,44 +171,39 @@ impl Iterator for Decoder {
 
     #[inline]
     fn next(&mut self) -> Option<i16> {
-        self.decoder.next()
-    }
+        if self.current_frame_offset == self.buffer.len() {
+            match self.format.next_packet() {
+                Ok(packet) => match self.decoder.decode(&packet) {
+                    Ok(decoded) => {
+                        self.spec = decoded.spec().to_owned();
+                        self.buffer = Decoder::get_buffer(decoded, &self.spec);
 
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.decoder.size_hint()
-    }
-}
+                        let ts = packet.pts();
+                        let tb = self
+                            .format
+                            .tracks()
+                            .first()
+                            .unwrap()
+                            .codec_params
+                            .time_base
+                            .unwrap();
 
-impl Source for Decoder {
-    #[inline]
-    fn current_frame_len(&self) -> Option<usize> {
-        self.decoder.current_frame_len()
-    }
+                        let t = tb.calc_time(ts);
 
-    #[inline]
-    fn channels(&self) -> u16 {
-        self.decoder.channels()
-    }
+                        self.elapsed =
+                            Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
+                    }
+                    Err(_) => return None,
+                },
+                Err(_) => return None,
+            }
+            self.current_frame_offset = 0;
+        }
 
-    #[inline]
-    fn sample_rate(&self) -> u32 {
-        self.decoder.sample_rate()
-    }
+        let sample = self.buffer.samples()[self.current_frame_offset];
+        self.current_frame_offset += 1;
 
-    #[inline]
-    fn total_duration(&self) -> Option<Duration> {
-        self.decoder.total_duration()
-    }
-
-    #[inline]
-    fn elapsed(&mut self) -> Duration {
-        self.decoder.elapsed()
-    }
-
-    #[inline]
-    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
-        self.decoder.seek(time)
+        Some(sample)
     }
 }
 
@@ -161,4 +243,4 @@ impl fmt::Display for DecoderError {
         write!(f, "{}", text)
     }
 }
-impl Error for DecoderError {}
+impl std::error::Error for DecoderError {}
