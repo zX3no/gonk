@@ -128,7 +128,7 @@ impl<'a> App<'a> {
             self.search.on_key(c);
         } else {
             match c {
-                'u' => self.db.reset(),
+                'u' => self.reset(),
                 'c' => self.queue.clear(),
                 'j' => self.down(),
                 'k' => self.up(),
@@ -163,5 +163,9 @@ impl<'a> App<'a> {
     }
     pub fn save_volume(&self) {
         self.db.set_volume(self.queue.get_volume());
+    }
+    fn reset(&mut self) {
+        self.db.reset();
+        self.browser.reset();
     }
 }
