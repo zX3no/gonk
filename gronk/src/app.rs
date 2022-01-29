@@ -112,8 +112,12 @@ impl<'a> App<'a> {
             }
             KeyCode::Backspace => self.search.on_backspace(modifiers),
             KeyCode::Esc => {
-                if self.search.exit_search() {
-                    self.app_mode = AppMode::Queue;
+                if let AppMode::Search = self.app_mode {
+                    if self.search.on_escape() {
+                        //TODO previous mode should be stored
+                        //self.app_mode.previous()
+                        self.app_mode = AppMode::Browser;
+                    }
                 }
             }
             _ => (),

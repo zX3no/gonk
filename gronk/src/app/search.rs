@@ -169,7 +169,7 @@ impl<'a> Search<'a> {
     pub fn selected(&self) -> Option<usize> {
         self.results.index()
     }
-    pub fn exit_search(&mut self) -> bool {
+    pub fn on_escape(&mut self) -> bool {
         match self.mode {
             SearchMode::Search => {
                 if let SearchMode::Search = self.mode {

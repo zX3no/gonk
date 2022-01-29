@@ -34,6 +34,7 @@ pub struct Player {
     volume: u16,
     safe_guard: bool,
 }
+
 impl Default for Player {
     fn default() -> Self {
         let (_stream, handle) = OutputStream::try_default().unwrap();
@@ -51,8 +52,10 @@ impl Default for Player {
         }
     }
 }
+
 impl Player {
-    pub fn volume(mut self, volume: u16) -> Player {
+    #[must_use]
+    pub fn volume(mut self, volume: u16) -> Self {
         self.volume = volume;
         self
     }

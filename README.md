@@ -33,6 +33,28 @@ Then add some music:
 gronk add D:/Music
 ```
 
+## ⌨️ Key Bindings
+
+| Command     | Key       |
+|-------------|-----------|
+| Move Up     | K / UP    |
+| Move Down   | J / Down  |
+| Move Left   | H / Left  |
+| Move Right  | L / Right |
+| Volume Up   | W         |
+| Volume Up   | S         |
+| Play/Pause  | Space     |
+| Previous    | A         |
+| Next        | D         |
+| Seek -10s   | Q         |
+| Seek 10s    | E         |
+| Clear Queue | C         |
+| Change Mode | Tab       |
+| Search      | /         |
+| ?           | Escape    |
+| ?           | Backspace |
+
+
 ## ⚒️ Troubleshooting
 > A lot of non-FLAC files fail to play ¯\\\_(ツ)_/¯. I'm looking into it.
 
