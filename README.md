@@ -50,6 +50,7 @@ gronk add D:/Music
 | Next        | D         |
 | Seek -10s   | Q         |
 | Seek 10s    | E         |
+| Delete Song | X         |
 | Clear Queue | C         |
 | Change Mode | Tab       |
 | Search      | /         |
@@ -79,6 +80,14 @@ If your music player has broken lines, just increase your zoom level or font siz
 - [x] Song metadata (duration)
 
 - [x] Global hotkeys
+
+- [ ] Settings menu (output device, music directories)
+
+- [ ] Replay gain support
+
+- [ ] Automatically adjust margin based on viewable songs
+
+- [ ] Icon
 
 - [ ] Allow the user to click on songs in the queue(partialy working)
 
