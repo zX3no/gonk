@@ -10,7 +10,7 @@
 - Fuzzy search
 - Mouse support
 - Cross-platform
-- Plays FLAC, WAV, OGG, MP3
+- Plays FLAC, MP3, OGG and WAV
 
 ## 📦 Installation
 
@@ -67,6 +67,8 @@ If your music player has broken lines, just increase your zoom level or font siz
 ![](media/broken.png)
 
 ## TODO
+- [ ] Configuration file for key bindings
+
 - [ ] Fix AAC and M4A files 
 
 - [x] Song metadata (duration)
