@@ -1,5 +1,5 @@
 <h1 align="center" style="font-size: 55px">Gronk</h1>
-<p align="center" style="font-size: 30px">⚠️ This is a work in progress.</p>
+<p align="center" style="font-size: 40px">⚠️ This is a work in progress.</p>
 
 <div align="center" style="display:inline">
       <img src="media/gronk-2x.gif">
