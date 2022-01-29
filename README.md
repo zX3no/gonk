@@ -57,7 +57,6 @@ gronk add D:/Music
 | ?           | Escape    |
 | ?           | Backspace |
 
-
 ## ⚒️ Troubleshooting
 > AAC and M4A files seem to be broken ¯\\\_(ツ)_/¯
 
@@ -66,8 +65,6 @@ If somethings goes wrong with the database, you can always delete it using `gron
 If your music player has broken lines, just increase your zoom level or font size.
 
 ![](media/broken.png)
-
-
 
 ## TODO
 - [ ] Fix AAC and M4A files 

@@ -57,6 +57,7 @@ fn main() -> Result<()> {
             "reset" | "rm" => {
                 drop(db);
                 Database::delete();
+                println!("Database reset!");
                 return Ok(());
             }
             "help" => {
