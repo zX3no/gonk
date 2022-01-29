@@ -1,5 +1,5 @@
 <h1 align="center" style="font-size: 55px">Gronk</h1>
-<p align="center" style="font-size: 30px">⚠️ This is a work in progress. Expect bugs.</p>
+<p align="center" style="font-size: 30px">⚠️ This is a work in progress.</p>
 
 <div align="center" style="display:inline">
       <img src="media/gronk-2x.gif">
@@ -56,8 +56,6 @@ gronk add D:/Music
 
 
 ## ⚒️ Troubleshooting
-> A lot of non-FLAC files fail to play ¯\\\_(ツ)_/¯. I'm looking into it.
-
 If somethings goes wrong with the database, you can always delete it here:
 
 | OS            | Path             |
@@ -71,7 +69,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 
 ## TODO
-- [ ] Many files types fail to play correctly
+- [x] Many files types fail to play correctly
 
 - [x] Song metadata (duration)
 
