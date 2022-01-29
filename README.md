@@ -61,12 +61,7 @@ gronk add D:/Music
 ## ⚒️ Troubleshooting
 > AAC and M4A files seem to be broken ¯\\\_(ツ)_/¯
 
-If somethings goes wrong with the database, you can always delete it here:
-
-| OS            | Path             |
-|---------------|------------------|
-| Windows       | %appdata%/gronk  |
-| Linux & MacOS | ~/.config/gronk/ |
+If somethings goes wrong with the database, you can always delete it using `gronk reset`.
 
 If your music player has broken lines, just increase your zoom level or font size.
 

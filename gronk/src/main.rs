@@ -44,6 +44,34 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }));
 
+    let db = Database::new().unwrap();
+
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    if let Some(first) = args.first() {
+        match first as &str {
+            "add" => {
+                if let Some(dir) = args.get(1..) {
+                    db.add_dir(&dir.join(" "));
+                }
+            }
+            "reset" | "rm" => {
+                drop(db);
+                Database::delete();
+                return Ok(());
+            }
+            "help" => {
+                println!("Usage");
+                println!("    gronk [<options> <args>]\n");
+                println!("Options");
+                println!("    add     Add music to the library");
+                println!("    reset   Reset the database");
+                println!();
+                return Ok(());
+            }
+            _ => (),
+        }
+    }
+
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
 
@@ -51,18 +79,6 @@ fn main() -> Result<()> {
     enable_raw_mode()?;
     terminal.clear()?;
     terminal.hide_cursor()?;
-
-    let db = Database::new().unwrap();
-
-    //check if user wants to add new database
-    let args: Vec<_> = std::env::args().skip(1).collect();
-    if let Some(first) = args.first() {
-        if first == "add" {
-            if let Some(dir) = args.get(1..) {
-                db.add_dir(&dir.join(" "));
-            }
-        }
-    }
 
     let app = App::new(&db);
 
@@ -75,10 +91,8 @@ fn main() -> Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-
     Ok(())
 }
-
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(16);

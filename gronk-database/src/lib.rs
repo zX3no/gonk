@@ -94,6 +94,7 @@ impl Database {
             rx,
         })
     }
+
     pub fn get_volume(&self) -> u16 {
         let mut stmt = self.conn.prepare("SELECT volume FROM settings").unwrap();
         let mut rows = stmt.query([]).unwrap();
@@ -170,14 +171,13 @@ impl Database {
         }
     }
     pub fn add_dir(&self, music_dir: &str) {
-        self.conn
-            .execute(
-                "INSERT OR IGNORE INTO music (path) VALUES (?1)",
-                params![music_dir],
-            )
-            .unwrap();
-
-        if Path::new(music_dir).exists() {
+        if self
+            .conn
+            .execute("INSERT INTO music (path) VALUES (?1)", params![music_dir])
+            .is_err()
+        {
+            self.reset();
+        } else if Path::new(music_dir).exists() {
             self.add_music(music_dir);
         } else {
             panic!("Path does not exist!");
@@ -368,4 +368,11 @@ impl Database {
             path: PathBuf::from(path),
         }
     }
+    pub fn delete() {
+        std::fs::remove_file(DB_DIR.as_path()).unwrap();
+    }
+}
+
+impl Drop for Database {
+    fn drop(&mut self) {}
 }
