@@ -9,4 +9,4 @@ gronk-types = {path = "../gronk-types"}
 dirs = "4.0.0"
 lazy_static = "1.4.0"
 jwalk = "0.6.0"
-dpc-pariter = "0.3.1"
+dpc-pariter = "0.4.0"

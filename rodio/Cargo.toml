@@ -5,5 +5,5 @@ name = "rodio"
 version = "0.0.1"
 
 [dependencies]
-cpal = "0.13.4"
+cpal = "0.13.5"
 symphonia = { version = "0.4.0", features = ["aac", "mp3", "isomp4"] }

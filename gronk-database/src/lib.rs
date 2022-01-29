@@ -27,7 +27,7 @@ lazy_static! {
 }
 
 fn fix(item: &str) -> String {
-    item.replace(r"'", r"''")
+    item.replace('\'', r"''")
 }
 
 pub struct Database {
@@ -125,9 +125,9 @@ impl Database {
                             Some("flac")
                                 | Some("mp3")
                                 | Some("ogg")
-                                | Some("alac")
                                 | Some("m4a")
                                 | Some("wav")
+                                | Some("aac")
                         )
                     } else {
                         false

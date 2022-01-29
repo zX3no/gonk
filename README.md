@@ -11,6 +11,7 @@
 - Fuzzy search
 - Mouse support
 - Cross-platform
+- Plays FLAC, WAV, OGG, MP3
 
 ## 📦 Installation
 
@@ -56,6 +57,8 @@ gronk add D:/Music
 
 
 ## ⚒️ Troubleshooting
+> AAC and M4A files seem to be broken ¯\\\_(ツ)_/¯
+
 If somethings goes wrong with the database, you can always delete it here:
 
 | OS            | Path             |
@@ -69,7 +72,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 
 ## TODO
-- [x] Many files types fail to play correctly
+- [ ] Fix AAC and M4A files 
 
 - [x] Song metadata (duration)
 
