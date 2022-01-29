@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
-use gronk_database::Database;
+use gonk_database::Database;
 
 pub use {browser::Browser, queue::Queue, search::Search};
 

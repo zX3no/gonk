@@ -1,7 +1,7 @@
 use crossterm::event::KeyModifiers;
-use gronk_database::Database;
-use gronk_search::{ItemType, SearchEngine, SearchItem};
-use gronk_types::Song;
+use gonk_database::Database;
+use gonk_search::{ItemType, SearchEngine, SearchItem};
+use gonk_types::Song;
 
 use crate::index::Index;
 

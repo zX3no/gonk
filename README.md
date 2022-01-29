@@ -1,10 +1,11 @@
-<h1 align="center" style="font-size: 55px">Gronk</h1>
+<h1 align="center" style="font-size: 55px">Gonk</h1>
 
 <div align="center" style="display:inline">
-      <img src="media/gronk-2x.gif">
+      <img src="media/gonk.gif">
 </div>
 
 ## ✨ Features
+
 - Vim-style key bindings
 - Easy to use
 - Fuzzy search
@@ -25,14 +26,14 @@ Fedora requires `alsa-lib-devel`
 #### From source
 
 ```
-git clone https://github.com/zX3no/gronk
-cd gronk
-cargo install --path gronk
+git clone https://github.com/zX3no/gonk
+cd gonk
+cargo install --path gonk
 ```
 
 Then add some music:
 ```
-gronk add D:/Music
+gonk add D:/Music
 ```
 
 ## ⌨️ Key Bindings
@@ -58,15 +59,17 @@ gronk add D:/Music
 | ?           | Backspace |
 
 ## ⚒️ Troubleshooting
+
 > AAC and M4A files seem to be broken ¯\\\_(ツ)_/¯
 
-If somethings goes wrong with the database, you can always delete it using `gronk reset`.
+If somethings goes wrong with the database, you can always delete it using `gonk reset`.
 
 If your music player has broken lines, just increase your zoom level or font size.
 
 ![](media/broken.png)
 
 ## TODO
+
 - [ ] Configuration file for key bindings
 
 - [ ] Fix AAC and M4A files 
@@ -87,7 +90,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 - [ ] Toggles for artist/album/song only search
 
-- [ ] Gronk player and UI should be seperate like mpd/client. The player should hold state such as the queue, volume and handle the music output.
+- [ ] gonk player and UI should be seperate like mpd/client. The player should hold state such as the queue, volume and handle the music output.
 
 ## ❤️ Contributing
 

@@ -1,5 +1,5 @@
 use dpc_pariter::IteratorExt;
-use gronk_types::Song;
+use gonk_types::Song;
 use jwalk::WalkDir;
 use rusqlite::{params, Connection, Row};
 use std::{
@@ -18,11 +18,11 @@ extern crate lazy_static;
 lazy_static! {
     static ref CONFIG_DIR: PathBuf = {
         let config_dir = dirs::config_dir().unwrap();
-        config_dir.join("gronk")
+        config_dir.join("gonk")
     };
     static ref DB_DIR: PathBuf = {
         let db_dir = dirs::config_dir().unwrap();
-        db_dir.join("gronk\\gronk.db")
+        db_dir.join("gonk\\gonk.db")
     };
 }
 

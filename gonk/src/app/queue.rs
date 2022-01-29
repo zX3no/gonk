@@ -1,6 +1,6 @@
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
-use gronk_types::Song;
+use gonk_types::Song;
 use rand::{prelude::SliceRandom, thread_rng};
 use rodio::Player;
 use std::time::Duration;

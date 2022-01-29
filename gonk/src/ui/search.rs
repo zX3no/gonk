@@ -1,7 +1,7 @@
 use crate::app::Search;
 use crate::ui::{ALBUM, ARTIST, TITLE};
-use gronk_database::Database;
-use gronk_search::ItemType;
+use gonk_database::Database;
+use gonk_search::ItemType;
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout},

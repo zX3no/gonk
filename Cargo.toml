@@ -1,8 +1,8 @@
 [workspace]
 
 members = [
-    "gronk",
-    "gronk-database",
-    "gronk-types",
-    "gronk-search",
+    "gonk",
+    "gonk-database",
+    "gonk-types",
+    "gonk-search",
 ]

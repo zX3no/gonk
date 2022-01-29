@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gronk_database::Database;
+use gonk_database::Database;
 use std::{
     io::{stdout, Result},
     time::{Duration, Instant},
@@ -62,7 +62,7 @@ fn main() -> Result<()> {
             }
             "help" => {
                 println!("Usage");
-                println!("    gronk [<options> <args>]\n");
+                println!("    gonk [<options> <args>]\n");
                 println!("Options");
                 println!("    add     Add music to the library");
                 println!("    reset   Reset the database");

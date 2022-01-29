@@ -1,6 +1,6 @@
 use crate::index::Index;
-use gronk_database::Database;
-use gronk_types::Song;
+use gonk_database::Database;
+use gonk_types::Song;
 
 pub enum BrowserMode {
     Artist,

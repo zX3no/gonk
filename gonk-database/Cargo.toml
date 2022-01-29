@@ -1,11 +1,11 @@
 [package]
-name = "gronk-database"
+name = "gonk-database"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 rusqlite = { version = "0.26.3", features = ["bundled"] }
-gronk-types = {path = "../gronk-types"}
+gonk-types = {path = "../gonk-types"}
 dirs = "4.0.0"
 lazy_static = "1.4.0"
 jwalk = "0.6.0"
