@@ -74,7 +74,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 - [ ] Configuration file for key bindings
 
-- [ ] Fix AAC and M4A files 
+- [ ] Fix M4A files 
 
 - [x] Song metadata (duration)
 
@@ -92,7 +92,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 - [ ] Toggles for artist/album/song only search
 
-- [ ] gonk player and UI should be seperate like mpd/client. The player should hold state such as the queue, volume and handle the music output.
+- [ ] Gonk player and UI should be seperate like mpd and ncmpcpp. The player should control the queue, volume and output.
 
 ## ❤️ Contributing
 
