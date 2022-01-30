@@ -58,6 +58,8 @@ gonk add D:/Music
 | ?           | Escape    |
 | ?           | Backspace |
 
+Use 1, 2 and 3 to adjust the queue margins forward. Shift 1, 2, 3 moves them backwards.
+
 ## ⚒️ Troubleshooting
 
 > M4A files seem to be broken ¯\\\_(ツ)_/¯
