@@ -69,7 +69,12 @@ fn main() -> Result<()> {
                 println!();
                 return Ok(());
             }
-            _ => (),
+            _ => {
+                if !first.is_empty() {
+                    println!("Invalid command.");
+                    return Ok(());
+                }
+            }
         }
     }
 

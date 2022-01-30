@@ -60,7 +60,7 @@ gonk add D:/Music
 
 ## ⚒️ Troubleshooting
 
-> AAC and M4A files seem to be broken ¯\\\_(ツ)_/¯
+> M4A files seem to be broken ¯\\\_(ツ)_/¯
 
 If somethings goes wrong with the database, you can always delete it using `gonk reset`.
 
