@@ -1,4 +1,5 @@
 <h1 align="center" style="font-size: 55px">Gonk</h1>
+<p align="center" style="font-size: 30px">A simple terminal music player.</p>
 
 <div align="center" style="display:inline">
       <img src="media/gonk.gif">
@@ -38,27 +39,27 @@ gonk add D:/Music
 
 ## ⌨️ Key Bindings
 
-| Command     | Key       |
-|-------------|-----------|
-| Move Up     | K / UP    |
-| Move Down   | J / Down  |
-| Move Left   | H / Left  |
-| Move Right  | L / Right |
-| Volume Up   | W         |
-| Volume Up   | S         |
-| Play/Pause  | Space     |
-| Previous    | A         |
-| Next        | D         |
-| Seek -10s   | Q         |
-| Seek 10s    | E         |
-| Delete Song | X         |
-| Clear Queue | C         |
-| Change Mode | Tab       |
-| Search      | /         |
-| ?           | Escape    |
-| ?           | Backspace |
+| Command     | Key         |
+|-------------|-------------|
+| Move Up     | `K / UP`    |
+| Move Down   | `J / Down`  |
+| Move Left   | `H / Left`  |
+| Move Right  | `L / Right` |
+| Volume Up   | `W`         |
+| Volume Up   | `S`         |
+| Play/Pause  | `Space`     |
+| Previous    | `A`         |
+| Next        | `D`         |
+| Seek -10s   | `Q`         |
+| Seek 10s    | `E`         |
+| Delete Song | `X`         |
+| Clear Queue | `C`         |
+| Change Mode | `Tab`       |
+| Search      | `/`         |
+| ?           | `Escape`    |
+| ?           | `Backspace` |
 
-Use 1, 2 and 3 to adjust the queue margins forward. Shift 1, 2, 3 moves them backwards.
+`1, 2, 3` moves the queue margins forward. `Shift + 1, 2, 3` moves them backwards.
 
 ## ⚒️ Troubleshooting
 
