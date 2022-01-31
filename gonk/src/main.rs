@@ -2,7 +2,7 @@ use app::App;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
 use gonk_database::Database;
 use std::{
@@ -38,14 +38,18 @@ enum HotkeyEvent {
 
 fn main() -> Result<()> {
     let orig_hook = std::panic::take_hook();
+
     std::panic::set_hook(Box::new(move |panic_info| {
-        execute!(stdout(), LeaveAlternateScreen).unwrap();
+        //TODO: does this do bad things on Linux
+        //we don't leave raw mode here so...?
+        execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
         orig_hook(panic_info);
         std::process::exit(1);
     }));
 
     let db = Database::new().unwrap();
 
+    //Handle arguments
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some(first) = args.first() {
         match first as &str {
@@ -70,19 +74,17 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             _ => {
-                if !first.is_empty() {
-                    println!("Invalid command.");
-                    return Ok(());
-                }
+                println!("Invalid command.");
+                return Ok(());
             }
         }
     }
 
-    let backend = CrosstermBackend::new(stdout());
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
+    //Get ready for rendering and input
     execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
-    enable_raw_mode()?;
+    terminal.backend_mut().enable_raw_mode()?;
     terminal.clear()?;
     terminal.hide_cursor()?;
 
@@ -90,15 +92,19 @@ fn main() -> Result<()> {
 
     run_app(&mut terminal, app)?;
 
-    disable_raw_mode()?;
+    //Cleanup terminal for exit
+    terminal.backend_mut().disable_raw_mode()?;
+    terminal.show_cursor()?;
+
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
     )?;
-    terminal.show_cursor()?;
+
     Ok(())
 }
+
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(16);

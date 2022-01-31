@@ -7,8 +7,6 @@ use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 use tui::Frame;
 
-//TODO: store the duration in the database
-//abstract selection color into it's own widget
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -155,7 +153,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) 
     if let Some(playing_index) = now_playing {
         if let Some(song) = songs.get(playing_index) {
             if let Some(ui_index) = ui_index {
-                //currently playing song
+                //Currently playing song
                 let row = if ui_index == playing_index {
                     Row::new(vec![
                         Cell::from(">>").style(
@@ -189,7 +187,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) 
                 items.remove(playing_index);
                 items.insert(playing_index, row);
 
-                //current selection
+                //Current selection
                 if ui_index != playing_index {
                     let song = songs.get(ui_index).unwrap();
                     let row = Row::new(vec![
@@ -273,7 +271,7 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect)
         .map(|i| if (i as usize) < pos { '=' } else { '-' })
         .collect();
 
-    //place the seeker location
+    //Place the seeker location
     if pos < string.len() - 1 {
         string.remove(pos);
         string.insert(pos, '>');

@@ -1,8 +1,6 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gonk_database::Database;
-
 pub use {browser::Browser, queue::Queue, search::Search};
-
 pub mod browser;
 mod queue;
 mod search;

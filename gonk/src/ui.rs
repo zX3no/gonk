@@ -1,6 +1,5 @@
-use tui::{backend::Backend, style::Color, Frame};
-
 use crate::app::{App, AppMode};
+use tui::{backend::Backend, style::Color, Frame};
 
 mod browser;
 mod queue;

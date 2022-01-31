@@ -67,7 +67,6 @@ impl Queue {
         self.ui.down_with_len(self.list.len());
     }
     pub fn add(&mut self, mut songs: Vec<Song>) {
-        //clippy will tell you this is wrong :/
         if self.list.is_empty() {
             self.list.append(&mut songs);
             self.list.select(Some(0));
@@ -78,7 +77,6 @@ impl Queue {
         }
     }
     pub fn select(&mut self) {
-        //TODO: remove redundant if let
         if let Some(index) = self.ui.index() {
             self.list.select(Some(index));
             self.play_selected();
@@ -166,8 +164,9 @@ impl Queue {
                 *n = 100;
             }
         }
+
         if self.constraint.iter().sum::<u16>() != 100 {
-            panic!("{:?}", self.constraint);
+            panic!("Constraint went out of bounds: {:?}", self.constraint);
         }
     }
     pub fn randomize(&mut self) {
@@ -186,7 +185,7 @@ impl Queue {
                 self.list.select(Some(index));
             }
         } else {
-            todo!("reorder items");
+            //TODO: Revert shuffle
         }
     }
 }

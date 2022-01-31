@@ -1,9 +1,8 @@
+use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gonk_database::Database;
 use gonk_search::{ItemType, SearchEngine, SearchItem};
 use gonk_types::Song;
-
-use crate::index::Index;
 
 pub enum SearchMode {
     Search,

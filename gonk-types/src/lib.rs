@@ -20,23 +20,18 @@ pub struct Song {
     pub path: PathBuf,
     pub duration: Duration,
 }
+
 impl Song {
     pub fn from(path: &Path) -> Song {
-        let mut hint = Hint::new();
-        let ext = path.extension().unwrap().to_str().unwrap();
-        hint.with_extension(ext);
-
         let file = Box::new(File::open(path).unwrap());
-
-        // Create the media source stream using the boxed media source from above.
         let mss = MediaSourceStream::new(file, Default::default());
-
-        // Use the default options for metadata and format readers.
-        let format_opts: FormatOptions = FormatOptions::default();
-        let metadata_opts: MetadataOptions = MetadataOptions::default();
-
         let mut probe = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
+            .format(
+                &Hint::new(),
+                mss,
+                &FormatOptions::default(),
+                &MetadataOptions::default(),
+            )
             .unwrap();
 
         let mut song = Song {
@@ -76,7 +71,7 @@ impl Song {
             }
         };
 
-        //TODO: why are there two different ways to get metadata
+        //TODO: Why are there two different ways to get metadata
         if let Some(metadata) = probe.metadata.get() {
             get_songs(metadata.current().unwrap());
         } else if let Some(metadata) = probe.format.metadata().current() {
@@ -96,7 +91,7 @@ impl Song {
             song.number = 1;
         }
 
-        //duration
+        //Calculate duration
         let track = probe.format.default_track().unwrap();
         if let Some(tb) = track.codec_params.time_base {
             let ts = track.codec_params.start_ts;
@@ -120,14 +115,9 @@ impl Song {
         song
     }
 }
+
 impl PartialEq for Song {
     fn eq(&self, other: &Self) -> bool {
-        self.number == other.number
-            && self.disc == other.disc
-            && self.name == other.name
-            && self.album == other.album
-            && self.artist == other.artist
-            && self.path == other.path
-            && self.duration == other.duration
+        self.path == other.path
     }
 }

@@ -61,7 +61,6 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
             Constraint::Percentage(29),
             Constraint::Percentage(27),
         ])
-        // ...and potentially show a symbol in front of the selection.
         .highlight_symbol("> ");
 
     let mut state = TableState::default();
@@ -70,12 +69,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
     f.render_widget(p, chunks[0]);
     f.render_stateful_widget(t, chunks[1], &mut state);
 
+    //Move the cursor position when typing
     if search.show_cursor() {
         if search.empty_cursor() {
             f.set_cursor(1, 1);
         } else {
             let mut len = search.query_len();
-            //does this even work?
             if len > area.width {
                 len = area.width;
             }
