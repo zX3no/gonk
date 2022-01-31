@@ -139,8 +139,14 @@ impl<'a> App<'a> {
                 'e' => self.queue.seek_fw(),
                 'a' => self.queue.prev(),
                 'd' => self.queue.next(),
-                'w' => self.queue.volume_up(),
-                's' => self.queue.volume_down(),
+                'w' => {
+                    self.queue.volume_up();
+                    self.save_volume();
+                }
+                's' => {
+                    self.queue.volume_down();
+                    self.save_volume();
+                }
                 '/' => self.app_mode = AppMode::Search,
                 'x' => self.delete_from_queue(),
                 'r' => self.queue.randomize(),

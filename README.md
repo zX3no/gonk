@@ -71,6 +71,8 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 ## TODO
 
+- [ ] Songs do not play while the volume is 0
+
 - [ ] Configuration file for key bindings
 
 - [x] Fix M4A files 
@@ -92,6 +94,8 @@ If your music player has broken lines, just increase your zoom level or font siz
 - [ ] Toggles for artist/album/song only search
 
 - [ ] Gonk player and UI should be seperate like mpd and ncmpcpp. The player should control the queue, volume and output.
+
+> Should the player remeber what was in the queue? I like being able to close the player and still listen.
 
 ## ❤️ Contributing
 
