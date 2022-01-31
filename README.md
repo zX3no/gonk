@@ -1,5 +1,5 @@
 <h1 align="center" style="font-size: 55px">Gonk</h1>
-<p align="center" style="font-size: 30px">A simple terminal music player.</p>
+<p align="center" style="font-size: 50px">A simple terminal music player.</p>
 
 <div align="center" style="display:inline">
       <img src="media/gonk.gif">
