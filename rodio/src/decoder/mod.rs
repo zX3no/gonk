@@ -162,7 +162,7 @@ impl Iterator for Decoder {
                         self.spec = decoded.spec().to_owned();
                         self.buffer = Decoder::get_buffer(decoded, &self.spec);
 
-                        let ts = packet.pts();
+                        let ts = packet.ts();
                         let tb = self
                             .format
                             .tracks()

@@ -123,7 +123,7 @@ impl Database {
                     if let Some(ex) = dir.extension() {
                         matches!(
                             ex.to_str(),
-                            Some("flac") | Some("mp3") | Some("ogg") | Some("wav") //| Some("m4a")
+                            Some("flac") | Some("mp3") | Some("ogg") | Some("wav") | Some("m4a")
                         )
                     } else {
                         false

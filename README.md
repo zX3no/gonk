@@ -11,7 +11,7 @@
 - Fuzzy search
 - Mouse support
 - Cross-platform
-- Plays FLAC, MP3, OGG and WAV
+- Plays FLAC, MP3, OGG, M4A and WAV
 
 ## 📦 Installation
 
@@ -62,8 +62,6 @@ Use 1, 2 and 3 to adjust the queue margins forward. Shift 1, 2, 3 moves them bac
 
 ## ⚒️ Troubleshooting
 
-> M4A files seem to be broken ¯\\\_(ツ)_/¯
-
 If somethings goes wrong with the database, you can always delete it using `gonk reset`.
 
 If your music player has broken lines, just increase your zoom level or font size.
@@ -74,7 +72,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 - [ ] Configuration file for key bindings
 
-- [ ] Fix M4A files 
+- [x] Fix M4A files 
 
 - [x] Song metadata (duration)
 

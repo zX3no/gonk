@@ -32,8 +32,8 @@ impl Song {
         let mss = MediaSourceStream::new(file, Default::default());
 
         // Use the default options for metadata and format readers.
-        let format_opts: FormatOptions = Default::default();
-        let metadata_opts: MetadataOptions = Default::default();
+        let format_opts: FormatOptions = FormatOptions::default();
+        let metadata_opts: MetadataOptions = MetadataOptions::default();
 
         let mut probe = symphonia::default::get_probe()
             .format(&hint, mss, &format_opts, &metadata_opts)
