@@ -33,6 +33,7 @@ cargo install --path gonk
 ```
 
 Then add some music:
+
 ```
 gonk add D:/Music
 ```
@@ -65,7 +66,7 @@ gonk add D:/Music
 
 If somethings goes wrong with the database, you can always delete it using `gonk reset`.
 
-If your music player has broken lines, just increase your zoom level or font size.
+If your music player has broken lines, increase your zoom level or font size.
 
 ![](media/broken.png)
 
@@ -95,7 +96,7 @@ If your music player has broken lines, just increase your zoom level or font siz
 
 - [ ] Gonk player and UI should be seperate like mpd and ncmpcpp. The player should control the queue, volume and output.
 
-> Should the player remeber what was in the queue? I like being able to close the player and still listen.
+> Should the player remember what was in the queue? I like being able to close the player and still listen.
 
 ## ❤️ Contributing
 
