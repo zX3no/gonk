@@ -2,6 +2,7 @@ use crate::app::{App, AppMode};
 use tui::{backend::Backend, style::Color, Frame};
 
 mod browser;
+mod options;
 mod queue;
 mod search;
 
@@ -15,5 +16,6 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         AppMode::Browser => browser::draw(f, &app.browser),
         AppMode::Queue => queue::draw(f, app),
         AppMode::Search => search::draw(f, &app.search, app.db),
+        AppMode::Options => options::draw(f, &app.options, app.db),
     }
 }

@@ -166,7 +166,7 @@ impl<'a> Search<'a> {
         &self.results.data
     }
     pub fn selected(&self) -> Option<usize> {
-        self.results.index()
+        self.results.index
     }
     pub fn on_escape(&mut self) -> bool {
         match self.mode {

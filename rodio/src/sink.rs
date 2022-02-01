@@ -189,6 +189,7 @@ impl Sink {
     pub fn elapsed(&self) -> Duration {
         *self.elapsed.read().unwrap()
     }
+
     pub fn destroy(&mut self) {
         self.queue_tx.set_keep_alive_if_empty(false);
 

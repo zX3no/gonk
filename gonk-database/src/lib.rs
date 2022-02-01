@@ -62,6 +62,8 @@ impl Database {
                 [],
             )?;
 
+            //TODO: Can I just have one table?
+            //rename?
             conn.execute(
                 "CREATE TABLE music(
                     path TEXT NOT NULL,
@@ -72,7 +74,7 @@ impl Database {
             .unwrap();
 
             conn.execute(
-                "CREATE TABLE settings(
+                "CREATE TABLE options(
                     volume INTEGER NOT NULL,
                     UNIQUE(volume)
                 )",
@@ -81,7 +83,7 @@ impl Database {
             .unwrap();
 
             conn.execute(
-                "INSERT OR IGNORE INTO settings (volume) VALUES (?1)",
+                "INSERT OR IGNORE INTO options (volume) VALUES (?1)",
                 params![15],
             )
             .unwrap();
@@ -94,9 +96,8 @@ impl Database {
             rx,
         })
     }
-
     pub fn get_volume(&self) -> u16 {
-        let mut stmt = self.conn.prepare("SELECT volume FROM settings").unwrap();
+        let mut stmt = self.conn.prepare("SELECT volume FROM options").unwrap();
         let mut rows = stmt.query([]).unwrap();
 
         if let Some(row) = rows.next().unwrap() {
@@ -107,8 +108,19 @@ impl Database {
     }
     pub fn set_volume(&self, volume: u16) {
         self.conn
-            .execute("UPDATE settings SET volume = (?1)", params![volume])
+            .execute("UPDATE options SET volume = (?1)", params![volume])
             .unwrap();
+    }
+    pub fn get_music_dirs(&self) -> Vec<String> {
+        let mut stmt = self.conn.prepare("SELECT path FROM music").unwrap();
+
+        stmt.query_map([], |row| {
+            let path = row.get(0).unwrap();
+            Ok(path)
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
     pub fn add_music(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();

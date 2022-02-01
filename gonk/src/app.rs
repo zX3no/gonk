@@ -1,7 +1,9 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
 use gonk_database::Database;
-pub use {browser::Browser, queue::Queue, search::Search};
+pub use {browser::Browser, options::Options, queue::Queue, search::Search};
+
 pub mod browser;
+mod options;
 mod queue;
 mod search;
 
@@ -10,6 +12,7 @@ pub enum AppMode {
     Browser,
     Queue,
     Search,
+    Options,
 }
 
 pub struct App<'a> {
@@ -17,6 +20,7 @@ pub struct App<'a> {
     pub browser: Browser<'a>,
     pub queue: Queue,
     pub search: Search<'a>,
+    pub options: Options,
     pub app_mode: AppMode,
 }
 
@@ -25,40 +29,44 @@ impl<'a> App<'a> {
         let music = Browser::new(db);
         let queue = Queue::new(db.get_volume());
         let search = Search::new(db);
+        let options = Options::new(db);
 
         Self {
             browser: music,
             queue,
             search,
+            options,
             db,
             app_mode: AppMode::Browser,
         }
     }
-    pub fn browser_next(&mut self) {
+    fn browser_next(&mut self) {
         if self.app_mode == AppMode::Browser {
             self.browser.next();
         }
     }
-    pub fn browser_prev(&mut self) {
+    fn browser_prev(&mut self) {
         if self.app_mode == AppMode::Browser {
             self.browser.prev();
         }
     }
-    pub fn up(&mut self) {
+    fn up(&mut self) {
         match self.app_mode {
             AppMode::Browser => self.browser.up(),
             AppMode::Queue => self.queue.up(),
             AppMode::Search => self.search.up(),
+            AppMode::Options => self.options.up(),
         }
     }
-    pub fn down(&mut self) {
+    fn down(&mut self) {
         match self.app_mode {
             AppMode::Browser => self.browser.down(),
             AppMode::Queue => self.queue.down(),
             AppMode::Search => self.search.down(),
+            AppMode::Options => self.options.down(),
         }
     }
-    pub fn on_enter(&mut self) {
+    fn on_enter(&mut self) {
         match self.app_mode {
             AppMode::Browser => {
                 let songs = self.browser.on_enter();
@@ -70,6 +78,22 @@ impl<'a> App<'a> {
                     self.queue.add(songs);
                 }
             }
+            AppMode::Options => self.options.on_enter(&mut self.queue),
+        }
+    }
+    fn on_escape(&mut self) {
+        match self.app_mode {
+            AppMode::Search => {
+                if self.search.on_escape() {
+                    //TODO previous mode should be stored
+                    //self.app_mode = self.app_mode.last()
+                    self.app_mode = AppMode::Queue;
+                }
+            }
+            AppMode::Options => {
+                self.app_mode = AppMode::Browser;
+            }
+            _ => (),
         }
     }
     pub fn on_tick(&mut self) {
@@ -106,18 +130,14 @@ impl<'a> App<'a> {
                         self.search.reset();
                         AppMode::Queue
                     }
+                    AppMode::Options => {
+                        self.options.next();
+                        AppMode::Options
+                    }
                 };
             }
             KeyCode::Backspace => self.search.on_backspace(modifiers),
-            KeyCode::Esc => {
-                if let AppMode::Search = self.app_mode {
-                    if self.search.on_escape() {
-                        //TODO previous mode should be stored
-                        //self.app_mode.previous()
-                        self.app_mode = AppMode::Browser;
-                    }
-                }
-            }
+            KeyCode::Esc => self.on_escape(),
             _ => (),
         }
     }
@@ -146,6 +166,7 @@ impl<'a> App<'a> {
                     self.save_volume();
                 }
                 '/' => self.app_mode = AppMode::Search,
+                '.' => self.app_mode = AppMode::Options,
                 'x' => self.delete_from_queue(),
                 'r' => self.queue.randomize(),
                 '1' | '!' => self.queue.move_constraint('1', modifier),
@@ -165,7 +186,7 @@ impl<'a> App<'a> {
             _ => (),
         }
     }
-    pub fn save_volume(&self) {
+    fn save_volume(&self) {
         self.db.set_volume(self.queue.get_volume());
     }
     fn reset(&mut self) {

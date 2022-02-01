@@ -1,4 +1,5 @@
 #![cfg_attr(test, deny(missing_docs))]
+use cpal::traits::HostTrait;
 pub use cpal::{
     self, traits::DeviceTrait, Device, Devices, DevicesError, InputDevices, OutputDevices,
     SupportedStreamConfig,
@@ -27,7 +28,7 @@ use std::time::Duration;
 static VOLUME_STEP: u16 = 5;
 
 pub struct Player {
-    _stream: OutputStream,
+    stream: OutputStream,
     handle: OutputStreamHandle,
     sink: Sink,
     total_duration: Option<Duration>,
@@ -37,13 +38,13 @@ pub struct Player {
 
 impl Default for Player {
     fn default() -> Self {
-        let (_stream, handle) = OutputStream::try_default().unwrap();
+        let (stream, handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&handle).unwrap();
         let volume = 15;
         sink.set_volume(volume as f32 / 1000.0);
 
         Self {
-            _stream,
+            stream,
             handle,
             sink,
             total_duration: None,
@@ -147,5 +148,22 @@ impl Player {
     }
     pub fn volume_percent(&self) -> u16 {
         self.volume
+    }
+    pub fn output_devices() -> Vec<Device> {
+        let host_id = cpal::default_host().id();
+        let host = cpal::host_from_id(host_id).unwrap();
+
+        let mut devices: Vec<_> = host.output_devices().unwrap().collect();
+        devices.sort_by_key(|a| a.name().unwrap().to_lowercase());
+        devices
+    }
+    pub fn default_device() -> Option<Device> {
+        cpal::default_host().default_output_device()
+    }
+    pub fn change_output_device(&mut self, device: &Device) {
+        self.stop();
+        let (stream, handle) = OutputStream::try_from_device(device).unwrap();
+        self.stream = stream;
+        self.handle = handle;
     }
 }

@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct Index<T> {
     pub data: Vec<T>,
-    index: Option<usize>,
+    pub index: Option<usize>,
 }
 
 impl<T> Index<T> {
@@ -60,9 +60,6 @@ impl<T> Index<T> {
     }
     pub fn len(&self) -> usize {
         self.data.len()
-    }
-    pub fn index(&self) -> Option<usize> {
-        self.index
     }
     pub fn select(&mut self, i: Option<usize>) {
         self.index = i;

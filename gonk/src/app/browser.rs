@@ -67,13 +67,13 @@ impl<'a> Browser<'a> {
         self.is_busy
     }
     pub fn get_selected_artist(&self) -> Option<usize> {
-        self.artists.index()
+        self.artists.index
     }
     pub fn get_selected_album(&self) -> Option<usize> {
-        self.albums.index()
+        self.albums.index
     }
     pub fn get_selected_song(&self) -> Option<usize> {
-        self.songs.index()
+        self.songs.index
     }
     pub fn artist_names(&self) -> &Vec<String> {
         &self.artists.data

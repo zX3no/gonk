@@ -77,15 +77,15 @@ impl Queue {
         }
     }
     pub fn select(&mut self) {
-        if let Some(index) = self.ui.index() {
+        if let Some(index) = self.ui.index {
             self.list.select(Some(index));
             self.play_selected();
         }
     }
     pub fn delete_selected(&mut self) {
-        if let Some(index) = self.ui.index() {
+        if let Some(index) = self.ui.index {
             self.list.remove(index);
-            if let Some(playing) = self.list.index() {
+            if let Some(playing) = self.list.index {
                 let len = self.list.len();
 
                 if len == 0 {
@@ -187,5 +187,11 @@ impl Queue {
         } else {
             //TODO: Revert shuffle
         }
+    }
+    pub(crate) fn change_output_device(&mut self, device: &rodio::Device) {
+        let pos = self.player.elapsed();
+        self.player.change_output_device(device);
+        self.play_selected();
+        self.seek_to(pos.as_secs_f64());
     }
 }

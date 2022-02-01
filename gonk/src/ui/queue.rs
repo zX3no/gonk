@@ -135,7 +135,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) 
         }
     }
 
-    let (songs, now_playing, ui_index) = (&queue.list.data, queue.list.index(), queue.ui.index());
+    let (songs, now_playing, ui_index) = (&queue.list.data, queue.list.index, queue.ui.index);
 
     let mut items: Vec<Row> = songs
         .iter()
