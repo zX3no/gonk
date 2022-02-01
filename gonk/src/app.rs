@@ -123,7 +123,9 @@ impl<'a> App<'a> {
         }
     }
     fn delete_from_queue(&mut self) {
-        self.queue.delete_selected();
+        if let AppMode::Queue = self.app_mode{
+            self.queue.delete_selected();
+        }
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         match code {
