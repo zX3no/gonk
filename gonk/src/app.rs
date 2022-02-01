@@ -91,10 +91,21 @@ impl<'a> App<'a> {
                 }
             }
             AppMode::Options => {
-                self.app_mode = AppMode::Browser;
+                self.app_mode = AppMode::Queue;
             }
             _ => (),
         }
+    }
+    fn on_tab(&mut self) {
+        self.app_mode = match self.app_mode {
+            AppMode::Browser => AppMode::Queue,
+            AppMode::Queue => AppMode::Browser,
+            AppMode::Search => {
+                self.search.reset();
+                AppMode::Queue
+            }
+            AppMode::Options => AppMode::Queue,
+        };
     }
     pub fn on_tick(&mut self) {
         self.queue.update();
@@ -122,20 +133,7 @@ impl<'a> App<'a> {
             KeyCode::Left => self.browser_prev(),
             KeyCode::Right => self.browser_next(),
             KeyCode::Enter => self.on_enter(),
-            KeyCode::Tab => {
-                self.app_mode = match self.app_mode {
-                    AppMode::Browser => AppMode::Queue,
-                    AppMode::Queue => AppMode::Browser,
-                    AppMode::Search => {
-                        self.search.reset();
-                        AppMode::Queue
-                    }
-                    AppMode::Options => {
-                        self.options.next();
-                        AppMode::Options
-                    }
-                };
-            }
+            KeyCode::Tab => self.on_tab(),
             KeyCode::Backspace => self.search.on_backspace(modifiers),
             KeyCode::Esc => self.on_escape(),
             _ => (),

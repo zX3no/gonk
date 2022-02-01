@@ -192,6 +192,7 @@ impl Queue {
         let pos = self.player.elapsed();
         self.player.change_output_device(device);
         self.play_selected();
+        //TODO: when audio does not play, this gets reset to 0
         self.seek_to(pos.as_secs_f64());
     }
 }

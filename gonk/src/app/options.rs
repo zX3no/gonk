@@ -83,20 +83,6 @@ impl Options {
             }
         }
     }
-    pub(crate) fn next(&mut self) {
-        self.mode = match self.mode {
-            OptionsMode::Directory => {
-                self.devices.select(Some(0));
-                self.dirs.select(None);
-                OptionsMode::Device
-            }
-            OptionsMode::Device => {
-                self.devices.select(None);
-                self.dirs.select(Some(0));
-                OptionsMode::Directory
-            }
-        }
-    }
     pub fn on_enter(&mut self, queue: &mut Queue) {
         match self.mode {
             OptionsMode::Directory => todo!("prompt user if they want to delete directory"),
