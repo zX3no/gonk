@@ -170,10 +170,10 @@ impl<'a> Browser<'a> {
             }
         }
     }
-    pub fn reset(&mut self) {
-        self.artists = Index::default();
-        self.albums = Index::default();
-        self.songs = Index::default();
-        self.mode = BrowserMode::Artist;
-    }
+    // pub fn reset(&mut self) {
+    //     self.artists = Index::default();
+    //     self.albums = Index::default();
+    //     self.songs = Index::default();
+    //     self.mode = BrowserMode::Artist;
+    // }
 }

@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
-use gonk_database::Database;
+use gonk_database::{Database, Toml};
 pub use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 pub mod browser;
@@ -20,16 +20,17 @@ pub struct App<'a> {
     pub browser: Browser<'a>,
     pub queue: Queue,
     pub search: Search<'a>,
-    pub options: Options<'a>,
+    pub options: Options,
     pub app_mode: AppMode,
 }
 
 impl<'a> App<'a> {
     pub fn new(db: &'a Database) -> Self {
+        let toml = Toml::new().unwrap();
         let music = Browser::new(db);
-        let queue = Queue::new(db.get_volume());
+        let queue = Queue::new(toml.volume());
         let search = Search::new(db);
-        let options = Options::new(db);
+        let options = Options::new(toml);
 
         Self {
             browser: music,
@@ -79,8 +80,9 @@ impl<'a> App<'a> {
                 }
             }
             AppMode::Options => {
-                if self.options.on_enter(&mut self.queue) {
-                    self.reset();
+                if let Some(dir) = self.options.on_enter(&mut self.queue) {
+                    self.db.delete_files(&dir);
+                    self.refresh_ui();
                 }
             }
         }
@@ -116,7 +118,7 @@ impl<'a> App<'a> {
 
         if let Some(busy) = self.db.is_busy() {
             if busy {
-                self.refresh();
+                self.refresh_ui();
             }
             self.browser.update_busy(busy);
         }
@@ -149,7 +151,7 @@ impl<'a> App<'a> {
             self.search.on_key(c);
         } else {
             match c {
-                'u' => self.reset(),
+                'u' => self.refresh_db(),
                 'c' => self.queue.clear(),
                 'j' => self.down(),
                 'k' => self.up(),
@@ -162,11 +164,11 @@ impl<'a> App<'a> {
                 'd' => self.queue.next(),
                 'w' => {
                     self.queue.volume_up();
-                    self.save_volume();
+                    self.options.save_volume(self.queue.get_volume());
                 }
                 's' => {
                     self.queue.volume_down();
-                    self.save_volume();
+                    self.options.save_volume(self.queue.get_volume());
                 }
                 '/' => self.app_mode = AppMode::Search,
                 '.' => self.app_mode = AppMode::Options,
@@ -189,15 +191,12 @@ impl<'a> App<'a> {
             _ => (),
         }
     }
-    fn save_volume(&self) {
-        self.db.set_volume(self.queue.get_volume());
-    }
-    fn refresh(&mut self) {
+    fn refresh_ui(&mut self) {
         self.browser.refresh();
         self.search.refresh();
     }
-    fn reset(&mut self) {
-        self.db.reset();
-        self.browser.reset();
+    fn refresh_db(&mut self) {
+        let paths = self.options.paths();
+        self.db.add_music(paths)
     }
 }

@@ -3,7 +3,7 @@ use gonk_database::Database;
 use rodio::DeviceTrait;
 use tui::{backend::Backend, layout::*, style::*, widgets::*, Frame};
 
-//TODO: 
+//TODO:
 //Directory deletion confirmation
 //UI to add new directories
 
@@ -19,7 +19,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, options: &Options, _db: &Database) {
 
 pub fn draw_dirs<B: Backend>(f: &mut Frame<B>, options: &Options, chunk: Rect) {
     let items: Vec<_> = options
-        .dirs
+        .paths
         .data
         .iter()
         .map(|name| ListItem::new(name.as_str()))
@@ -37,13 +37,13 @@ pub fn draw_dirs<B: Backend>(f: &mut Frame<B>, options: &Options, chunk: Rect) {
         .highlight_symbol("> ");
 
     let mut state = ListState::default();
-    state.select(options.dirs.index);
+    state.select(options.paths.index);
 
     f.render_stateful_widget(list, chunk, &mut state);
 }
 
 pub fn draw_sound_devices<B: Backend>(f: &mut Frame<B>, options: &Options, chunk: Rect) {
-    let default_device = &options.default_device;
+    let default_device = &options.toml.output_device();
 
     let items: Vec<_> = options
         .devices

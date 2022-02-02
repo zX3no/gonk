@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gonk_database::Database;
+use gonk_database::{Database, Toml};
 use std::{
     io::{stdout, Result},
     time::{Duration, Instant},
@@ -83,7 +83,9 @@ fn main() -> Result<()> {
         match first as &str {
             "add" => {
                 if let Some(dir) = args.get(1..) {
-                    db.add_dir(&dir.join(" "));
+                    let dir = dir.join(" ");
+                    db.add_music(&[dir.clone()]);
+                    Toml::new().unwrap().add_path(dir);
                 }
             }
             "reset" | "rm" => {

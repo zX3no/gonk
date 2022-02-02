@@ -1,6 +1,6 @@
 use super::Queue;
 use crate::index::Index;
-use gonk_database::Database;
+use gonk_database::Toml;
 use rodio::{Device, DeviceTrait, Player};
 
 pub enum OptionsMode {
@@ -8,49 +8,71 @@ pub enum OptionsMode {
     Device,
 }
 
-pub struct Options<'a> {
-    pub dirs: Index<String>,
-    pub default_device: String,
+pub struct Options {
+    pub paths: Index<String>,
     pub devices: Index<Device>,
     pub mode: OptionsMode,
-    db: &'a Database,
+    //TODO: move volume here?
+    pub toml: Toml,
 }
 
-impl<'a> Options<'a> {
-    pub fn new(db: &'a Database) -> Self {
+impl Options {
+    pub fn new(mut toml: Toml) -> Self {
+        let default_device = Player::default_device()
+            .expect("Can't find output device!")
+            .name()
+            .expect("Device has no name!");
+
+        let devices = Index::new(Player::output_devices(), Some(0));
+
+        let config_device = toml.output_device();
+
+        let current_device = if config_device.is_empty() {
+            default_device
+        } else {
+            let mut data: Vec<_> = devices
+                .data
+                .iter()
+                .flat_map(|device| device.name())
+                .collect();
+            data.retain(|name| name == &config_device);
+            if data.is_empty() {
+                default_device
+            } else {
+                config_device
+            }
+        };
+
+        //Update the toml file to the correct device
+        toml.set_output_device(current_device);
+
         Self {
-            //TODO: should this be part of struct?
-            //can you add a dir while using gronk?
-            dirs: Index::new(db.get_music_dirs(), None),
-            devices: Index::new(Player::output_devices(), Some(0)),
-            default_device: Player::default_device()
-                .expect("Can't find output device!")
-                .name()
-                .expect("Device has no name!"),
+            paths: Index::new(toml.paths(), None),
+            devices,
             mode: OptionsMode::Device,
-            db,
+            toml,
         }
     }
     pub fn up(&mut self) {
         match self.mode {
             OptionsMode::Directory => {
-                if let Some(index) = self.dirs.index {
+                if let Some(index) = self.paths.index {
                     if !self.devices.is_empty() && index == 0 {
                         self.mode = OptionsMode::Device;
-                        self.dirs.select(None);
+                        self.paths.select(None);
                         self.devices
                             .select(Some(self.devices.len().saturating_sub(1)));
                         return;
                     }
-                    self.dirs.up()
+                    self.paths.up()
                 }
             }
             OptionsMode::Device => {
                 if let Some(index) = self.devices.index {
-                    if !self.dirs.is_empty() && index == 0 {
+                    if !self.paths.is_empty() && index == 0 {
                         self.mode = OptionsMode::Directory;
                         self.devices.select(None);
-                        self.dirs.select(Some(self.dirs.len().saturating_sub(1)));
+                        self.paths.select(Some(self.paths.len().saturating_sub(1)));
                         return;
                     }
                 }
@@ -61,22 +83,22 @@ impl<'a> Options<'a> {
     pub fn down(&mut self) {
         match self.mode {
             OptionsMode::Directory => {
-                if let Some(index) = self.dirs.index {
-                    if !self.devices.is_empty() && index == self.dirs.len().saturating_sub(1) {
+                if let Some(index) = self.paths.index {
+                    if !self.devices.is_empty() && index == self.paths.len().saturating_sub(1) {
                         self.mode = OptionsMode::Device;
-                        self.dirs.select(None);
+                        self.paths.select(None);
                         self.devices.select(Some(0));
                         return;
                     }
                 }
-                self.dirs.down();
+                self.paths.down();
             }
             OptionsMode::Device => {
                 if let Some(index) = self.devices.index {
-                    if !self.dirs.is_empty() && index == self.devices.len().saturating_sub(1) {
+                    if !self.paths.is_empty() && index == self.devices.len().saturating_sub(1) {
                         self.mode = OptionsMode::Directory;
                         self.devices.select(None);
-                        self.dirs.select(Some(0));
+                        self.paths.select(Some(0));
                         return;
                     }
                 }
@@ -84,28 +106,41 @@ impl<'a> Options<'a> {
             }
         }
     }
-    pub fn on_enter(&mut self, queue: &mut Queue) -> bool {
+    pub fn on_enter(&mut self, queue: &mut Queue) -> Option<String> {
         match self.mode {
             OptionsMode::Directory => {
-                if let Some(dir) = self.dirs.selected() {
-                    //TODO: Show a confirmation prompt
-                    self.db.delete_dir(dir);
-                    self.dirs = Index::new(self.db.get_music_dirs(), None);
-                    if !self.devices.is_empty() {
-                        self.mode = OptionsMode::Device;
-                        self.devices.select(Some(0));
+                let dir = self.paths.selected().cloned();
+                if let Some(dir) = dir {
+                    //Delete dir from ui and config file
+                    self.toml.remove_path(&dir);
+                    self.paths.data.retain(|x| x != &dir);
+
+                    if self.paths.is_empty() {
+                        self.paths = Index::new(self.toml.paths(), None);
+                        if !self.devices.is_empty() {
+                            self.mode = OptionsMode::Device;
+                            self.devices.select(Some(0));
+                        }
+                    } else {
+                        self.paths = Index::new(self.toml.paths(), Some(0));
                     }
-                    return true;
+                    return Some(dir);
                 }
             }
             OptionsMode::Device => {
                 if let Some(device) = self.devices.selected() {
-                    //TODO: Selected device in config file
-                    self.default_device = device.name().expect("Device has no name!");
+                    self.toml
+                        .set_output_device(device.name().expect("Device has no name!"));
                     queue.change_output_device(device);
                 }
             }
         }
-        false
+        None
+    }
+    pub fn save_volume(&mut self, vol: u16) {
+        self.toml.set_volume(vol);
+    }
+    pub(crate) fn paths(&self) -> &[String] {
+        &self.paths.data
     }
 }

@@ -82,7 +82,7 @@ If your music player has broken lines, increase your zoom level or font size.
 
 - [x] Global hotkeys
 
-- [ ] Settings menu (output device, music directories)
+- [x] Settings menu (output device, music directories)
 
 - [ ] Replay gain support
 
