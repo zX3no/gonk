@@ -1,8 +1,7 @@
+use super::Queue;
 use crate::index::Index;
 use gonk_database::Database;
 use rodio::{Device, DeviceTrait, Player};
-
-use super::Queue;
 
 pub enum OptionsMode {
     Directory,
@@ -36,7 +35,7 @@ impl<'a> Options<'a> {
         match self.mode {
             OptionsMode::Directory => {
                 if let Some(index) = self.dirs.index {
-                    if self.devices.index.is_some() && index == 0 {
+                    if !self.devices.is_empty() && index == 0 {
                         self.mode = OptionsMode::Device;
                         self.dirs.select(None);
                         self.devices
@@ -48,7 +47,7 @@ impl<'a> Options<'a> {
             }
             OptionsMode::Device => {
                 if let Some(index) = self.devices.index {
-                    if self.dirs.index.is_some() && index == 0 {
+                    if !self.dirs.is_empty() && index == 0 {
                         self.mode = OptionsMode::Directory;
                         self.devices.select(None);
                         self.dirs.select(Some(self.dirs.len().saturating_sub(1)));
@@ -63,7 +62,7 @@ impl<'a> Options<'a> {
         match self.mode {
             OptionsMode::Directory => {
                 if let Some(index) = self.dirs.index {
-                    if self.devices.index.is_some() && index == self.dirs.len().saturating_sub(1) {
+                    if !self.devices.is_empty() && index == self.dirs.len().saturating_sub(1) {
                         self.mode = OptionsMode::Device;
                         self.dirs.select(None);
                         self.devices.select(Some(0));
@@ -74,7 +73,7 @@ impl<'a> Options<'a> {
             }
             OptionsMode::Device => {
                 if let Some(index) = self.devices.index {
-                    if self.dirs.index.is_some() && index == self.devices.len().saturating_sub(1) {
+                    if !self.dirs.is_empty() && index == self.devices.len().saturating_sub(1) {
                         self.mode = OptionsMode::Directory;
                         self.devices.select(None);
                         self.dirs.select(Some(0));
@@ -92,6 +91,10 @@ impl<'a> Options<'a> {
                     //TODO: Show a confirmation prompt
                     self.db.delete_dir(dir);
                     self.dirs = Index::new(self.db.get_music_dirs(), None);
+                    if !self.devices.is_empty() {
+                        self.mode = OptionsMode::Device;
+                        self.devices.select(Some(0));
+                    }
                     return true;
                 }
             }
