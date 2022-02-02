@@ -36,19 +36,19 @@ impl<'a> Options<'a> {
         match self.mode {
             OptionsMode::Directory => {
                 if let Some(index) = self.dirs.index {
-                    if index == 0 {
+                    if self.devices.index.is_some() && index == 0 {
                         self.mode = OptionsMode::Device;
                         self.dirs.select(None);
                         self.devices
                             .select(Some(self.devices.len().saturating_sub(1)));
                         return;
                     }
+                    self.dirs.up()
                 }
-                self.dirs.up()
             }
             OptionsMode::Device => {
                 if let Some(index) = self.devices.index {
-                    if index == 0 {
+                    if self.dirs.index.is_some() && index == 0 {
                         self.mode = OptionsMode::Directory;
                         self.devices.select(None);
                         self.dirs.select(Some(self.dirs.len().saturating_sub(1)));
@@ -63,7 +63,7 @@ impl<'a> Options<'a> {
         match self.mode {
             OptionsMode::Directory => {
                 if let Some(index) = self.dirs.index {
-                    if index == self.dirs.len().saturating_sub(1) {
+                    if self.devices.index.is_some() && index == self.dirs.len().saturating_sub(1) {
                         self.mode = OptionsMode::Device;
                         self.dirs.select(None);
                         self.devices.select(Some(0));
@@ -74,7 +74,7 @@ impl<'a> Options<'a> {
             }
             OptionsMode::Device => {
                 if let Some(index) = self.devices.index {
-                    if index == self.devices.len().saturating_sub(1) {
+                    if self.dirs.index.is_some() && index == self.devices.len().saturating_sub(1) {
                         self.mode = OptionsMode::Directory;
                         self.devices.select(None);
                         self.dirs.select(Some(0));
