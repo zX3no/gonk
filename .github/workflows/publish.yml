@@ -31,6 +31,10 @@ jobs:
         profile: minimal
         toolchain: stable
 
+    - name: Install libasound2-dev
+      run: sudo apt install -y libasound2-dev
+      if: matrix.os == 'ubuntu-latest'
+
     - name: Build
       run: cargo build --release
 
