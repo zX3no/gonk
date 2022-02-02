@@ -9,15 +9,16 @@ pub enum OptionsMode {
     Device,
 }
 
-pub struct Options {
+pub struct Options<'a> {
     pub dirs: Index<String>,
     pub default_device: String,
     pub devices: Index<Device>,
     pub mode: OptionsMode,
+    db: &'a Database,
 }
 
-impl Options {
-    pub fn new(db: &Database) -> Self {
+impl<'a> Options<'a> {
+    pub fn new(db: &'a Database) -> Self {
         Self {
             //TODO: should this be part of struct?
             //can you add a dir while using gronk?
@@ -28,6 +29,7 @@ impl Options {
                 .name()
                 .expect("Device has no name!"),
             mode: OptionsMode::Device,
+            db,
         }
     }
     pub fn up(&mut self) {
@@ -83,9 +85,16 @@ impl Options {
             }
         }
     }
-    pub fn on_enter(&mut self, queue: &mut Queue) {
+    pub fn on_enter(&mut self, queue: &mut Queue) -> bool {
         match self.mode {
-            OptionsMode::Directory => todo!("prompt user if they want to delete directory"),
+            OptionsMode::Directory => {
+                if let Some(dir) = self.dirs.selected() {
+                    //TODO: Show a confirmation prompt
+                    self.db.delete_dir(dir);
+                    self.dirs = Index::new(self.db.get_music_dirs(), None);
+                    return true;
+                }
+            }
             OptionsMode::Device => {
                 if let Some(device) = self.devices.selected() {
                     //TODO: Selected device in config file
@@ -94,5 +103,6 @@ impl Options {
                 }
             }
         }
+        false
     }
 }

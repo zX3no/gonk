@@ -111,6 +111,11 @@ impl Database {
             .execute("UPDATE options SET volume = (?1)", params![volume])
             .unwrap();
     }
+    pub fn delete_dir(&self, path: &str) {
+        self.conn
+            .execute("DELETE FROM music WHERE path = (?1)", params![fix(path)])
+            .unwrap();
+    }
     pub fn get_music_dirs(&self) -> Vec<String> {
         let mut stmt = self.conn.prepare("SELECT path FROM music").unwrap();
 

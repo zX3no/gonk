@@ -12,7 +12,9 @@ impl<T> Index<T> {
         self.data.append(other);
     }
     pub fn remove(&mut self, index: usize) {
-        self.data.remove(index);
+        if !self.is_empty() {
+            self.data.remove(index);
+        }
     }
     pub fn up(&mut self) {
         if let Some(index) = &mut self.index {

@@ -20,7 +20,7 @@ pub struct App<'a> {
     pub browser: Browser<'a>,
     pub queue: Queue,
     pub search: Search<'a>,
-    pub options: Options,
+    pub options: Options<'a>,
     pub app_mode: AppMode,
 }
 
@@ -78,7 +78,11 @@ impl<'a> App<'a> {
                     self.queue.add(songs);
                 }
             }
-            AppMode::Options => self.options.on_enter(&mut self.queue),
+            AppMode::Options => {
+                if self.options.on_enter(&mut self.queue) {
+                    self.reset();
+                }
+            }
         }
     }
     fn on_escape(&mut self) {
@@ -112,8 +116,7 @@ impl<'a> App<'a> {
 
         if let Some(busy) = self.db.is_busy() {
             if busy {
-                self.browser.refresh();
-                self.search.refresh();
+                self.refresh();
             }
             self.browser.update_busy(busy);
         }
@@ -123,7 +126,7 @@ impl<'a> App<'a> {
         }
     }
     fn delete_from_queue(&mut self) {
-        if let AppMode::Queue = self.app_mode{
+        if let AppMode::Queue = self.app_mode {
             self.queue.delete_selected();
         }
     }
@@ -188,6 +191,10 @@ impl<'a> App<'a> {
     }
     fn save_volume(&self) {
         self.db.set_volume(self.queue.get_volume());
+    }
+    fn refresh(&mut self) {
+        self.browser.refresh();
+        self.search.refresh();
     }
     fn reset(&mut self) {
         self.db.reset();
