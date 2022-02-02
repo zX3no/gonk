@@ -88,6 +88,8 @@ If your music player has broken lines, increase your zoom level or font size.
 
 - [ ] Automatically adjust margin based on viewable songs
 
+- [ ] Automatic updates
+
 - [ ] Icon
 
 - [ ] Allow the user to click on songs in the queue(partialy working)
