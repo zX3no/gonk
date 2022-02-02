@@ -36,6 +36,34 @@ enum HotkeyEvent {
     VolDown,
 }
 
+#[macro_use]
+extern crate self_update;
+
+fn update() -> core::result::Result<(), Box<dyn std::error::Error>> {
+    let releases = self_update::backends::github::ReleaseList::configure()
+        .repo_owner("zX3no")
+        .repo_name("gonk")
+        .build()?
+        .fetch()?;
+
+    println!("found releases:");
+    println!("{:#?}\n", releases);
+
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner("zX3no")
+        .repo_name("gonk")
+        .bin_name("gonk")
+        .show_download_progress(true)
+        //.target_version_tag("v9.9.10")
+        //.show_output(false)
+        //.no_confirm(true)
+        .current_version(cargo_crate_version!())
+        .build()?
+        .update()?;
+    println!("Update status: `{}`!", status.version());
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let orig_hook = std::panic::take_hook();
 
@@ -64,12 +92,22 @@ fn main() -> Result<()> {
                 println!("Database reset!");
                 return Ok(());
             }
+            "update" => {
+                //TODO: Test this?
+                //Disable confirm?
+                if let Err(e) = update() {
+                    println!("[ERROR] {}", e);
+                    return Ok(());
+                }
+                std::thread::sleep(Duration::from_secs(2));
+            }
             "help" => {
                 println!("Usage");
                 println!("    gonk [<options> <args>]\n");
                 println!("Options");
-                println!("    add     Add music to the library");
-                println!("    reset   Reset the database");
+                println!("    add       Add music to the library");
+                println!("    reset     Reset the database");
+                println!("    update    Update gonk");
                 println!();
                 return Ok(());
             }
