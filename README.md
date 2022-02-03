@@ -57,6 +57,7 @@ gonk add D:/Music
 | Clear Queue | `C`         |
 | Change Mode | `Tab`       |
 | Search      | `/`         |
+| Quit        | `Ctrl+C`    |
 | ?           | `Escape`    |
 | ?           | `Backspace` |
 
