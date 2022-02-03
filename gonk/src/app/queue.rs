@@ -6,6 +6,9 @@ use rodio::Player;
 use std::time::Duration;
 
 pub struct Queue {
+    //there are two indexes because
+    //you can have a song selected
+    //and a ui element selected
     pub ui: Index<bool>,
     pub list: Index<Song>,
     pub constraint: [u16; 4],
@@ -84,6 +87,7 @@ impl Queue {
     }
     pub fn delete_selected(&mut self) {
         if let Some(index) = self.ui.index {
+            //remove the item from the ui
             self.list.remove(index);
             if let Some(playing) = self.list.index {
                 let len = self.list.len();
@@ -102,7 +106,9 @@ impl Queue {
                 if index > end {
                     self.ui.select(Some(end));
                 }
-                if index <= playing {
+                //if the playing song was deleted
+                //play the next track
+                if index == playing {
                     self.play_selected();
                 }
             };
