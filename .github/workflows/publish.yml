@@ -9,6 +9,8 @@ jobs:
   publish:
     name: Publish for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env: 
+      working-directory: ./
     strategy:
       matrix:
         # name: [linux, windows]
@@ -32,15 +34,18 @@ jobs:
         profile: minimal
         toolchain: stable
 
+    - name: Test
+      run: echo ${{ format('{0}/{1}',env.working-directory,matrix.artifact_name) }}
+
     - name: Install libasound2-dev
       run: sudo apt install -y libasound2-dev
       if: matrix.os == 'ubuntu-latest'
 
-    - name: Build
-      run: cargo build --release
+    # - name: Build
+    #   run: cargo build --release
 
     - name: Upload binaries to release
       uses: actions/upload-artifact@v2
       with:
         name: ${{ matrix.asset_name }}
-        path: ${{ format('gonk/{0}',matrix.artifact_name) }}
+        path: ${{ format('{0}/{1}',env.working-directory,matrix.artifact_name) }}
