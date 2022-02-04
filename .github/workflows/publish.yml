@@ -42,4 +42,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: ${{ matrix.asset_name }}
-        path: ${{ format('{0}/{1}', matrix.asset_name, matrix.artifact_name) }}
+        path: ${{ format('gonk/{1}',matrix.artifact_name) }}
