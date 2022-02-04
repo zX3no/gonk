@@ -10,7 +10,7 @@ jobs:
     name: Publish for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env: 
-      working-directory: ./
+      working-directory: gronk/gronk/
     strategy:
       matrix:
         # name: [linux, windows]
