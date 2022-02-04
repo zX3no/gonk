@@ -15,7 +15,6 @@ pub struct Queue {
     //TODO: is there a better way of doing this?
     pub clicked_pos: Option<(u16, u16)>,
     player: Player,
-    random: bool,
 }
 
 impl Queue {
@@ -26,7 +25,6 @@ impl Queue {
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             player: Player::default().volume(volume),
-            random: false,
         }
     }
     pub fn volume_up(&mut self) {
@@ -94,6 +92,7 @@ impl Queue {
 
                 if len == 0 {
                     self.clear();
+                    return;
                 } else if playing == index && index == 0 {
                     self.list.select(Some(0));
                 } else if playing == index && len == index {
@@ -175,23 +174,19 @@ impl Queue {
             panic!("Constraint went out of bounds: {:?}", self.constraint);
         }
     }
+    //I once tried to make it toggle random
+    //it did not go well
     pub fn randomize(&mut self) {
-        self.random = !self.random;
+        if let Some(song) = self.list.selected().cloned() {
+            self.list.data.shuffle(&mut thread_rng());
 
-        if self.random {
-            if let Some(song) = self.list.selected().cloned() {
-                self.list.data.shuffle(&mut thread_rng());
-
-                let mut index = 0;
-                for (i, s) in self.list.data.iter().enumerate() {
-                    if s == &song {
-                        index = i;
-                    }
+            let mut index = 0;
+            for (i, s) in self.list.data.iter().enumerate() {
+                if s == &song {
+                    index = i;
                 }
-                self.list.select(Some(index));
             }
-        } else {
-            //TODO: Revert shuffle
+            self.list.select(Some(index));
         }
     }
     pub(crate) fn change_output_device(&mut self, device: &rodio::Device) {
