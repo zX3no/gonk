@@ -145,35 +145,21 @@ impl<'a> Browser<'a> {
         }
     }
     pub fn refresh(&mut self) {
-        if self.artists.is_empty() {
-            self.artists = Index::new(self.db.artists(), Some(0));
-        } else {
-            self.artists.data = self.db.artists();
-        }
+        self.mode = BrowserMode::Artist;
+        self.albums = Index::default();
+        self.songs = Index::default();
+
+        self.artists = Index::new(self.db.artists(), Some(0));
 
         if let Some(first_artist) = self.artists.selected() {
-            if self.albums.is_empty() {
-                self.albums = Index::new(self.db.albums_by_artist(first_artist), Some(0));
-            } else {
-                self.albums.data = self.db.albums_by_artist(first_artist);
-            }
+            self.albums = Index::new(self.db.albums_by_artist(first_artist), Some(0));
         }
 
         if let Some(first_artist) = self.artists.selected() {
             if let Some(first_album) = self.albums.selected() {
-                if self.songs.is_empty() {
-                    self.songs =
-                        Index::new(self.db.songs_from_album(first_artist, first_album), Some(0));
-                } else {
-                    self.songs.data = self.db.songs_from_album(first_artist, first_album);
-                }
+                self.songs =
+                    Index::new(self.db.songs_from_album(first_artist, first_album), Some(0));
             }
         }
     }
-    // pub fn reset(&mut self) {
-    //     self.artists = Index::default();
-    //     self.albums = Index::default();
-    //     self.songs = Index::default();
-    //     self.mode = BrowserMode::Artist;
-    // }
 }
