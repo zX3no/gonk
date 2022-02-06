@@ -73,23 +73,17 @@ If your music player has broken lines, increase your zoom level or font size.
 
 ## TODO
 
+- [ ] Is it settings or options?
+
 - [ ] Songs do not play while the volume is 0
 
 - [ ] Configuration file for key bindings
 
-- [x] Fix M4A files 
-
-- [x] Song metadata (duration)
-
-- [x] Global hotkeys
-
-- [x] Settings menu (output device, music directories)
+- [ ] AAC support
 
 - [ ] Replay gain support
 
 - [ ] Automatically adjust margin based on viewable songs
-
-- [ ] Automatic updates
 
 - [ ] Icon
 

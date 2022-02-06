@@ -1,9 +1,8 @@
-mod sqlite;
-mod toml;
-
+pub use crate::{sqlite::Database, toml::Toml};
 use std::path::PathBuf;
 
-pub use crate::{sqlite::Database, toml::Toml};
+mod sqlite;
+mod toml;
 
 #[macro_use]
 extern crate lazy_static;
