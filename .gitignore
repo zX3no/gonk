@@ -1,3 +1,4 @@
 /target
+/gonk/target
 Cargo.lock
 *.log

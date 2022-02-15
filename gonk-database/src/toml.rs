@@ -24,7 +24,7 @@ pub struct Hotkey {
     clear: Bind,
     delete: Bind,
     search: Bind,
-    settings: Bind,
+    options: Bind,
     change_mode: Bind,
     quit: Bind,
 }
@@ -112,7 +112,7 @@ impl Toml {
                         key: String::from("/"),
                         modifier: None,
                     },
-                    settings: Bind {
+                    options: Bind {
                         key: String::from("."),
                         modifier: None,
                     },

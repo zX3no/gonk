@@ -73,9 +73,9 @@ If your music player has broken lines, increase your zoom level or font size.
 
 ## TODO
 
-- [ ] Scrolling track title when length exceeds viewable area
+- [ ] Database should remeber which songs where in the queue when last opened
 
-- [ ] Is it settings or options?
+- [ ] Scrolling track title when length exceeds viewable area
 
 - [ ] Songs do not play while the volume is 0
 
@@ -89,13 +89,13 @@ If your music player has broken lines, increase your zoom level or font size.
 
 - [ ] Icon
 
-- [ ] Allow the user to click on songs in the queue(partialy working)
+- [ ] Allow the user to click on songs in the queue (partialy working)
 
 - [ ] Toggles for artist/album/song only search
 
 - [ ] Gonk player and UI should be seperate like mpd and ncmpcpp. The player should control the queue, volume and output.
 
-> Should the player remember what was in the queue? I like being able to close the player and still listen.
+- [ ] Pretty search page
 
 ## ❤️ Contributing
 
