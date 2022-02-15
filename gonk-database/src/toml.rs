@@ -37,8 +37,26 @@ pub struct Config {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum Color {
+    Green,
+    Cyan,
+    Blue,
+    Magenta,
+    White,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Colors {
+    track: Color,
+    title: Color,
+    album: Color,
+    artist: Color,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Toml {
     config: Config,
+    colors: Colors,
     hotkey: Hotkey,
 }
 
@@ -54,6 +72,12 @@ impl Toml {
                     paths: Vec::new(),
                     output_device: String::new(),
                     volume: 15,
+                },
+                colors: Colors {
+                    track: Color::Green,
+                    title: Color::Cyan,
+                    album: Color::Magenta,
+                    artist: Color::Blue,
                 },
                 hotkey: Hotkey {
                     up: Bind {

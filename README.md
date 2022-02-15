@@ -97,6 +97,8 @@ If your music player has broken lines, increase your zoom level or font size.
 
 - [ ] Pretty search page
 
+- [ ] Customizable colors
+
 ## ❤️ Contributing
 
 Feel free to open an issue or submit a pull request!
