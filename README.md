@@ -73,6 +73,8 @@ If your music player has broken lines, increase your zoom level or font size.
 
 ## TODO
 
+- [ ] Scrolling track title when length exceeds viewable area
+
 - [ ] Is it settings or options?
 
 - [ ] Songs do not play while the volume is 0

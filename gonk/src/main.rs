@@ -47,7 +47,9 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }));
 
+    //TODO: make sure toml file isn't empty and that there are no songs left over in database
     let db = Database::new().unwrap();
+    let mut toml = Toml::new().unwrap();
 
     //Handle arguments
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -56,8 +58,7 @@ fn main() -> Result<()> {
             "add" => {
                 if let Some(dir) = args.get(1..) {
                     let dir = dir.join(" ");
-                    db.add_music(&[dir.clone()]);
-                    Toml::new().unwrap().add_path(dir);
+                    toml.add_path(dir);
                 }
             }
             "reset" | "rm" => {
@@ -81,6 +82,9 @@ fn main() -> Result<()> {
             }
         }
     }
+
+    //Make sure the database and toml file share the same directories
+    db.add_music(&toml.paths());
 
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 

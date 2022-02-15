@@ -81,7 +81,7 @@ impl<'a> App<'a> {
             }
             AppMode::Options => {
                 if let Some(dir) = self.options.on_enter(&mut self.queue) {
-                    self.db.delete_files(&dir);
+                    self.db.delete_path(&dir);
                     self.refresh_ui();
                 }
             }
@@ -196,7 +196,8 @@ impl<'a> App<'a> {
         self.search.refresh();
     }
     fn refresh_db(&mut self) {
+        //update all the music in the db
         let paths = self.options.paths();
-        self.db.add_music(paths)
+        paths.iter().for_each(|path| self.db.add(path));
     }
 }
