@@ -2,7 +2,7 @@ use crate::{CONFIG_DIR, DB_DIR};
 use dpc_pariter::IteratorExt;
 use gonk_types::Song;
 use jwalk::WalkDir;
-use rusqlite::{Connection, Row};
+use rusqlite::{params, Connection, Params, Row};
 use std::{
     path::{Path, PathBuf},
     sync::{
@@ -59,7 +59,6 @@ impl Database {
         })
     }
     pub fn add_music(&self, dirs: &[String]) {
-        //delete all of the old directories
         let mut stmt = self
             .conn
             .prepare("SELECT DISTINCT parent FROM song")
@@ -68,6 +67,8 @@ impl Database {
         let paths: Vec<String> = stmt
             .query_map([], |row| {
                 let path: String = row.get(0).unwrap();
+
+                //delete all of the old directories
                 if !dirs.contains(&path) {
                     self.delete_path(&path);
                 }
@@ -117,6 +118,7 @@ impl Database {
                     let name = fix(&song.name);
                     let path = fix(song.path.to_str().unwrap());
                     let parent = fix(&music_dir);
+                    //TODO: would be nice to have batch params, don't think it's implemented.
                     format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                                 song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), parent)
                 })
@@ -142,7 +144,7 @@ impl Database {
     }
     pub fn delete_path(&self, path: &str) {
         self.conn
-            .execute("DELETE FROM song WHERE parent = (?1)", [path])
+            .execute("DELETE FROM song WHERE parent = ?", [path])
             .unwrap();
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
@@ -150,28 +152,24 @@ impl Database {
             return Vec::new();
         }
 
-        let mut songs = Vec::new();
+        let mut query = format!("SELECT * FROM song WHERE rowid={}", ids.first().unwrap());
 
-        for id in ids {
-            let query = format!("SELECT * FROM song WHERE rowid='{}'", id);
-            let mut stmt = self.conn.prepare(&query).unwrap();
-            let mut rows = stmt.query([]).unwrap();
-            if let Some(row) = rows.next().unwrap() {
-                songs.push(Database::song(row));
-            }
-        }
-        songs
+        ids.iter()
+            .skip(1)
+            .for_each(|id| query.push_str(&format!(" OR rowid={}", id)));
+
+        let mut stmt = self.conn.prepare(&query).unwrap();
+        stmt.query_map([], |row| Ok(Database::song(row)))
+            .unwrap()
+            .flatten()
+            .collect()
     }
     pub fn get_song_from_id(&self, id: usize) -> Song {
-        let query = format!("SELECT * FROM song WHERE rowid='{}'", id);
-        let mut stmt = self.conn.prepare(&query).unwrap();
-        let mut rows = stmt.query([]).unwrap();
-
-        if let Some(row) = rows.next().unwrap() {
-            Database::song(row)
-        } else {
-            panic!();
-        }
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM song WHERE rowid=?")
+            .unwrap();
+        stmt.query_row([id], |row| Ok(Database::song(row))).unwrap()
     }
     pub fn get_songs(&self) -> Vec<(Song, usize)> {
         let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
@@ -191,14 +189,13 @@ impl Database {
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
-        let mut rows = stmt.query([]).unwrap();
-
-        let mut artists = Vec::new();
-        while let Some(row) = rows.next().unwrap() {
+        stmt.query_map([], |row| {
             let artist: String = row.get(0).unwrap();
-            artists.push(artist);
-        }
-        artists
+            Ok(artist)
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
     pub fn albums(&self) -> Vec<(String, String)> {
         let mut stmt = self
@@ -206,94 +203,68 @@ impl Database {
             .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
-        let mut rows = stmt.query([]).unwrap();
-
-        let mut albums = Vec::new();
-
-        while let Some(row) = rows.next().unwrap() {
+        stmt.query_map([], |row| {
             let album: String = row.get(0).unwrap();
             let artist: String = row.get(1).unwrap();
-            albums.push((album, artist));
-        }
-        albums
+            Ok((album, artist))
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
     pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
-        let artist = fix(artist);
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE",
+            )
+            .unwrap();
 
-        let query = format!(
-            "SELECT DISTINCT album FROM song WHERE artist = '{}' ORDER BY album COLLATE NOCASE",
-            artist
-        );
-
-        let mut stmt = self.conn.prepare(&query).unwrap();
-        let mut rows = stmt.query([]).unwrap();
-
-        let mut albums = Vec::new();
-        while let Some(row) = rows.next().unwrap() {
+        stmt.query_map([artist], |row| {
             let album: String = row.get(0).unwrap();
-            albums.push(album);
-        }
-
-        albums
+            Ok(album)
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
     pub fn songs_from_album(&self, artist: &str, album: &str) -> Vec<(u16, String)> {
-        let artist = fix(artist);
-        let album = fix(album);
+        let mut stmt = self.conn.prepare("SELECT number, name FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number").unwrap();
 
-        let query = format!(
-            "SELECT number, name FROM song WHERE artist='{}' AND album='{}' ORDER BY disc, number",
-            artist, album
-        );
-
-        let mut stmt = self.conn.prepare(&query).unwrap();
-        let mut rows = stmt.query([]).unwrap();
-
-        let mut songs = Vec::new();
-        while let Some(row) = rows.next().unwrap() {
+        stmt.query_map([artist, album], |row| {
             let number: u16 = row.get(0).unwrap();
             let name: String = row.get(1).unwrap();
-            songs.push((number, name));
-        }
-
-        songs
+            Ok((number, name))
+        })
+        .unwrap()
+        .flatten()
+        .collect()
     }
     pub fn get_artist(&self, artist: &str) -> Vec<Song> {
-        let artist = fix(artist);
-
-        let query = format!(
-            "SELECT * FROM song WHERE artist = '{}' ORDER BY album, disc, number",
-            artist,
-        );
-
-        self.collect_songs(&query)
+        self.collect_songs(
+            "SELECT * FROM song WHERE artist = ? ORDER BY album, disc, number",
+            params![artist],
+        )
     }
     pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
-        let artist = fix(artist);
-        let album = fix(album);
-
-        let query = format!(
-            "SELECT * FROM song WHERE artist='{}' AND album='{}' ORDER BY disc, number",
-            artist, album
-        );
-
-        self.collect_songs(&query)
+        self.collect_songs(
+            "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
+            params![artist, album],
+        )
     }
     pub fn get_song(&self, artist: &str, album: &str, song: &(u16, String)) -> Vec<Song> {
-        let artist = fix(artist);
-        let album = fix(album);
-        let name = fix(&song.1);
-
-        let query = format!(
-            "SELECT * FROM song WHERE name='{}' AND number='{}' AND artist='{}' AND album='{}'",
-            name, song.0, artist, album
-        );
-
-        self.collect_songs(&query)
+        self.collect_songs(
+            "SELECT * FROM song WHERE name=(?1) AND number=(?2) AND artist=(?3) AND album=(?4)",
+            params![song.1, song.0, artist, album],
+        )
     }
-    fn collect_songs(&self, query: &str) -> Vec<Song> {
+    fn collect_songs<P>(&self, query: &str, params: P) -> Vec<Song>
+    where
+        P: Params,
+    {
         let mut stmt = self.conn.prepare(query).unwrap();
 
-        stmt.query_map([], |row| Ok(Database::song(row)))
+        stmt.query_map(params, |row| Ok(Database::song(row)))
             .unwrap()
             .flatten()
             .collect()
@@ -314,8 +285,4 @@ impl Database {
     pub fn delete() {
         std::fs::remove_file(DB_DIR.as_path()).unwrap();
     }
-}
-
-impl Drop for Database {
-    fn drop(&mut self) {}
 }
