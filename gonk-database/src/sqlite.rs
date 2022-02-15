@@ -65,30 +65,24 @@ impl Database {
             .prepare("SELECT DISTINCT parent FROM song")
             .unwrap();
 
-        let mut rows = stmt.query([]).unwrap();
-
-        while let Some(row) = rows.next().unwrap() {
-            let path: String = row.get(0).unwrap();
-            if !dirs.contains(&path) {
-                self.delete_path(&path);
-            }
-        }
-
-        for dir in dirs {
-            //see if the directory is in the database
-            let query = format!("SELECT EXISTS(SELECT 1 FROM song WHERE parent = \"{dir}\")");
-
-            let mut stmt = self.conn.prepare(&query).unwrap();
-
-            let mut rows = stmt.query([]).unwrap();
-
-            if let Some(row) = rows.next().unwrap() {
-                let exists: bool = row.get(0).unwrap();
-                if !exists {
-                    self.add(dir);
+        let paths: Vec<String> = stmt
+            .query_map([], |row| {
+                let path: String = row.get(0).unwrap();
+                if !dirs.contains(&path) {
+                    self.delete_path(&path);
                 }
+                Ok(path)
+            })
+            .unwrap()
+            .flatten()
+            .collect();
+
+        //add all missing directories
+        dirs.iter().for_each(|dir| {
+            if !paths.contains(dir) {
+                self.add(dir);
             }
-        }
+        });
     }
     pub fn add(&self, music_dir: &str) {
         let music_dir = music_dir.to_string();

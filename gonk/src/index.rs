@@ -17,6 +17,10 @@ impl<T> Index<T> {
         }
     }
     pub fn up(&mut self) {
+        if self.data.is_empty() {
+            return;
+        }
+
         if let Some(index) = &mut self.index {
             if *index > 0 {
                 *index -= 1;
@@ -26,6 +30,10 @@ impl<T> Index<T> {
         }
     }
     pub fn down(&mut self) {
+        if self.data.is_empty() {
+            return;
+        }
+
         if let Some(index) = &mut self.index {
             if *index + 1 < self.data.len() {
                 *index += 1;
