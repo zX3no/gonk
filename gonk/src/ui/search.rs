@@ -1,5 +1,4 @@
 use crate::app::Search;
-use crate::ui::{ALBUM, ARTIST, TITLE};
 use gonk_database::Database;
 use gonk_search::ItemType;
 use tui::{
@@ -11,7 +10,9 @@ use tui::{
     Frame,
 };
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
+use super::Colors;
+
+pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database, colors: Colors) {
     let area = f.size();
 
     let chunks = Layout::default()
@@ -33,20 +34,21 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database) {
         ItemType::Song => {
             let song = db.get_song_from_id(r.song_id.unwrap());
             Row::new(vec![
-                Cell::from(song.name.to_owned()).style(Style::default().fg(TITLE)),
-                Cell::from(song.album.to_owned()).style(Style::default().fg(ALBUM)),
-                Cell::from(song.artist).style(Style::default().fg(ARTIST)),
+                Cell::from(song.name.to_owned()).style(Style::default().fg(colors.title)),
+                Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
+                Cell::from(song.artist).style(Style::default().fg(colors.artist)),
             ])
         }
         ItemType::Album => Row::new(vec![
-            Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(TITLE)),
-            Cell::from("").style(Style::default().fg(ALBUM)),
-            Cell::from(r.album_artist.as_ref().unwrap().clone()).style(Style::default().fg(ARTIST)),
+            Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(colors.title)),
+            Cell::from("").style(Style::default().fg(colors.album)),
+            Cell::from(r.album_artist.as_ref().unwrap().clone())
+                .style(Style::default().fg(colors.artist)),
         ]),
         ItemType::Artist => Row::new(vec![
-            Cell::from(r.name.to_owned() + " (artist)").style(Style::default().fg(TITLE)),
-            Cell::from("").style(Style::default().fg(ALBUM)),
-            Cell::from("").style(Style::default().fg(ARTIST)),
+            Cell::from(r.name.to_owned() + " (artist)").style(Style::default().fg(colors.title)),
+            Cell::from("").style(Style::default().fg(colors.album)),
+            Cell::from("").style(Style::default().fg(colors.artist)),
         ]),
     });
 

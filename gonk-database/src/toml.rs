@@ -1,6 +1,7 @@
 use crate::TOML_DIR;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use tui::style::Color;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bind {
@@ -37,26 +38,16 @@ pub struct Config {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Color {
-    Green,
-    Cyan,
-    Blue,
-    Magenta,
-    White,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct Colors {
-    track: Color,
-    title: Color,
-    album: Color,
-    artist: Color,
+    pub track: Color,
+    pub title: Color,
+    pub album: Color,
+    pub artist: Color,
 }
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Toml {
     config: Config,
-    colors: Colors,
+    pub colors: Colors,
     hotkey: Hotkey,
 }
 
