@@ -3,52 +3,69 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use tui::style::Color;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Serialize, Deserialize, Clone)]
+pub enum Modifier {
+    CONTROL,
+    SHIFT,
+    ALT,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Key(pub String);
+impl Key {
+    pub fn from(key: &str) -> Self {
+        Key(key.to_string())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Bind {
-    key: String,
-    modifier: Option<Vec<String>>,
+    pub key: Key,
+    pub modifiers: Option<Vec<Modifier>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Hotkey {
-    up: Bind,
-    down: Bind,
-    left: Bind,
-    right: Bind,
-    play_pause: Bind,
-    volume_up: Bind,
-    volume_down: Bind,
-    next: Bind,
-    previous: Bind,
-    seek_forward: Bind,
-    seek_backward: Bind,
-    clear: Bind,
-    delete: Bind,
-    search: Bind,
-    options: Bind,
-    change_mode: Bind,
-    quit: Bind,
+    pub up: Bind,
+    pub down: Bind,
+    pub left: Bind,
+    pub right: Bind,
+    pub play_pause: Bind,
+    pub volume_up: Bind,
+    pub volume_down: Bind,
+    pub next: Bind,
+    pub previous: Bind,
+    pub seek_forward: Bind,
+    pub seek_backward: Bind,
+    pub clear: Bind,
+    pub delete: Bind,
+    pub search: Bind,
+    pub options: Bind,
+    pub change_mode: Bind,
+    pub quit: Bind,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     paths: Vec<String>,
     output_device: String,
     volume: u16,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Colors {
     pub track: Color,
     pub title: Color,
     pub album: Color,
     pub artist: Color,
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+#[derive(Serialize, Deserialize)]
 pub struct Toml {
-    config: Config,
+    pub config: Config,
     pub colors: Colors,
-    hotkey: Hotkey,
+    pub hotkey: Hotkey,
 }
 
 impl Toml {
@@ -72,82 +89,88 @@ impl Toml {
                 },
                 hotkey: Hotkey {
                     up: Bind {
-                        key: String::from("k"),
-                        modifier: None,
+                        key: Key::from("k"),
+                        modifiers: None,
                     },
                     down: Bind {
-                        key: String::from("j"),
-                        modifier: None,
+                        key: Key::from("j"),
+                        modifiers: None,
                     },
                     left: Bind {
-                        key: String::from("h"),
-                        modifier: None,
+                        key: Key::from("h"),
+                        modifiers: None,
                     },
                     right: Bind {
-                        key: String::from("l"),
-                        modifier: None,
+                        key: Key::from("l"),
+                        modifiers: None,
                     },
                     play_pause: Bind {
-                        key: String::from("space"),
-                        modifier: None,
+                        key: Key::from("SPACE"),
+                        modifiers: None,
                     },
                     volume_up: Bind {
-                        key: String::from("w"),
-                        modifier: None,
+                        key: Key::from("w"),
+                        modifiers: None,
                     },
                     volume_down: Bind {
-                        key: String::from("s"),
-                        modifier: None,
+                        key: Key::from("s"),
+                        modifiers: None,
                     },
                     seek_forward: Bind {
-                        key: String::from("q"),
-                        modifier: None,
+                        key: Key::from("q"),
+                        modifiers: None,
                     },
                     seek_backward: Bind {
-                        key: String::from("e"),
-                        modifier: None,
+                        key: Key::from("e"),
+                        modifiers: None,
                     },
                     next: Bind {
-                        key: String::from("a"),
-                        modifier: None,
+                        key: Key::from("a"),
+                        modifiers: None,
                     },
                     previous: Bind {
-                        key: String::from("d"),
-                        modifier: None,
+                        key: Key::from("d"),
+                        modifiers: None,
                     },
                     clear: Bind {
-                        key: String::from("c"),
-                        modifier: None,
+                        key: Key::from("c"),
+                        modifiers: None,
                     },
                     delete: Bind {
-                        key: String::from("x"),
-                        modifier: None,
+                        key: Key::from("x"),
+                        modifiers: None,
                     },
                     search: Bind {
-                        key: String::from("/"),
-                        modifier: None,
+                        key: Key::from("/"),
+                        modifiers: None,
                     },
                     options: Bind {
-                        key: String::from("."),
-                        modifier: None,
+                        key: Key::from("."),
+                        modifiers: None,
                     },
                     change_mode: Bind {
-                        key: String::from("tab"),
-                        modifier: None,
+                        key: Key::from("TAB"),
+                        modifiers: None,
                     },
                     quit: Bind {
-                        key: String::from("c"),
-                        modifier: Some(vec![String::from("CONTROL")]),
+                        key: Key::from("c"),
+                        modifiers: Some(vec![Modifier::CONTROL]),
                     },
                 },
             };
 
-            toml::to_string(&toml).unwrap()
+            match toml::to_string_pretty(&toml) {
+                Ok(toml) => toml,
+                Err(err) => panic!("{}", &err),
+            }
         };
 
         match toml::from_str(&file) {
             Ok(toml) => Ok(toml),
-            Err(err) => panic!("{:#?}", err),
+            Err(err) => {
+                //TODO: parse and describe error to user?
+                panic!("{:#?}", &err);
+            }
         }
     }
     pub fn volume(&self) -> u16 {

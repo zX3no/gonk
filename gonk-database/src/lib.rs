@@ -1,4 +1,7 @@
-pub use crate::{sqlite::Database, toml::Toml};
+pub use crate::{
+    sqlite::Database,
+    toml::{Colors, Hotkey, Toml},
+};
 use std::path::PathBuf;
 
 mod sqlite;

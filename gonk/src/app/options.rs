@@ -12,8 +12,11 @@ pub struct Options {
     pub paths: Index<String>,
     pub devices: Index<Device>,
     pub mode: OptionsMode,
-    //TODO: move volume here?
+    //TODO: move colors things here
+    // pub colors: Colors,
+    // pub hotkeys: Hotkey,
     pub toml: Toml,
+    //TODO: move volume here?
 }
 
 impl Options {
