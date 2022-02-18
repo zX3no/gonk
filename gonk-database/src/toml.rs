@@ -145,9 +145,10 @@ impl Toml {
             toml::to_string(&toml).unwrap()
         };
 
-        let toml: Toml = toml::from_str(&file)?;
-
-        Ok(toml)
+        match toml::from_str(&file) {
+            Ok(toml) => Ok(toml),
+            Err(err) => panic!("{:#?}", err),
+        }
     }
     pub fn volume(&self) -> u16 {
         self.config.volume

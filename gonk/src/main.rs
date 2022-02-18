@@ -37,16 +37,6 @@ enum HotkeyEvent {
 }
 
 fn main() -> Result<()> {
-    let orig_hook = std::panic::take_hook();
-
-    std::panic::set_hook(Box::new(move |panic_info| {
-        //TODO: does this do bad things on Linux
-        //we don't leave raw mode here so...?
-        execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-        orig_hook(panic_info);
-        std::process::exit(1);
-    }));
-
     //TODO: make sure toml file isn't empty and that there are no songs left over in database
     let db = Database::new().unwrap();
     let mut toml = Toml::new().unwrap();
