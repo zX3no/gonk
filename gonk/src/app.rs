@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
-use gonk_database::{Database, Toml};
+use gonk_database::{Database, Key, Toml};
 pub use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 pub mod browser;
@@ -133,6 +133,29 @@ impl<'a> App<'a> {
         }
     }
     pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        // let hk = Toml::new().unwrap().hotkey;
+
+        // let (k, m) = (hk.change_mode.key, hk.change_mode.modifiers);
+
+        // let k: KeyCode = k.into();
+
+        // if k == code && m.is_none() {
+        //     //Do something
+        // }
+
+        // if k == code {
+        //     if let Some(m) = m {
+        //         let m: Vec<_> = m.iter().map(KeyModifiers::from).collect();
+        //         let mut mods = KeyModifiers::NONE;
+        //         for m in m {
+        //             mods |= m;
+        //         }
+        //         if modifiers == mods {
+        //             //Do something
+        //         }
+        //     }
+        // }
+
         match code {
             KeyCode::Char(c) => self.handle_char(c, modifiers),
             KeyCode::Down => self.down(),

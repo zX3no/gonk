@@ -1,6 +1,6 @@
 pub use crate::{
     sqlite::Database,
-    toml::{Colors, Hotkey, Toml},
+    toml::{Colors, Hotkey, Key, Toml},
 };
 use std::path::PathBuf;
 

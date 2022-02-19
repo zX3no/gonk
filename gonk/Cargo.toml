@@ -6,7 +6,7 @@ default-run = "gonk"
 authors = ["Bay <example@email.com>"]
 
 [dependencies]
-crossterm = "0.22.1"
+crossterm = "0.23.0"
 tui = { git = "https://github.com/zX3no/tui-rs", rev = "a4ebb4ed4e68ffb94c8b47495821219d849d0571"}
 gonk-database = {path = "../gonk-database"}
 gonk-types = {path = "../gonk-types"}

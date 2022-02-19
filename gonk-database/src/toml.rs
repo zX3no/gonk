@@ -1,4 +1,5 @@
 use crate::TOML_DIR;
+use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tui::style::Color;
@@ -11,11 +12,43 @@ pub enum Modifier {
     ALT,
 }
 
+impl From<&Modifier> for KeyModifiers {
+    fn from(m: &Modifier) -> Self {
+        match m {
+            Modifier::CONTROL => KeyModifiers::CONTROL,
+            Modifier::SHIFT => KeyModifiers::SHIFT,
+            Modifier::ALT => KeyModifiers::ALT,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Key(pub String);
-impl Key {
-    pub fn from(key: &str) -> Self {
-        Key(key.to_string())
+impl From<&str> for Key {
+    fn from(key: &str) -> Self {
+        Self(key.to_string())
+    }
+}
+
+impl From<KeyCode> for Key {
+    fn from(item: KeyCode) -> Self {
+        match item {
+            KeyCode::Char(c) => Key(c.to_string()),
+            _ => Key::from(""),
+        }
+    }
+}
+
+impl From<Key> for KeyCode {
+    fn from(val: Key) -> Self {
+        match val.0.as_str() {
+            "SPACE" => KeyCode::Char(' '),
+            "TAB" => KeyCode::Tab,
+            _ => {
+                let mut chars = val.0.chars();
+                KeyCode::Char(chars.next().unwrap())
+            }
+        }
     }
 }
 
