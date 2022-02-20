@@ -1,5 +1,5 @@
 use crate::app::Search;
-use gonk_database::Database;
+use gonk_database::{Colors, Database};
 use gonk_search::ItemType;
 use tui::{
     backend::Backend,
@@ -10,9 +10,7 @@ use tui::{
     Frame,
 };
 
-use super::Colors;
-
-pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database, colors: Colors) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, search: &Search, db: &Database, colors: &Colors) {
     let area = f.size();
 
     let chunks = Layout::default()

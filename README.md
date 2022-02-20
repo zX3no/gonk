@@ -79,7 +79,7 @@ If your music player has broken lines, increase your zoom level or font size.
 
 - [ ] Songs do not play while the volume is 0
 
-- [ ] Configuration file for key bindings
+- [x] Configuration file for key bindings
 
 - [ ] AAC support
 

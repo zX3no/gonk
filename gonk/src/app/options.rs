@@ -1,6 +1,6 @@
 use super::Queue;
 use crate::index::Index;
-use gonk_database::Toml;
+use gonk_database::{Colors, Hotkey, Toml};
 use rodio::{Device, DeviceTrait, Player};
 
 pub enum OptionsMode {
@@ -12,9 +12,6 @@ pub struct Options {
     pub paths: Index<String>,
     pub devices: Index<Device>,
     pub mode: OptionsMode,
-    //TODO: move colors things here
-    // pub colors: Colors,
-    // pub hotkeys: Hotkey,
     pub toml: Toml,
     //TODO: move volume here?
 }
@@ -55,6 +52,12 @@ impl Options {
             mode: OptionsMode::Device,
             toml,
         }
+    }
+    pub fn hotkeys(&self) -> &Hotkey {
+        &self.toml.hotkey
+    }
+    pub fn colors(&self) -> &Colors {
+        &self.toml.colors
     }
     pub fn up(&mut self) {
         match self.mode {

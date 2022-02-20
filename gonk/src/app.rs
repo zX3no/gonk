@@ -132,11 +132,8 @@ impl<'a> App<'a> {
             self.queue.delete_selected();
         }
     }
+    //TODO: remove bool return
     pub fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) -> bool {
-        //TODO: Make sure that the keybindigns are hot reloaded
-        //and if a keybinding is bad it would be nice to just ignore it
-        //otherwise you'll need to restart for the changes to take effect
-
         //match the hardcoded cases
         match key {
             KeyCode::Tab => self.on_tab(),
@@ -155,12 +152,15 @@ impl<'a> App<'a> {
             _ => (),
         }
 
+        //convert to easier to read format
         let bind = SimpleBind {
             key: Key::from(key),
             modifiers,
         };
 
-        let hk = Toml::new().unwrap().hotkey;
+        //old hot reloading way, might re-add this
+        // let hk = Toml::new().unwrap().hotkey;
+        let hk = &self.options.hotkeys();
 
         //holy shit this looks efficient
         match bind {

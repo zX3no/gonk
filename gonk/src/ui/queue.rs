@@ -1,5 +1,5 @@
-use super::Colors;
-use crate::app::{App, Queue};
+use crate::app::Queue;
+use gonk_database::Colors;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -7,7 +7,7 @@ use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 use tui::Frame;
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, colors: Colors) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, queue: &Queue, colors: &Colors) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -17,9 +17,9 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, colors: Colors) {
         ])
         .split(f.size());
 
-    draw_header(f, &app.queue, chunks[0], &colors);
-    draw_songs(f, &mut app.queue, chunks[1], colors);
-    draw_seeker(f, &mut app.queue, chunks[2]);
+    draw_header(f, queue, chunks[0], colors);
+    draw_songs(f, queue, chunks[1], colors);
+    draw_seeker(f, queue, chunks[2]);
 }
 
 pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect, colors: &Colors) {
@@ -106,7 +106,7 @@ pub fn draw_header<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect, col
     }
 }
 
-pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect, colors: Colors) {
+pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect, colors: &Colors) {
     if queue.is_empty() {
         return f.render_widget(
             Block::default()
@@ -114,25 +114,6 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect, 
                 .border_type(BorderType::Rounded),
             chunk,
         );
-    }
-
-    if let Some((_, row)) = queue.clicked_pos {
-        let size = f.size();
-        let height = size.height as usize;
-        let len = queue.list.len();
-        if height > 7 {
-            if height - 7 < len {
-                //TODO: I have no idea how to figure out what index i clicked on
-            } else {
-                let start_row = 5;
-                if row >= start_row {
-                    let index = (row - start_row) as usize;
-                    if index < len {
-                        queue.ui.select(Some(index));
-                    }
-                }
-            }
-        }
     }
 
     let (songs, now_playing, ui_index) = (&queue.list.data, queue.list.index, queue.ui.index);
@@ -240,7 +221,7 @@ pub fn draw_songs<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect, 
 
     f.render_stateful_widget(t, chunk, &mut state);
 }
-pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect) {
+pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &Queue, chunk: Rect) {
     if queue.is_empty() {
         return f.render_widget(
             Block::default()
@@ -248,22 +229,6 @@ pub fn draw_seeker<B: Backend>(f: &mut Frame<B>, queue: &mut Queue, chunk: Rect)
                 .border_type(BorderType::Rounded),
             chunk,
         );
-    }
-
-    if let Some((column, row)) = queue.clicked_pos {
-        let size = f.size();
-        if size.height - 3 == row
-            || size.height - 2 == row
-            || size.height - 1 == row && column >= 3 && column < size.width - 2
-        {
-            let ratio = (column - 3) as f64 / size.width as f64;
-            let duration = queue.duration().unwrap();
-
-            let new_time = duration * ratio;
-            queue.seek_to(new_time);
-            queue.play();
-        }
-        queue.clicked_pos = None;
     }
 
     let area = f.size();
