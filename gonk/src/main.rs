@@ -1,6 +1,6 @@
 use app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -129,15 +129,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
         if crossterm::event::poll(timeout)? {
             match event::read()? {
                 Event::Key(key) => {
-                    if let KeyCode::Char('c') = key.code {
-                        if key.modifiers == KeyModifiers::CONTROL {
-                            return Ok(());
-                        } else {
-                            app.handle_char('c', key.modifiers);
-                        }
-                    } else {
-                        app.input(key.code, key.modifiers);
-                    }
+                    //I don't like bool returns like this but ...?
+                    if app.input(key.code, key.modifiers) {
+                        return Ok(());
+                    };
                 }
                 Event::Mouse(mouse) => app.mouse(mouse),
                 _ => (),

@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
-use gonk_database::{Database, Key, Toml};
+use gonk_database::{Database, Key, SimpleBind, Toml};
 pub use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 pub mod browser;
@@ -132,77 +132,65 @@ impl<'a> App<'a> {
             self.queue.delete_selected();
         }
     }
-    pub fn input(&mut self, code: KeyCode, modifiers: KeyModifiers) {
-        // let hk = Toml::new().unwrap().hotkey;
+    pub fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) -> bool {
+        //TODO: Make sure that the keybindigns are hot reloaded
+        //and if a keybinding is bad it would be nice to just ignore it
+        //otherwise you'll need to restart for the changes to take effect
 
-        // let (k, m) = (hk.change_mode.key, hk.change_mode.modifiers);
-
-        // let k: KeyCode = k.into();
-
-        // if k == code && m.is_none() {
-        //     //Do something
-        // }
-
-        // if k == code {
-        //     if let Some(m) = m {
-        //         let m: Vec<_> = m.iter().map(KeyModifiers::from).collect();
-        //         let mut mods = KeyModifiers::NONE;
-        //         for m in m {
-        //             mods |= m;
-        //         }
-        //         if modifiers == mods {
-        //             //Do something
-        //         }
-        //     }
-        // }
-
-        match code {
-            KeyCode::Char(c) => self.handle_char(c, modifiers),
-            KeyCode::Down => self.down(),
-            KeyCode::Up => self.up(),
-            KeyCode::Left => self.browser_prev(),
-            KeyCode::Right => self.browser_next(),
-            KeyCode::Enter => self.on_enter(),
+        //match the hardcoded cases
+        match key {
             KeyCode::Tab => self.on_tab(),
             KeyCode::Backspace => self.search.on_backspace(modifiers),
+            KeyCode::Enter => self.on_enter(),
             KeyCode::Esc => self.on_escape(),
+            KeyCode::Char('1') | KeyCode::Char('!') => self.queue.move_constraint('1', modifiers),
+            KeyCode::Char('2') | KeyCode::Char('@') => self.queue.move_constraint('2', modifiers),
+            KeyCode::Char('3') | KeyCode::Char('#') => self.queue.move_constraint('3', modifiers),
+            KeyCode::Char(c) => {
+                if self.app_mode == AppMode::Search {
+                    self.search.on_key(c);
+                    return false;
+                }
+            }
             _ => (),
         }
-    }
-    pub fn handle_char(&mut self, c: char, modifier: KeyModifiers) {
-        if self.app_mode == AppMode::Search {
-            self.search.on_key(c);
-        } else {
-            match c {
-                'u' => self.refresh_db(),
-                'c' => self.queue.clear(),
-                'j' => self.down(),
-                'k' => self.up(),
-                'h' => self.browser_prev(),
-                'l' => self.browser_next(),
-                ' ' => self.queue.play_pause(),
-                'q' => self.queue.seek_bw(),
-                'e' => self.queue.seek_fw(),
-                'a' => self.queue.prev(),
-                'd' => self.queue.next(),
-                'w' => {
-                    self.queue.volume_up();
-                    self.options.save_volume(self.queue.get_volume());
-                }
-                's' => {
-                    self.queue.volume_down();
-                    self.options.save_volume(self.queue.get_volume());
-                }
-                '/' => self.app_mode = AppMode::Search,
-                '.' => self.app_mode = AppMode::Options,
-                'x' => self.delete_from_queue(),
-                'r' => self.queue.randomize(),
-                '1' | '!' => self.queue.move_constraint('1', modifier),
-                '2' | '@' => self.queue.move_constraint('2', modifier),
-                '3' | '#' => self.queue.move_constraint('3', modifier),
-                _ => (),
+
+        let bind = SimpleBind {
+            key: Key::from(key),
+            modifiers,
+        };
+
+        let hk = Toml::new().unwrap().hotkey;
+
+        //holy shit this looks efficient
+        match bind {
+            _ if bind == hk.quit => return true,
+            _ if bind == hk.up => self.up(),
+            _ if bind == hk.down => self.down(),
+            _ if bind == hk.left => self.browser_prev(),
+            _ if bind == hk.right => self.browser_next(),
+            _ if bind == hk.play_pause => self.queue.play_pause(),
+            _ if bind == hk.clear => self.queue.clear(),
+            _ if bind == hk.refresh_database => self.refresh_db(),
+            _ if bind == hk.seek_backward => self.queue.seek_bw(),
+            _ if bind == hk.seek_forward => self.queue.seek_fw(),
+            _ if bind == hk.previous => self.queue.prev(),
+            _ if bind == hk.next => self.queue.next(),
+            _ if bind == hk.volume_up => {
+                self.queue.volume_up();
+                self.options.save_volume(self.queue.get_volume());
             }
+            _ if bind == hk.volume_down => {
+                self.queue.volume_down();
+                self.options.save_volume(self.queue.get_volume());
+            }
+            _ if bind == hk.search => self.app_mode = AppMode::Search,
+            _ if bind == hk.options => self.app_mode = AppMode::Options,
+            _ if bind == hk.delete => self.delete_from_queue(),
+            _ if bind == hk.random => self.queue.randomize(),
+            _ => (),
         }
+        false
     }
     pub fn mouse(&mut self, event: MouseEvent) {
         match event.kind {

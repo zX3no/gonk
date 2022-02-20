@@ -5,7 +5,7 @@ use std::fs;
 use tui::style::Color;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub enum Modifier {
     CONTROL,
     SHIFT,
@@ -22,7 +22,7 @@ impl From<&Modifier> for KeyModifiers {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Key(pub String);
 impl From<&str> for Key {
     fn from(key: &str) -> Self {
@@ -30,32 +30,80 @@ impl From<&str> for Key {
     }
 }
 
+//TODO: could a hotkey be two different types
+//an enum for standard crossterm keys
+//and a string for char types since toml doesn't support KeyCode::Char(c)
+
 impl From<KeyCode> for Key {
     fn from(item: KeyCode) -> Self {
         match item {
+            KeyCode::Char(' ') => Key::from("SPACE"),
             KeyCode::Char(c) => Key(c.to_string()),
-            _ => Key::from(""),
+            KeyCode::Backspace => Key::from("BACKSPACE"),
+            KeyCode::Enter => Key::from("ENTER"),
+            KeyCode::Left => Key::from("LEFT"),
+            KeyCode::Right => Key::from("RIGHT"),
+            KeyCode::Up => Key::from("UP"),
+            KeyCode::Down => Key::from("DOWN"),
+            KeyCode::Home => Key::from("HOME"),
+            KeyCode::End => Key::from("END"),
+            KeyCode::PageUp => Key::from("PAGEUP"),
+            KeyCode::PageDown => Key::from("PAGEDOWN"),
+            KeyCode::Tab => Key::from("TAB"),
+            KeyCode::BackTab => Key::from("BACKTAB"),
+            KeyCode::Delete => Key::from("DELETE"),
+            KeyCode::Insert => Key::from("INSERT"),
+            KeyCode::F(num) => Key(format!("F{num}")),
+            KeyCode::Null => Key::from("NULL"),
+            KeyCode::Esc => Key::from("ESCAPE"),
         }
     }
 }
 
-impl From<Key> for KeyCode {
-    fn from(val: Key) -> Self {
-        match val.0.as_str() {
-            "SPACE" => KeyCode::Char(' '),
-            "TAB" => KeyCode::Tab,
-            _ => {
-                let mut chars = val.0.chars();
-                KeyCode::Char(chars.next().unwrap())
-            }
-        }
-    }
-}
+// impl From<Key> for KeyCode {
+//     fn from(val: Key) -> Self {
+//         match val.0.as_str() {
+//             "SPACE" => KeyCode::Char(' '),
+//             "TAB" => KeyCode::Tab,
+//             _ => {
+//                 let mut chars = val.0.chars();
+//                 KeyCode::Char(chars.next().unwrap())
+//             }
+//         }
+//     }
+// }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bind {
     pub key: Key,
     pub modifiers: Option<Vec<Modifier>>,
+}
+
+pub struct SimpleBind {
+    pub key: Key,
+    pub modifiers: KeyModifiers,
+}
+impl PartialEq<Bind> for SimpleBind {
+    fn eq(&self, other: &Bind) -> bool {
+        let m = if let Some(modifiers) = &other.modifiers {
+            let m: Vec<_> = modifiers.iter().map(KeyModifiers::from).collect();
+            let mut mods = KeyModifiers::NONE;
+            for m in m {
+                mods |= m;
+            }
+            mods
+        } else {
+            KeyModifiers::NONE
+        };
+        //TODO: why are there weird cases where control turns chars into uppercase?
+        //might need to do more of these
+        let other_key = if m == KeyModifiers::CONTROL {
+            other.key.0.to_ascii_uppercase()
+        } else {
+            other.key.0.clone()
+        };
+        self.key.0 == other_key && self.modifiers == m
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -75,7 +123,9 @@ pub struct Hotkey {
     pub delete: Bind,
     pub search: Bind,
     pub options: Bind,
+    pub random: Bind,
     pub change_mode: Bind,
+    pub refresh_database: Bind,
     pub quit: Bind,
 }
 
@@ -150,19 +200,19 @@ impl Toml {
                         modifiers: None,
                     },
                     seek_forward: Bind {
-                        key: Key::from("q"),
-                        modifiers: None,
-                    },
-                    seek_backward: Bind {
                         key: Key::from("e"),
                         modifiers: None,
                     },
+                    seek_backward: Bind {
+                        key: Key::from("q"),
+                        modifiers: None,
+                    },
                     next: Bind {
-                        key: Key::from("a"),
+                        key: Key::from("d"),
                         modifiers: None,
                     },
                     previous: Bind {
-                        key: Key::from("d"),
+                        key: Key::from("a"),
                         modifiers: None,
                     },
                     clear: Bind {
@@ -181,12 +231,20 @@ impl Toml {
                         key: Key::from("."),
                         modifiers: None,
                     },
+                    random: Bind {
+                        key: Key::from("r"),
+                        modifiers: None,
+                    },
                     change_mode: Bind {
                         key: Key::from("TAB"),
                         modifiers: None,
                     },
+                    refresh_database: Bind {
+                        key: Key::from("u"),
+                        modifiers: None,
+                    },
                     quit: Bind {
-                        key: Key::from("c"),
+                        key: Key::from("C"),
                         modifiers: Some(vec![Modifier::CONTROL]),
                     },
                 },

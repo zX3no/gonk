@@ -141,7 +141,12 @@ impl Options {
         None
     }
     pub fn save_volume(&mut self, vol: u16) {
-        self.toml.set_volume(vol);
+        //TODO: remove this when volume 0 doesn't cause weird issues
+        if vol == 0 {
+            self.toml.set_volume(5);
+        } else {
+            self.toml.set_volume(vol);
+        }
     }
     pub(crate) fn paths(&self) -> &[String] {
         &self.paths.data
