@@ -110,10 +110,15 @@ impl<'a> Search<'a> {
     pub fn refresh(&mut self) {
         self.engine = Search::update_engine(self.db);
     }
-    pub fn reset(&mut self) {
-        self.mode.reset();
-        self.results.select(None);
-        self.query.clear();
+    pub fn on_tab(&mut self) {
+        match self.mode {
+            SearchMode::Search => {
+                self.mode.reset();
+                self.results.select(None);
+                self.query.clear();
+            }
+            SearchMode::Select => (),
+        }
     }
     pub fn up(&mut self) {
         self.results.up();

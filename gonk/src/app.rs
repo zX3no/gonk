@@ -107,7 +107,7 @@ impl<'a> App<'a> {
             AppMode::Browser => AppMode::Queue,
             AppMode::Queue => AppMode::Browser,
             AppMode::Search => {
-                self.search.reset();
+                self.search.on_tab();
                 AppMode::Queue
             }
             AppMode::Options => AppMode::Queue,
