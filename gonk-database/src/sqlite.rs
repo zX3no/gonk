@@ -111,7 +111,9 @@ impl Database {
                 panic!("Directory has no songs!");
             }
 
-            let mut stmt = songs.iter()
+            let mut stmt = String::from("BEGIN;\n");
+
+            stmt.push_str(&songs.iter()
                 .map(|song| {
                     let artist = fix(&song.artist);
                     let album = fix(&song.album);
@@ -122,9 +124,8 @@ impl Database {
                     format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                                 song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), parent)
                 })
-                .collect::<Vec<_>>().join("\n");
+                .collect::<Vec<_>>().join("\n"));
 
-            stmt.insert_str(0, "BEGIN;\n");
             stmt.push_str("COMMIT;\n");
 
             let conn = Connection::open(DB_DIR.as_path()).unwrap();
