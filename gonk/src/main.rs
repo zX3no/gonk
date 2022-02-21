@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gonk_database::{Database, Toml};
+use gonk_database::{Database, Toml, CONFIG_DIR, TOML_DIR};
 use std::{
     io::{stdout, Result},
     time::{Duration, Instant},
@@ -50,6 +50,11 @@ fn main() -> Result<()> {
                     let dir = dir.join(" ");
                     toml.add_path(dir);
                 }
+            }
+            "config" => {
+                println!("Gonk directory:  {}", CONFIG_DIR.to_string_lossy());
+                println!("Config file:     {}", TOML_DIR.to_string_lossy());
+                return Ok(());
             }
             "reset" | "rm" => {
                 drop(db);

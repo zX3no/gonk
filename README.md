@@ -40,6 +40,8 @@ gonk add D:/Music
 
 ## ⌨️ Key Bindings
 
+For custom bindings just type `gonk config` and edit the config file
+
 | Command     | Key         |
 |-------------|-------------|
 | Move Up     | `K / UP`    |
