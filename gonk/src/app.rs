@@ -162,7 +162,6 @@ impl<'a> App<'a> {
         // let hk = Toml::new().unwrap().hotkey;
         let hk = &self.options.hotkeys();
 
-        //holy shit this looks efficient
         match bind {
             _ if bind == hk.quit => return true,
             _ if bind == hk.up => self.up(),

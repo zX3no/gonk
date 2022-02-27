@@ -157,26 +157,24 @@ fn register_hotkeys() -> Receiver<HotkeyEvent> {
     let rx = Arc::new(rx);
     std::thread::spawn(move || {
         let mut hk = Listener::<HotkeyEvent>::new();
+        let ghk = Toml::new().unwrap().global_hotkey;
+
         hk.register_hotkey(
-            modifiers::SHIFT | modifiers::CONTROL,
-            'W' as u32,
+            ghk.volume_up.modifiers(),
+            ghk.volume_up.key.into(),
             HotkeyEvent::VolUp,
         );
         hk.register_hotkey(
-            modifiers::SHIFT | modifiers::CONTROL,
-            'Q' as u32,
+            ghk.volume_down.modifiers(),
+            ghk.volume_down.key.into(),
             HotkeyEvent::VolDown,
         );
         hk.register_hotkey(
-            modifiers::SHIFT | modifiers::CONTROL,
-            'A' as u32,
+            ghk.previous.modifiers(),
+            ghk.previous.key.into(),
             HotkeyEvent::Prev,
         );
-        hk.register_hotkey(
-            modifiers::SHIFT | modifiers::CONTROL,
-            'S' as u32,
-            HotkeyEvent::Next,
-        );
+        hk.register_hotkey(ghk.next.modifiers(), ghk.next.key.into(), HotkeyEvent::Next);
         hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
         loop {
             if let Some(event) = hk.listen() {

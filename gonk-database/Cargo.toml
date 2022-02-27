@@ -14,3 +14,6 @@ toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
 tui = { git = "https://github.com/zX3no/tui-rs", rev = "a4ebb4ed4e68ffb94c8b47495821219d849d0571", features = ["serde"]}
 crossterm = "0.23.0"
+
+[target.'cfg(windows)'.dependencies]
+win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev ="1d6cb22ba202a445f73bf51a7e785655440639b3" }

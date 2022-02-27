@@ -3,6 +3,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tui::style::Color;
+use win_hotkey::{keys, modifiers};
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
@@ -10,6 +11,15 @@ pub enum Modifier {
     CONTROL,
     SHIFT,
     ALT,
+}
+impl Modifier {
+    pub fn as_u32(&self) -> u32 {
+        match self {
+            Modifier::CONTROL => modifiers::CONTROL,
+            Modifier::SHIFT => modifiers::SHIFT,
+            Modifier::ALT => modifiers::ALT,
+        }
+    }
 }
 
 impl From<&Modifier> for KeyModifiers {
@@ -24,15 +34,36 @@ impl From<&Modifier> for KeyModifiers {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Key(pub String);
+
 impl From<&str> for Key {
     fn from(key: &str) -> Self {
         Self(key.to_string())
     }
 }
 
-//TODO: could a hotkey be two different types
-//an enum for standard crossterm keys
-//and a string for char types since toml doesn't support KeyCode::Char(c)
+impl From<Key> for u32 {
+    fn from(val: Key) -> Self {
+        match val.0.as_str() {
+            "SPACE" => keys::SPACEBAR,
+            "BACKSPACE" => keys::BACKSPACE,
+            "ENTER" => keys::ENTER,
+            "LEFT" => keys::ARROW_LEFT,
+            "RIGHT" => keys::ARROW_RIGHT,
+            "UP" => keys::ARROW_UP,
+            "DOWN" => keys::ARROW_DOWN,
+            "HOME" => keys::HOME,
+            "END" => keys::END,
+            "PAGEUP" => keys::PAGE_UP,
+            "PAGEDOWN" => keys::PAGE_DOWN,
+            "TAB" => keys::TAB,
+            "DELETE" => keys::DELETE,
+            "INSERT" => keys::INSERT,
+            "ESCAPE" => keys::ESCAPE,
+            "CAPSLOCK" => keys::CAPS_LOCK,
+            _ => 0,
+        }
+    }
+}
 
 impl From<KeyCode> for Key {
     fn from(item: KeyCode) -> Self {
@@ -60,29 +91,27 @@ impl From<KeyCode> for Key {
     }
 }
 
-// impl From<Key> for KeyCode {
-//     fn from(val: Key) -> Self {
-//         match val.0.as_str() {
-//             "SPACE" => KeyCode::Char(' '),
-//             "TAB" => KeyCode::Tab,
-//             _ => {
-//                 let mut chars = val.0.chars();
-//                 KeyCode::Char(chars.next().unwrap())
-//             }
-//         }
-//     }
-// }
-
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bind {
     pub key: Key,
     pub modifiers: Option<Vec<Modifier>>,
 }
 
+impl Bind {
+    pub fn modifiers(&self) -> u32 {
+        if let Some(m) = &self.modifiers {
+            m.iter().map(|m| m.as_u32()).sum()
+        } else {
+            0
+        }
+    }
+}
+
 pub struct SimpleBind {
     pub key: Key,
     pub modifiers: KeyModifiers,
 }
+
 impl PartialEq<Bind> for SimpleBind {
     fn eq(&self, other: &Bind) -> bool {
         let m = if let Some(modifiers) = &other.modifiers {
@@ -129,6 +158,15 @@ pub struct Hotkey {
     pub quit: Bind,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct GlobalHotkey {
+    pub play_pause: Bind,
+    pub volume_up: Bind,
+    pub volume_down: Bind,
+    pub next: Bind,
+    pub previous: Bind,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     paths: Vec<String>,
@@ -149,8 +187,10 @@ pub struct Toml {
     pub config: Config,
     pub colors: Colors,
     pub hotkey: Hotkey,
+    pub global_hotkey: GlobalHotkey,
 }
 
+//TODO: double check all keybindings are uppercase
 impl Toml {
     pub fn new() -> std::io::Result<Self> {
         let path = TOML_DIR.as_path();
@@ -170,21 +210,43 @@ impl Toml {
                     album: Color::Magenta,
                     artist: Color::Blue,
                 },
+                global_hotkey: GlobalHotkey {
+                    play_pause: Bind {
+                        key: Key::from("CAPSLOCK"),
+                        modifiers: Some(vec![Modifier::SHIFT]),
+                    },
+                    volume_up: Bind {
+                        key: Key::from("2"),
+                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                    },
+                    volume_down: Bind {
+                        key: Key::from("1"),
+                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                    },
+                    next: Bind {
+                        key: Key::from("W"),
+                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                    },
+                    previous: Bind {
+                        key: Key::from("Q"),
+                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                    },
+                },
                 hotkey: Hotkey {
                     up: Bind {
-                        key: Key::from("k"),
+                        key: Key::from("K"),
                         modifiers: None,
                     },
                     down: Bind {
-                        key: Key::from("j"),
+                        key: Key::from("J"),
                         modifiers: None,
                     },
                     left: Bind {
-                        key: Key::from("h"),
+                        key: Key::from("H"),
                         modifiers: None,
                     },
                     right: Bind {
-                        key: Key::from("l"),
+                        key: Key::from("L"),
                         modifiers: None,
                     },
                     play_pause: Bind {
@@ -192,35 +254,35 @@ impl Toml {
                         modifiers: None,
                     },
                     volume_up: Bind {
-                        key: Key::from("w"),
+                        key: Key::from("W"),
                         modifiers: None,
                     },
                     volume_down: Bind {
-                        key: Key::from("s"),
+                        key: Key::from("S"),
                         modifiers: None,
                     },
                     seek_forward: Bind {
-                        key: Key::from("e"),
+                        key: Key::from("E"),
                         modifiers: None,
                     },
                     seek_backward: Bind {
-                        key: Key::from("q"),
+                        key: Key::from("Q"),
                         modifiers: None,
                     },
                     next: Bind {
-                        key: Key::from("d"),
+                        key: Key::from("D"),
                         modifiers: None,
                     },
                     previous: Bind {
-                        key: Key::from("a"),
+                        key: Key::from("A"),
                         modifiers: None,
                     },
                     clear: Bind {
-                        key: Key::from("c"),
+                        key: Key::from("C"),
                         modifiers: None,
                     },
                     delete: Bind {
-                        key: Key::from("x"),
+                        key: Key::from("X"),
                         modifiers: None,
                     },
                     search: Bind {
@@ -232,7 +294,7 @@ impl Toml {
                         modifiers: None,
                     },
                     random: Bind {
-                        key: Key::from("r"),
+                        key: Key::from("R"),
                         modifiers: None,
                     },
                     change_mode: Bind {
@@ -240,7 +302,7 @@ impl Toml {
                         modifiers: None,
                     },
                     refresh_database: Bind {
-                        key: Key::from("u"),
+                        key: Key::from("U"),
                         modifiers: None,
                     },
                     quit: Bind {
