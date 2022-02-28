@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseEvent, MouseEventKind};
-use gonk_database::{Database, Key, SimpleBind, Toml};
+use gonk_database::{Bind, Database, Key, Modifier, Toml};
 pub use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 pub mod browser;
@@ -152,10 +152,9 @@ impl<'a> App<'a> {
             _ => (),
         }
 
-        //convert to easier to read format
-        let bind = SimpleBind {
+        let bind = Bind {
             key: Key::from(key),
-            modifiers,
+            modifiers: Modifier::from_u32(modifiers),
         };
 
         //old hot reloading way, might re-add this
@@ -163,30 +162,30 @@ impl<'a> App<'a> {
         let hk = &self.options.hotkeys();
 
         match bind {
-            _ if bind == hk.quit => return true,
-            _ if bind == hk.up => self.up(),
-            _ if bind == hk.down => self.down(),
-            _ if bind == hk.left => self.browser_prev(),
-            _ if bind == hk.right => self.browser_next(),
-            _ if bind == hk.play_pause => self.queue.play_pause(),
-            _ if bind == hk.clear => self.queue.clear(),
-            _ if bind == hk.refresh_database => self.refresh_db(),
-            _ if bind == hk.seek_backward => self.queue.seek_bw(),
-            _ if bind == hk.seek_forward => self.queue.seek_fw(),
-            _ if bind == hk.previous => self.queue.prev(),
-            _ if bind == hk.next => self.queue.next(),
-            _ if bind == hk.volume_up => {
+            _ if hk.quit.contains(&bind) => return true,
+            _ if hk.up.contains(&bind) => self.up(),
+            _ if hk.down.contains(&bind) => self.down(),
+            _ if hk.left.contains(&bind) => self.browser_prev(),
+            _ if hk.right.contains(&bind) => self.browser_next(),
+            _ if hk.play_pause.contains(&bind) => self.queue.play_pause(),
+            _ if hk.clear.contains(&bind) => self.queue.clear(),
+            _ if hk.refresh_database.contains(&bind) => self.refresh_db(),
+            _ if hk.seek_backward.contains(&bind) => self.queue.seek_bw(),
+            _ if hk.seek_forward.contains(&bind) => self.queue.seek_fw(),
+            _ if hk.previous.contains(&bind) => self.queue.prev(),
+            _ if hk.next.contains(&bind) => self.queue.next(),
+            _ if hk.volume_up.contains(&bind) => {
                 self.queue.volume_up();
                 self.options.save_volume(self.queue.get_volume());
             }
-            _ if bind == hk.volume_down => {
+            _ if hk.volume_down.contains(&bind) => {
                 self.queue.volume_down();
                 self.options.save_volume(self.queue.get_volume());
             }
-            _ if bind == hk.search => self.app_mode = AppMode::Search,
-            _ if bind == hk.options => self.app_mode = AppMode::Options,
-            _ if bind == hk.delete => self.delete_from_queue(),
-            _ if bind == hk.random => self.queue.randomize(),
+            _ if hk.search.contains(&bind) => self.app_mode = AppMode::Search,
+            _ if hk.options.contains(&bind) => self.app_mode = AppMode::Options,
+            _ if hk.delete.contains(&bind) => self.delete_from_queue(),
+            _ if hk.random.contains(&bind) => self.queue.randomize(),
             _ => (),
         }
         false

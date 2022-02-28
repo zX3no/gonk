@@ -20,6 +20,19 @@ impl Modifier {
             Modifier::ALT => modifiers::ALT,
         }
     }
+    pub fn from_u32(m: KeyModifiers) -> Option<Vec<Self>> {
+        //TODO: this doesn't support triple modfifier combos
+        //plus this is stupid, surely there is a better way
+        match m.bits() {
+            0b0000_0001 => Some(vec![Modifier::SHIFT]),
+            0b0000_0100 => Some(vec![Modifier::ALT]),
+            0b0000_0010 => Some(vec![Modifier::CONTROL]),
+            3 => Some(vec![Modifier::CONTROL, Modifier::SHIFT]),
+            5 => Some(vec![Modifier::ALT, Modifier::SHIFT]),
+            6 => Some(vec![Modifier::CONTROL, Modifier::ALT]),
+            _ => None,
+        }
+    }
 }
 
 impl From<&Modifier> for KeyModifiers {
@@ -69,11 +82,17 @@ impl From<KeyCode> for Key {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bind {
-    pub keys: Vec<Key>,
+    pub key: Key,
     pub modifiers: Option<Vec<Modifier>>,
 }
 
 impl Bind {
+    pub fn new(&self, key: &str) -> Self {
+        Self {
+            key: Key::from(key),
+            modifiers: None,
+        }
+    }
     pub fn modifiers(&self) -> u32 {
         if let Some(m) = &self.modifiers {
             m.iter().map(|m| m.as_u32()).sum()
@@ -82,77 +101,49 @@ impl Bind {
         }
     }
     pub fn key(&self) -> u32 {
-        if let Some(key) = self.keys.first() {
-            match key.0.as_str() {
-                "SPACE" => keys::SPACEBAR,
-                "BACKSPACE" => keys::BACKSPACE,
-                "ENTER" => keys::ENTER,
-                "UP" => keys::ARROW_UP,
-                "DOWN" => keys::ARROW_DOWN,
-                "LEFT" => keys::ARROW_LEFT,
-                "RIGHT" => keys::ARROW_RIGHT,
-                "HOME" => keys::HOME,
-                "END" => keys::END,
-                "PAGEUP" => keys::PAGE_UP,
-                "PAGEDOWN" => keys::PAGE_DOWN,
-                "TAB" => keys::TAB,
-                "DELETE" => keys::DELETE,
-                "INSERT" => keys::INSERT,
-                "ESCAPE" => keys::ESCAPE,
-                "CAPSLOCK" => keys::CAPS_LOCK,
-                _ => 0,
-            }
-        } else {
-            0
+        match self.key.0.as_str() {
+            "SPACE" => keys::SPACEBAR,
+            "BACKSPACE" => keys::BACKSPACE,
+            "ENTER" => keys::ENTER,
+            "UP" => keys::ARROW_UP,
+            "DOWN" => keys::ARROW_DOWN,
+            "LEFT" => keys::ARROW_LEFT,
+            "RIGHT" => keys::ARROW_RIGHT,
+            "HOME" => keys::HOME,
+            "END" => keys::END,
+            "PAGEUP" => keys::PAGE_UP,
+            "PAGEDOWN" => keys::PAGE_DOWN,
+            "TAB" => keys::TAB,
+            "DELETE" => keys::DELETE,
+            "INSERT" => keys::INSERT,
+            "ESCAPE" => keys::ESCAPE,
+            "CAPSLOCK" => keys::CAPS_LOCK,
+            _ => 0,
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct SimpleBind {
-    pub key: Key,
-    pub modifiers: KeyModifiers,
-}
-
-impl PartialEq<Bind> for SimpleBind {
-    fn eq(&self, other: &Bind) -> bool {
-        let m = if let Some(modifiers) = &other.modifiers {
-            let m: Vec<_> = modifiers.iter().map(KeyModifiers::from).collect();
-            let mut mods = KeyModifiers::NONE;
-            for m in m {
-                mods |= m;
-            }
-            mods
-        } else {
-            KeyModifiers::NONE
-        };
-
-        //check if one or more of the keys match
-        other.keys.contains(&self.key) && self.modifiers == m
     }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Hotkey {
-    pub up: Bind,
-    pub down: Bind,
-    pub left: Bind,
-    pub right: Bind,
-    pub play_pause: Bind,
-    pub volume_up: Bind,
-    pub volume_down: Bind,
-    pub next: Bind,
-    pub previous: Bind,
-    pub seek_forward: Bind,
-    pub seek_backward: Bind,
-    pub clear: Bind,
-    pub delete: Bind,
-    pub search: Bind,
-    pub options: Bind,
-    pub random: Bind,
-    pub change_mode: Bind,
-    pub refresh_database: Bind,
-    pub quit: Bind,
+    pub up: Vec<Bind>,
+    pub down: Vec<Bind>,
+    pub left: Vec<Bind>,
+    pub right: Vec<Bind>,
+    pub play_pause: Vec<Bind>,
+    pub volume_up: Vec<Bind>,
+    pub volume_down: Vec<Bind>,
+    pub next: Vec<Bind>,
+    pub previous: Vec<Bind>,
+    pub seek_forward: Vec<Bind>,
+    pub seek_backward: Vec<Bind>,
+    pub clear: Vec<Bind>,
+    pub delete: Vec<Bind>,
+    pub search: Vec<Bind>,
+    pub options: Vec<Bind>,
+    pub random: Vec<Bind>,
+    pub change_mode: Vec<Bind>,
+    pub refresh_database: Vec<Bind>,
+    pub quit: Vec<Bind>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -208,103 +199,127 @@ impl Toml {
                 },
                 global_hotkey: GlobalHotkey {
                     play_pause: Bind {
-                        keys: vec![Key::from("CAPSLOCK")],
+                        key: Key::from("CAPSLOCK"),
                         modifiers: Some(vec![Modifier::SHIFT]),
                     },
                     volume_up: Bind {
-                        keys: vec![Key::from("2")],
+                        key: Key::from("2"),
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                     volume_down: Bind {
-                        keys: vec![Key::from("1")],
+                        key: Key::from("1"),
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                     next: Bind {
-                        keys: vec![Key::from("W")],
+                        key: Key::from("W"),
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                     previous: Bind {
-                        keys: vec![Key::from("Q")],
+                        key: Key::from("Q"),
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                 },
                 hotkey: Hotkey {
-                    up: Bind {
-                        keys: vec![Key::from("K"), Key::from("UP")],
+                    up: vec![
+                        Bind {
+                            key: Key::from("K"),
+                            modifiers: None,
+                        },
+                        Bind {
+                            key: Key::from("UP"),
+                            modifiers: None,
+                        },
+                    ],
+                    down: vec![
+                        Bind {
+                            key: Key::from("J"),
+                            modifiers: None,
+                        },
+                        Bind {
+                            key: Key::from("DOWN"),
+                            modifiers: None,
+                        },
+                    ],
+                    left: vec![
+                        Bind {
+                            key: Key::from("H"),
+                            modifiers: None,
+                        },
+                        Bind {
+                            key: Key::from("LEFT"),
+                            modifiers: None,
+                        },
+                    ],
+                    right: vec![
+                        Bind {
+                            key: Key::from("L"),
+                            modifiers: None,
+                        },
+                        Bind {
+                            key: Key::from("RIGHT"),
+                            modifiers: None,
+                        },
+                    ],
+                    play_pause: vec![Bind {
+                        key: Key::from("SPACE"),
                         modifiers: None,
-                    },
-                    down: Bind {
-                        keys: vec![Key::from("J"), Key::from("DOWN")],
+                    }],
+                    volume_up: vec![Bind {
+                        key: Key::from("W"),
                         modifiers: None,
-                    },
-                    left: Bind {
-                        keys: vec![Key::from("H"), Key::from("LEFT")],
+                    }],
+                    volume_down: vec![Bind {
+                        key: Key::from("S"),
                         modifiers: None,
-                    },
-                    right: Bind {
-                        keys: vec![Key::from("L"), Key::from("RIGHT")],
+                    }],
+                    seek_forward: vec![Bind {
+                        key: Key::from("E"),
                         modifiers: None,
-                    },
-                    play_pause: Bind {
-                        keys: vec![Key::from("SPACE")],
+                    }],
+                    seek_backward: vec![Bind {
+                        key: Key::from("Q"),
                         modifiers: None,
-                    },
-                    volume_up: Bind {
-                        keys: vec![Key::from("W")],
+                    }],
+                    next: vec![Bind {
+                        key: Key::from("D"),
                         modifiers: None,
-                    },
-                    volume_down: Bind {
-                        keys: vec![Key::from("S")],
+                    }],
+                    previous: vec![Bind {
+                        key: Key::from("A"),
                         modifiers: None,
-                    },
-                    seek_forward: Bind {
-                        keys: vec![Key::from("E")],
+                    }],
+                    clear: vec![Bind {
+                        key: Key::from("C"),
                         modifiers: None,
-                    },
-                    seek_backward: Bind {
-                        keys: vec![Key::from("Q")],
+                    }],
+                    delete: vec![Bind {
+                        key: Key::from("X"),
                         modifiers: None,
-                    },
-                    next: Bind {
-                        keys: vec![Key::from("D")],
+                    }],
+                    search: vec![Bind {
+                        key: Key::from("/"),
                         modifiers: None,
-                    },
-                    previous: Bind {
-                        keys: vec![Key::from("A")],
+                    }],
+                    options: vec![Bind {
+                        key: Key::from("."),
                         modifiers: None,
-                    },
-                    clear: Bind {
-                        keys: vec![Key::from("C")],
+                    }],
+                    random: vec![Bind {
+                        key: Key::from("R"),
                         modifiers: None,
-                    },
-                    delete: Bind {
-                        keys: vec![Key::from("X")],
+                    }],
+                    change_mode: vec![Bind {
+                        key: Key::from("TAB"),
                         modifiers: None,
-                    },
-                    search: Bind {
-                        keys: vec![Key::from("/")],
+                    }],
+                    refresh_database: vec![Bind {
+                        key: Key::from("U"),
                         modifiers: None,
-                    },
-                    options: Bind {
-                        keys: vec![Key::from(".")],
-                        modifiers: None,
-                    },
-                    random: Bind {
-                        keys: vec![Key::from("R")],
-                        modifiers: None,
-                    },
-                    change_mode: Bind {
-                        keys: vec![Key::from("TAB")],
-                        modifiers: None,
-                    },
-                    refresh_database: Bind {
-                        keys: vec![Key::from("U")],
-                        modifiers: None,
-                    },
-                    quit: Bind {
-                        keys: vec![Key::from("C")],
+                    }],
+                    quit: vec![Bind {
+                        key: Key::from("C"),
                         modifiers: Some(vec![Modifier::CONTROL]),
-                    },
+                    }],
                 },
             };
 
