@@ -69,7 +69,7 @@ impl From<KeyCode> for Key {
     fn from(item: KeyCode) -> Self {
         match item {
             KeyCode::Char(' ') => Key::from("SPACE"),
-            KeyCode::Char(c) => Key(c.to_string()),
+            KeyCode::Char(c) => Key(c.to_string().to_ascii_uppercase()),
             KeyCode::Backspace => Key::from("BACKSPACE"),
             KeyCode::Enter => Key::from("ENTER"),
             KeyCode::Left => Key::from("LEFT"),
