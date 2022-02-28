@@ -32,36 +32,12 @@ impl From<&Modifier> for KeyModifiers {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Key(pub String);
 
 impl From<&str> for Key {
     fn from(key: &str) -> Self {
         Self(key.to_string())
-    }
-}
-
-impl From<Key> for u32 {
-    fn from(val: Key) -> Self {
-        match val.0.as_str() {
-            "SPACE" => keys::SPACEBAR,
-            "BACKSPACE" => keys::BACKSPACE,
-            "ENTER" => keys::ENTER,
-            "LEFT" => keys::ARROW_LEFT,
-            "RIGHT" => keys::ARROW_RIGHT,
-            "UP" => keys::ARROW_UP,
-            "DOWN" => keys::ARROW_DOWN,
-            "HOME" => keys::HOME,
-            "END" => keys::END,
-            "PAGEUP" => keys::PAGE_UP,
-            "PAGEDOWN" => keys::PAGE_DOWN,
-            "TAB" => keys::TAB,
-            "DELETE" => keys::DELETE,
-            "INSERT" => keys::INSERT,
-            "ESCAPE" => keys::ESCAPE,
-            "CAPSLOCK" => keys::CAPS_LOCK,
-            _ => 0,
-        }
     }
 }
 
@@ -93,7 +69,7 @@ impl From<KeyCode> for Key {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bind {
-    pub key: Key,
+    pub keys: Vec<Key>,
     pub modifiers: Option<Vec<Modifier>>,
 }
 
@@ -105,8 +81,34 @@ impl Bind {
             0
         }
     }
+    pub fn key(&self) -> u32 {
+        if let Some(key) = self.keys.first() {
+            match key.0.as_str() {
+                "SPACE" => keys::SPACEBAR,
+                "BACKSPACE" => keys::BACKSPACE,
+                "ENTER" => keys::ENTER,
+                "UP" => keys::ARROW_UP,
+                "DOWN" => keys::ARROW_DOWN,
+                "LEFT" => keys::ARROW_LEFT,
+                "RIGHT" => keys::ARROW_RIGHT,
+                "HOME" => keys::HOME,
+                "END" => keys::END,
+                "PAGEUP" => keys::PAGE_UP,
+                "PAGEDOWN" => keys::PAGE_DOWN,
+                "TAB" => keys::TAB,
+                "DELETE" => keys::DELETE,
+                "INSERT" => keys::INSERT,
+                "ESCAPE" => keys::ESCAPE,
+                "CAPSLOCK" => keys::CAPS_LOCK,
+                _ => 0,
+            }
+        } else {
+            0
+        }
+    }
 }
 
+#[derive(Debug)]
 pub struct SimpleBind {
     pub key: Key,
     pub modifiers: KeyModifiers,
@@ -124,14 +126,9 @@ impl PartialEq<Bind> for SimpleBind {
         } else {
             KeyModifiers::NONE
         };
-        //TODO: why are there weird cases where control turns chars into uppercase?
-        //might need to do more of these
-        let other_key = if m == KeyModifiers::CONTROL {
-            other.key.0.to_ascii_uppercase()
-        } else {
-            other.key.0.clone()
-        };
-        self.key.0 == other_key && self.modifiers == m
+
+        //check if one or more of the keys match
+        other.keys.contains(&self.key) && self.modifiers == m
     }
 }
 
@@ -190,7 +187,6 @@ pub struct Toml {
     pub global_hotkey: GlobalHotkey,
 }
 
-//TODO: double check all keybindings are uppercase
 impl Toml {
     pub fn new() -> std::io::Result<Self> {
         let path = TOML_DIR.as_path();
@@ -212,101 +208,101 @@ impl Toml {
                 },
                 global_hotkey: GlobalHotkey {
                     play_pause: Bind {
-                        key: Key::from("CAPSLOCK"),
+                        keys: vec![Key::from("CAPSLOCK")],
                         modifiers: Some(vec![Modifier::SHIFT]),
                     },
                     volume_up: Bind {
-                        key: Key::from("2"),
+                        keys: vec![Key::from("2")],
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                     volume_down: Bind {
-                        key: Key::from("1"),
+                        keys: vec![Key::from("1")],
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                     next: Bind {
-                        key: Key::from("W"),
+                        keys: vec![Key::from("W")],
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                     previous: Bind {
-                        key: Key::from("Q"),
+                        keys: vec![Key::from("Q")],
                         modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
                     },
                 },
                 hotkey: Hotkey {
                     up: Bind {
-                        key: Key::from("K"),
+                        keys: vec![Key::from("K"), Key::from("UP")],
                         modifiers: None,
                     },
                     down: Bind {
-                        key: Key::from("J"),
+                        keys: vec![Key::from("J"), Key::from("DOWN")],
                         modifiers: None,
                     },
                     left: Bind {
-                        key: Key::from("H"),
+                        keys: vec![Key::from("H"), Key::from("LEFT")],
                         modifiers: None,
                     },
                     right: Bind {
-                        key: Key::from("L"),
+                        keys: vec![Key::from("L"), Key::from("RIGHT")],
                         modifiers: None,
                     },
                     play_pause: Bind {
-                        key: Key::from("SPACE"),
+                        keys: vec![Key::from("SPACE")],
                         modifiers: None,
                     },
                     volume_up: Bind {
-                        key: Key::from("W"),
+                        keys: vec![Key::from("W")],
                         modifiers: None,
                     },
                     volume_down: Bind {
-                        key: Key::from("S"),
+                        keys: vec![Key::from("S")],
                         modifiers: None,
                     },
                     seek_forward: Bind {
-                        key: Key::from("E"),
+                        keys: vec![Key::from("E")],
                         modifiers: None,
                     },
                     seek_backward: Bind {
-                        key: Key::from("Q"),
+                        keys: vec![Key::from("Q")],
                         modifiers: None,
                     },
                     next: Bind {
-                        key: Key::from("D"),
+                        keys: vec![Key::from("D")],
                         modifiers: None,
                     },
                     previous: Bind {
-                        key: Key::from("A"),
+                        keys: vec![Key::from("A")],
                         modifiers: None,
                     },
                     clear: Bind {
-                        key: Key::from("C"),
+                        keys: vec![Key::from("C")],
                         modifiers: None,
                     },
                     delete: Bind {
-                        key: Key::from("X"),
+                        keys: vec![Key::from("X")],
                         modifiers: None,
                     },
                     search: Bind {
-                        key: Key::from("/"),
+                        keys: vec![Key::from("/")],
                         modifiers: None,
                     },
                     options: Bind {
-                        key: Key::from("."),
+                        keys: vec![Key::from(".")],
                         modifiers: None,
                     },
                     random: Bind {
-                        key: Key::from("R"),
+                        keys: vec![Key::from("R")],
                         modifiers: None,
                     },
                     change_mode: Bind {
-                        key: Key::from("TAB"),
+                        keys: vec![Key::from("TAB")],
                         modifiers: None,
                     },
                     refresh_database: Bind {
-                        key: Key::from("U"),
+                        keys: vec![Key::from("U")],
                         modifiers: None,
                     },
                     quit: Bind {
-                        key: Key::from("C"),
+                        keys: vec![Key::from("C")],
                         modifiers: Some(vec![Modifier::CONTROL]),
                     },
                 },

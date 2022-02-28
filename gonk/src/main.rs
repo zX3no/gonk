@@ -161,20 +161,20 @@ fn register_hotkeys() -> Receiver<HotkeyEvent> {
 
         hk.register_hotkey(
             ghk.volume_up.modifiers(),
-            ghk.volume_up.key.into(),
+            ghk.volume_up.key(),
             HotkeyEvent::VolUp,
         );
         hk.register_hotkey(
             ghk.volume_down.modifiers(),
-            ghk.volume_down.key.into(),
+            ghk.volume_down.key(),
             HotkeyEvent::VolDown,
         );
         hk.register_hotkey(
             ghk.previous.modifiers(),
-            ghk.previous.key.into(),
+            ghk.previous.key(),
             HotkeyEvent::Prev,
         );
-        hk.register_hotkey(ghk.next.modifiers(), ghk.next.key.into(), HotkeyEvent::Next);
+        hk.register_hotkey(ghk.next.modifiers(), ghk.next.key(), HotkeyEvent::Next);
         hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
         loop {
             if let Some(event) = hk.listen() {
