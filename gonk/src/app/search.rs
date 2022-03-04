@@ -16,9 +16,6 @@ impl SearchMode {
             SearchMode::Select => *self = SearchMode::Search,
         }
     }
-    pub fn reset(&mut self) {
-        *self = SearchMode::Search;
-    }
 }
 
 pub struct Search<'a> {
@@ -113,11 +110,12 @@ impl<'a> Search<'a> {
     pub fn on_tab(&mut self) {
         match self.mode {
             SearchMode::Search => {
-                self.mode.reset();
                 self.results.select(None);
                 self.query.clear();
             }
-            SearchMode::Select => (),
+            SearchMode::Select => {
+                self.mode = SearchMode::Search;
+            }
         }
     }
     pub fn up(&mut self) {

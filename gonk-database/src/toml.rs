@@ -6,7 +6,7 @@ use tui::style::Color;
 use win_hotkey::{keys, modifiers};
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Modifier {
     CONTROL,
     SHIFT,
@@ -80,7 +80,7 @@ impl From<KeyCode> for Key {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Bind {
     pub key: Key,
     pub modifiers: Option<Vec<Modifier>>,

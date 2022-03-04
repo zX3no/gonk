@@ -134,6 +134,19 @@ impl<'a> App<'a> {
     }
     //TODO: remove bool return
     pub fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) -> bool {
+        let bind = Bind {
+            key: Key::from(key),
+            modifiers: Modifier::from_u32(modifiers),
+        };
+
+        // let hk = Toml::new().unwrap().hotkey;
+        let hk = self.options.hotkeys().clone();
+
+        //exit
+        if hk.quit.contains(&bind) {
+            return true;
+        };
+
         //match the hardcoded cases
         match key {
             KeyCode::Tab => self.on_tab(),
@@ -152,17 +165,7 @@ impl<'a> App<'a> {
             _ => (),
         }
 
-        let bind = Bind {
-            key: Key::from(key),
-            modifiers: Modifier::from_u32(modifiers),
-        };
-
-        //old hot reloading way, might re-add this
-        // let hk = Toml::new().unwrap().hotkey;
-        let hk = &self.options.hotkeys();
-
         match bind {
-            _ if hk.quit.contains(&bind) => return true,
             _ if hk.up.contains(&bind) => self.up(),
             _ if hk.down.contains(&bind) => self.down(),
             _ if hk.left.contains(&bind) => self.browser_prev(),
