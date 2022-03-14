@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rusqlite = { version = "0.26.3", features = ["bundled"] }
-gonk-types = {path = "../gonk-types"}
+rusqlite = { version = "0.27.0", features = ["bundled"] }
+gonk-types = { path = "../gonk-types" }
 dirs = "4.0.0"
 lazy_static = "1.4.0"
 jwalk = "0.6.0"
-dpc-pariter = "0.4.0"
+dpc-pariter = "0.5.1"
 toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
-tui = { git = "https://github.com/zX3no/tui-rs", rev = "a4ebb4ed4e68ffb94c8b47495821219d849d0571", features = ["serde"]}
+tui = "0.17.0"
 crossterm = "0.23.0"
 
 [target.'cfg(windows)'.dependencies]
-win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev ="1d6cb22ba202a445f73bf51a7e785655440639b3" }
+win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }
