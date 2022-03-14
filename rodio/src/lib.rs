@@ -55,10 +55,19 @@ impl Default for Player {
 }
 
 impl Player {
-    #[must_use]
-    pub fn volume(mut self, volume: u16) -> Self {
-        self.volume = volume;
-        self
+    pub fn new(volume: u16) -> Self {
+        let (stream, handle) = OutputStream::try_default().unwrap();
+        let sink = Sink::try_new(&handle).unwrap();
+        sink.set_volume(volume as f32 / 1000.0);
+
+        Self {
+            stream,
+            handle,
+            sink,
+            total_duration: None,
+            volume,
+            safe_guard: true,
+        }
     }
     pub fn change_volume(&mut self, positive: bool) {
         if positive {
@@ -146,7 +155,7 @@ impl Player {
             false
         }
     }
-    pub fn volume_percent(&self) -> u16 {
+    pub fn volume(&self) -> u16 {
         self.volume
     }
     pub fn output_devices() -> Vec<Device> {

@@ -10,12 +10,12 @@ pub struct Queue {
     //there are two indexes because
     //you can have a song selected
     //and a ui element selected
-    pub ui: Index<bool>,
+    pub ui: Index<()>,
     pub list: Index<Song>,
     pub constraint: [u16; 4],
     //TODO: is there a better way of doing this?
     pub clicked_pos: Option<(u16, u16)>,
-    player: Player,
+    pub player: Player,
 }
 
 impl Queue {
@@ -25,7 +25,7 @@ impl Queue {
             list: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
-            player: Player::default().volume(volume),
+            player: Player::new(volume),
         }
     }
     pub fn volume_up(&mut self) {
@@ -41,9 +41,6 @@ impl Queue {
     }
     pub fn play_pause(&self) {
         self.player.toggle_playback();
-    }
-    pub fn seeker(&self) -> f64 {
-        self.player.seeker()
     }
     pub fn update(&mut self) {
         if self.player.trigger_next() {
@@ -144,12 +141,6 @@ impl Queue {
     }
     pub fn seek_to(&self, new_time: f64) {
         self.player.seek_to(Duration::from_secs_f64(new_time));
-    }
-    pub fn get_playing(&self) -> Option<&Song> {
-        self.list.selected()
-    }
-    pub fn get_volume(&self) -> u16 {
-        self.player.volume_percent()
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -303,7 +294,7 @@ impl Queue {
         }
         //Center
         {
-            let center = if let Some(song) = self.get_playing() {
+            let center = if let Some(song) = self.list.selected() {
                 //I wish that paragraphs had clipping
                 //I think constaints do
                 //I could render the -| |- on a seperate layer
@@ -334,7 +325,7 @@ impl Queue {
         }
         //Right
         {
-            let volume = self.get_volume();
+            let volume = self.player.volume();
             let text = Spans::from(format!("Vol: {}%─╮", volume));
             let right = Paragraph::new(text).alignment(Alignment::Right);
             f.render_widget(right, chunk);
@@ -471,7 +462,7 @@ impl Queue {
 
         let area = f.size();
         let width = area.width;
-        let percent = self.seeker();
+        let percent = self.player.seeker();
         let pos = (width as f64 * percent).ceil() as usize;
 
         let mut string: String = (0..width - 6)

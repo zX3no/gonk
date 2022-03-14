@@ -70,8 +70,8 @@ impl App {
                 Mode::Browser => browser.draw(f),
                 Mode::Queue => queue.draw(f, colors),
                 Mode::Options => options.draw(f),
-                Mode::Search => search.draw(f, &db, colors),
-                // Mode::Search => new_search.draw(f),
+                // Mode::Search => search.draw(f, &db, colors),
+                Mode::Search => new_search.draw(f, colors),
             })?;
 
             let timeout = tick_rate
@@ -180,11 +180,11 @@ impl App {
                             _ if hk.next.contains(&bind) => queue.next(),
                             _ if hk.volume_up.contains(&bind) => {
                                 queue.volume_up();
-                                options.save_volume(queue.get_volume());
+                                options.save_volume(queue.player.volume());
                             }
                             _ if hk.volume_down.contains(&bind) => {
                                 queue.volume_down();
-                                options.save_volume(queue.get_volume());
+                                options.save_volume(queue.player.volume());
                             }
                             _ if hk.search.contains(&bind) => self.mode = Mode::Search,
                             _ if hk.options.contains(&bind) => self.mode = Mode::Options,
