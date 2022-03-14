@@ -46,6 +46,7 @@ impl App {
         let mut browser = Browser::new(&db);
         let mut search = Search::new(&db);
         let mut options = Options::new(toml);
+        let hk = options.hotkeys().clone();
 
         loop {
             #[cfg(windows)]
@@ -74,24 +75,24 @@ impl App {
 
             if crossterm::event::poll(timeout)? {
                 match event::read()? {
-                    Event::Key(key) => {
-                        let modifiers = key.modifiers;
-                        let key = key.code;
+                    Event::Key(event) => {
+                        let modifiers = event.modifiers;
+                        let key = event.code;
 
                         let bind = Bind {
                             key: Key::from(key),
                             modifiers: Modifier::from_u32(modifiers),
                         };
 
-                        let hk = options.hotkeys().clone();
-
                         //exit
                         if hk.quit.contains(&bind) {
                             break;
                         };
 
-                        //match the hardcoded cases
                         match key {
+                            KeyCode::Char(c) if self.mode == Mode::Search => {
+                                search.on_key(c);
+                            }
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
                                     Mode::Browser => Mode::Queue,
@@ -147,15 +148,6 @@ impl App {
                             KeyCode::Char('3') | KeyCode::Char('#') => {
                                 queue.move_constraint('3', modifiers)
                             }
-                            KeyCode::Char(c) => {
-                                if self.mode == Mode::Search {
-                                    search.on_key(c);
-                                }
-                            }
-                            _ => (),
-                        }
-
-                        match bind {
                             _ if hk.up.contains(&bind) => match self.mode {
                                 Mode::Browser => browser.up(),
                                 Mode::Queue => queue.up(),
@@ -278,6 +270,7 @@ impl App {
         });
         tx
     }
+
     #[cfg(unix)]
     fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
         todo!();
