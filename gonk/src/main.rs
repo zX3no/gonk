@@ -1,30 +1,17 @@
 use app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
+    event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
 use gonk_database::{Database, Toml, CONFIG_DIR, TOML_DIR};
-use std::{
-    io::{stdout, Result},
-    time::{Duration, Instant},
-};
+use std::io::{stdout, Result};
 use tui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
-#[cfg(windows)]
-use {
-    std::sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
-    win_hotkey::*,
-};
-
 mod app;
 mod index;
-mod ui;
 
 #[cfg(windows)]
 #[derive(Debug, Clone)]
@@ -89,9 +76,9 @@ fn main() -> Result<()> {
     terminal.clear()?;
     terminal.hide_cursor()?;
 
-    let app = App::new(&db);
+    let mut app = App::new();
 
-    run_app(&mut terminal, app)?;
+    app.run(&mut terminal)?;
 
     //Cleanup terminal for exit
     terminal.backend_mut().disable_raw_mode()?;
@@ -104,83 +91,4 @@ fn main() -> Result<()> {
     )?;
 
     Ok(())
-}
-
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
-    let mut last_tick = Instant::now();
-    let tick_rate = Duration::from_millis(16);
-
-    #[cfg(windows)]
-    let tx = register_hotkeys();
-
-    loop {
-        #[cfg(windows)]
-        if let Ok(recv) = tx.try_recv() {
-            match recv {
-                HotkeyEvent::VolUp => app.queue.volume_up(),
-                HotkeyEvent::VolDown => app.queue.volume_down(),
-                HotkeyEvent::PlayPause => app.queue.play_pause(),
-                HotkeyEvent::Prev => app.queue.prev(),
-                HotkeyEvent::Next => app.queue.next(),
-            }
-        }
-
-        terminal.draw(|f| ui::draw(f, &mut app))?;
-
-        let timeout = tick_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or_else(|| Duration::from_secs(0));
-
-        if crossterm::event::poll(timeout)? {
-            match event::read()? {
-                Event::Key(key) => {
-                    //I don't like bool returns like this but ...?
-                    if app.input(key.code, key.modifiers) {
-                        return Ok(());
-                    };
-                }
-                Event::Mouse(mouse) => app.mouse(mouse),
-                _ => (),
-            }
-        }
-
-        if last_tick.elapsed() >= tick_rate {
-            app.on_tick();
-            last_tick = Instant::now();
-        }
-    }
-}
-
-#[cfg(windows)]
-fn register_hotkeys() -> Receiver<HotkeyEvent> {
-    let (rx, tx) = mpsc::sync_channel(1);
-    let rx = Arc::new(rx);
-    std::thread::spawn(move || {
-        let mut hk = Listener::<HotkeyEvent>::new();
-        let ghk = Toml::new().unwrap().global_hotkey;
-
-        hk.register_hotkey(
-            ghk.volume_up.modifiers(),
-            ghk.volume_up.key(),
-            HotkeyEvent::VolUp,
-        );
-        hk.register_hotkey(
-            ghk.volume_down.modifiers(),
-            ghk.volume_down.key(),
-            HotkeyEvent::VolDown,
-        );
-        hk.register_hotkey(
-            ghk.previous.modifiers(),
-            ghk.previous.key(),
-            HotkeyEvent::Prev,
-        );
-        hk.register_hotkey(ghk.next.modifiers(), ghk.next.key(), HotkeyEvent::Next);
-        hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
-        loop {
-            if let Some(event) = hk.listen() {
-                rx.send(event.clone()).unwrap();
-            }
-        }
-    });
-    tx
 }

@@ -4,6 +4,7 @@ use gonk_types::Song;
 use rand::{prelude::SliceRandom, thread_rng};
 use rodio::Player;
 use std::time::Duration;
+use tui::{backend::Backend, Frame};
 
 pub struct Queue {
     //there are two indexes because
@@ -128,14 +129,11 @@ impl Queue {
         self.play();
         self.player.seek_bw();
     }
-    pub fn is_empty(&self) -> bool {
-        self.list.is_empty()
-    }
     pub fn is_playing(&self) -> bool {
         !self.player.is_paused()
     }
     pub fn duration(&self) -> Option<f64> {
-        if self.is_empty() {
+        if self.list.is_empty() {
             None
         } else {
             self.player.duration()
@@ -195,5 +193,306 @@ impl Queue {
         self.play_selected();
         //TODO: when audio does not play, this gets reset to 0
         self.seek_to(pos.as_secs_f64());
+    }
+}
+
+use gonk_database::Colors;
+use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use tui::style::{Color, Modifier, Style};
+use tui::text::{Span, Spans};
+use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
+
+impl Queue {
+    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {
+        //Songs
+        if let Some((_, row)) = self.clicked_pos {
+            let size = f.size();
+            let height = size.height as usize;
+            let len = self.list.len();
+            if height > 7 {
+                if height - 7 < len {
+                    //TODO: I have no idea how to figure out what index i clicked on
+                } else {
+                    let start_row = 5;
+                    if row >= start_row {
+                        let index = (row - start_row) as usize;
+                        if index < len {
+                            self.ui.select(Some(index));
+                        }
+                    }
+                }
+            }
+        }
+
+        //Seeker
+        if let Some((column, row)) = self.clicked_pos {
+            let size = f.size();
+            if size.height - 3 == row
+                || size.height - 2 == row
+                || size.height - 1 == row && column >= 3 && column < size.width - 2
+            {
+                let ratio = (column - 3) as f64 / size.width as f64;
+                let duration = self.duration().unwrap();
+
+                let new_time = duration * ratio;
+                self.seek_to(new_time);
+                self.play();
+            }
+            self.clicked_pos = None;
+        }
+    }
+    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, colors: &Colors) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(2),
+            ])
+            .split(f.size());
+
+        self.handle_mouse(f);
+        self.draw_header(f, chunks[0], colors);
+        self.draw_songs(f, chunks[1], colors);
+        self.draw_seeker(f, chunks[2]);
+    }
+    fn draw_header<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
+        //Render the borders first
+        let b = Block::default()
+            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+            .border_type(BorderType::Rounded);
+        f.render_widget(b, chunk);
+
+        //Left
+        {
+            let time = if self.list.is_empty() {
+                String::from("╭─Stopped")
+            } else if self.is_playing() {
+                if let Some(duration) = self.duration() {
+                    let elapsed = self.elapsed().as_secs_f64();
+
+                    let mins = elapsed / 60.0;
+                    let rem = elapsed % 60.0;
+                    let e = format!(
+                        "{:0width$}:{:0width$}",
+                        mins.trunc() as usize,
+                        rem.trunc() as usize,
+                        width = 2,
+                    );
+
+                    let mins = duration / 60.0;
+                    let rem = duration % 60.0;
+                    let d = format!(
+                        "{:0width$}:{:0width$}",
+                        mins.trunc() as usize,
+                        rem.trunc() as usize,
+                        width = 2,
+                    );
+
+                    format!("╭─{}/{}", e, d)
+                } else {
+                    String::from("╭─0:00/0:00")
+                }
+            } else {
+                String::from("╭─Paused")
+            };
+
+            let left = Paragraph::new(time).alignment(Alignment::Left);
+
+            f.render_widget(left, chunk);
+        }
+        //Center
+        {
+            let center = if let Some(song) = self.get_playing() {
+                //I wish that paragraphs had clipping
+                //I think constaints do
+                //I could render the -| |- on a seperate layer
+                //outside of the constraint which might work better?
+                let mut name = song.name.clone();
+                while (name.len() + song.artist.len() + "─| - |─".len())
+                    > (chunk.width - 40) as usize
+                {
+                    name.pop();
+                }
+                let name = name.trim_end().to_string();
+
+                vec![
+                    Spans::from(vec![
+                        Span::raw("─| "),
+                        Span::styled(&song.artist, Style::default().fg(colors.artist)),
+                        Span::raw(" - "),
+                        Span::styled(name, Style::default().fg(colors.title)),
+                        Span::raw(" |─"),
+                    ]),
+                    Spans::from(Span::styled(&song.album, Style::default().fg(colors.album))),
+                ]
+            } else {
+                vec![Spans::default(), Spans::default()]
+            };
+            let center = Paragraph::new(center).alignment(Alignment::Center);
+            f.render_widget(center, chunk);
+        }
+        //Right
+        {
+            let volume = self.get_volume();
+            let text = Spans::from(format!("Vol: {}%─╮", volume));
+            let right = Paragraph::new(text).alignment(Alignment::Right);
+            f.render_widget(right, chunk);
+        }
+    }
+    fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
+        if self.list.is_empty() {
+            return f.render_widget(
+                Block::default()
+                    .borders(Borders::LEFT | Borders::RIGHT)
+                    .border_type(BorderType::Rounded),
+                chunk,
+            );
+        }
+
+        let (songs, now_playing, ui_index) = (&self.list.data, self.list.index, self.ui.index);
+
+        let mut items: Vec<Row> = songs
+            .iter()
+            .map(|song| {
+                Row::new(vec![
+                    Cell::from(""),
+                    Cell::from(song.number.to_string()).style(Style::default().fg(colors.track)),
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(colors.title)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
+                    Cell::from(song.artist.to_owned()).style(Style::default().fg(colors.artist)),
+                ])
+            })
+            .collect();
+
+        if let Some(playing_index) = now_playing {
+            if let Some(song) = songs.get(playing_index) {
+                if let Some(ui_index) = ui_index {
+                    //Currently playing song
+                    let row = if ui_index == playing_index {
+                        Row::new(vec![
+                            Cell::from(">>").style(
+                                Style::default()
+                                    .fg(Color::White)
+                                    .add_modifier(Modifier::DIM | Modifier::BOLD),
+                            ),
+                            Cell::from(song.number.to_string())
+                                .style(Style::default().bg(colors.track).fg(Color::Black)),
+                            Cell::from(song.name.to_owned())
+                                .style(Style::default().bg(colors.title).fg(Color::Black)),
+                            Cell::from(song.album.to_owned())
+                                .style(Style::default().bg(colors.album).fg(Color::Black)),
+                            Cell::from(song.artist.to_owned())
+                                .style(Style::default().bg(colors.artist).fg(Color::Black)),
+                        ])
+                    } else {
+                        Row::new(vec![
+                            Cell::from(">>").style(
+                                Style::default()
+                                    .fg(Color::White)
+                                    .add_modifier(Modifier::DIM | Modifier::BOLD),
+                            ),
+                            Cell::from(song.number.to_string())
+                                .style(Style::default().fg(colors.track)),
+                            Cell::from(song.name.to_owned())
+                                .style(Style::default().fg(colors.title)),
+                            Cell::from(song.album.to_owned())
+                                .style(Style::default().fg(colors.album)),
+                            Cell::from(song.artist.to_owned())
+                                .style(Style::default().fg(colors.artist)),
+                        ])
+                    };
+
+                    items.remove(playing_index);
+                    items.insert(playing_index, row);
+
+                    //Current selection
+                    if ui_index != playing_index {
+                        let song = songs.get(ui_index).unwrap();
+                        let row = Row::new(vec![
+                            Cell::from(""),
+                            Cell::from(song.number.to_string())
+                                .style(Style::default().bg(colors.track)),
+                            Cell::from(song.name.to_owned())
+                                .style(Style::default().bg(colors.title)),
+                            Cell::from(song.album.to_owned())
+                                .style(Style::default().bg(colors.album)),
+                            Cell::from(song.artist.to_owned())
+                                .style(Style::default().bg(colors.artist)),
+                        ])
+                        .style(Style::default().fg(Color::Black));
+                        items.remove(ui_index);
+                        items.insert(ui_index, row);
+                    }
+                }
+            }
+        }
+
+        let con = [
+            Constraint::Length(2),
+            Constraint::Percentage(self.constraint[0]),
+            Constraint::Percentage(self.constraint[1]),
+            Constraint::Percentage(self.constraint[2]),
+            Constraint::Percentage(self.constraint[3]),
+        ];
+
+        let t = Table::new(items)
+            .header(
+                Row::new(vec!["", "Track", "Title", "Album", "Artist"])
+                    .style(
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::LEFT | Borders::RIGHT)
+                    .border_type(BorderType::Rounded),
+            )
+            .widths(&con);
+
+        //this is so that scrolling works
+        let mut state = TableState::default();
+        state.select(ui_index);
+
+        f.render_stateful_widget(t, chunk, &mut state);
+    }
+    fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+        if self.list.is_empty() {
+            return f.render_widget(
+                Block::default()
+                    .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+                    .border_type(BorderType::Rounded),
+                chunk,
+            );
+        }
+
+        let area = f.size();
+        let width = area.width;
+        let percent = self.seeker();
+        let pos = (width as f64 * percent).ceil() as usize;
+
+        let mut string: String = (0..width - 6)
+            .map(|i| if (i as usize) < pos { '=' } else { '-' })
+            .collect();
+
+        //Place the seeker location
+        if pos < string.len() - 1 {
+            string.remove(pos);
+            string.insert(pos, '>');
+        } else {
+            string.pop();
+            string.push('>');
+        }
+
+        let p = Paragraph::new(string).alignment(Alignment::Center).block(
+            Block::default()
+                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+                .border_type(BorderType::Rounded),
+        );
+
+        f.render_widget(p, chunk)
     }
 }

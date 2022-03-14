@@ -147,15 +147,6 @@ impl<'a> Search<'a> {
             false
         }
     }
-    pub fn empty_cursor(&self) -> bool {
-        self.results.is_none() && self.query.is_empty()
-    }
-    pub fn show_cursor(&self) -> bool {
-        match self.mode {
-            SearchMode::Search => true,
-            SearchMode::Select => false,
-        }
-    }
     pub fn is_empty(&self) -> bool {
         self.results.is_empty() && self.query.is_empty()
     }
@@ -185,6 +176,92 @@ impl<'a> Search<'a> {
                 self.mode.next();
                 self.results.select(None);
                 false
+            }
+        }
+    }
+}
+
+use gonk_database::Colors;
+use tui::{
+    backend::Backend,
+    layout::{Alignment, Constraint, Direction, Layout},
+    style::Style,
+    text::Spans,
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState},
+    Frame,
+};
+
+impl<'a> Search<'a> {
+    pub fn draw<B: Backend>(&self, f: &mut Frame<B>, db: &Database, colors: &Colors) {
+        let area = f.size();
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Percentage(90)].as_ref())
+            .split(area);
+
+        let p = Paragraph::new(vec![Spans::from(self.get_query())])
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .alignment(Alignment::Left);
+
+        let results = self.results();
+
+        let items = results.iter().map(|r| match r.item_type {
+            ItemType::Song => {
+                let song = db.get_song_from_id(r.song_id.unwrap());
+                Row::new(vec![
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(colors.title)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
+                    Cell::from(song.artist).style(Style::default().fg(colors.artist)),
+                ])
+            }
+            ItemType::Album => Row::new(vec![
+                Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(colors.title)),
+                Cell::from("").style(Style::default().fg(colors.album)),
+                Cell::from(r.album_artist.as_ref().unwrap().clone())
+                    .style(Style::default().fg(colors.artist)),
+            ]),
+            ItemType::Artist => Row::new(vec![
+                Cell::from(r.name.to_owned() + " (artist)")
+                    .style(Style::default().fg(colors.title)),
+                Cell::from("").style(Style::default().fg(colors.album)),
+                Cell::from("").style(Style::default().fg(colors.artist)),
+            ]),
+        });
+
+        let t = Table::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .widths(&[
+                Constraint::Percentage(43),
+                Constraint::Percentage(29),
+                Constraint::Percentage(27),
+            ])
+            .highlight_symbol("> ");
+
+        let mut state = TableState::default();
+        state.select(self.selected());
+
+        f.render_widget(p, chunks[0]);
+        f.render_stateful_widget(t, chunks[1], &mut state);
+
+        //Move the cursor position when typing
+        if let SearchMode::Search = self.mode {
+            if self.results.is_none() && self.query.is_empty() {
+                f.set_cursor(1, 1);
+            } else {
+                let mut len = self.query_len();
+                if len > area.width {
+                    len = area.width;
+                }
+                f.set_cursor(len + 1, 1);
             }
         }
     }

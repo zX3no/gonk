@@ -155,3 +155,83 @@ impl Options {
         &self.paths.data
     }
 }
+
+//TODO:
+//Directory deletion confirmation
+//UI to add new directory
+use tui::{backend::Backend, layout::*, style::*, widgets::*, Frame};
+
+impl Options {
+    pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(3), Constraint::Percentage(50)])
+            .split(f.size());
+
+        self.draw_sound_devices(f, chunks[0]);
+        self.draw_dirs(f, chunks[1]);
+    }
+
+    pub fn draw_dirs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+        let items: Vec<_> = self
+            .paths
+            .data
+            .iter()
+            .map(|name| ListItem::new(name.as_str()))
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .title("─Music Directories")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .style(Style::default().fg(Color::White))
+            .highlight_style(Style::default())
+            .highlight_symbol("> ");
+
+        let mut state = ListState::default();
+        state.select(self.paths.index);
+
+        f.render_stateful_widget(list, chunk, &mut state);
+    }
+
+    pub fn draw_sound_devices<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+        let default_device = &self.toml.output_device();
+
+        let items: Vec<_> = self
+            .devices
+            .data
+            .iter()
+            .map(|device| {
+                let name = device.name().expect("Device has no name!");
+                if &name == default_device {
+                    ListItem::new(name)
+                } else {
+                    ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))
+                }
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .title("─Output Device")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .style(Style::default().fg(Color::White))
+            .highlight_style(Style::default())
+            .highlight_symbol("> ");
+
+        let mut state = ListState::default();
+        state.select(self.devices.index);
+
+        f.render_stateful_widget(list, chunk, &mut state);
+    }
+
+    // pub fn draw_prompt<B: Backend>(f: &mut Frame<B>, self: &self, chunk: Rect) {
+    //     todo!();
+    // }
+}
