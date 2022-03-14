@@ -126,18 +126,12 @@ impl Queue {
         self.play();
         self.player.seek_bw();
     }
-    pub fn is_playing(&self) -> bool {
-        !self.player.is_paused()
-    }
     pub fn duration(&self) -> Option<f64> {
         if self.list.is_empty() {
             None
         } else {
             self.player.duration()
         }
-    }
-    pub fn elapsed(&self) -> Duration {
-        self.player.elapsed()
     }
     pub fn seek_to(&self, new_time: f64) {
         self.player.seek_to(Duration::from_secs_f64(new_time));
@@ -163,8 +157,6 @@ impl Queue {
             panic!("Constraint went out of bounds: {:?}", self.constraint);
         }
     }
-    //I once tried to make it toggle random
-    //it did not go well
     pub fn randomize(&mut self) {
         if let Some(song) = self.list.selected().cloned() {
             self.list.data.shuffle(&mut thread_rng());
@@ -223,11 +215,11 @@ impl Queue {
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
                 let ratio = (column - 3) as f64 / size.width as f64;
-                let duration = self.duration().unwrap();
-
-                let new_time = duration * ratio;
-                self.seek_to(new_time);
-                self.play();
+                if let Some(duration) = self.duration() {
+                    let new_time = duration * ratio;
+                    self.seek_to(new_time);
+                    self.play();
+                }
             }
             self.clicked_pos = None;
         }
@@ -258,9 +250,9 @@ impl Queue {
         {
             let time = if self.list.is_empty() {
                 String::from("╭─Stopped")
-            } else if self.is_playing() {
+            } else if !self.player.is_paused() {
                 if let Some(duration) = self.duration() {
-                    let elapsed = self.elapsed().as_secs_f64();
+                    let elapsed = self.player.elapsed().as_secs_f64();
 
                     let mins = elapsed / 60.0;
                     let rem = elapsed % 60.0;

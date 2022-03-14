@@ -227,7 +227,7 @@ impl App {
                         browser.refresh();
                         search.refresh();
                     }
-                    browser.update_busy(busy);
+                    browser.is_busy = busy;
                 }
 
                 if search.has_query_changed() {

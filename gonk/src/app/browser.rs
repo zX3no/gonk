@@ -31,7 +31,7 @@ pub struct Browser<'a> {
     albums: Index<String>,
     songs: Index<(u16, String)>,
     pub mode: BrowserMode,
-    is_busy: bool,
+    pub is_busy: bool,
 }
 
 impl<'a> Browser<'a> {
@@ -59,34 +59,6 @@ impl<'a> Browser<'a> {
             mode: BrowserMode::Artist,
             is_busy: false,
         }
-    }
-    pub fn update_busy(&mut self, busy: bool) {
-        self.is_busy = busy;
-    }
-    pub fn is_busy(&self) -> bool {
-        self.is_busy
-    }
-    pub fn get_selected_artist(&self) -> Option<usize> {
-        self.artists.index
-    }
-    pub fn get_selected_album(&self) -> Option<usize> {
-        self.albums.index
-    }
-    pub fn get_selected_song(&self) -> Option<usize> {
-        self.songs.index
-    }
-    pub fn artist_names(&self) -> &Vec<String> {
-        &self.artists.data
-    }
-    pub fn album_names(&self) -> &Vec<String> {
-        &self.albums.data
-    }
-    pub fn song_names(&self) -> Vec<String> {
-        self.songs
-            .data
-            .iter()
-            .map(|song| format!("{}. {}", song.0, song.1))
-            .collect()
     }
     pub fn up(&mut self) {
         match self.mode {
@@ -176,7 +148,7 @@ impl<'a> Browser<'a> {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
         self.draw_browser(f);
 
-        if self.is_busy() {
+        if self.is_busy {
             self.draw_popup(f);
         }
     }
@@ -196,22 +168,24 @@ impl<'a> Browser<'a> {
             .split(area);
 
         let a: Vec<_> = self
-            .artist_names()
+            .artists
+            .data
             .iter()
             .map(|name| ListItem::new(name.as_str()))
             .collect();
 
         let b: Vec<_> = self
-            .album_names()
+            .albums
+            .data
             .iter()
             .map(|name| ListItem::new(name.as_str()))
             .collect();
 
-        //clone is not optional :(
         let c: Vec<_> = self
-            .song_names()
+            .songs
+            .data
             .iter()
-            .map(|name| ListItem::new(name.clone()))
+            .map(|song| ListItem::new(format!("{}. {}", song.0, song.1)))
             .collect();
 
         let artists = List::new(a)
@@ -226,7 +200,7 @@ impl<'a> Browser<'a> {
             .highlight_symbol(">");
 
         let mut artist_state = ListState::default();
-        artist_state.select(self.get_selected_artist());
+        artist_state.select(self.artists.index);
 
         let albums = List::new(b)
             .block(
@@ -240,7 +214,7 @@ impl<'a> Browser<'a> {
             .highlight_symbol(">");
 
         let mut album_state = ListState::default();
-        album_state.select(self.get_selected_album());
+        album_state.select(self.albums.index);
 
         let songs = List::new(c)
             .block(
@@ -254,7 +228,7 @@ impl<'a> Browser<'a> {
             .highlight_symbol(">");
 
         let mut song_state = ListState::default();
-        song_state.select(self.get_selected_song());
+        song_state.select(self.songs.index);
 
         //TODO: better way of doing this?
         match self.mode {
