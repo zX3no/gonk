@@ -2,14 +2,11 @@ use app::App;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use gonk_database::{Database, Toml, CONFIG_DIR, TOML_DIR};
 use std::io::{stdout, Result};
-use tui::{
-    backend::{Backend, CrosstermBackend},
-    Terminal,
-};
+use tui::{backend::CrosstermBackend, Terminal};
 mod app;
 mod index;
 
@@ -72,7 +69,7 @@ fn main() -> Result<()> {
 
     //Get ready for rendering and input
     execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
-    terminal.backend_mut().enable_raw_mode()?;
+    enable_raw_mode()?;
     terminal.clear()?;
     terminal.hide_cursor()?;
 
@@ -81,7 +78,7 @@ fn main() -> Result<()> {
     app.run(&mut terminal)?;
 
     //Cleanup terminal for exit
-    terminal.backend_mut().disable_raw_mode()?;
+    disable_raw_mode()?;
     terminal.show_cursor()?;
 
     execute!(
