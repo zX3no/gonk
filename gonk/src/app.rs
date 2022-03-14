@@ -10,9 +10,12 @@ use std::{
     time::Instant,
 };
 use tui::{backend::Backend, Terminal};
-pub use {browser::Browser, options::Options, queue::Queue, search::Search};
 
-pub mod browser;
+use self::new_search::NewSearch;
+use {browser::Browser, options::Options, queue::Queue, search::Search};
+
+mod browser;
+mod new_search;
 mod options;
 mod queue;
 mod search;
@@ -44,6 +47,7 @@ impl App {
         let toml = Toml::new().unwrap();
         let mut queue = Queue::new(toml.volume());
         let mut browser = Browser::new(&db);
+        let new_search = NewSearch::default();
         let mut search = Search::new(&db);
         let mut options = Options::new(toml);
         let hk = options.hotkeys().clone();
@@ -67,6 +71,7 @@ impl App {
                 Mode::Queue => queue.draw(f, colors),
                 Mode::Options => options.draw(f),
                 Mode::Search => search.draw(f, &db, colors),
+                // Mode::Search => new_search.draw(f),
             })?;
 
             let timeout = tick_rate
