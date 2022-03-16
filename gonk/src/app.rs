@@ -1,6 +1,12 @@
-use self::new_search::NewSearch;
-use crossterm::event::{self, Event, KeyCode, MouseEventKind};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind,
+};
+use crossterm::execute;
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use gonk_database::{Bind, Database, Key, Modifier, Toml};
+use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::{
     sync::{
@@ -9,11 +15,13 @@ use std::{
     },
     time::Instant,
 };
-use tui::{backend::Backend, Terminal};
+use tui::backend::CrosstermBackend;
+use tui::Terminal;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 mod browser;
-mod new_search;
+// mod new_search;
+// use self::new_search::NewSearch;
 mod options;
 mod queue;
 mod search;
@@ -37,16 +45,25 @@ pub enum Mode {
 }
 
 pub struct App {
+    terminal: Terminal<CrosstermBackend<Stdout>>,
     pub mode: Mode,
 }
 
 impl App {
     pub fn new() -> Self {
+        let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
+
+        execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
+        enable_raw_mode().unwrap();
+        terminal.clear().unwrap();
+        terminal.hide_cursor().unwrap();
+
         Self {
+            terminal,
             mode: Mode::Browser,
         }
     }
-    pub fn run<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> std::io::Result<()> {
+    pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
         let tick_rate = Duration::from_millis(16);
 
@@ -54,10 +71,10 @@ impl App {
         let toml = Toml::new().unwrap();
         let mut queue = Queue::new(toml.volume());
         let mut browser = Browser::new(&db);
-        let new_search = NewSearch::default();
+        // let new_search = NewSearch::default();
         let mut search = Search::new(&db);
+        db.add_music(&toml.paths());
         let mut options = Options::new(toml);
-
         let hk = options.hotkeys().clone();
         let tx = self.register_hotkeys();
 
@@ -75,7 +92,7 @@ impl App {
 
             let colors = options.colors();
 
-            terminal.draw(|f| match self.mode {
+            self.terminal.draw(|f| match self.mode {
                 Mode::Browser => browser.draw(f),
                 Mode::Queue => queue.draw(f, colors),
                 Mode::Options => options.draw(f),
@@ -86,6 +103,23 @@ impl App {
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
+
+            if last_tick.elapsed() >= tick_rate {
+                queue.update();
+
+                if let Some(busy) = db.is_busy() {
+                    if busy {
+                        browser.refresh();
+                        search.refresh();
+                    }
+                    browser.is_busy = busy;
+                }
+
+                if search.has_query_changed() {
+                    search.update_search();
+                }
+                last_tick = Instant::now();
+            }
 
             if crossterm::event::poll(timeout)? {
                 match event::read()? {
@@ -215,23 +249,6 @@ impl App {
                     _ => (),
                 }
             }
-
-            if last_tick.elapsed() >= tick_rate {
-                queue.update();
-
-                if let Some(busy) = db.is_busy() {
-                    if busy {
-                        browser.refresh();
-                        search.refresh();
-                    }
-                    browser.is_busy = busy;
-                }
-
-                if search.has_query_changed() {
-                    search.update_search();
-                }
-                last_tick = Instant::now();
-            }
         }
 
         Ok(())
@@ -304,5 +321,19 @@ impl App {
     #[cfg(unix)]
     fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
         todo!();
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        disable_raw_mode().unwrap();
+        self.terminal.show_cursor().unwrap();
+
+        execute!(
+            self.terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )
+        .unwrap();
     }
 }

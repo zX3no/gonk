@@ -251,6 +251,7 @@ impl<'a> Browser<'a> {
         f.render_stateful_widget(songs, chunks[2], &mut song_state);
     }
 
+    //TODO: change to small text in bottom right
     pub fn draw_popup<B: Backend>(&self, f: &mut Frame<B>) {
         let mut area = f.size();
 

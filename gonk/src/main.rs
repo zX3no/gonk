@@ -1,19 +1,19 @@
 use app::App;
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
 use gonk_database::{Database, Toml, CONFIG_DIR, TOML_DIR};
-use std::io::{stdout, Result};
-use tui::{backend::CrosstermBackend, Terminal};
+use std::io::Result;
+
 mod app;
 mod index;
 
 fn main() -> Result<()> {
-    //TODO: make sure toml file isn't empty and that there are no songs left over in database
+    let orig_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        orig_hook(panic_info);
+        std::process::exit(1);
+    }));
+
     let db = Database::new().unwrap();
-    let mut toml = Toml::new().unwrap();
+    let mut toml = Toml::new()?;
 
     //Handle arguments
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -52,30 +52,7 @@ fn main() -> Result<()> {
         }
     }
 
-    //Make sure the database and toml file share the same directories
-    db.add_music(&toml.paths());
-
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-
-    //Get ready for rendering and input
-    execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
-    enable_raw_mode()?;
-    terminal.clear()?;
-    terminal.hide_cursor()?;
-
-    let mut app = App::new();
-
-    app.run(&mut terminal)?;
-
-    //Cleanup terminal for exit
-    disable_raw_mode()?;
-    terminal.show_cursor()?;
-
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
+    App::new().run()?;
 
     Ok(())
 }
