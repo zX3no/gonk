@@ -113,9 +113,7 @@ impl<'a> Search<'a> {
                 self.results.select(None);
                 self.query.clear();
             }
-            SearchMode::Select => {
-                self.mode = SearchMode::Search;
-            }
+            SearchMode::Select => (),
         }
     }
     pub fn up(&mut self) {
@@ -210,30 +208,43 @@ impl<'a> Search<'a> {
 
         let results = self.results();
 
-        let items = results.iter().map(|r| match r.item_type {
-            ItemType::Song => {
-                let song = db.get_song_from_id(r.song_id.unwrap());
-                Row::new(vec![
-                    Cell::from(song.name.to_owned()).style(Style::default().fg(colors.title)),
-                    Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
-                    Cell::from(song.artist).style(Style::default().fg(colors.artist)),
-                ])
-            }
-            ItemType::Album => Row::new(vec![
-                Cell::from(r.name.to_owned() + " (album)").style(Style::default().fg(colors.title)),
-                Cell::from("").style(Style::default().fg(colors.album)),
-                Cell::from(r.album_artist.as_ref().unwrap().clone())
-                    .style(Style::default().fg(colors.artist)),
-            ]),
-            ItemType::Artist => Row::new(vec![
-                Cell::from(r.name.to_owned() + " (artist)")
-                    .style(Style::default().fg(colors.title)),
-                Cell::from("").style(Style::default().fg(colors.album)),
-                Cell::from("").style(Style::default().fg(colors.artist)),
-            ]),
-        });
+        let items: Vec<_> = results
+            .iter()
+            .map(|r| match r.item_type {
+                ItemType::Song => {
+                    let song = db.get_song_from_id(r.song_id.unwrap());
+                    Row::new(vec![
+                        Cell::from(format!(" {}", song.name))
+                            .style(Style::default().fg(colors.title)),
+                        Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
+                        Cell::from(song.artist).style(Style::default().fg(colors.artist)),
+                    ])
+                }
+                ItemType::Album => Row::new(vec![
+                    Cell::from(format!(" {} (album)", r.name))
+                        .style(Style::default().fg(colors.title)),
+                    Cell::from("").style(Style::default().fg(colors.album)),
+                    Cell::from(r.album_artist.as_ref().unwrap().clone())
+                        .style(Style::default().fg(colors.artist)),
+                ]),
+                ItemType::Artist => Row::new(vec![
+                    Cell::from(format!(" {} (artist)", r.name))
+                        .style(Style::default().fg(colors.title)),
+                    Cell::from("").style(Style::default().fg(colors.album)),
+                    Cell::from("").style(Style::default().fg(colors.artist)),
+                ]),
+            })
+            .collect();
 
         let t = Table::new(items)
+            .header(
+                Row::new(vec![
+                    Cell::from(" Name").style(Style::default().fg(colors.title)),
+                    Cell::from("Album").style(Style::default().fg(colors.album)),
+                    Cell::from("Artist").style(Style::default().fg(colors.artist)),
+                ])
+                .bottom_margin(1),
+            )
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -244,7 +255,7 @@ impl<'a> Search<'a> {
                 Constraint::Percentage(29),
                 Constraint::Percentage(27),
             ])
-            .highlight_symbol("> ");
+            .highlight_symbol(">");
 
         let mut state = TableState::default();
         state.select(self.selected());

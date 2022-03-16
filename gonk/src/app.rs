@@ -1,4 +1,4 @@
-use crate::HotkeyEvent;
+use self::new_search::NewSearch;
 use crossterm::event::{self, Event, KeyCode, MouseEventKind};
 use gonk_database::{Bind, Database, Key, Modifier, Toml};
 use std::time::Duration;
@@ -10,8 +10,6 @@ use std::{
     time::Instant,
 };
 use tui::{backend::Backend, Terminal};
-
-use self::new_search::NewSearch;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 mod browser;
@@ -19,6 +17,16 @@ mod new_search;
 mod options;
 mod queue;
 mod search;
+
+#[cfg(windows)]
+#[derive(Debug, Clone)]
+enum HotkeyEvent {
+    PlayPause,
+    Next,
+    Prev,
+    VolUp,
+    VolDown,
+}
 
 #[derive(PartialEq, Debug)]
 pub enum Mode {
@@ -41,7 +49,6 @@ impl App {
     pub fn run<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
         let tick_rate = Duration::from_millis(16);
-        let tx = self.register_hotkeys();
 
         let db = Database::new().unwrap();
         let toml = Toml::new().unwrap();
@@ -50,7 +57,9 @@ impl App {
         let new_search = NewSearch::default();
         let mut search = Search::new(&db);
         let mut options = Options::new(toml);
+
         let hk = options.hotkeys().clone();
+        let tx = self.register_hotkeys();
 
         loop {
             #[cfg(windows)]
@@ -70,8 +79,8 @@ impl App {
                 Mode::Browser => browser.draw(f),
                 Mode::Queue => queue.draw(f, colors),
                 Mode::Options => options.draw(f),
-                // Mode::Search => search.draw(f, &db, colors),
-                Mode::Search => new_search.draw(f, colors),
+                Mode::Search => search.draw(f, &db, colors),
+                // Mode::Search => new_search.draw(f, colors),
             })?;
 
             let timeout = tick_rate
@@ -153,18 +162,12 @@ impl App {
                             KeyCode::Char('3') | KeyCode::Char('#') => {
                                 queue.move_constraint('3', modifiers)
                             }
-                            _ if hk.up.contains(&bind) => match self.mode {
-                                Mode::Browser => browser.up(),
-                                Mode::Queue => queue.up(),
-                                Mode::Search => search.up(),
-                                Mode::Options => options.up(),
-                            },
-                            _ if hk.down.contains(&bind) => match self.mode {
-                                Mode::Browser => browser.down(),
-                                Mode::Queue => queue.down(),
-                                Mode::Search => search.down(),
-                                Mode::Options => options.down(),
-                            },
+                            _ if hk.up.contains(&bind) => {
+                                self.up(&mut browser, &mut queue, &mut search, &mut options)
+                            }
+                            _ if hk.down.contains(&bind) => {
+                                self.down(&mut browser, &mut queue, &mut search, &mut options)
+                            }
                             _ if hk.left.contains(&bind) => browser.prev(),
                             _ if hk.right.contains(&bind) => browser.next(),
                             _ if hk.play_pause.contains(&bind) => queue.play_pause(),
@@ -198,18 +201,12 @@ impl App {
                         }
                     }
                     Event::Mouse(event) => match event.kind {
-                        MouseEventKind::ScrollUp => match self.mode {
-                            Mode::Browser => browser.up(),
-                            Mode::Queue => queue.up(),
-                            Mode::Search => search.up(),
-                            Mode::Options => options.up(),
-                        },
-                        MouseEventKind::ScrollDown => match self.mode {
-                            Mode::Browser => browser.down(),
-                            Mode::Queue => queue.down(),
-                            Mode::Search => search.down(),
-                            Mode::Options => options.down(),
-                        },
+                        MouseEventKind::ScrollUp => {
+                            self.up(&mut browser, &mut queue, &mut search, &mut options)
+                        }
+                        MouseEventKind::ScrollDown => {
+                            self.down(&mut browser, &mut queue, &mut search, &mut options)
+                        }
                         MouseEventKind::Down(_) => {
                             queue.clicked_pos = Some((event.column, event.row));
                         }
@@ -238,6 +235,34 @@ impl App {
         }
 
         Ok(())
+    }
+    fn up(
+        &self,
+        browser: &mut Browser,
+        queue: &mut Queue,
+        search: &mut Search,
+        options: &mut Options,
+    ) {
+        match self.mode {
+            Mode::Browser => browser.up(),
+            Mode::Queue => queue.up(),
+            Mode::Search => search.up(),
+            Mode::Options => options.up(),
+        }
+    }
+    fn down(
+        &self,
+        browser: &mut Browser,
+        queue: &mut Queue,
+        search: &mut Search,
+        options: &mut Options,
+    ) {
+        match self.mode {
+            Mode::Browser => browser.down(),
+            Mode::Queue => queue.down(),
+            Mode::Search => search.down(),
+            Mode::Options => options.down(),
+        }
     }
 
     #[cfg(windows)]

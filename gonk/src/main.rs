@@ -10,16 +10,6 @@ use tui::{backend::CrosstermBackend, Terminal};
 mod app;
 mod index;
 
-#[cfg(windows)]
-#[derive(Debug, Clone)]
-enum HotkeyEvent {
-    PlayPause,
-    Next,
-    Prev,
-    VolUp,
-    VolDown,
-}
-
 fn main() -> Result<()> {
     //TODO: make sure toml file isn't empty and that there are no songs left over in database
     let db = Database::new().unwrap();
