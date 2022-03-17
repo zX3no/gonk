@@ -12,8 +12,6 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }));
 
-    let mut toml = Toml::new()?;
-
     //Handle arguments
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some(first) = args.first() {
@@ -21,7 +19,7 @@ fn main() -> Result<()> {
             "add" => {
                 if let Some(dir) = args.get(1..) {
                     let dir = dir.join(" ");
-                    toml.add_path(dir);
+                    Toml::new()?.add_path(dir);
                 }
             }
             "config" => {

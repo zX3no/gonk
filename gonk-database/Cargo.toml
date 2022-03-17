@@ -13,7 +13,7 @@ dpc-pariter = "0.5.1"
 toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
 tui = { version = "0.17.0", features = ["serde"] }
-crossterm = "0.23.0"
+crossterm = "0.23.1"
 
 [target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }

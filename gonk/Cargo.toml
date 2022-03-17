@@ -6,14 +6,14 @@ default-run = "gonk"
 authors = ["Bay <example@email.com>"]
 
 [dependencies]
-crossterm = "0.23.0"
+crossterm = "0.23.1"
 tui = { version = "0.17.0", features = ["serde"] }
 gonk-database = { path = "../gonk-database" }
 gonk-types = { path = "../gonk-types" }
 gonk-search = { path = "../gonk-search" }
 rodio = { path = "../rodio" }
-dirs = "4.0.0"
-rand = "0.8.4"
+# for shuffling songs
+rand = "0.8.5"
 
 [target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }
