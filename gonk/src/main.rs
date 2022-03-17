@@ -12,7 +12,6 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }));
 
-    let db = Database::new().unwrap();
     let mut toml = Toml::new()?;
 
     //Handle arguments
@@ -31,7 +30,6 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" | "rm" => {
-                drop(db);
                 Database::delete();
                 println!("Database reset!");
                 return Ok(());
