@@ -1,5 +1,5 @@
 use crate::index::Index;
-use crossterm::{event::KeyModifiers, style::Stylize};
+use crossterm::event::KeyModifiers;
 use gonk_database::Database;
 use gonk_search::{ItemType, SearchEngine, SearchItem};
 use gonk_types::Song;
@@ -306,9 +306,10 @@ impl<'a> Search<'a> {
                     ItemType::Artist => self.draw_artist(f, h, &first.name),
                 }
             }
+            self.draw_other_results(f, v[2], colors);
+        } else {
+            self.draw_other_results(f, v[1].union(v[2]), colors);
         }
-
-        self.draw_other_results(f, v[2], colors);
 
         self.handle_cursor(f);
     }
@@ -484,57 +485,73 @@ impl<'a> Search<'a> {
     fn draw_other_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
         let results = self.results();
 
-        //TODO make the selected item italic
-        let items: Vec<_> = results
-            .iter()
-            .map(|r| match r.item_type {
+        let get_cell = |item: &SearchItem, modifier: Modifier| -> Row {
+            match item.item_type {
                 ItemType::Song => {
-                    let song = self.db.get_song_from_id(r.song_id.unwrap());
+                    let song = self.db.get_song_from_id(item.song_id.unwrap());
                     Row::new(vec![
-                        Cell::from(song.name).style(Style::default().fg(colors.title)),
-                        Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
-                        Cell::from(song.artist).style(Style::default().fg(colors.artist)),
+                        Cell::from(song.name)
+                            .style(Style::default().fg(colors.title).add_modifier(modifier)),
+                        Cell::from(song.album.to_owned())
+                            .style(Style::default().fg(colors.album).add_modifier(modifier)),
+                        Cell::from(song.artist)
+                            .style(Style::default().fg(colors.artist).add_modifier(modifier)),
                     ])
                 }
                 ItemType::Album => Row::new(vec![
-                    Cell::from(format!("{} - Album", r.name))
-                        .style(Style::default().fg(colors.title)),
-                    Cell::from("").style(Style::default().fg(colors.album)),
-                    Cell::from(r.album_artist.as_ref().unwrap().clone())
-                        .style(Style::default().fg(colors.artist)),
+                    Cell::from(format!("{} - Album", item.name))
+                        .style(Style::default().fg(colors.title).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(colors.album).add_modifier(modifier)),
+                    Cell::from(item.album_artist.as_ref().unwrap().clone())
+                        .style(Style::default().fg(colors.artist).add_modifier(modifier)),
                 ]),
                 ItemType::Artist => Row::new(vec![
-                    Cell::from(format!("{} - Artist", r.name))
-                        .style(Style::default().fg(colors.title)),
-                    Cell::from("").style(Style::default().fg(colors.album)),
-                    Cell::from("").style(Style::default().fg(colors.artist)),
+                    Cell::from(format!("{} - Artist", item.name))
+                        .style(Style::default().fg(colors.title).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(colors.album).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(colors.artist).add_modifier(modifier)),
                 ]),
+            }
+        };
+
+        let rows: Vec<_> = results
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                if i == 0 {
+                    get_cell(item, Modifier::ITALIC)
+                } else {
+                    get_cell(item, Modifier::empty())
+                }
             })
             .collect();
 
-        let t = Table::new(items)
+        let italic = Style::default().add_modifier(Modifier::ITALIC);
+        let t = Table::new(rows)
             .header(
                 Row::new(vec![
-                    Cell::from("Name"),
-                    Cell::from("Album"),
-                    Cell::from("Artist"),
+                    Cell::from("Name").style(italic),
+                    Cell::from("Album").style(italic),
+                    Cell::from("Artist").style(italic),
                 ])
                 .bottom_margin(1),
             )
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .title("Results"),
+                    .border_type(BorderType::Rounded),
             )
             .widths(&[
-                Constraint::Percentage(43),
-                Constraint::Percentage(29),
-                Constraint::Percentage(27),
+                Constraint::Percentage(40),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
             ])
             .highlight_symbol("> ");
 
-        f.render_widget(t, area);
+        let mut state = TableState::default();
+        state.select(self.selected());
+
+        f.render_stateful_widget(t, area, &mut state);
     }
     fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
         let p = Paragraph::new(self.query.clone())

@@ -23,6 +23,7 @@ pub struct Database {
     rx: Receiver<bool>,
 }
 
+//TODO: fix function names, they don't follow any convention.
 impl Database {
     pub fn new() -> rusqlite::Result<Self> {
         if !Path::new(CONFIG_DIR.as_path()).exists() {
