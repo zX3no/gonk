@@ -36,7 +36,7 @@ pub struct Search<'a> {
 }
 
 impl<'a> Search<'a> {
-    fn update_engine(db: &Database) -> SearchEngine {
+    fn new_engine(db: &Database) -> SearchEngine {
         let mut engine = SearchEngine::default();
 
         let songs = db.get_songs();
@@ -65,11 +65,9 @@ impl<'a> Search<'a> {
         engine
     }
     pub fn new(db: &'a Database) -> Self {
-        let engine = Search::update_engine(db);
-
         Self {
+            engine: Search::new_engine(db),
             db,
-            engine,
             query: String::new(),
             prev_query: String::new(),
             results: Index::default(),
@@ -112,7 +110,7 @@ impl<'a> Search<'a> {
         }
     }
     pub fn refresh(&mut self) {
-        self.engine = Search::update_engine(self.db);
+        self.engine = Search::new_engine(self.db);
     }
     pub fn on_tab(&mut self) {
         match self.mode {

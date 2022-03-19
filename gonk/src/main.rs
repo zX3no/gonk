@@ -1,5 +1,5 @@
 use app::App;
-use gonk_database::{Database, Toml, CONFIG_DIR, TOML_DIR};
+use gonk_database::{Database, Toml, CONFIG_DIR};
 use std::io::Result;
 
 mod app;
@@ -12,7 +12,6 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }));
 
-    //Handle arguments
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some(first) = args.first() {
         match first as &str {
@@ -24,7 +23,6 @@ fn main() -> Result<()> {
             }
             "config" => {
                 println!("Gonk directory:  {}", CONFIG_DIR.to_string_lossy());
-                println!("Config file:     {}", TOML_DIR.to_string_lossy());
                 return Ok(());
             }
             "reset" | "rm" => {
@@ -34,10 +32,12 @@ fn main() -> Result<()> {
             }
             "help" => {
                 println!("Usage");
-                println!("    gonk [<options> <args>]\n");
+                println!("   gonk [<command> <args>]");
+                println!();
                 println!("Options");
-                println!("    add       Add music to the library");
-                println!("    reset     Reset the database");
+                println!("   add <path>  Add music to the library");
+                println!("   config      Locates the config directory");
+                println!("   reset       Reset the database");
                 println!();
                 return Ok(());
             }
