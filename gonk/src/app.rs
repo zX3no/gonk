@@ -20,8 +20,6 @@ use tui::Terminal;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 mod browser;
-// mod new_search;
-// use self::new_search::NewSearch;
 mod options;
 mod queue;
 mod search;
@@ -71,7 +69,6 @@ impl App {
         let toml = Toml::new().unwrap();
         let mut queue = Queue::new(toml.volume());
         let mut browser = Browser::new(&db);
-        // let new_search = NewSearch::default();
         let mut search = Search::new(&db);
         db.add_music(&toml.paths());
         let mut options = Options::new(toml);
@@ -96,8 +93,7 @@ impl App {
                 Mode::Browser => browser.draw(f),
                 Mode::Queue => queue.draw(f, colors),
                 Mode::Options => options.draw(f),
-                Mode::Search => search.draw(f, &db, colors),
-                // Mode::Search => new_search.draw(f, colors),
+                Mode::Search => search.draw(f, colors),
             })?;
 
             let timeout = tick_rate
