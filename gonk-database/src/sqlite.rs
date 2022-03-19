@@ -241,13 +241,13 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn get_artist(&self, artist: &str) -> Vec<Song> {
+    pub fn artist(&self, artist: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE artist = ? ORDER BY album, disc, number",
             params![artist],
         )
     }
-    pub fn get_album(&self, artist: &str, album: &str) -> Vec<Song> {
+    pub fn album(&self, artist: &str, album: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
             params![artist, album],

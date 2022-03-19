@@ -1,5 +1,5 @@
 use crate::index::Index;
-use crossterm::event::KeyModifiers;
+use crossterm::{event::KeyModifiers, style::Stylize};
 use gonk_database::Database;
 use gonk_search::{ItemType, SearchEngine, SearchItem};
 use gonk_types::Song;
@@ -81,9 +81,9 @@ impl<'a> Search<'a> {
                 ItemType::Song => Some(vec![self.db.get_song_from_id(item.song_id.unwrap())]),
                 ItemType::Album => Some(
                     self.db
-                        .get_album(item.album_artist.as_ref().unwrap(), &item.name),
+                        .album(item.album_artist.as_ref().unwrap(), &item.name),
                 ),
-                ItemType::Artist => Some(self.db.get_artist(&item.name)),
+                ItemType::Artist => Some(self.db.artist(&item.name)),
             }
         } else {
             None
@@ -301,9 +301,9 @@ impl<'a> Search<'a> {
         if !self.results.is_empty() {
             if let Some(first) = self.results.data.first() {
                 match first.item_type {
-                    ItemType::Song => self.draw_song(f, h),
-                    ItemType::Album => self.draw_album(f, h),
-                    ItemType::Artist => self.draw_artist(f, h),
+                    ItemType::Song => self.draw_song(f, h, first),
+                    ItemType::Album => self.draw_album(f, h, first),
+                    ItemType::Artist => self.draw_artist(f, h, &first.name),
                 }
             }
         }
@@ -312,131 +312,174 @@ impl<'a> Search<'a> {
 
         self.handle_cursor(f);
     }
-    fn draw_song<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>) {
-        let p = Paragraph::new(vec![
-            Spans::from(Span::styled(
-                "Test Drive ",
-                Style::default().add_modifier(Modifier::ITALIC),
-            )),
-            Spans::from(""),
-            Spans::from("BALLADS 1"),
-            Spans::from("Joji"),
+    fn draw_song<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, song: &SearchItem) {
+        let id = song.song_id.unwrap();
+        let s = self.db.get_song_from_id(id);
+
+        let song_table = Table::new(vec![
+            Row::new(vec![Spans::from(Span::raw(&s.album))]),
+            Row::new(vec![Spans::from(Span::raw(&s.artist))]),
         ])
+        .header(
+            Row::new(vec![Span::styled(
+                format!("{} ", &s.name),
+                Style::default().add_modifier(Modifier::ITALIC),
+            )])
+            .bottom_margin(1),
+        )
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .title("Song"),
         )
-        .alignment(Alignment::Left);
+        .widths(&[Constraint::Percentage(100)])
+        .highlight_symbol("> ");
 
-        f.render_widget(p, h[0]);
+        f.render_widget(song_table, h[0]);
 
-        let p2 = Paragraph::new(vec![
-            Spans::from(Span::styled(
-                "BALLADS 1",
-                Style::default().add_modifier(Modifier::ITALIC),
-            )),
-            Spans::from(""),
-            Spans::from("ATTENTION"),
-            Spans::from("TEST DRIVE"),
-            Spans::from("SLOW DANCING IN THE DARK"),
-        ])
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Album"),
-        )
-        .alignment(Alignment::Left);
+        let album = self.db.album(&s.artist, &s.album);
+        let rows: Vec<_> = album
+            .iter()
+            .map(|song| Row::new(vec![Spans::from(format!("{}. {}", song.number, song.name))]))
+            .collect();
 
-        f.render_widget(p2, h[1]);
+        let album_table = Table::new(rows)
+            .header(
+                Row::new(vec![Spans::from(Span::styled(
+                    format!("{} ", s.album),
+                    Style::default().add_modifier(Modifier::ITALIC),
+                ))])
+                .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Album"),
+            )
+            .widths(&[Constraint::Percentage(100)])
+            .highlight_symbol("> ");
+
+        f.render_widget(album_table, h[1]);
     }
-    fn draw_album<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>) {
-        let p = Paragraph::new(vec![
-            Spans::from(Span::styled(
-                "BALADS 1",
-                Style::default().add_modifier(Modifier::ITALIC),
-            )),
-            Spans::from(""),
-            Spans::from("ATTENTION"),
-            Spans::from("TEST DRIVE"),
-            Spans::from("SLOW DANCING IN THE DARK"),
-        ])
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Album"),
-        )
-        .alignment(Alignment::Left);
+    fn draw_album<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, album: &SearchItem) {
+        let artist = album.album_artist.as_ref().unwrap();
+        let a = self.db.album(artist, &album.name);
 
-        f.render_widget(p, h[0]);
-    }
-    fn draw_artist<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>) {
-        let p = Paragraph::new(vec![
-            Spans::from(Span::styled(
-                "BADBADNOTGOOD ",
-                Style::default().add_modifier(Modifier::ITALIC),
-            )),
-            Spans::from(""),
-            Spans::from("IV"),
-            Spans::from("Talk Memory"),
-            Spans::from("Test Album"),
-        ])
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Artist"),
-        )
-        .alignment(Alignment::Left);
-        f.render_widget(p, h[0]);
+        let cells: Vec<_> = a
+            .iter()
+            .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
+            .collect();
 
-        self.draw_associated_result(f, h[1]);
+        let album_table = Table::new(cells)
+            .header(
+                Row::new(vec![Cell::from(Span::styled(
+                    format!("{} ", album),
+                    Style::default().add_modifier(Modifier::ITALIC),
+                ))])
+                .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Album"),
+            )
+            .widths(&[Constraint::Percentage(100)])
+            .highlight_symbol("> ");
+
+        f.render_widget(album_table, h[0]);
+
+        let albums = self.db.albums_by_artist(artist);
+
+        let cells: Vec<_> = albums
+            .iter()
+            .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
+            .collect();
+
+        let artist_table = Table::new(cells)
+            .header(
+                Row::new(vec![Cell::from(Span::styled(
+                    format!("{} ", artist),
+                    Style::default().add_modifier(Modifier::ITALIC),
+                ))])
+                .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Artist"),
+            )
+            .widths(&[Constraint::Percentage(100)])
+            .highlight_symbol("> ");
+
+        f.render_widget(artist_table, h[1]);
     }
-    fn draw_associated_result<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
-        let h = Layout::default()
+    fn draw_artist<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, artist: &String) {
+        let albums = self.db.albums_by_artist(artist);
+
+        let cells: Vec<_> = albums
+            .iter()
+            .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
+            .collect();
+
+        let artist_table = Table::new(cells)
+            .header(
+                Row::new(vec![Cell::from(Span::styled(
+                    format!("{} ", artist),
+                    Style::default().add_modifier(Modifier::ITALIC),
+                ))])
+                .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Artist"),
+            )
+            .widths(&[Constraint::Percentage(100)])
+            .highlight_symbol("> ");
+
+        f.render_widget(artist_table, h[0]);
+
+        let h_split = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-            .split(area);
+            .split(h[1]);
 
-        let p = Paragraph::new(vec![
-            Spans::from(Span::styled(
-                "IV ",
-                Style::default().add_modifier(Modifier::ITALIC),
-            )),
-            Spans::from(""),
-            Spans::from("1. Test Song"),
-            Spans::from("2. Test Song"),
-        ])
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Album"),
-        )
-        .alignment(Alignment::Left);
+        for (i, area) in h_split.iter().enumerate() {
+            if let Some(album) = albums.get(i) {
+                let a = self.db.album(artist, album);
 
-        let p1 = Paragraph::new(vec![
-            Spans::from(Span::styled(
-                "Talk Memory ",
-                Style::default().add_modifier(Modifier::ITALIC),
-            )),
-            Spans::from(""),
-            Spans::from("1. Track One"),
-            Spans::from("2. Track Two"),
-        ])
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Album"),
-        )
-        .alignment(Alignment::Left);
+                let cells: Vec<_> = a
+                    .iter()
+                    .map(|song| {
+                        Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))])
+                    })
+                    .collect();
 
-        f.render_widget(p, h[0]);
-        f.render_widget(p1, h[1]);
+                let album = Table::new(cells)
+                    .header(
+                        Row::new(vec![Cell::from(Span::styled(
+                            format!("{} ", album),
+                            Style::default().add_modifier(Modifier::ITALIC),
+                        ))])
+                        .bottom_margin(1),
+                    )
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded)
+                            .title("Artist"),
+                    )
+                    .widths(&[Constraint::Percentage(100)])
+                    .highlight_symbol("> ");
+
+                f.render_widget(album, *area);
+            }
+        }
     }
     fn draw_other_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
         let results = self.results();

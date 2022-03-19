@@ -111,8 +111,8 @@ impl<'a> Browser<'a> {
         let album = self.albums.selected().unwrap();
         let song = self.songs.selected().unwrap();
         match self.mode {
-            BrowserMode::Artist => self.db.get_artist(artist),
-            BrowserMode::Album => self.db.get_album(artist, album),
+            BrowserMode::Artist => self.db.artist(artist),
+            BrowserMode::Album => self.db.album(artist, album),
             BrowserMode::Song => self.db.get_song(artist, album, song),
         }
     }
