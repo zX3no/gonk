@@ -1,8 +1,16 @@
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
-use gonk_database::Database;
+use gonk_database::{Colors, Database};
 use gonk_search::{ItemType, SearchEngine, SearchItem};
 use gonk_types::Song;
+use tui::{
+    backend::Backend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
+    text::{Span, Spans},
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState},
+    Frame,
+};
 
 pub enum SearchMode {
     Search,
@@ -71,7 +79,7 @@ impl<'a> Search<'a> {
     //TODO: this function name is misleading
     pub fn get_songs(&mut self) -> Option<Vec<Song>> {
         if let SearchMode::Search = self.mode {
-            if !self.is_empty() {
+            if self.results.is_empty() && self.query.is_empty() {
                 self.mode.next();
                 self.results.select(Some(0));
             }
@@ -145,21 +153,6 @@ impl<'a> Search<'a> {
             false
         }
     }
-    pub fn is_empty(&self) -> bool {
-        self.results.is_empty() && self.query.is_empty()
-    }
-    pub fn query_len(&self) -> u16 {
-        self.query.len() as u16
-    }
-    pub fn get_query(&self) -> String {
-        self.query.clone()
-    }
-    pub fn results(&self) -> &Vec<SearchItem> {
-        &self.results.data
-    }
-    pub fn selected(&self) -> Option<usize> {
-        self.results.index
-    }
     pub fn on_escape(&mut self) -> bool {
         match self.mode {
             SearchMode::Search => {
@@ -179,103 +172,7 @@ impl<'a> Search<'a> {
     }
 }
 
-use gonk_database::Colors;
-use tui::{
-    backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState},
-    Frame,
-};
-
 impl<'a> Search<'a> {
-    pub fn old_draw<B: Backend>(&self, f: &mut Frame<B>, db: &Database, colors: &Colors) {
-        let area = f.size();
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Percentage(90)].as_ref())
-            .split(area);
-
-        let p = Paragraph::new(vec![Spans::from(self.get_query())])
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .alignment(Alignment::Left);
-
-        let results = self.results();
-
-        let items: Vec<_> = results
-            .iter()
-            .map(|r| match r.item_type {
-                ItemType::Song => {
-                    let song = db.get_song_from_id(r.song_id.unwrap());
-                    Row::new(vec![
-                        Cell::from(format!(" {}", song.name))
-                            .style(Style::default().fg(colors.title)),
-                        Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
-                        Cell::from(song.artist).style(Style::default().fg(colors.artist)),
-                    ])
-                }
-                ItemType::Album => Row::new(vec![
-                    Cell::from(format!(" {} (album)", r.name))
-                        .style(Style::default().fg(colors.title)),
-                    Cell::from("").style(Style::default().fg(colors.album)),
-                    Cell::from(r.album_artist.as_ref().unwrap().clone())
-                        .style(Style::default().fg(colors.artist)),
-                ]),
-                ItemType::Artist => Row::new(vec![
-                    Cell::from(format!(" {} (artist)", r.name))
-                        .style(Style::default().fg(colors.title)),
-                    Cell::from("").style(Style::default().fg(colors.album)),
-                    Cell::from("").style(Style::default().fg(colors.artist)),
-                ]),
-            })
-            .collect();
-
-        let t = Table::new(items)
-            .header(
-                Row::new(vec![
-                    Cell::from(" Name").style(Style::default().fg(colors.title)),
-                    Cell::from("Album").style(Style::default().fg(colors.album)),
-                    Cell::from("Artist").style(Style::default().fg(colors.artist)),
-                ])
-                .bottom_margin(1),
-            )
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .widths(&[
-                Constraint::Percentage(43),
-                Constraint::Percentage(29),
-                Constraint::Percentage(27),
-            ])
-            .highlight_symbol(">");
-
-        let mut state = TableState::default();
-        state.select(self.selected());
-
-        f.render_widget(p, chunks[0]);
-        f.render_stateful_widget(t, chunks[1], &mut state);
-
-        //Move the cursor position when typing
-        if let SearchMode::Search = self.mode {
-            if self.results.is_none() && self.query.is_empty() {
-                f.set_cursor(1, 1);
-            } else {
-                let mut len = self.query_len();
-                if len > area.width {
-                    len = area.width;
-                }
-                f.set_cursor(len + 1, 1);
-            }
-        }
-    }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>, colors: &Colors) {
         let area = f.size();
 
@@ -298,7 +195,7 @@ impl<'a> Search<'a> {
 
         self.draw_textbox(f, v[0]);
 
-        if !self.results.is_empty() {
+        if !self.results.is_empty() && !self.query.is_empty() {
             if let Some(first) = self.results.data.first() {
                 match first.item_type {
                     ItemType::Song => self.draw_song(f, h, first),
@@ -483,7 +380,7 @@ impl<'a> Search<'a> {
         }
     }
     fn draw_other_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
-        let results = self.results();
+        let results = &self.results.data;
 
         let get_cell = |item: &SearchItem, modifier: Modifier| -> Row {
             match item.item_type {
@@ -549,7 +446,7 @@ impl<'a> Search<'a> {
             .highlight_symbol("> ");
 
         let mut state = TableState::default();
-        state.select(self.selected());
+        state.select(self.results.index);
 
         f.render_stateful_widget(t, area, &mut state);
     }
@@ -570,7 +467,7 @@ impl<'a> Search<'a> {
             if self.results.is_none() && self.query.is_empty() {
                 f.set_cursor(1, 1);
             } else {
-                let mut len = self.query_len();
+                let mut len = self.query.len() as u16;
                 if len > area.width {
                     len = area.width;
                 }
