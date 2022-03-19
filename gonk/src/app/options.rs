@@ -13,7 +13,6 @@ pub struct Options {
     pub devices: Index<Device>,
     pub mode: OptionsMode,
     pub toml: Toml,
-    //TODO: move volume here?
 }
 
 impl Options {
@@ -156,9 +155,7 @@ impl Options {
     }
 }
 
-//TODO:
-//Directory deletion confirmation
-//UI to add new directory
+//TODO: Directory deletion confirmation & UI to add new directories
 use tui::{backend::Backend, layout::*, style::*, widgets::*, Frame};
 
 impl Options {

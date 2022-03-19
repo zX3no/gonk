@@ -76,7 +76,6 @@ impl<'a> Search<'a> {
             mode: SearchMode::Search,
         }
     }
-    //TODO: this function name is misleading
     pub fn get_songs(&mut self) -> Option<Vec<Song>> {
         if let SearchMode::Search = self.mode {
             if self.results.is_empty() && self.query.is_empty() {
@@ -208,7 +207,7 @@ impl<'a> Search<'a> {
             self.draw_other_results(f, v[1].union(v[2]), colors);
         }
 
-        self.handle_cursor(f);
+        self.update_cursor(f);
     }
     fn draw_song<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, song: &SearchItem) {
         let id = song.song_id.unwrap();
@@ -460,7 +459,7 @@ impl<'a> Search<'a> {
             .alignment(Alignment::Left);
         f.render_widget(p, area);
     }
-    fn handle_cursor<B: Backend>(&self, f: &mut Frame<B>) {
+    fn update_cursor<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();
         //Move the cursor position when typing
         if let SearchMode::Search = self.mode {

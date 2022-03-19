@@ -7,13 +7,9 @@ use std::time::Duration;
 use tui::{backend::Backend, Frame};
 
 pub struct Queue {
-    //there are two indexes because
-    //you can have a song selected
-    //and a ui element selected
     pub ui: Index<()>,
     pub list: Index<Song>,
     pub constraint: [u16; 4],
-    //TODO: is there a better way of doing this?
     pub clicked_pos: Option<(u16, u16)>,
     pub player: Player,
 }

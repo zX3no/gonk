@@ -173,7 +173,7 @@ impl App {
                                     Mode::Search => {
                                         if search.on_escape() {
                                             //TODO previous mode should be stored
-                                            //self.mod = self.mod.last()
+                                            //self.mode = self.mode.last()
                                             self.mode = Mode::Queue;
                                         }
                                     }
