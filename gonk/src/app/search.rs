@@ -2,7 +2,6 @@ use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gonk_database::{Colors, Database};
 use gonk_search::{ItemType, SearchEngine, SearchItem};
-use gonk_types::Song;
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -11,6 +10,8 @@ use tui::{
     widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame,
 };
+
+use super::queue::Queue;
 
 pub enum SearchMode {
     Search,
@@ -72,26 +73,6 @@ impl<'a> Search<'a> {
             prev_query: String::new(),
             results: Index::default(),
             mode: SearchMode::Search,
-        }
-    }
-    pub fn get_songs(&mut self) -> Option<Vec<Song>> {
-        if let SearchMode::Search = self.mode {
-            if self.results.is_empty() && self.query.is_empty() {
-                self.mode.next();
-                self.results.select(Some(0));
-            }
-            None
-        } else if let Some(item) = self.results.selected() {
-            match item.item_type {
-                ItemType::Song => Some(vec![self.db.get_song_from_id(item.song_id.unwrap())]),
-                ItemType::Album => Some(
-                    self.db
-                        .album(item.album_artist.as_ref().unwrap(), &item.name),
-                ),
-                ItemType::Artist => Some(self.db.artist(&item.name)),
-            }
-        } else {
-            None
         }
     }
     pub fn update_search(&mut self) {
@@ -164,6 +145,28 @@ impl<'a> Search<'a> {
                 self.mode.next();
                 self.results.select(None);
                 false
+            }
+        }
+    }
+    pub fn on_enter(&mut self, queue: &mut Queue) {
+        match self.mode {
+            SearchMode::Search => {
+                if !self.results.is_empty() {
+                    self.mode.next();
+                    self.results.select(Some(0));
+                }
+            }
+            SearchMode::Select => {
+                if let Some(item) = self.results.selected() {
+                    let songs = match item.item_type {
+                        ItemType::Song => vec![self.db.get_song_from_id(item.song_id.unwrap())],
+                        ItemType::Album => self
+                            .db
+                            .album(item.album_artist.as_ref().unwrap(), &item.name),
+                        ItemType::Artist => self.db.artist(&item.name),
+                    };
+                    queue.add(songs);
+                }
             }
         }
     }

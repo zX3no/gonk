@@ -155,11 +155,7 @@ impl App {
                                     queue.add(songs);
                                 }
                                 Mode::Queue => queue.select(),
-                                Mode::Search => {
-                                    if let Some(songs) = search.get_songs() {
-                                        queue.add(songs);
-                                    }
-                                }
+                                Mode::Search => search.on_enter(&mut queue),
                                 Mode::Options => {
                                     if let Some(dir) = options.on_enter(&mut queue) {
                                         db.delete_path(&dir);
