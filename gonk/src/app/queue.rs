@@ -243,81 +243,82 @@ impl Queue {
         f.render_widget(b, chunk);
 
         //Left
-        {
-            let time = if self.list.is_empty() {
-                String::from("╭─Stopped")
-            } else if !self.player.is_paused() {
-                if let Some(duration) = self.duration() {
-                    let elapsed = self.player.elapsed().as_secs_f64();
+        let time = if self.list.is_empty() {
+            String::from("╭─Stopped")
+        } else if !self.player.is_paused() {
+            if let Some(duration) = self.duration() {
+                let elapsed = self.player.elapsed().as_secs_f64();
 
-                    let mins = elapsed / 60.0;
-                    let rem = elapsed % 60.0;
-                    let e = format!(
-                        "{:0width$}:{:0width$}",
-                        mins.trunc() as usize,
-                        rem.trunc() as usize,
-                        width = 2,
-                    );
+                let mins = elapsed / 60.0;
+                let rem = elapsed % 60.0;
+                let e = format!(
+                    "{:0width$}:{:0width$}",
+                    mins.trunc() as usize,
+                    rem.trunc() as usize,
+                    width = 2,
+                );
 
-                    let mins = duration / 60.0;
-                    let rem = duration % 60.0;
-                    let d = format!(
-                        "{:0width$}:{:0width$}",
-                        mins.trunc() as usize,
-                        rem.trunc() as usize,
-                        width = 2,
-                    );
+                let mins = duration / 60.0;
+                let rem = duration % 60.0;
+                let d = format!(
+                    "{:0width$}:{:0width$}",
+                    mins.trunc() as usize,
+                    rem.trunc() as usize,
+                    width = 2,
+                );
 
-                    format!("╭─{}/{}", e, d)
-                } else {
-                    String::from("╭─0:00/0:00")
-                }
+                format!("╭─{}/{}", e, d)
             } else {
-                String::from("╭─Paused")
-            };
+                String::from("╭─0:00/0:00")
+            }
+        } else {
+            String::from("╭─Paused")
+        };
 
-            let left = Paragraph::new(time).alignment(Alignment::Left);
+        let left = Paragraph::new(time).alignment(Alignment::Left);
+        f.render_widget(left, chunk);
 
-            f.render_widget(left, chunk);
-        }
         //Center
-        {
-            let center = if let Some(song) = self.list.selected() {
-                //I wish that paragraphs had clipping
-                //I think constaints do
-                //I could render the -| |- on a seperate layer
-                //outside of the constraint which might work better?
-                let mut name = song.name.clone();
-                while (name.len() + song.artist.len() + "─| - |─".len())
-                    > (chunk.width - 40) as usize
-                {
-                    name.pop();
-                }
-                let name = name.trim_end().to_string();
+        let center = if let Some(song) = self.list.selected() {
+            //I wish that paragraphs had clipping
+            //I think constraints do
+            //I could render the -| |- on a seperate layer
+            //outside of the constraint which might work better?
 
-                vec![
-                    Spans::from(vec![
-                        Span::raw("─| "),
-                        Span::styled(&song.artist, Style::default().fg(colors.artist)),
-                        Span::raw(" - "),
-                        Span::styled(name, Style::default().fg(colors.title)),
-                        Span::raw(" |─"),
-                    ]),
-                    Spans::from(Span::styled(&song.album, Style::default().fg(colors.album))),
-                ]
-            } else {
-                vec![Spans::default(), Spans::default()]
-            };
-            let center = Paragraph::new(center).alignment(Alignment::Center);
-            f.render_widget(center, chunk);
-        }
+            //clip the name so it doesn't overflow
+            let mut name = song.name.clone();
+            const MAX_WIDTH: u16 = 60;
+            while (name.len() + song.artist.len() + "─| - |─".len())
+                > (chunk.width - MAX_WIDTH) as usize
+            {
+                name.pop();
+            }
+
+            let name = name.trim_end().to_string();
+
+            vec![
+                Spans::from(vec![
+                    Span::raw("─| "),
+                    Span::styled(&song.artist, Style::default().fg(colors.artist)),
+                    Span::raw(" - "),
+                    Span::styled(name, Style::default().fg(colors.title)),
+                    Span::raw(" |─"),
+                ]),
+                Spans::from(Span::styled(&song.album, Style::default().fg(colors.album))),
+            ]
+        } else {
+            vec![Spans::default(), Spans::default()]
+        };
+
+        //TODO: scroll the text to the left
+        let center = Paragraph::new(center).alignment(Alignment::Center);
+        f.render_widget(center, chunk);
+
         //Right
-        {
-            let volume = self.player.volume();
-            let text = Spans::from(format!("Vol: {}%─╮", volume));
-            let right = Paragraph::new(text).alignment(Alignment::Right);
-            f.render_widget(right, chunk);
-        }
+        let volume = self.player.volume();
+        let text = Spans::from(format!("Vol: {}%─╮", volume));
+        let right = Paragraph::new(text).alignment(Alignment::Right);
+        f.render_widget(right, chunk);
     }
     fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
         if self.list.is_empty() {

@@ -263,7 +263,6 @@ impl App {
             Mode::Options => options.down(),
         }
     }
-
     #[cfg(windows)]
     fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
         use win_hotkey::{keys, modifiers, Listener};
