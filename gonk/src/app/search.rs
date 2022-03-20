@@ -11,7 +11,7 @@ use tui::{
     Frame,
 };
 
-use super::queue::Queue;
+use super::{queue::Queue, Mode};
 
 pub enum SearchMode {
     Search,
@@ -131,20 +131,17 @@ impl<'a> Search<'a> {
             false
         }
     }
-    pub fn on_escape(&mut self) -> bool {
+    pub fn on_escape(&mut self, mode: &mut Mode) {
         match self.mode {
             SearchMode::Search => {
                 if let SearchMode::Search = self.mode {
                     self.query.clear();
-                    true
-                } else {
-                    false
+                    *mode = Mode::Queue;
                 }
             }
             SearchMode::Select => {
                 self.mode.next();
                 self.results.select(None);
-                false
             }
         }
     }

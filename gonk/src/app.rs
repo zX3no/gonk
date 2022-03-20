@@ -70,7 +70,7 @@ impl App {
         let mut queue = Queue::new(toml.volume());
         let mut browser = Browser::new(&db);
         let mut search = Search::new(&db);
-        db.add_music(&toml.paths());
+        db.add(&toml.paths());
         let mut options = Options::new(toml);
         let hk = options.hotkeys().clone();
         let tx = self.register_hotkeys();
@@ -164,21 +164,11 @@ impl App {
                                     }
                                 }
                             },
-                            KeyCode::Esc => {
-                                match self.mode {
-                                    Mode::Search => {
-                                        if search.on_escape() {
-                                            //TODO previous mode should be stored
-                                            //self.mode = self.mode.last()
-                                            self.mode = Mode::Queue;
-                                        }
-                                    }
-                                    Mode::Options => {
-                                        self.mode = Mode::Queue;
-                                    }
-                                    _ => (),
-                                }
-                            }
+                            KeyCode::Esc => match self.mode {
+                                Mode::Search => search.on_escape(&mut self.mode),
+                                Mode::Options => self.mode = Mode::Queue,
+                                _ => (),
+                            },
                             KeyCode::Char('1') | KeyCode::Char('!') => {
                                 queue.move_constraint('1', modifiers)
                             }
@@ -199,9 +189,9 @@ impl App {
                             _ if hk.play_pause.contains(&bind) => queue.play_pause(),
                             _ if hk.clear.contains(&bind) => queue.clear(),
                             _ if hk.refresh_database.contains(&bind) => {
-                                //update all the music in the db
-                                let paths = options.paths();
-                                paths.iter().for_each(|path| db.add(path));
+                                for path in options.paths() {
+                                    db.force_add(path);
+                                }
                             }
                             _ if hk.seek_backward.contains(&bind) => queue.seek_bw(),
                             _ if hk.seek_forward.contains(&bind) => queue.seek_fw(),

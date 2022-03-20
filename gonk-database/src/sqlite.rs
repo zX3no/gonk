@@ -59,40 +59,32 @@ impl Database {
             rx,
         })
     }
-    pub fn add_music(&self, dirs: &[String]) {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT DISTINCT parent FROM song")
-            .unwrap();
+    //TODO: this is super overcomplicated
+    pub fn add(&self, toml_paths: &[String]) {
+        let db_paths = self.get_paths();
 
-        let paths: Vec<String> = stmt
-            .query_map([], |row| {
-                let path: String = row.get(0).unwrap();
-
-                //delete all of the old directories
-                if !dirs.contains(&path) {
-                    self.delete_path(&path);
-                }
-                Ok(path)
-            })
-            .unwrap()
-            .flatten()
-            .collect();
-
-        //add all missing directories
-        dirs.iter().for_each(|dir| {
-            if !paths.contains(dir) {
-                self.add(dir);
+        //add paths that are in toml file but not the database
+        for t_path in toml_paths {
+            if !db_paths.contains(t_path) {
+                self.force_add(t_path);
             }
-        });
+        }
+
+        //delete paths that aren't in the toml file but are in the database
+        for db_path in db_paths {
+            if !toml_paths.contains(&db_path) {
+                self.delete_path(&db_path);
+            }
+        }
     }
-    pub fn add(&self, music_dir: &str) {
-        let music_dir = music_dir.to_string();
+    pub fn force_add(&self, dir: &str) {
         let tx = self.tx.clone();
         tx.send(true).unwrap();
 
+        let dir = dir.to_owned();
+
         thread::spawn(move || {
-            let songs: Vec<Song> = WalkDir::new(&music_dir)
+            let songs: Vec<Song> = WalkDir::new(&dir)
                 .into_iter()
                 .map(|dir| dir.unwrap().path())
                 .filter(|dir| {
@@ -119,7 +111,7 @@ impl Database {
                     let album = fix(&song.album);
                     let name = fix(&song.name);
                     let path = fix(song.path.to_str().unwrap());
-                    let parent = fix(&music_dir);
+                    let parent = fix(&dir);
                     //TODO: would be nice to have batch params, don't think it's implemented.
                     format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                                 song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), parent)
@@ -147,6 +139,17 @@ impl Database {
         self.conn
             .execute("DELETE FROM song WHERE parent = ?", [path])
             .unwrap();
+    }
+    pub fn get_paths(&self) -> Vec<String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT parent FROM song")
+            .unwrap();
+
+        stmt.query_map([], |row| Ok(row.get(0).unwrap()))
+            .unwrap()
+            .flatten()
+            .collect()
     }
     pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
         if ids.is_empty() {
