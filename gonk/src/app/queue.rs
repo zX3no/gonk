@@ -6,12 +6,59 @@ use rodio::Player;
 use std::time::Duration;
 use tui::{backend::Backend, Frame};
 
+#[derive(Default)]
+pub struct ScrollText {
+    string: String,
+    scroll_string: String,
+    first: usize,
+    max: usize,
+}
+
+impl ScrollText {
+    pub fn new(string: &str, max: usize) -> Self {
+        Self {
+            string: string.to_string(),
+            scroll_string: String::new(),
+            first: 0,
+            max,
+        }
+    }
+    pub fn current(&self) -> String {
+        self.scroll_string.clone()
+    }
+    pub fn next(&mut self) {
+        let string = self.string.clone();
+
+        let last = self.first + self.max;
+        let mut new_string = String::new();
+
+        for i in self.first..last {
+            if i >= string.len() {
+                if let Some(char) = string.chars().nth(i - string.len()) {
+                    new_string.push(char);
+                }
+            } else {
+                new_string.push(string.chars().nth(i).unwrap());
+            }
+        }
+
+        if string.chars().nth(self.first).is_none() {
+            self.first = 0;
+        }
+
+        self.first += 1;
+
+        self.scroll_string = new_string;
+    }
+}
+
 pub struct Queue {
     pub ui: Index<()>,
     pub list: Index<Song>,
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
     pub player: Player,
+    pub scroll_text: ScrollText,
 }
 
 impl Queue {
@@ -22,6 +69,7 @@ impl Queue {
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             player: Player::new(volume),
+            scroll_text: ScrollText::default(),
         }
     }
     pub fn volume_up(&mut self) {
@@ -38,10 +86,11 @@ impl Queue {
     pub fn play_pause(&self) {
         self.player.toggle_playback();
     }
-    pub fn update(&mut self) {
+    pub fn on_update(&mut self) {
         if self.player.trigger_next() {
             self.next();
         }
+        self.scroll_text.next();
     }
     pub fn prev(&mut self) {
         self.list.up();
@@ -113,6 +162,8 @@ impl Queue {
         } else {
             self.player.stop();
         }
+
+        self.scroll_text = ScrollText::default();
     }
     pub fn seek_fw(&mut self) {
         self.play();
@@ -178,7 +229,7 @@ impl Queue {
 use gonk_database::Colors;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
+use tui::text::Spans;
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 
 impl Queue {
@@ -235,7 +286,7 @@ impl Queue {
         self.draw_songs(f, chunks[1], colors);
         self.draw_seeker(f, chunks[2]);
     }
-    fn draw_header<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
+    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
         //Render the borders first
         let b = Block::default()
             .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -278,47 +329,66 @@ impl Queue {
         let left = Paragraph::new(time).alignment(Alignment::Left);
         f.render_widget(left, chunk);
 
+        self.draw_scrolling_text(f, chunk, colors);
+
         //Center
-        let center = if let Some(song) = self.list.selected() {
-            //I wish that paragraphs had clipping
-            //I think constraints do
-            //I could render the -| |- on a seperate layer
-            //outside of the constraint which might work better?
+        // let center = if let Some(song) = self.list.selected() {
+        //     //I wish that paragraphs had clipping
+        //     //I think constraints do
+        //     //I could render the -| |- on a seperate layer
+        //     //outside of the constraint which might work better?
 
-            //clip the name so it doesn't overflow
-            let mut name = song.name.clone();
-            const MAX_WIDTH: u16 = 60;
-            while (name.len() + song.artist.len() + "─| - |─".len())
-                > (chunk.width - MAX_WIDTH) as usize
-            {
-                name.pop();
-            }
+        //     //clip the name so it doesn't overflow
+        //     let mut name = song.name.clone();
+        //     const MAX_WIDTH: u16 = 60;
+        //     while (name.len() + song.artist.len() + "─| - |─".len())
+        //         > (chunk.width - MAX_WIDTH) as usize
+        //     {
+        //         name.pop();
+        //     }
 
-            let name = name.trim_end().to_string();
+        //     let name = name.trim_end().to_string();
 
-            vec![
-                Spans::from(vec![
-                    Span::raw("─| "),
-                    Span::styled(&song.artist, Style::default().fg(colors.artist)),
-                    Span::raw(" - "),
-                    Span::styled(name, Style::default().fg(colors.title)),
-                    Span::raw(" |─"),
-                ]),
-                Spans::from(Span::styled(&song.album, Style::default().fg(colors.album))),
-            ]
-        } else {
-            vec![Spans::default(), Spans::default()]
-        };
+        //     vec![
+        //         Spans::from(vec![
+        //             Span::raw("─| "),
+        //             Span::styled(&song.artist, Style::default().fg(colors.artist)),
+        //             Span::raw(" - "),
+        //             Span::styled(name, Style::default().fg(colors.title)),
+        //             Span::raw(" |─"),
+        //         ]),
+        //         Spans::from(Span::styled(&song.album, Style::default().fg(colors.album))),
+        //     ]
+        // } else {
+        //     vec![Spans::default(), Spans::default()]
+        // };
 
         //TODO: scroll the text to the left
-        let center = Paragraph::new(center).alignment(Alignment::Center);
-        f.render_widget(center, chunk);
+        // let center = Paragraph::new(center).alignment(Alignment::Center);
+        // f.render_widget(center, chunk);
 
         //Right
         let volume = self.player.volume();
         let text = Spans::from(format!("Vol: {}%─╮", volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
+    }
+    fn draw_scrolling_text<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect, _colors: &Colors) {
+        if let Some(song) = self.list.selected() {
+            if self.scroll_text.string.is_empty() {
+                let name = format!("{} - {} ", &song.artist, &song.name);
+                let mut max = 20;
+                if name.len() > max {
+                    max = name.len();
+                }
+                self.scroll_text = ScrollText::new(&name, max);
+            }
+
+            let p = Paragraph::new(Spans::from(format!("─| {} |─", self.scroll_text.current())))
+                .alignment(Alignment::Center);
+
+            f.render_widget(p, chunk);
+        }
     }
     fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
         if self.list.is_empty() {

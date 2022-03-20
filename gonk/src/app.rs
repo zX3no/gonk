@@ -63,7 +63,7 @@ impl App {
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        let tick_rate = Duration::from_millis(16);
+        let tick_rate = Duration::from_millis(100);
 
         let db = Database::new().unwrap();
         let toml = Toml::new().unwrap();
@@ -100,8 +100,9 @@ impl App {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
+            //on update
             if last_tick.elapsed() >= tick_rate {
-                queue.update();
+                queue.on_update();
 
                 if let Some(busy) = db.is_busy() {
                     if busy {
