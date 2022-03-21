@@ -192,17 +192,21 @@ impl<'a> Search<'a> {
 
         self.draw_textbox(f, v[0]);
 
-        if !self.results.is_empty() && !self.query.is_empty() {
-            if let Some(first) = self.results.data.first() {
-                match first.item_type {
-                    ItemType::Song => self.draw_song(f, h, first),
-                    ItemType::Album => self.draw_album(f, h, first),
-                    ItemType::Artist => self.draw_artist(f, h, &first.name),
-                }
-            }
-            self.draw_other_results(f, v[2], colors);
+        let item = if let Some(selected) = self.results.selected() {
+            Some(selected)
         } else {
-            self.draw_other_results(f, v[1].union(v[2]), colors);
+            self.results.data.first()
+        };
+
+        if let Some(item) = item {
+            match item.item_type {
+                ItemType::Song => self.draw_song(f, h, item),
+                ItemType::Album => self.draw_album(f, h, item),
+                ItemType::Artist => self.draw_artist(f, h, &item.name),
+            }
+            self.draw_results(f, v[2], colors);
+        } else {
+            self.draw_results(f, v[1].union(v[2]), colors);
         }
 
         self.update_cursor(f);
@@ -376,7 +380,7 @@ impl<'a> Search<'a> {
             }
         }
     }
-    fn draw_other_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
+    fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
         let results = &self.results.data;
 
         let get_cell = |item: &SearchItem, modifier: Modifier| -> Row {

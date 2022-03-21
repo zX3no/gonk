@@ -172,11 +172,14 @@ impl Queue {
     fn update_text(&mut self) {
         if let Some(song) = self.list.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
-            for _ in 0..name.len() {
+
+            //pad the string
+            for _ in 0..3 {
                 name.push(' ');
+                name.insert(0, ' ');
             }
-            let max = 25;
-            self.scroll_text = ScrollText::new(&name, max);
+
+            self.scroll_text = ScrollText::new(&name, 25);
         } else {
             self.scroll_text = ScrollText::default();
         }
@@ -233,7 +236,7 @@ impl Queue {
             self.list.select(Some(index));
         }
     }
-    pub(crate) fn change_output_device(&mut self, device: &rodio::Device) {
+    pub fn change_output_device(&mut self, device: &rodio::Device) {
         let pos = self.player.elapsed();
         self.player.change_output_device(device);
         self.play_selected();
@@ -346,7 +349,9 @@ impl Queue {
         f.render_widget(left, chunk);
 
         //Center
-        self.draw_scrolling_text(f, chunk, colors);
+        if !self.list.is_empty() {
+            self.draw_scrolling_text(f, chunk, colors);
+        }
 
         //Right
         let volume = self.player.volume();
@@ -402,9 +407,8 @@ impl Queue {
         }
 
         //TODO: The text is not centered
-        let test = format!("─| {} |─", self.scroll_text.current());
-
-        let p = Paragraph::new(Spans::from(test)).alignment(Alignment::Center);
+        let p = Paragraph::new(Spans::from(format!("─| {} |─", self.scroll_text.current())))
+            .alignment(Alignment::Center);
 
         f.render_widget(p, chunk);
     }
