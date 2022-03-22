@@ -192,8 +192,8 @@ impl<'a> Search<'a> {
 
         self.draw_textbox(f, v[0]);
 
-        let item = if let Some(selected) = self.results.selected() {
-            Some(selected)
+        let item = if self.results.selected().is_some() {
+            self.results.selected()
         } else {
             self.results.data.first()
         };
@@ -237,6 +237,7 @@ impl<'a> Search<'a> {
 
         f.render_widget(song_table, h[0]);
 
+        //TODO: Highlight the selected song in the album
         let album = self.db.album(&s.artist, &s.album);
         let rows: Vec<_> = album
             .iter()
@@ -381,8 +382,6 @@ impl<'a> Search<'a> {
         }
     }
     fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
-        let results = &self.results.data;
-
         let get_cell = |item: &SearchItem, modifier: Modifier| -> Row {
             match item.item_type {
                 ItemType::Song => {
@@ -412,16 +411,21 @@ impl<'a> Search<'a> {
             }
         };
 
-        //TODO: the first item is italic not the selected one
-        let rows: Vec<_> = results
+        let selected = &self.results.index;
+        let rows: Vec<_> = self
+            .results
+            .data
             .iter()
             .enumerate()
             .map(|(i, item)| {
-                if i == 0 {
-                    get_cell(item, Modifier::ITALIC)
-                } else {
-                    get_cell(item, Modifier::empty())
+                if let Some(s) = selected {
+                    if s == &i {
+                        return get_cell(item, Modifier::ITALIC);
+                    }
+                } else if i == 0 {
+                    return get_cell(item, Modifier::ITALIC);
                 }
+                get_cell(item, Modifier::empty())
             })
             .collect();
 
