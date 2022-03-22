@@ -20,9 +20,19 @@
 
 > I recommend using a font with ligatures for the best experience.
 
-Debian requires `libasound2-dev`
+#### Dependencies
 
-Fedora requires `alsa-lib-devel`
+Debian:
+
+```
+sudo apt install libasound2-dev pkg-config
+```
+
+Fedora:
+
+```
+dnf install alsa-lib-devel
+```
 
 #### From source
 

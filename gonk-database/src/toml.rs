@@ -98,6 +98,8 @@ impl Bind {
             modifiers: None,
         }
     }
+
+    #[cfg(windows)]
     pub fn modifiers(&self) -> u32 {
         if let Some(m) = &self.modifiers {
             m.iter().map(|m| m.as_u32()).sum()
