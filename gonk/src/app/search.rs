@@ -412,6 +412,7 @@ impl<'a> Search<'a> {
             }
         };
 
+        //TODO: the first item is italic not the selected one
         let rows: Vec<_> = results
             .iter()
             .enumerate()

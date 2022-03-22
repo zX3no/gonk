@@ -351,7 +351,7 @@ impl Queue {
 
         //Center
         if !self.list.is_empty() {
-            self.draw_scrolling_text(f, chunk, colors);
+            self.draw_scrolling_text_old(f, chunk, colors);
         }
 
         //Right

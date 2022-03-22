@@ -24,7 +24,6 @@ mod options;
 mod queue;
 mod search;
 
-#[cfg(windows)]
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
     PlayPause,
@@ -301,9 +300,8 @@ impl App {
     }
 
     #[cfg(unix)]
-    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
-        todo!();
-    }
+    // fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
+    fn register_hotkeys(&self) {}
 }
 
 impl Drop for App {

@@ -3,6 +3,9 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tui::style::Color;
+
+//TODO: test on linux
+#[cfg(windows)]
 use win_hotkey::{keys, modifiers};
 
 #[allow(clippy::upper_case_acronyms)]
@@ -12,7 +15,9 @@ pub enum Modifier {
     SHIFT,
     ALT,
 }
+
 impl Modifier {
+    #[cfg(windows)]
     pub fn as_u32(&self) -> u32 {
         match self {
             Modifier::CONTROL => modifiers::CONTROL,
@@ -100,6 +105,8 @@ impl Bind {
             0
         }
     }
+
+    #[cfg(windows)]
     pub fn key(&self) -> u32 {
         match self.key.0.as_str() {
             "SPACE" => keys::SPACEBAR,
