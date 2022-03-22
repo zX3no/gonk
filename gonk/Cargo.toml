@@ -7,7 +7,7 @@ authors = ["Bay <example@email.com>"]
 
 [dependencies]
 crossterm = "0.23.1"
-tui = { version = "0.17.0", features = ["serde"] }
+tui = { git = "https://github.com/zX3no/tui-rs", features = ["serde"] }
 gonk-database = { path = "../gonk-database" }
 gonk-types = { path = "../gonk-types" }
 gonk-search = { path = "../gonk-search" }

@@ -173,6 +173,7 @@ impl Queue {
         if let Some(song) = self.list.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
 
+            //TODO: this is broken
             //pad the string
             for _ in 0..3 {
                 name.push(' ');

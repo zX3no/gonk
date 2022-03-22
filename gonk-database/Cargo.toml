@@ -12,7 +12,7 @@ jwalk = "0.6.0"
 dpc-pariter = "0.5.1"
 toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
-tui = { version = "0.17.0", features = ["serde"] }
+tui = { git = "https://github.com/zX3no/tui-rs", features = ["serde"] }
 crossterm = "0.23.1"
 
 [target.'cfg(windows)'.dependencies]
