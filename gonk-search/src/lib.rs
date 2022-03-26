@@ -15,7 +15,20 @@ impl SearchEngine {
     pub fn search(&self, query: &str) -> Vec<SearchItem> {
         let mut results = Vec::new();
         for item in &self.data {
-            let acc = strsim::jaro_winkler(&query.to_lowercase(), &item.name.to_lowercase());
+            let acc = match item.item_type {
+                ItemType::Song => strsim::jaro_winkler(
+                    &query.to_lowercase(),
+                    &item.song.as_ref().unwrap().to_lowercase(),
+                ),
+                ItemType::Album => strsim::jaro_winkler(
+                    &query.to_lowercase(),
+                    &item.album.as_ref().unwrap().to_lowercase(),
+                ),
+                ItemType::Artist => strsim::jaro_winkler(
+                    &query.to_lowercase(),
+                    &item.artist.as_ref().unwrap().to_lowercase(),
+                ),
+            };
 
             if acc > 0.75 {
                 results.push((item, acc))
@@ -36,34 +49,38 @@ pub enum ItemType {
 //TODO: change this to use generics
 #[derive(Clone, Debug)]
 pub struct SearchItem {
-    pub name: String,
     pub song_id: Option<usize>,
-    pub album_artist: Option<String>,
+    pub song: Option<String>,
+    pub album: Option<String>,
+    pub artist: Option<String>,
     pub item_type: ItemType,
 }
 
 impl SearchItem {
-    pub fn song(title: &str, id: usize) -> Self {
+    pub fn song(song: &str, id: usize, album: &str, artist: &str) -> Self {
         Self {
-            name: title.to_string(),
+            song: Some(song.to_string()),
             song_id: Some(id),
-            album_artist: None,
+            artist: Some(artist.to_string()),
+            album: Some(album.to_string()),
             item_type: ItemType::Song,
         }
     }
     pub fn album(name: &str, artist: &str) -> Self {
         Self {
-            name: name.to_string(),
+            song: None,
             song_id: None,
-            album_artist: Some(artist.to_string()),
+            album: Some(name.to_string()),
+            artist: Some(artist.to_string()),
             item_type: ItemType::Album,
         }
     }
     pub fn artist(name: &str) -> Self {
         Self {
-            name: name.to_string(),
+            song: None,
             song_id: None,
-            album_artist: None,
+            album: None,
+            artist: Some(name.to_string()),
             item_type: ItemType::Artist,
         }
     }
@@ -71,6 +88,10 @@ impl SearchItem {
 
 impl Display for SearchItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        match &self.item_type {
+            ItemType::Song => write!(f, "{}", self.song.as_ref().unwrap()),
+            ItemType::Album => write!(f, "{}", self.album.as_ref().unwrap()),
+            ItemType::Artist => write!(f, "{}", self.artist.as_ref().unwrap()),
+        }
     }
 }

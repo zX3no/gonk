@@ -46,7 +46,7 @@ impl<'a> Search<'a> {
 
         let songs: Vec<_> = songs
             .iter()
-            .map(|(song, id)| SearchItem::song(&song.name, *id))
+            .map(|(song, id)| SearchItem::song(&song.name, *id, &song.album, &song.artist))
             .collect();
 
         let albums: Vec<_> = albums
@@ -71,8 +71,8 @@ impl<'a> Search<'a> {
             db,
             query: String::new(),
             prev_query: String::new(),
-            results: Index::default(),
             mode: SearchMode::Search,
+            results: Index::default(),
         }
     }
     pub fn update_search(&mut self) {
@@ -159,8 +159,8 @@ impl<'a> Search<'a> {
                         ItemType::Song => vec![self.db.get_song_from_id(item.song_id.unwrap())],
                         ItemType::Album => self
                             .db
-                            .album(item.album_artist.as_ref().unwrap(), &item.name),
-                        ItemType::Artist => self.db.artist(&item.name),
+                            .album(item.artist.as_ref().unwrap(), item.album.as_ref().unwrap()),
+                        ItemType::Artist => self.db.artist(item.artist.as_ref().unwrap()),
                     };
                     queue.add(songs);
                 }
@@ -200,9 +200,34 @@ impl<'a> Search<'a> {
 
         if let Some(item) = item {
             match item.item_type {
-                ItemType::Song => self.draw_song(f, h, item),
-                ItemType::Album => self.draw_album(f, h, item),
-                ItemType::Artist => self.draw_artist(f, h, &item.name),
+                ItemType::Song => {
+                    self.song(f, item, h[0]);
+                    self.album(f, item, h[1]);
+                }
+                ItemType::Album => {
+                    self.album(f, item, h[0]);
+                    self.artist(f, item, h[1]);
+                }
+                ItemType::Artist => {
+                    let artist = item.artist.as_ref().unwrap();
+                    let albums = self.db.albums_by_artist(artist);
+
+                    self.artist(f, item, h[0]);
+
+                    let h_split = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(
+                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+                        )
+                        .split(h[1]);
+
+                    //draw the first two albums
+                    for (i, area) in h_split.iter().enumerate() {
+                        if let Some(album) = albums.get(i) {
+                            self.album(f, &SearchItem::album(album, artist), *area);
+                        }
+                    }
+                }
             }
             self.draw_results(f, v[2], colors);
         } else {
@@ -211,17 +236,14 @@ impl<'a> Search<'a> {
 
         self.update_cursor(f);
     }
-    fn draw_song<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, song: &SearchItem) {
-        let id = song.song_id.unwrap();
-        let s = self.db.get_song_from_id(id);
-
+    fn song<B: Backend>(&self, f: &mut Frame<B>, item: &SearchItem, area: Rect) {
         let song_table = Table::new(vec![
-            Row::new(vec![Spans::from(Span::raw(&s.album))]),
-            Row::new(vec![Spans::from(Span::raw(&s.artist))]),
+            Row::new(vec![Spans::from(Span::raw(item.album.as_ref().unwrap()))]),
+            Row::new(vec![Spans::from(Span::raw(item.artist.as_ref().unwrap()))]),
         ])
         .header(
             Row::new(vec![Span::styled(
-                format!("{} ", &s.name),
+                format!("{} ", item.song.as_ref().unwrap()),
                 Style::default().add_modifier(Modifier::ITALIC),
             )])
             .bottom_margin(1),
@@ -232,42 +254,15 @@ impl<'a> Search<'a> {
                 .border_type(BorderType::Rounded)
                 .title("Song"),
         )
-        .widths(&[Constraint::Percentage(100)])
-        .highlight_symbol("> ");
+        .widths(&[Constraint::Percentage(100)]);
 
-        f.render_widget(song_table, h[0]);
-
-        //TODO: Highlight the selected song in the album
-        let album = self.db.album(&s.artist, &s.album);
-        let rows: Vec<_> = album
-            .iter()
-            .map(|song| Row::new(vec![Spans::from(format!("{}. {}", song.number, song.name))]))
-            .collect();
-
-        let album_table = Table::new(rows)
-            .header(
-                Row::new(vec![Spans::from(Span::styled(
-                    format!("{} ", s.album),
-                    Style::default().add_modifier(Modifier::ITALIC),
-                ))])
-                .bottom_margin(1),
-            )
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .title("Album"),
-            )
-            .widths(&[Constraint::Percentage(100)])
-            .highlight_symbol("> ");
-
-        f.render_widget(album_table, h[1]);
+        f.render_widget(song_table, area);
     }
-    fn draw_album<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, album: &SearchItem) {
-        let artist = album.album_artist.as_ref().unwrap();
-        let a = self.db.album(artist, &album.name);
-
-        let cells: Vec<_> = a
+    fn album<B: Backend>(&self, f: &mut Frame<B>, item: &SearchItem, area: Rect) {
+        let album = item.album.as_ref().unwrap();
+        let cells: Vec<_> = self
+            .db
+            .album(item.artist.as_ref().unwrap(), album)
             .iter()
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
             .collect();
@@ -286,40 +281,12 @@ impl<'a> Search<'a> {
                     .border_type(BorderType::Rounded)
                     .title("Album"),
             )
-            .widths(&[Constraint::Percentage(100)])
-            .highlight_symbol("> ");
+            .widths(&[Constraint::Percentage(100)]);
 
-        f.render_widget(album_table, h[0]);
-
-        let albums = self.db.albums_by_artist(artist);
-
-        let cells: Vec<_> = albums
-            .iter()
-            .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
-            .collect();
-
-        let artist_table = Table::new(cells)
-            .header(
-                Row::new(vec![Cell::from(Span::styled(
-                    format!("{} ", artist),
-                    Style::default().add_modifier(Modifier::ITALIC),
-                ))])
-                .bottom_margin(1),
-            )
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .title("Artist"),
-            )
-            .widths(&[Constraint::Percentage(100)])
-            .highlight_symbol("> ");
-
-        f.render_widget(artist_table, h[1]);
+        f.render_widget(album_table, area);
     }
-    fn draw_artist<B: Backend>(&self, f: &mut Frame<B>, h: Vec<Rect>, artist: &String) {
-        let albums = self.db.albums_by_artist(artist);
-
+    fn artist<B: Backend>(&self, f: &mut Frame<B>, item: &SearchItem, area: Rect) {
+        let albums = self.db.albums_by_artist(item.artist.as_ref().unwrap());
         let cells: Vec<_> = albums
             .iter()
             .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -328,7 +295,7 @@ impl<'a> Search<'a> {
         let artist_table = Table::new(cells)
             .header(
                 Row::new(vec![Cell::from(Span::styled(
-                    format!("{} ", artist),
+                    format!("{} ", item.artist.as_ref().unwrap()),
                     Style::default().add_modifier(Modifier::ITALIC),
                 ))])
                 .bottom_margin(1),
@@ -339,47 +306,9 @@ impl<'a> Search<'a> {
                     .border_type(BorderType::Rounded)
                     .title("Artist"),
             )
-            .widths(&[Constraint::Percentage(100)])
-            .highlight_symbol("> ");
+            .widths(&[Constraint::Percentage(100)]);
 
-        f.render_widget(artist_table, h[0]);
-
-        let h_split = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-            .split(h[1]);
-
-        for (i, area) in h_split.iter().enumerate() {
-            if let Some(album) = albums.get(i) {
-                let a = self.db.album(artist, album);
-
-                let cells: Vec<_> = a
-                    .iter()
-                    .map(|song| {
-                        Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))])
-                    })
-                    .collect();
-
-                let album = Table::new(cells)
-                    .header(
-                        Row::new(vec![Cell::from(Span::styled(
-                            format!("{} ", album),
-                            Style::default().add_modifier(Modifier::ITALIC),
-                        ))])
-                        .bottom_margin(1),
-                    )
-                    .block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_type(BorderType::Rounded)
-                            .title("Artist"),
-                    )
-                    .widths(&[Constraint::Percentage(100)])
-                    .highlight_symbol("> ");
-
-                f.render_widget(album, *area);
-            }
-        }
+        f.render_widget(artist_table, area);
     }
     fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
         let get_cell = |item: &SearchItem, modifier: Modifier| -> Row {
@@ -396,14 +325,14 @@ impl<'a> Search<'a> {
                     ])
                 }
                 ItemType::Album => Row::new(vec![
-                    Cell::from(format!("{} - Album", item.name))
+                    Cell::from(format!("{} - Album", item.album.as_ref().unwrap()))
                         .style(Style::default().fg(colors.title).add_modifier(modifier)),
                     Cell::from("").style(Style::default().fg(colors.album).add_modifier(modifier)),
-                    Cell::from(item.album_artist.as_ref().unwrap().clone())
+                    Cell::from(item.artist.clone().unwrap())
                         .style(Style::default().fg(colors.artist).add_modifier(modifier)),
                 ]),
                 ItemType::Artist => Row::new(vec![
-                    Cell::from(format!("{} - Artist", item.name))
+                    Cell::from(format!("{} - Artist", item.artist.as_ref().unwrap()))
                         .style(Style::default().fg(colors.title).add_modifier(modifier)),
                     Cell::from("").style(Style::default().fg(colors.album).add_modifier(modifier)),
                     Cell::from("").style(Style::default().fg(colors.artist).add_modifier(modifier)),

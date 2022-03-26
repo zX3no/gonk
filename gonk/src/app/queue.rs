@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gonk_types::Song;
