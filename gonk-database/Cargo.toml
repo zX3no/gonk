@@ -7,7 +7,7 @@ edition = "2021"
 rusqlite = { version = "0.27.0", features = ["bundled"] }
 gonk-types = { path = "../gonk-types" }
 dirs = "4.0.0"
-lazy_static = "1.4.0"
+static_init = "1.0.2"
 jwalk = "0.6.0"
 dpc-pariter = "0.5.1"
 toml = "0.5.8"

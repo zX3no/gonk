@@ -65,16 +65,14 @@ impl Search {
         }
     }
     pub fn new() -> Self {
-        let mut s = Self {
+        Self {
             engine: Engine::default(),
             db: Database::new().unwrap(),
             query: String::new(),
             prev_query: String::new(),
             mode: SearchMode::Search,
             results: Index::default(),
-        };
-        s.update_engine();
-        s
+        }
     }
     pub fn update_search(&mut self) {
         let query = &self.query.to_lowercase();

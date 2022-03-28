@@ -128,7 +128,7 @@ impl Source for Decoder {
     }
 
     #[inline]
-    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+    fn seek(&mut self, time: Duration) -> Option<Duration> {
         let nanos_per_sec = 1_000_000_000.0;
         match self.format.seek(
             SeekMode::Coarse,
@@ -141,11 +141,11 @@ impl Source for Decoder {
                 let base = TimeBase::new(1, self.sample_rate());
                 let time = base.calc_time(seeked_to.actual_ts);
 
-                Ok(Duration::from_millis(
+                Some(Duration::from_millis(
                     time.seconds * 1000 + ((time.frac * 60. * 1000.).round() as u64),
                 ))
             }
-            Err(_) => Err(()),
+            Err(_) => None,
         }
     }
 }

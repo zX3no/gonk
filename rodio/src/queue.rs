@@ -44,8 +44,12 @@ where
 // TODO: consider reimplementing this with `from_factory`
 
 /// The input of the queue.
+
+type BoxSource<S> = Box<dyn Source<Item = S> + Send>;
+type OptionSender = Option<Sender<()>>;
+
 pub struct SourcesQueueInput<S> {
-    next_sounds: Mutex<Vec<(Box<dyn Source<Item = S> + Send>, Option<Sender<()>>)>>,
+    next_sounds: Mutex<Vec<(BoxSource<S>, OptionSender)>>,
 
     // See constructor.
     keep_alive_if_empty: AtomicBool,
@@ -157,7 +161,7 @@ where
         None
     }
 
-    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+    fn seek(&mut self, time: Duration) -> Option<Duration> {
         self.current.seek(time)
     }
 

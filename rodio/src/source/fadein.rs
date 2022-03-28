@@ -111,7 +111,7 @@ where
         self.input.elapsed()
     }
 
-    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+    fn seek(&mut self, time: Duration) -> Option<Duration> {
         self.input.seek(time)
     }
 }

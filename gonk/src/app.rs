@@ -7,6 +7,7 @@ use crossterm::terminal::{
 };
 use gonk_database::{Bind, Colors, Database, Hotkey, Key, Modifier, Toml};
 use rodio::Player;
+use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::{
@@ -42,16 +43,14 @@ pub enum Mode {
     Options,
 }
 
-use static_init::dynamic;
-
 #[dynamic]
 static TOML: Toml = Toml::new().unwrap();
-
 #[dynamic]
 static COLORS: Colors = TOML.colors.clone();
-
 #[dynamic]
 static HK: Hotkey = TOML.hotkey.clone();
+
+const TICK_RATE: Duration = Duration::from_millis(100);
 
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -72,9 +71,9 @@ impl App {
             mode: Mode::Browser,
         }
     }
+
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        let tick_rate = Duration::from_millis(100);
 
         let db = Database::new().unwrap();
         db.add(&TOML.paths());
@@ -82,28 +81,16 @@ impl App {
         let mut toml = Toml::new().unwrap();
         let mut queue = Queue::new();
         let mut browser = Browser::new();
-        let mut search = Search::new();
         let mut options = Options::new();
+        let mut player = Player::new(TOML.volume());
+
+        let mut search = Search::new();
+        search.update_engine();
+
         let tx = self.register_hotkeys();
-        let mut player = Player::new(toml.volume());
 
         loop {
-            #[cfg(windows)]
-            if let Ok(recv) = tx.try_recv() {
-                match recv {
-                    HotkeyEvent::VolUp => {
-                        let vol = player.volume_up();
-                        toml.set_volume(vol);
-                    }
-                    HotkeyEvent::VolDown => {
-                        let vol = player.volume_down();
-                        toml.set_volume(vol);
-                    }
-                    HotkeyEvent::PlayPause => player.toggle_playback(),
-                    HotkeyEvent::Prev => player.prev_song(),
-                    HotkeyEvent::Next => player.next_song(),
-                }
-            }
+            App::global_hotkeys(&tx, &mut player, &mut toml);
 
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => browser.draw(f),
@@ -112,12 +99,12 @@ impl App {
                 Mode::Search => search.draw(f),
             })?;
 
-            let timeout = tick_rate
+            let timeout = TICK_RATE
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
             //on update
-            if last_tick.elapsed() >= tick_rate {
+            if last_tick.elapsed() >= TICK_RATE {
                 player.update();
                 queue.update(&player);
 
@@ -258,6 +245,7 @@ impl App {
 
         Ok(())
     }
+
     fn up(
         &self,
         browser: &mut Browser,
@@ -272,6 +260,7 @@ impl App {
             Mode::Options => options.up(),
         }
     }
+
     fn down(
         &self,
         browser: &mut Browser,
@@ -286,6 +275,29 @@ impl App {
             Mode::Options => options.down(),
         }
     }
+
+    #[cfg(windows)]
+    fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {
+        if let Ok(recv) = tx.try_recv() {
+            match recv {
+                HotkeyEvent::VolUp => {
+                    let vol = player.volume_up();
+                    toml.set_volume(vol);
+                }
+                HotkeyEvent::VolDown => {
+                    let vol = player.volume_down();
+                    toml.set_volume(vol);
+                }
+                HotkeyEvent::PlayPause => player.toggle_playback(),
+                HotkeyEvent::Prev => player.prev_song(),
+                HotkeyEvent::Next => player.next_song(),
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {}
+
     #[cfg(windows)]
     fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
         use win_hotkey::{keys, modifiers, Listener};
@@ -323,8 +335,7 @@ impl App {
     }
 
     #[cfg(unix)]
-    // fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
-    fn register_hotkeys(&self) {}
+    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {}
 }
 
 impl Drop for App {

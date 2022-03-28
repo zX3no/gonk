@@ -73,11 +73,12 @@ impl<T> Index<T> {
         self.data.is_empty()
     }
 }
+
 impl<T> Default for Index<T> {
     fn default() -> Self {
         Self {
-            index: None,
-            data: Vec::new(),
+            data: Default::default(),
+            index: Default::default(),
         }
     }
 }
