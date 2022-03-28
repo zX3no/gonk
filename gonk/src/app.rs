@@ -24,6 +24,13 @@ mod options;
 mod queue;
 mod search;
 
+//TODO: index trait for ui
+
+// pub trait Indexable {
+//     fn up(&mut self);
+//     fn down(&mut self);
+// }
+
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
     PlayPause,
@@ -106,7 +113,7 @@ impl App {
                 if let Some(busy) = db.is_busy() {
                     if busy {
                         browser.refresh();
-                        search.refresh();
+                        search.update_engine();
                     }
                     browser.is_busy = busy;
                 }
@@ -160,7 +167,7 @@ impl App {
                                     if let Some(dir) = options.on_enter(&mut queue) {
                                         db.delete_path(&dir);
                                         browser.refresh();
-                                        search.refresh();
+                                        search.update_engine();
                                     }
                                 }
                             },

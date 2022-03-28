@@ -1,7 +1,0 @@
-[package]
-name = "gonk-search"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-strsim = "0.10.0"

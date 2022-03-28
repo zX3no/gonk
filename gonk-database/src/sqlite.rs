@@ -175,13 +175,13 @@ impl Database {
             .unwrap();
         stmt.query_row([id], |row| Ok(Database::song(row))).unwrap()
     }
-    pub fn get_songs(&self) -> Vec<(Song, usize)> {
+    pub fn get_songs(&self) -> Vec<(usize, Song)> {
         let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
 
         stmt.query_map([], |row| {
             let id = row.get(8).unwrap();
             let song = Database::song(row);
-            Ok((song, id))
+            Ok((id, song))
         })
         .unwrap()
         .flatten()
