@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
+use std::time::Duration;
+
+use crate::app::COLORS;
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gonk_types::Song;
-use rand::{prelude::SliceRandom, thread_rng};
 use rodio::Player;
-use std::time::Duration;
 use tui::{backend::Backend, Frame};
 
 #[derive(Default)]
@@ -60,119 +61,37 @@ impl ScrollText {
 }
 
 pub struct Queue {
+    pub songs: Index<Song>,
     pub ui: Index<()>,
-    pub list: Index<Song>,
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
-    pub player: Player,
     pub scroll_text: ScrollText,
 }
 
 impl Queue {
-    pub fn new(volume: u16) -> Self {
+    pub fn new() -> Self {
         Self {
+            songs: Index::default(),
             ui: Index::default(),
-            list: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
-            player: Player::new(volume),
             scroll_text: ScrollText::default(),
         }
     }
-    pub fn volume_up(&mut self) {
-        self.player.change_volume(true);
-    }
-    pub fn volume_down(&mut self) {
-        self.player.change_volume(false);
-    }
-    pub fn play(&self) {
-        if self.player.is_paused() {
-            self.player.toggle_playback();
+    pub fn update(&mut self, player: &Player) {
+        if self.ui.is_none() {
+            self.ui.select(Some(0));
         }
-    }
-    pub fn play_pause(&self) {
-        self.player.toggle_playback();
-    }
-    pub fn on_update(&mut self) {
-        if self.player.trigger_next() {
-            self.next();
-        }
+        self.songs.data = player.songs.clone();
+        self.songs.select(player.current_song);
         self.scroll_text.next();
     }
-    pub fn prev(&mut self) {
-        self.list.up();
-        self.play_selected();
-    }
-    pub fn next(&mut self) {
-        self.list.down();
-        self.play_selected();
-    }
-    pub fn clear(&mut self) {
-        self.list = Index::default();
-        self.player.stop();
-    }
-    pub fn up(&mut self) {
-        self.ui.up_with_len(self.list.len());
-    }
-    pub fn down(&mut self) {
-        self.ui.down_with_len(self.list.len());
-    }
-    pub fn add(&mut self, mut songs: Vec<Song>) {
-        if self.list.is_empty() {
-            self.list.append(&mut songs);
-            self.list.select(Some(0));
-            self.ui.select(Some(0));
-            self.play_selected();
-        } else {
-            self.list.append(&mut songs);
-        }
-    }
-    pub fn select(&mut self) {
-        if let Some(index) = self.ui.index {
-            self.list.select(Some(index));
-            self.play_selected();
-        }
-    }
-    pub fn delete_selected(&mut self) {
-        if let Some(index) = self.ui.index {
-            //remove the item from the ui
-            self.list.remove(index);
-            if let Some(playing) = self.list.index {
-                let len = self.list.len();
 
-                if len == 0 {
-                    self.clear();
-                    return;
-                } else if playing == index && index == 0 {
-                    self.list.select(Some(0));
-                } else if playing == index && len == index {
-                    self.list.select(Some(len - 1));
-                } else if index < playing {
-                    self.list.select(Some(playing - 1));
-                }
-
-                let end = self.list.len().saturating_sub(1);
-                if index > end {
-                    self.ui.select(Some(end));
-                }
-                //if the playing song was deleted
-                //play the next track
-                if index == playing {
-                    self.play_selected();
-                }
-            };
-        }
-    }
-    pub fn play_selected(&mut self) {
-        if let Some(item) = self.list.selected() {
-            self.player.play(&item.path);
-        } else {
-            self.player.stop();
-        }
-        self.update_text();
+    pub fn selected(&self) -> Option<usize> {
+        self.ui.index
     }
     fn update_text(&mut self) {
-        if let Some(song) = self.list.selected() {
+        if let Some(song) = self.songs.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
 
             //TODO: this is broken
@@ -186,24 +105,6 @@ impl Queue {
         } else {
             self.scroll_text = ScrollText::default();
         }
-    }
-    pub fn seek_fw(&mut self) {
-        self.play();
-        self.player.seek_fw();
-    }
-    pub fn seek_bw(&mut self) {
-        self.play();
-        self.player.seek_bw();
-    }
-    pub fn duration(&self) -> Option<f64> {
-        if self.list.is_empty() {
-            None
-        } else {
-            self.player.duration()
-        }
-    }
-    pub fn seek_to(&self, new_time: f64) {
-        self.player.seek_to(Duration::from_secs_f64(new_time));
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -226,41 +127,26 @@ impl Queue {
             panic!("Constraint went out of bounds: {:?}", self.constraint);
         }
     }
-    pub fn randomize(&mut self) {
-        if let Some(song) = self.list.selected().cloned() {
-            self.list.data.shuffle(&mut thread_rng());
-
-            let mut index = 0;
-            for (i, s) in self.list.data.iter().enumerate() {
-                if s == &song {
-                    index = i;
-                }
-            }
-            self.list.select(Some(index));
-        }
+    pub fn up(&mut self) {
+        self.ui.up_with_len(self.songs.len());
     }
-    pub fn change_output_device(&mut self, device: &rodio::Device) {
-        let pos = self.player.elapsed();
-        self.player.change_output_device(device);
-        self.play_selected();
-        //TODO: when audio does not play, this gets reset to 0
-        self.seek_to(pos.as_secs_f64());
+    pub fn down(&mut self) {
+        self.ui.down_with_len(self.songs.len());
     }
 }
 
-use gonk_database::Colors;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 
 impl Queue {
-    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {
+    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>, player: &Player) {
         //Songs
         if let Some((_, row)) = self.clicked_pos {
             let size = f.size();
             let height = size.height as usize;
-            let len = self.list.len();
+            let len = self.songs.len();
             if height > 7 {
                 if height - 7 < len {
                     //TODO: I have no idea how to figure out what index i clicked on
@@ -284,16 +170,15 @@ impl Queue {
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
                 let ratio = (column - 3) as f64 / size.width as f64;
-                if let Some(duration) = self.duration() {
+                if let Some(duration) = player.duration() {
                     let new_time = duration * ratio;
-                    self.seek_to(new_time);
-                    self.play();
+                    player.seek_to(Duration::from_secs_f64(new_time));
                 }
             }
             self.clicked_pos = None;
         }
     }
-    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, colors: &Colors) {
+    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, player: &Player) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -303,12 +188,12 @@ impl Queue {
             ])
             .split(f.size());
 
-        self.handle_mouse(f);
-        self.draw_header(f, chunks[0], colors);
-        self.draw_songs(f, chunks[1], colors);
-        self.draw_seeker(f, chunks[2]);
+        self.handle_mouse(f, player);
+        self.draw_header(f, chunks[0], player);
+        self.draw_songs(f, chunks[1]);
+        self.draw_seeker(f, chunks[2], player);
     }
-    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
+    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect, player: &Player) {
         //Render the borders first
         let b = Block::default()
             .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -316,11 +201,11 @@ impl Queue {
         f.render_widget(b, chunk);
 
         //Left
-        let time = if self.list.is_empty() {
+        let time = if self.songs.is_empty() {
             String::from("╭─Stopped")
-        } else if !self.player.is_paused() {
-            if let Some(duration) = self.duration() {
-                let elapsed = self.player.elapsed().as_secs_f64();
+        } else if !player.is_paused() {
+            if let Some(duration) = player.duration() {
+                let elapsed = player.elapsed().as_secs_f64();
 
                 let mins = elapsed / 60.0;
                 let rem = elapsed % 60.0;
@@ -352,24 +237,18 @@ impl Queue {
         f.render_widget(left, chunk);
 
         //Center
-        if !self.list.is_empty() {
-            self.draw_scrolling_text_old(f, chunk, colors);
+        if !self.songs.is_empty() {
+            self.draw_scrolling_text_old(f, chunk);
         }
 
         //Right
-        let volume = self.player.volume();
-        let text = Spans::from(format!("Vol: {}%─╮", volume));
+        let text = Spans::from(format!("Vol: {}%─╮", player.volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
     #[allow(unused)]
-    fn draw_scrolling_text_old<B: Backend>(
-        &mut self,
-        f: &mut Frame<B>,
-        chunk: Rect,
-        colors: &Colors,
-    ) {
-        let center = if let Some(song) = self.list.selected() {
+    fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+        let center = if let Some(song) = self.songs.selected() {
             //I wish that paragraphs had clipping
             //I think constraints do
             //I could render the -| |- on a seperate layer
@@ -389,12 +268,12 @@ impl Queue {
             vec![
                 Spans::from(vec![
                     Span::raw("─| "),
-                    Span::styled(&song.artist, Style::default().fg(colors.artist)),
+                    Span::styled(&song.artist, Style::default().fg(COLORS.artist)),
                     Span::raw(" - "),
-                    Span::styled(name, Style::default().fg(colors.title)),
+                    Span::styled(name, Style::default().fg(COLORS.title)),
                     Span::raw(" |─"),
                 ]),
-                Spans::from(Span::styled(&song.album, Style::default().fg(colors.album))),
+                Spans::from(Span::styled(&song.album, Style::default().fg(COLORS.album))),
             ]
         } else {
             vec![Spans::default(), Spans::default()]
@@ -404,7 +283,7 @@ impl Queue {
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }
-    fn draw_scrolling_text<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect, _colors: &Colors) {
+    fn draw_scrolling_text<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.scroll_text.is_empty() {
             self.update_text();
         }
@@ -415,8 +294,8 @@ impl Queue {
 
         f.render_widget(p, chunk);
     }
-    fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, colors: &Colors) {
-        if self.list.is_empty() {
+    fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+        if self.songs.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::LEFT | Borders::RIGHT)
@@ -425,17 +304,17 @@ impl Queue {
             );
         }
 
-        let (songs, now_playing, ui_index) = (&self.list.data, self.list.index, self.ui.index);
+        let (songs, now_playing, ui_index) = (&self.songs.data, self.songs.index, self.ui.index);
 
         let mut items: Vec<Row> = songs
             .iter()
             .map(|song| {
                 Row::new(vec![
                     Cell::from(""),
-                    Cell::from(song.number.to_string()).style(Style::default().fg(colors.track)),
-                    Cell::from(song.name.to_owned()).style(Style::default().fg(colors.title)),
-                    Cell::from(song.album.to_owned()).style(Style::default().fg(colors.album)),
-                    Cell::from(song.artist.to_owned()).style(Style::default().fg(colors.artist)),
+                    Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.track)),
+                    Cell::from(song.name.to_owned()).style(Style::default().fg(COLORS.title)),
+                    Cell::from(song.album.to_owned()).style(Style::default().fg(COLORS.album)),
+                    Cell::from(song.artist.to_owned()).style(Style::default().fg(COLORS.artist)),
                 ])
             })
             .collect();
@@ -452,13 +331,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(colors.track).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.track).fg(Color::Black)),
                             Cell::from(song.name.to_owned())
-                                .style(Style::default().bg(colors.title).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.title).fg(Color::Black)),
                             Cell::from(song.album.to_owned())
-                                .style(Style::default().bg(colors.album).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.album).fg(Color::Black)),
                             Cell::from(song.artist.to_owned())
-                                .style(Style::default().bg(colors.artist).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.artist).fg(Color::Black)),
                         ])
                     } else {
                         Row::new(vec![
@@ -468,13 +347,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(colors.track)),
+                                .style(Style::default().fg(COLORS.track)),
                             Cell::from(song.name.to_owned())
-                                .style(Style::default().fg(colors.title)),
+                                .style(Style::default().fg(COLORS.title)),
                             Cell::from(song.album.to_owned())
-                                .style(Style::default().fg(colors.album)),
+                                .style(Style::default().fg(COLORS.album)),
                             Cell::from(song.artist.to_owned())
-                                .style(Style::default().fg(colors.artist)),
+                                .style(Style::default().fg(COLORS.artist)),
                         ])
                     };
 
@@ -487,13 +366,13 @@ impl Queue {
                         let row = Row::new(vec![
                             Cell::from(""),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(colors.track)),
+                                .style(Style::default().bg(COLORS.track)),
                             Cell::from(song.name.to_owned())
-                                .style(Style::default().bg(colors.title)),
+                                .style(Style::default().bg(COLORS.title)),
                             Cell::from(song.album.to_owned())
-                                .style(Style::default().bg(colors.album)),
+                                .style(Style::default().bg(COLORS.album)),
                             Cell::from(song.artist.to_owned())
-                                .style(Style::default().bg(colors.artist)),
+                                .style(Style::default().bg(COLORS.artist)),
                         ])
                         .style(Style::default().fg(Color::Black));
                         items.remove(ui_index);
@@ -534,8 +413,8 @@ impl Queue {
 
         f.render_stateful_widget(t, chunk, &mut state);
     }
-    fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.list.is_empty() {
+    fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, player: &Player) {
+        if self.songs.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
@@ -546,7 +425,7 @@ impl Queue {
 
         let area = f.size();
         let width = area.width;
-        let percent = self.player.seeker();
+        let percent = player.seeker();
         let pos = (width as f64 * percent).ceil() as usize;
 
         let mut string: String = (0..width - 6)

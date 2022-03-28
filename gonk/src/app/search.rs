@@ -1,7 +1,8 @@
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
-use gonk_database::{Colors, Database};
+use gonk_database::Database;
 use lib::{Album, Artist, Engine, Item, SearchItem, Song};
+use rodio::Player;
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -13,7 +14,7 @@ use tui::{
 
 mod lib;
 
-use super::{queue::Queue, Mode};
+use super::{Mode, COLORS};
 
 pub enum SearchMode {
     Search,
@@ -165,7 +166,7 @@ impl<'a> Search<'a> {
             }
         }
     }
-    pub fn on_enter(&mut self, queue: &mut Queue) {
+    pub fn on_enter(&mut self, player: &mut Player) {
         match self.mode {
             SearchMode::Search => {
                 if !self.results.is_empty() {
@@ -187,7 +188,7 @@ impl<'a> Search<'a> {
                         panic!("Invalid search item");
                     };
 
-                    queue.add(songs);
+                    player.add_songs(songs);
                 }
             }
         }
@@ -195,7 +196,7 @@ impl<'a> Search<'a> {
 }
 
 impl<'a> Search<'a> {
-    pub fn draw<B: Backend>(&self, f: &mut Frame<B>, colors: &Colors) {
+    pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();
 
         let v = Layout::default()
@@ -256,9 +257,9 @@ impl<'a> Search<'a> {
                     }
                 }
             }
-            self.draw_results(f, v[2], colors);
+            self.draw_results(f, v[2]);
         } else {
-            self.draw_results(f, v[1].union(v[2]), colors);
+            self.draw_results(f, v[1].union(v[2]));
         }
 
         self.update_cursor(f);
@@ -343,7 +344,7 @@ impl<'a> Search<'a> {
 
         f.render_widget(artist_table, area);
     }
-    fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect, colors: &Colors) {
+    fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
         let get_cell = |item: &dyn SearchItem, modifier: Modifier| -> Row {
             if let Some(artist) = item.artist() {
                 if let Some(album) = item.album() {
@@ -352,31 +353,31 @@ impl<'a> Search<'a> {
                         let song = self.db.get_song_from_id(id);
                         Row::new(vec![
                             Cell::from(song.name)
-                                .style(Style::default().fg(colors.title).add_modifier(modifier)),
+                                .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
                             Cell::from(song.album.to_owned())
-                                .style(Style::default().fg(colors.album).add_modifier(modifier)),
+                                .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
                             Cell::from(song.artist)
-                                .style(Style::default().fg(colors.artist).add_modifier(modifier)),
+                                .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                         ])
                     } else {
                         //album
                         Row::new(vec![
                             Cell::from(format!("{} - Album", album))
-                                .style(Style::default().fg(colors.title).add_modifier(modifier)),
+                                .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
                             Cell::from("")
-                                .style(Style::default().fg(colors.album).add_modifier(modifier)),
+                                .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
                             Cell::from(artist.clone())
-                                .style(Style::default().fg(colors.artist).add_modifier(modifier)),
+                                .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                         ])
                     }
                 } else {
                     Row::new(vec![
                         Cell::from(format!("{} - Artist", artist))
-                            .style(Style::default().fg(colors.title).add_modifier(modifier)),
+                            .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
                         Cell::from("")
-                            .style(Style::default().fg(colors.album).add_modifier(modifier)),
+                            .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
                         Cell::from("")
-                            .style(Style::default().fg(colors.artist).add_modifier(modifier)),
+                            .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                     ])
                     //artist
                 }

@@ -11,9 +11,8 @@ tui = { git = "https://github.com/zX3no/tui-rs", features = ["serde"] }
 gonk-database = { path = "../gonk-database" }
 gonk-types = { path = "../gonk-types" }
 rodio = { path = "../rodio" }
-# for shuffling songs
-rand = "0.8.5"
 strsim = "0.10.0"
+lazy_static = "1.4.0"
 
 [target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }

@@ -1,6 +1,5 @@
-use super::Queue;
 use crate::index::Index;
-use gonk_database::{Colors, Hotkey, Toml};
+use gonk_database::Toml;
 use rodio::{Device, DeviceTrait, Player};
 
 pub enum OptionsMode {
@@ -12,11 +11,11 @@ pub struct Options {
     pub paths: Index<String>,
     pub devices: Index<Device>,
     pub mode: OptionsMode,
-    pub toml: Toml,
+    toml: Toml,
 }
 
 impl Options {
-    pub fn new(mut toml: Toml) -> Self {
+    pub fn new() -> Self {
         let default_device = Player::default_device()
             .expect("Can't find output device!")
             .name()
@@ -24,6 +23,7 @@ impl Options {
 
         let devices = Index::new(Player::output_devices(), Some(0));
 
+        let mut toml = Toml::new().unwrap();
         let config_device = toml.output_device();
 
         let current_device = if config_device.is_empty() {
@@ -42,7 +42,7 @@ impl Options {
             }
         };
 
-        //Update the toml file to the correct device
+        //Update the self.toml file to the correct device
         toml.set_output_device(current_device);
 
         Self {
@@ -51,12 +51,6 @@ impl Options {
             mode: OptionsMode::Device,
             toml,
         }
-    }
-    pub fn hotkeys(&self) -> &Hotkey {
-        &self.toml.hotkey
-    }
-    pub fn colors(&self) -> &Colors {
-        &self.toml.colors
     }
     pub fn up(&mut self) {
         match self.mode {
@@ -111,7 +105,7 @@ impl Options {
             }
         }
     }
-    pub fn on_enter(&mut self, queue: &mut Queue) -> Option<String> {
+    pub fn on_enter(&mut self, player: &mut Player) -> Option<String> {
         match self.mode {
             OptionsMode::Directory => {
                 let dir = self.paths.selected().cloned();
@@ -136,22 +130,11 @@ impl Options {
                 if let Some(device) = self.devices.selected() {
                     self.toml
                         .set_output_device(device.name().expect("Device has no name!"));
-                    queue.change_output_device(device);
+                    player.change_output_device(device);
                 }
             }
         }
         None
-    }
-    pub fn save_volume(&mut self, vol: u16) {
-        //TODO: remove this when volume 0 doesn't cause weird issues
-        if vol == 0 {
-            self.toml.set_volume(5);
-        } else {
-            self.toml.set_volume(vol);
-        }
-    }
-    pub(crate) fn paths(&self) -> &[String] {
-        &self.paths.data
     }
 }
 
@@ -195,7 +178,7 @@ impl Options {
     }
 
     pub fn draw_sound_devices<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        let default_device = &self.toml.output_device();
+        let default_device = self.toml.output_device();
 
         let items: Vec<_> = self
             .devices
@@ -203,7 +186,7 @@ impl Options {
             .iter()
             .map(|device| {
                 let name = device.name().expect("Device has no name!");
-                if &name == default_device {
+                if name == default_device {
                     ListItem::new(name)
                 } else {
                     ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))

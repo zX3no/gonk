@@ -5,7 +5,8 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, Database, Key, Modifier, Toml};
+use gonk_database::{Bind, Colors, Database, Hotkey, Key, Modifier, Toml};
+use rodio::Player;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::{
@@ -24,13 +25,6 @@ mod options;
 mod queue;
 mod search;
 
-//TODO: index trait for ui
-
-// pub trait Indexable {
-//     fn up(&mut self);
-//     fn down(&mut self);
-// }
-
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
     PlayPause,
@@ -46,6 +40,12 @@ pub enum Mode {
     Queue,
     Search,
     Options,
+}
+
+lazy_static! {
+    static ref TOML: Toml = Toml::new().unwrap();
+    static ref COLORS: Colors = TOML.colors.clone();
+    static ref HK: Hotkey = TOML.hotkey.clone();
 }
 
 pub struct App {
@@ -72,34 +72,39 @@ impl App {
         let tick_rate = Duration::from_millis(100);
 
         let db = Database::new().unwrap();
-        let toml = Toml::new().unwrap();
-        let mut queue = Queue::new(toml.volume());
+        db.add(&TOML.paths());
+
+        let mut toml = Toml::new().unwrap();
+        let mut queue = Queue::new();
         let mut browser = Browser::new(&db);
         let mut search = Search::new(&db);
-        db.add(&toml.paths());
-        let mut options = Options::new(toml);
-        let hk = options.hotkeys().clone();
+        let mut options = Options::new();
         let tx = self.register_hotkeys();
+        let mut player = Player::new(toml.volume());
 
         loop {
             #[cfg(windows)]
             if let Ok(recv) = tx.try_recv() {
                 match recv {
-                    HotkeyEvent::VolUp => queue.volume_up(),
-                    HotkeyEvent::VolDown => queue.volume_down(),
-                    HotkeyEvent::PlayPause => queue.play_pause(),
-                    HotkeyEvent::Prev => queue.prev(),
-                    HotkeyEvent::Next => queue.next(),
+                    HotkeyEvent::VolUp => {
+                        let vol = player.volume_up();
+                        toml.set_volume(vol);
+                    }
+                    HotkeyEvent::VolDown => {
+                        let vol = player.volume_down();
+                        toml.set_volume(vol);
+                    }
+                    HotkeyEvent::PlayPause => player.toggle_playback(),
+                    HotkeyEvent::Prev => player.prev_song(),
+                    HotkeyEvent::Next => player.next_song(),
                 }
             }
 
-            let colors = options.colors();
-
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => browser.draw(f),
-                Mode::Queue => queue.draw(f, colors),
+                Mode::Queue => queue.draw(f, &player),
                 Mode::Options => options.draw(f),
-                Mode::Search => search.draw(f, colors),
+                Mode::Search => search.draw(f),
             })?;
 
             let timeout = tick_rate
@@ -108,7 +113,8 @@ impl App {
 
             //on update
             if last_tick.elapsed() >= tick_rate {
-                queue.on_update();
+                player.update();
+                queue.update(&player);
 
                 if let Some(busy) = db.is_busy() {
                     if busy {
@@ -135,8 +141,7 @@ impl App {
                             modifiers: Modifier::from_u32(modifiers),
                         };
 
-                        //exit
-                        if hk.quit.contains(&bind) {
+                        if HK.quit.contains(&bind) {
                             break;
                         };
 
@@ -159,12 +164,16 @@ impl App {
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = browser.on_enter();
-                                    queue.add(songs);
+                                    player.add_songs(songs);
                                 }
-                                Mode::Queue => queue.select(),
-                                Mode::Search => search.on_enter(&mut queue),
+                                Mode::Queue => {
+                                    if let Some(i) = queue.selected() {
+                                        player.play_song(i)
+                                    }
+                                }
+                                Mode::Search => search.on_enter(&mut player),
                                 Mode::Options => {
-                                    if let Some(dir) = options.on_enter(&mut queue) {
+                                    if let Some(dir) = options.on_enter(&mut player) {
                                         db.delete_path(&dir);
                                         browser.refresh();
                                         search.update_engine();
@@ -185,41 +194,43 @@ impl App {
                             KeyCode::Char('3') | KeyCode::Char('#') => {
                                 queue.move_constraint('3', modifiers)
                             }
-                            _ if hk.up.contains(&bind) => {
+                            _ if HK.up.contains(&bind) => {
                                 self.up(&mut browser, &mut queue, &mut search, &mut options)
                             }
-                            _ if hk.down.contains(&bind) => {
+                            _ if HK.down.contains(&bind) => {
                                 self.down(&mut browser, &mut queue, &mut search, &mut options)
                             }
-                            _ if hk.left.contains(&bind) => browser.prev(),
-                            _ if hk.right.contains(&bind) => browser.next(),
-                            _ if hk.play_pause.contains(&bind) => queue.play_pause(),
-                            _ if hk.clear.contains(&bind) => queue.clear(),
-                            _ if hk.refresh_database.contains(&bind) => {
-                                for path in options.paths() {
-                                    db.force_add(path);
+                            _ if HK.left.contains(&bind) => browser.prev(),
+                            _ if HK.right.contains(&bind) => browser.next(),
+                            _ if HK.play_pause.contains(&bind) => player.toggle_playback(),
+                            _ if HK.clear.contains(&bind) => player.clear_songs(),
+                            _ if HK.refresh_database.contains(&bind) => {
+                                for path in TOML.paths() {
+                                    db.force_add(&path);
                                 }
                             }
-                            _ if hk.seek_backward.contains(&bind) => queue.seek_bw(),
-                            _ if hk.seek_forward.contains(&bind) => queue.seek_fw(),
-                            _ if hk.previous.contains(&bind) => queue.prev(),
-                            _ if hk.next.contains(&bind) => queue.next(),
-                            _ if hk.volume_up.contains(&bind) => {
-                                queue.volume_up();
-                                options.save_volume(queue.player.volume());
+                            _ if HK.seek_backward.contains(&bind) => player.seek_bw(),
+                            _ if HK.seek_forward.contains(&bind) => player.seek_fw(),
+                            _ if HK.previous.contains(&bind) => player.prev_song(),
+                            _ if HK.next.contains(&bind) => player.next_song(),
+                            _ if HK.volume_up.contains(&bind) => {
+                                let vol = player.volume_up();
+                                toml.set_volume(vol);
                             }
-                            _ if hk.volume_down.contains(&bind) => {
-                                queue.volume_down();
-                                options.save_volume(queue.player.volume());
+                            _ if HK.volume_down.contains(&bind) => {
+                                let vol = player.volume_down();
+                                toml.set_volume(vol);
                             }
-                            _ if hk.search.contains(&bind) => self.mode = Mode::Search,
-                            _ if hk.options.contains(&bind) => self.mode = Mode::Options,
-                            _ if hk.delete.contains(&bind) => {
+                            _ if HK.search.contains(&bind) => self.mode = Mode::Search,
+                            _ if HK.options.contains(&bind) => self.mode = Mode::Options,
+                            _ if HK.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
-                                    queue.delete_selected();
+                                    if let Some(i) = queue.selected() {
+                                        player.delete_song(i);
+                                    }
                                 }
                             }
-                            _ if hk.random.contains(&bind) => queue.randomize(),
+                            _ if HK.random.contains(&bind) => player.randomize(),
                             _ => (),
                         }
                     }

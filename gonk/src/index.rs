@@ -8,14 +8,6 @@ impl<T> Index<T> {
     pub fn new(data: Vec<T>, index: Option<usize>) -> Self {
         Self { data, index }
     }
-    pub fn append(&mut self, other: &mut Vec<T>) {
-        self.data.append(other);
-    }
-    pub fn remove(&mut self, index: usize) {
-        if !self.is_empty() {
-            self.data.remove(index);
-        }
-    }
     pub fn up(&mut self) {
         if self.data.is_empty() {
             return;
