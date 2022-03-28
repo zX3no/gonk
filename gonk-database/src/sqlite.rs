@@ -20,7 +20,7 @@ fn fix(item: &str) -> String {
 pub struct Database {
     conn: Connection,
     tx: Arc<SyncSender<bool>>,
-    rx: Receiver<bool>,
+    rx: Arc<Receiver<bool>>,
 }
 
 //TODO: fix function names, they don't follow any convention.
@@ -56,7 +56,7 @@ impl Database {
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
             tx: Arc::new(tx),
-            rx,
+            rx: Arc::new(rx),
         })
     }
     //TODO: this is super overcomplicated

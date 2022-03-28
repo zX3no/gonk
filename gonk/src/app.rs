@@ -42,11 +42,16 @@ pub enum Mode {
     Options,
 }
 
-lazy_static! {
-    static ref TOML: Toml = Toml::new().unwrap();
-    static ref COLORS: Colors = TOML.colors.clone();
-    static ref HK: Hotkey = TOML.hotkey.clone();
-}
+use static_init::dynamic;
+
+#[dynamic]
+static TOML: Toml = Toml::new().unwrap();
+
+#[dynamic]
+static COLORS: Colors = TOML.colors.clone();
+
+#[dynamic]
+static HK: Hotkey = TOML.hotkey.clone();
 
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -76,8 +81,8 @@ impl App {
 
         let mut toml = Toml::new().unwrap();
         let mut queue = Queue::new();
-        let mut browser = Browser::new(&db);
-        let mut search = Search::new(&db);
+        let mut browser = Browser::new();
+        let mut search = Search::new();
         let mut options = Options::new();
         let tx = self.register_hotkeys();
         let mut player = Player::new(toml.volume());

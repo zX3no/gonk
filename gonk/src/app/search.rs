@@ -30,8 +30,8 @@ impl SearchMode {
     }
 }
 
-pub struct Search<'a> {
-    db: &'a Database,
+pub struct Search {
+    db: Database,
     query: String,
     prev_query: String,
     mode: SearchMode,
@@ -39,7 +39,7 @@ pub struct Search<'a> {
     engine: Engine<Item>,
 }
 
-impl<'a> Search<'a> {
+impl Search {
     pub fn update_engine(&mut self) {
         let songs = self.db.get_songs();
         let artists = self.db.artists();
@@ -64,10 +64,10 @@ impl<'a> Search<'a> {
             engine.push(Item::Artist(Artist::new(artist)));
         }
     }
-    pub fn new(db: &'a Database) -> Self {
+    pub fn new() -> Self {
         let mut s = Self {
             engine: Engine::default(),
-            db,
+            db: Database::new().unwrap(),
             query: String::new(),
             prev_query: String::new(),
             mode: SearchMode::Search,
@@ -195,7 +195,7 @@ impl<'a> Search<'a> {
     }
 }
 
-impl<'a> Search<'a> {
+impl Search {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();
 

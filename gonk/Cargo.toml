@@ -12,7 +12,7 @@ gonk-database = { path = "../gonk-database" }
 gonk-types = { path = "../gonk-types" }
 rodio = { path = "../rodio" }
 strsim = "0.10.0"
-lazy_static = "1.4.0"
+static_init = "1.0.2"
 
 [target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }

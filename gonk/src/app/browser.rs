@@ -25,8 +25,8 @@ impl BrowserMode {
     }
 }
 
-pub struct Browser<'a> {
-    db: &'a Database,
+pub struct Browser {
+    db: Database,
     artists: Index<String>,
     albums: Index<String>,
     songs: Index<(u16, String)>,
@@ -34,8 +34,9 @@ pub struct Browser<'a> {
     pub is_busy: bool,
 }
 
-impl<'a> Browser<'a> {
-    pub fn new(db: &'a Database) -> Self {
+impl Browser {
+    pub fn new() -> Self {
+        let db = Database::new().unwrap();
         let artists = Index::new(db.artists(), Some(0));
 
         let (albums, songs) = if let Some(first_artist) = artists.selected() {
@@ -144,7 +145,7 @@ use tui::{
     widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
     Frame,
 };
-impl<'a> Browser<'a> {
+impl Browser {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
         self.draw_browser(f);
 

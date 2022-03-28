@@ -2,9 +2,6 @@ use app::App;
 use gonk_database::{Database, Toml, CONFIG_DIR};
 use std::io::Result;
 
-#[macro_use]
-extern crate lazy_static;
-
 mod app;
 mod index;
 
