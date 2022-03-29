@@ -10,7 +10,7 @@ use std::{
         Arc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 fn fix(item: &str) -> String {
@@ -82,7 +82,6 @@ impl Database {
         tx.send(true).unwrap();
 
         let dir = dir.to_owned();
-        dbg!(&dir);
 
         thread::spawn(move || {
             let songs: Vec<Song> = WalkDir::new(&dir)
