@@ -123,9 +123,11 @@ impl Queue {
             }
         }
 
-        if self.constraint.iter().sum::<u16>() != 100 {
-            panic!("Constraint went out of bounds: {:?}", self.constraint);
-        }
+        assert!(
+            self.constraint.iter().sum::<u16>() == 100,
+            "Constraint went out of bounds: {:?}",
+            self.constraint
+        );
     }
     pub fn up(&mut self) {
         self.ui.up_with_len(self.songs.len());
@@ -169,7 +171,7 @@ impl Queue {
                 || size.height - 2 == row
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
-                let ratio = (column - 3) as f64 / size.width as f64;
+                let ratio = f64::from(column - 3) / f64::from(size.width);
                 if let Some(duration) = player.duration() {
                     let new_time = duration * ratio;
                     player.seek_to(Duration::from_secs_f64(new_time));
@@ -209,21 +211,11 @@ impl Queue {
 
                 let mins = elapsed / 60.0;
                 let rem = elapsed % 60.0;
-                let e = format!(
-                    "{:0width$}:{:0width$}",
-                    mins.trunc() as usize,
-                    rem.trunc() as usize,
-                    width = 2,
-                );
+                let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
                 let mins = duration / 60.0;
                 let rem = duration % 60.0;
-                let d = format!(
-                    "{:0width$}:{:0width$}",
-                    mins.trunc() as usize,
-                    rem.trunc() as usize,
-                    width = 2,
-                );
+                let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
                 format!("╭─{}/{}", e, d)
             } else {
@@ -246,6 +238,7 @@ impl Queue {
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
+
     #[allow(unused)]
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.songs.selected() {
@@ -255,8 +248,8 @@ impl Queue {
             //outside of the constraint which might work better?
 
             //clip the name so it doesn't overflow
-            let mut name = song.name.clone();
             const MAX_WIDTH: u16 = 60;
+            let mut name = song.name.clone();
             while (name.len() + song.artist.len() + "─| - |─".len())
                 > (chunk.width - MAX_WIDTH) as usize
             {
@@ -312,9 +305,9 @@ impl Queue {
                 Row::new(vec![
                     Cell::from(""),
                     Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.track)),
-                    Cell::from(song.name.to_owned()).style(Style::default().fg(COLORS.title)),
-                    Cell::from(song.album.to_owned()).style(Style::default().fg(COLORS.album)),
-                    Cell::from(song.artist.to_owned()).style(Style::default().fg(COLORS.artist)),
+                    Cell::from(song.name.clone()).style(Style::default().fg(COLORS.title)),
+                    Cell::from(song.album.clone()).style(Style::default().fg(COLORS.album)),
+                    Cell::from(song.artist.clone()).style(Style::default().fg(COLORS.artist)),
                 ])
             })
             .collect();
@@ -332,11 +325,11 @@ impl Queue {
                             ),
                             Cell::from(song.number.to_string())
                                 .style(Style::default().bg(COLORS.track).fg(Color::Black)),
-                            Cell::from(song.name.to_owned())
+                            Cell::from(song.name.clone())
                                 .style(Style::default().bg(COLORS.title).fg(Color::Black)),
-                            Cell::from(song.album.to_owned())
+                            Cell::from(song.album.clone())
                                 .style(Style::default().bg(COLORS.album).fg(Color::Black)),
-                            Cell::from(song.artist.to_owned())
+                            Cell::from(song.artist.clone())
                                 .style(Style::default().bg(COLORS.artist).fg(Color::Black)),
                         ])
                     } else {
@@ -348,11 +341,9 @@ impl Queue {
                             ),
                             Cell::from(song.number.to_string())
                                 .style(Style::default().fg(COLORS.track)),
-                            Cell::from(song.name.to_owned())
-                                .style(Style::default().fg(COLORS.title)),
-                            Cell::from(song.album.to_owned())
-                                .style(Style::default().fg(COLORS.album)),
-                            Cell::from(song.artist.to_owned())
+                            Cell::from(song.name.clone()).style(Style::default().fg(COLORS.title)),
+                            Cell::from(song.album.clone()).style(Style::default().fg(COLORS.album)),
+                            Cell::from(song.artist.clone())
                                 .style(Style::default().fg(COLORS.artist)),
                         ])
                     };
@@ -367,11 +358,9 @@ impl Queue {
                             Cell::from(""),
                             Cell::from(song.number.to_string())
                                 .style(Style::default().bg(COLORS.track)),
-                            Cell::from(song.name.to_owned())
-                                .style(Style::default().bg(COLORS.title)),
-                            Cell::from(song.album.to_owned())
-                                .style(Style::default().bg(COLORS.album)),
-                            Cell::from(song.artist.to_owned())
+                            Cell::from(song.name.clone()).style(Style::default().bg(COLORS.title)),
+                            Cell::from(song.album.clone()).style(Style::default().bg(COLORS.album)),
+                            Cell::from(song.artist.clone())
                                 .style(Style::default().bg(COLORS.artist)),
                         ])
                         .style(Style::default().fg(Color::Black));
@@ -407,7 +396,7 @@ impl Queue {
             )
             .widths(&con);
 
-        //this is so that scrolling works
+        //required to scroll songs
         let mut state = TableState::default();
         state.select(ui_index);
 
@@ -426,7 +415,8 @@ impl Queue {
         let area = f.size();
         let width = area.width;
         let percent = player.seeker();
-        let pos = (width as f64 * percent).ceil() as usize;
+        //TOOD: casting to usize could fail
+        let pos = (f64::from(width) * percent) as usize;
 
         let mut string: String = (0..width - 6)
             .map(|i| if (i as usize) < pos { '=' } else { '-' })
@@ -447,6 +437,6 @@ impl Queue {
                 .border_type(BorderType::Rounded),
         );
 
-        f.render_widget(p, chunk)
+        f.render_widget(p, chunk);
     }
 }

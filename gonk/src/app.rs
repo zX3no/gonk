@@ -87,7 +87,7 @@ impl App {
         let mut search = Search::new();
         search.update_engine();
 
-        let tx = self.register_hotkeys();
+        let tx = App::register_hotkeys();
 
         loop {
             App::global_hotkeys(&tx, &mut player, &mut toml);
@@ -145,13 +145,12 @@ impl App {
                             }
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
-                                    Mode::Browser => Mode::Queue,
+                                    Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,
                                     Mode::Search => {
                                         search.on_tab();
                                         Mode::Queue
                                     }
-                                    Mode::Options => Mode::Queue,
                                 };
                             }
                             KeyCode::Backspace => search.on_backspace(modifiers),
@@ -162,7 +161,7 @@ impl App {
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = queue.selected() {
-                                        player.play_song(i)
+                                        player.play_song(i);
                                     }
                                 }
                                 Mode::Search => search.on_enter(&mut player),
@@ -179,20 +178,21 @@ impl App {
                                 Mode::Options => self.mode = Mode::Queue,
                                 _ => (),
                             },
-                            KeyCode::Char('1') | KeyCode::Char('!') => {
-                                queue.move_constraint('1', modifiers)
+                            KeyCode::Char('1' | '!') => {
+                                queue.move_constraint('1', modifiers);
                             }
-                            KeyCode::Char('2') | KeyCode::Char('@') => {
-                                queue.move_constraint('2', modifiers)
+                            KeyCode::Char('2' | '@') => {
+                                queue.move_constraint('2', modifiers);
                             }
-                            KeyCode::Char('3') | KeyCode::Char('#') => {
-                                queue.move_constraint('3', modifiers)
+                            KeyCode::Char('3' | '#') => {
+                                queue.move_constraint('3', modifiers);
                             }
+
                             _ if HK.up.contains(&bind) => {
-                                self.up(&mut browser, &mut queue, &mut search, &mut options)
+                                self.up(&mut browser, &mut queue, &mut search, &mut options);
                             }
                             _ if HK.down.contains(&bind) => {
-                                self.down(&mut browser, &mut queue, &mut search, &mut options)
+                                self.down(&mut browser, &mut queue, &mut search, &mut options);
                             }
                             _ if HK.left.contains(&bind) => browser.prev(),
                             _ if HK.right.contains(&bind) => browser.next(),
@@ -230,17 +230,17 @@ impl App {
                     }
                     Event::Mouse(event) => match event.kind {
                         MouseEventKind::ScrollUp => {
-                            self.up(&mut browser, &mut queue, &mut search, &mut options)
+                            self.up(&mut browser, &mut queue, &mut search, &mut options);
                         }
                         MouseEventKind::ScrollDown => {
-                            self.down(&mut browser, &mut queue, &mut search, &mut options)
+                            self.down(&mut browser, &mut queue, &mut search, &mut options);
                         }
                         MouseEventKind::Down(_) => {
                             queue.clicked_pos = Some((event.column, event.row));
                         }
                         _ => (),
                     },
-                    _ => (),
+                    Event::Resize(..) => (),
                 }
             }
         }
@@ -301,7 +301,7 @@ impl App {
     fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {}
 
     #[cfg(windows)]
-    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
+    fn register_hotkeys() -> Receiver<HotkeyEvent> {
         use win_hotkey::{keys, modifiers, Listener};
 
         let (rx, tx) = mpsc::sync_channel(1);

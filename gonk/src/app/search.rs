@@ -14,18 +14,18 @@ use tui::{
 
 mod lib;
 
-use super::{Mode, COLORS};
+use super::{Mode as AppMode, COLORS};
 
-pub enum SearchMode {
+pub enum Mode {
     Search,
     Select,
 }
 
-impl SearchMode {
+impl Mode {
     pub fn next(&mut self) {
         match self {
-            SearchMode::Search => *self = SearchMode::Select,
-            SearchMode::Select => *self = SearchMode::Search,
+            Mode::Search => *self = Mode::Select,
+            Mode::Select => *self = Mode::Search,
         }
     }
 }
@@ -34,7 +34,7 @@ pub struct Search {
     db: Database,
     query: String,
     prev_query: String,
-    mode: SearchMode,
+    mode: Mode,
     results: Index<Item>,
     engine: Engine<Item>,
 }
@@ -70,7 +70,7 @@ impl Search {
             db: Database::new().unwrap(),
             query: String::new(),
             prev_query: String::new(),
-            mode: SearchMode::Search,
+            mode: Mode::Search,
             results: Index::default(),
         }
     }
@@ -94,14 +94,14 @@ impl Search {
             };
 
             if acc > 0.75 {
-                results.push((item, acc))
+                results.push((item, acc));
             }
         }
         results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
-        self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect()
+        self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
     }
     pub fn on_key(&mut self, c: char) {
-        if let SearchMode::Search = &self.mode {
+        if let Mode::Search = &self.mode {
             self.prev_query = self.query.clone();
             self.query.push(c);
         } else {
@@ -114,11 +114,11 @@ impl Search {
     }
     pub fn on_tab(&mut self) {
         match self.mode {
-            SearchMode::Search => {
+            Mode::Search => {
                 self.results.select(None);
                 self.query.clear();
             }
-            SearchMode::Select => (),
+            Mode::Select => (),
         }
     }
     pub fn up(&mut self) {
@@ -129,36 +129,36 @@ impl Search {
     }
     pub fn on_backspace(&mut self, modifiers: KeyModifiers) {
         match self.mode {
-            SearchMode::Search => {
+            Mode::Search => {
                 if modifiers == KeyModifiers::CONTROL {
                     self.query.clear();
                 } else {
                     self.query.pop();
                 }
             }
-            SearchMode::Select => {
+            Mode::Select => {
                 self.results.select(None);
                 self.mode.next();
             }
         }
     }
     pub fn has_query_changed(&mut self) -> bool {
-        if self.query != self.prev_query {
+        if self.query == self.prev_query {
+            false
+        } else {
             self.prev_query = self.query.clone();
             true
-        } else {
-            false
         }
     }
-    pub fn on_escape(&mut self, mode: &mut Mode) {
+    pub fn on_escape(&mut self, mode: &mut AppMode) {
         match self.mode {
-            SearchMode::Search => {
-                if let SearchMode::Search = self.mode {
+            Mode::Search => {
+                if let Mode::Search = self.mode {
                     self.query.clear();
-                    *mode = Mode::Queue;
+                    *mode = AppMode::Queue;
                 }
             }
-            SearchMode::Select => {
+            Mode::Select => {
                 self.mode.next();
                 self.results.select(None);
             }
@@ -166,13 +166,13 @@ impl Search {
     }
     pub fn on_enter(&mut self, player: &mut Player) {
         match self.mode {
-            SearchMode::Search => {
+            Mode::Search => {
                 if !self.results.is_empty() {
                     self.mode.next();
                     self.results.select(Some(0));
                 }
             }
-            SearchMode::Select => {
+            Mode::Select => {
                 if let Some(item) = self.results.selected() {
                     let songs = if let Some((id, _)) = item.song() {
                         vec![self.db.get_song_from_id(id)]
@@ -227,7 +227,7 @@ impl Search {
                 if let Some(album) = item.album() {
                     if let Some(song) = item.song() {
                         //song
-                        self.song(f, song, album, artist, h[0]);
+                        Search::song(f, song, album, artist, h[0]);
                         self.album(f, album, artist, h[1]);
                     } else {
                         //album
@@ -263,7 +263,6 @@ impl Search {
         self.update_cursor(f);
     }
     fn song<B: Backend>(
-        &self,
         f: &mut Frame<B>,
         (_, song): (usize, &String),
         album: &str,
@@ -352,7 +351,7 @@ impl Search {
                         Row::new(vec![
                             Cell::from(song.name)
                                 .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
-                            Cell::from(song.album.to_owned())
+                            Cell::from(song.album.clone())
                                 .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
                             Cell::from(song.artist)
                                 .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
@@ -442,10 +441,11 @@ impl Search {
     fn update_cursor<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();
         //Move the cursor position when typing
-        if let SearchMode::Search = self.mode {
+        if let Mode::Search = self.mode {
             if self.results.is_none() && self.query.is_empty() {
                 f.set_cursor(1, 1);
             } else {
+                //TODO: casting to u16 could fail
                 let mut len = self.query.len() as u16;
                 if len > area.width {
                     len = area.width;

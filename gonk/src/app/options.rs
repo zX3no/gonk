@@ -2,7 +2,7 @@ use crate::index::Index;
 use gonk_database::Toml;
 use rodio::{Device, DeviceTrait, Player};
 
-pub enum OptionsMode {
+pub enum Mode {
     Directory,
     Device,
 }
@@ -10,7 +10,7 @@ pub enum OptionsMode {
 pub struct Options {
     pub paths: Index<String>,
     pub devices: Index<Device>,
-    pub mode: OptionsMode,
+    pub mode: Mode,
     toml: Toml,
 }
 
@@ -32,9 +32,11 @@ impl Options {
             let mut data: Vec<_> = devices
                 .data
                 .iter()
-                .flat_map(|device| device.name())
+                .flat_map(rodio::DeviceTrait::name)
                 .collect();
+
             data.retain(|name| name == &config_device);
+
             if data.is_empty() {
                 default_device
             } else {
@@ -48,43 +50,43 @@ impl Options {
         Self {
             paths: Index::new(toml.paths(), None),
             devices,
-            mode: OptionsMode::Device,
+            mode: Mode::Device,
             toml,
         }
     }
     pub fn up(&mut self) {
         match self.mode {
-            OptionsMode::Directory => {
+            Mode::Directory => {
                 if let Some(index) = self.paths.index {
                     if !self.devices.is_empty() && index == 0 {
-                        self.mode = OptionsMode::Device;
+                        self.mode = Mode::Device;
                         self.paths.select(None);
                         self.devices
                             .select(Some(self.devices.len().saturating_sub(1)));
                         return;
                     }
-                    self.paths.up()
+                    self.paths.up();
                 }
             }
-            OptionsMode::Device => {
+            Mode::Device => {
                 if let Some(index) = self.devices.index {
                     if !self.paths.is_empty() && index == 0 {
-                        self.mode = OptionsMode::Directory;
+                        self.mode = Mode::Directory;
                         self.devices.select(None);
                         self.paths.select(Some(self.paths.len().saturating_sub(1)));
                         return;
                     }
                 }
-                self.devices.up()
+                self.devices.up();
             }
         }
     }
     pub fn down(&mut self) {
         match self.mode {
-            OptionsMode::Directory => {
+            Mode::Directory => {
                 if let Some(index) = self.paths.index {
                     if !self.devices.is_empty() && index == self.paths.len().saturating_sub(1) {
-                        self.mode = OptionsMode::Device;
+                        self.mode = Mode::Device;
                         self.paths.select(None);
                         self.devices.select(Some(0));
                         return;
@@ -92,10 +94,10 @@ impl Options {
                 }
                 self.paths.down();
             }
-            OptionsMode::Device => {
+            Mode::Device => {
                 if let Some(index) = self.devices.index {
                     if !self.paths.is_empty() && index == self.devices.len().saturating_sub(1) {
-                        self.mode = OptionsMode::Directory;
+                        self.mode = Mode::Directory;
                         self.devices.select(None);
                         self.paths.select(Some(0));
                         return;
@@ -107,7 +109,7 @@ impl Options {
     }
     pub fn on_enter(&mut self, player: &mut Player) -> Option<String> {
         match self.mode {
-            OptionsMode::Directory => {
+            Mode::Directory => {
                 let dir = self.paths.selected().cloned();
                 if let Some(dir) = dir {
                     //Delete dir from ui and config file
@@ -117,7 +119,7 @@ impl Options {
                     if self.paths.is_empty() {
                         self.paths = Index::new(self.toml.paths(), None);
                         if !self.devices.is_empty() {
-                            self.mode = OptionsMode::Device;
+                            self.mode = Mode::Device;
                             self.devices.select(Some(0));
                         }
                     } else {
@@ -126,7 +128,7 @@ impl Options {
                     return Some(dir);
                 }
             }
-            OptionsMode::Device => {
+            Mode::Device => {
                 if let Some(device) = self.devices.selected() {
                     self.toml
                         .set_output_device(device.name().expect("Device has no name!"));
@@ -139,7 +141,13 @@ impl Options {
 }
 
 //TODO: Directory deletion confirmation & UI to add new directories
-use tui::{backend::Backend, layout::*, style::*, widgets::*, Frame};
+use tui::{
+    backend::Backend,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState},
+    Frame,
+};
 
 impl Options {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {

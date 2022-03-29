@@ -77,8 +77,8 @@ impl<T> Index<T> {
 impl<T> Default for Index<T> {
     fn default() -> Self {
         Self {
-            data: Default::default(),
-            index: Default::default(),
+            data: Vec::default(),
+            index: Option::default(),
         }
     }
 }

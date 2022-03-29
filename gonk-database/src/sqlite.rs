@@ -89,10 +89,7 @@ impl Database {
                 .map(|dir| dir.unwrap().path())
                 .filter(|dir| {
                     if let Some(ex) = dir.extension() {
-                        matches!(
-                            ex.to_str(),
-                            Some("flac") | Some("mp3") | Some("ogg") | Some("wav") | Some("m4a")
-                        )
+                        matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
                     } else {
                         false
                     }
@@ -100,9 +97,7 @@ impl Database {
                 .parallel_map(|dir| Song::from(&dir))
                 .collect();
 
-            if songs.is_empty() {
-                panic!("Directory has no songs!");
-            }
+            assert!(!songs.is_empty(), "Directory has no songs!");
 
             let mut stmt = String::from("BEGIN;\n");
             stmt.push_str(&songs.iter()

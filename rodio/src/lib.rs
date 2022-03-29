@@ -42,9 +42,10 @@ pub struct Player {
 
 impl Player {
     pub fn new(volume: u16) -> Self {
-        let (stream, handle) = OutputStream::try_default().unwrap();
+        let (stream, handle) =
+            OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
-        sink.set_volume(volume as f32 / 1000.0);
+        sink.set_volume(f32::from(volume) / 1000.0);
 
         Self {
             stream,
@@ -110,7 +111,7 @@ impl Player {
             self.volume = 100;
         }
 
-        self.sink.set_volume(self.volume as f32 / 1000.0);
+        self.sink.set_volume(f32::from(self.volume) / 1000.0);
 
         self.volume
     }
@@ -120,7 +121,7 @@ impl Player {
             self.volume -= VOLUME_STEP;
         }
 
-        self.sink.set_volume(self.volume as f32 / 1000.0);
+        self.sink.set_volume(f32::from(self.volume) / 1000.0);
 
         self.volume
     }
@@ -131,7 +132,7 @@ impl Player {
         if let Some(i) = self.current_song {
             if let Some(song) = self.songs.get(i).cloned() {
                 self.stop();
-                let file = File::open(&song.path).unwrap();
+                let file = File::open(&song.path).expect("Could not open song.");
                 let decoder = Decoder::new(file).unwrap();
                 self.total_duration = decoder.total_duration();
                 self.sink.append(decoder);
@@ -186,8 +187,8 @@ impl Player {
     }
     pub fn stop(&mut self) {
         self.sink.destroy();
-        self.sink = Sink::try_new(&self.handle).unwrap();
-        self.sink.set_volume(self.volume as f32 / 1000.0);
+        self.sink = Sink::try_new(&self.handle).expect("Could not create new sink.");
+        self.sink.set_volume(f32::from(self.volume) / 1000.0);
     }
     pub fn elapsed(&self) -> Duration {
         self.sink.elapsed()
@@ -266,7 +267,8 @@ impl Player {
     }
     pub fn change_output_device(&mut self, device: &Device) {
         self.stop();
-        let (stream, handle) = OutputStream::try_from_device(device).unwrap();
+        let (stream, handle) =
+            OutputStream::try_from_device(device).expect("Failed to change output device.");
         self.stream = stream;
         self.handle = handle;
     }

@@ -50,7 +50,7 @@ impl<T: SearchItem> Engine<T> {
 impl<T: SearchItem> Default for Engine<T> {
     fn default() -> Self {
         Self {
-            data: Default::default(),
+            data: Vec::default(),
         }
     }
 }

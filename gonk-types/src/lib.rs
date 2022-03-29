@@ -5,7 +5,7 @@ use std::{
 };
 use symphonia::core::{
     formats::FormatOptions,
-    io::MediaSourceStream,
+    io::{MediaSourceStream, MediaSourceStreamOptions},
     meta::{MetadataOptions, MetadataRevision, StandardTagKey},
     probe::Hint,
 };
@@ -23,8 +23,8 @@ pub struct Song {
 
 impl Song {
     pub fn from(path: &Path) -> Song {
-        let file = Box::new(File::open(path).unwrap());
-        let mss = MediaSourceStream::new(file, Default::default());
+        let file = Box::new(File::open(path).expect("Could not open file."));
+        let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
         let mut probe = symphonia::default::get_probe()
             .format(
                 &Hint::new(),
@@ -45,7 +45,7 @@ impl Song {
                     match std_key {
                         StandardTagKey::AlbumArtist => song.artist = tag.value.to_string(),
                         StandardTagKey::Artist if song.artist.is_empty() => {
-                            song.artist = tag.value.to_string()
+                            song.artist = tag.value.to_string();
                         }
                         StandardTagKey::Album => song.album = tag.value.to_string(),
                         StandardTagKey::TrackTitle => song.name = tag.value.to_string(),

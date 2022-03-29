@@ -92,7 +92,7 @@ pub struct Bind {
 }
 
 impl Bind {
-    pub fn new(&self, key: &str) -> Self {
+    pub fn new(key: &str) -> Self {
         Self {
             key: Key::from(key),
             modifiers: None,
@@ -102,7 +102,7 @@ impl Bind {
     #[cfg(windows)]
     pub fn modifiers(&self) -> u32 {
         if let Some(m) = &self.modifiers {
-            m.iter().map(|m| m.as_u32()).sum()
+            m.iter().map(Modifier::as_u32).sum()
         } else {
             0
         }
@@ -374,7 +374,7 @@ impl Toml {
         self.write();
     }
     pub fn write(&self) {
-        let toml = toml::to_string(&self).unwrap();
-        fs::write(TOML_DIR.as_path(), toml).unwrap();
+        let toml = toml::to_string(&self).expect("Failed to write toml file.");
+        fs::write(TOML_DIR.as_path(), toml).expect("Could not write toml flie.");
     }
 }

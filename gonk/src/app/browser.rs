@@ -2,25 +2,25 @@ use crate::index::Index;
 use gonk_database::Database;
 use gonk_types::Song;
 
-pub enum BrowserMode {
+pub enum Mode {
     Artist,
     Album,
     Song,
 }
 
-impl BrowserMode {
+impl Mode {
     pub fn next(&mut self) {
         match self {
-            BrowserMode::Artist => *self = BrowserMode::Album,
-            BrowserMode::Album => *self = BrowserMode::Song,
-            BrowserMode::Song => (),
+            Mode::Artist => *self = Mode::Album,
+            Mode::Album => *self = Mode::Song,
+            Mode::Song => (),
         }
     }
     pub fn prev(&mut self) {
         match self {
-            BrowserMode::Artist => (),
-            BrowserMode::Album => *self = BrowserMode::Artist,
-            BrowserMode::Song => *self = BrowserMode::Album,
+            Mode::Artist => (),
+            Mode::Album => *self = Mode::Artist,
+            Mode::Song => *self = Mode::Album,
         }
     }
 }
@@ -30,7 +30,7 @@ pub struct Browser {
     artists: Index<String>,
     albums: Index<String>,
     songs: Index<(u16, String)>,
-    pub mode: BrowserMode,
+    pub mode: Mode,
     pub is_busy: bool,
 }
 
@@ -57,31 +57,31 @@ impl Browser {
             artists,
             albums,
             songs,
-            mode: BrowserMode::Artist,
+            mode: Mode::Artist,
             is_busy: false,
         }
     }
     pub fn up(&mut self) {
         match self.mode {
-            BrowserMode::Artist => self.artists.up(),
-            BrowserMode::Album => self.albums.up(),
-            BrowserMode::Song => self.songs.up(),
+            Mode::Artist => self.artists.up(),
+            Mode::Album => self.albums.up(),
+            Mode::Song => self.songs.up(),
         }
         self.update_browser();
     }
     pub fn down(&mut self) {
         match self.mode {
-            BrowserMode::Artist => self.artists.down(),
-            BrowserMode::Album => self.albums.down(),
-            BrowserMode::Song => self.songs.down(),
+            Mode::Artist => self.artists.down(),
+            Mode::Album => self.albums.down(),
+            Mode::Song => self.songs.down(),
         }
         self.update_browser();
     }
     pub fn update_browser(&mut self) {
         match self.mode {
-            BrowserMode::Artist => self.update_albums(),
-            BrowserMode::Album => self.update_songs(),
-            BrowserMode::Song => (),
+            Mode::Artist => self.update_albums(),
+            Mode::Album => self.update_songs(),
+            Mode::Song => (),
         }
     }
     pub fn update_albums(&mut self) {
@@ -112,13 +112,13 @@ impl Browser {
         let album = self.albums.selected().unwrap();
         let song = self.songs.selected().unwrap();
         match self.mode {
-            BrowserMode::Artist => self.db.artist(artist),
-            BrowserMode::Album => self.db.album(artist, album),
-            BrowserMode::Song => self.db.get_song(artist, album, song),
+            Mode::Artist => self.db.artist(artist),
+            Mode::Album => self.db.album(artist, album),
+            Mode::Song => self.db.get_song(artist, album, song),
         }
     }
     pub fn refresh(&mut self) {
-        self.mode = BrowserMode::Artist;
+        self.mode = Mode::Artist;
         self.albums = Index::default();
         self.songs = Index::default();
 
@@ -150,7 +150,7 @@ impl Browser {
         self.draw_browser(f);
 
         if self.is_busy {
-            self.draw_popup(f);
+            Browser::draw_popup(f);
         }
     }
     pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
@@ -233,15 +233,15 @@ impl Browser {
 
         //TODO: better way of doing this?
         match self.mode {
-            BrowserMode::Artist => {
+            Mode::Artist => {
                 album_state.select(None);
                 song_state.select(None);
             }
-            BrowserMode::Album => {
+            Mode::Album => {
                 artist_state.select(None);
                 song_state.select(None);
             }
-            BrowserMode::Song => {
+            Mode::Song => {
                 artist_state.select(None);
                 album_state.select(None);
             }
@@ -253,7 +253,7 @@ impl Browser {
     }
 
     //TODO: change to small text in bottom right
-    pub fn draw_popup<B: Backend>(&self, f: &mut Frame<B>) {
+    pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
         let mut area = f.size();
 
         if (area.width / 2) < 14 || (area.height / 2) < 3 {
