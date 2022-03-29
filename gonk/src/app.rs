@@ -87,9 +87,11 @@ impl App {
         let mut search = Search::new();
         search.update_engine();
 
+        #[cfg(windows)]
         let tx = App::register_hotkeys();
 
         loop {
+            #[cfg(windows)]
             App::global_hotkeys(&tx, &mut player, &mut toml);
 
             self.terminal.draw(|f| match self.mode {
@@ -298,7 +300,9 @@ impl App {
     }
 
     #[cfg(unix)]
-    fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {}
+    fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {
+        todo!();
+    }
 
     #[cfg(windows)]
     fn register_hotkeys() -> Receiver<HotkeyEvent> {
@@ -337,7 +341,9 @@ impl App {
     }
 
     #[cfg(unix)]
-    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {}
+    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
+        todo!();
+    }
 }
 
 impl Drop for App {
