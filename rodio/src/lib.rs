@@ -77,7 +77,12 @@ impl Player {
     }
     pub fn prev_song(&mut self) {
         if let Some(i) = &self.current_song {
-            let i = i.saturating_sub(1);
+            let i = if i == &0 {
+                self.songs.len().saturating_sub(1)
+            } else {
+                i.saturating_sub(1)
+            };
+
             if self.songs.get(i).is_some() {
                 self.current_song = Some(i);
                 self.play_selected();
@@ -86,7 +91,12 @@ impl Player {
     }
     pub fn next_song(&mut self) {
         if let Some(i) = &self.current_song {
-            let i = i.saturating_add(1);
+            let i = if (i + 1) == self.songs.len() {
+                0
+            } else {
+                i.saturating_add(1)
+            };
+
             if self.songs.get(i).is_some() {
                 self.current_song = Some(i);
                 self.play_selected();

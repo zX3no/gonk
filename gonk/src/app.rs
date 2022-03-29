@@ -105,9 +105,6 @@ impl App {
 
             //on update
             if last_tick.elapsed() >= TICK_RATE {
-                player.update();
-                queue.update(&player);
-
                 if let Some(busy) = db.is_busy() {
                     if busy {
                         browser.refresh();
@@ -121,6 +118,11 @@ impl App {
                 }
                 last_tick = Instant::now();
             }
+
+            //skip to the next track when ready
+            player.update();
+            //sync the player and queue
+            queue.update(&player);
 
             if crossterm::event::poll(timeout)? {
                 match event::read()? {
