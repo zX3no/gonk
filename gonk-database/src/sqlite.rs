@@ -82,6 +82,7 @@ impl Database {
         tx.send(true).unwrap();
 
         let dir = dir.to_owned();
+        dbg!(&dir);
 
         thread::spawn(move || {
             let songs: Vec<Song> = WalkDir::new(&dir)
@@ -97,7 +98,9 @@ impl Database {
                 .parallel_map(|dir| Song::from(&dir))
                 .collect();
 
-            assert!(!songs.is_empty(), "Directory has no songs!");
+            if songs.is_empty() {
+                return tx.send(false).unwrap();
+            }
 
             let mut stmt = String::from("BEGIN;\n");
             stmt.push_str(&songs.iter()
