@@ -1,3 +1,4 @@
+use super::{Mode as AppMode, COLORS};
 use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gonk_database::Database;
@@ -13,8 +14,6 @@ use tui::{
 };
 
 mod lib;
-
-use super::{Mode as AppMode, COLORS};
 
 pub enum Mode {
     Search,
@@ -97,6 +96,7 @@ impl Search {
                 results.push((item, acc));
             }
         }
+        //TODO: sort self titled albums bellow artists
         results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
         self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
     }
@@ -231,7 +231,7 @@ impl Search {
                         self.album(f, album, artist, h[1]);
                     } else {
                         //album
-                        self.album(f, album, artist, h[1]);
+                        self.album(f, album, artist, h[0]);
                         self.artist(f, artist, h[1]);
                     }
                 } else {
