@@ -1,5 +1,5 @@
-use crate::index::Index;
 use gonk_database::Toml;
+use gonk_types::Index;
 use rodio::{Device, DeviceTrait, Player};
 
 pub enum Mode {

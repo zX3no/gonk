@@ -3,7 +3,6 @@ use gonk_database::{Database, Toml, CONFIG_DIR};
 use std::io::Result;
 
 mod app;
-mod index;
 
 fn main() -> Result<()> {
     let orig_hook = std::panic::take_hook();

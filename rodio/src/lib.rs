@@ -125,9 +125,6 @@ impl Player {
 
         self.volume
     }
-    pub fn sleep_until_end(&self) {
-        self.sink.sleep_until_end();
-    }
     pub fn play_selected(&mut self) {
         if let Some(i) = self.current_song {
             if let Some(song) = self.songs.get(i).cloned() {

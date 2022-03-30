@@ -3,9 +3,8 @@
 use std::time::Duration;
 
 use crate::app::COLORS;
-use crate::index::Index;
 use crossterm::event::KeyModifiers;
-use gonk_types::Song;
+use gonk_types::{Index, Song};
 use rodio::Player;
 use tui::{backend::Backend, Frame};
 

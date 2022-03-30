@@ -1,6 +1,5 @@
-use crate::index::Index;
 use gonk_database::Database;
-use gonk_types::Song;
+use gonk_types::{Index, Song};
 
 pub enum Mode {
     Artist,

@@ -64,6 +64,7 @@ impl<T> Index<T> {
         self.data.len()
     }
     pub fn select(&mut self, i: Option<usize>) {
+        //TODO: this will crash
         self.index = i;
     }
     pub fn is_none(&self) -> bool {

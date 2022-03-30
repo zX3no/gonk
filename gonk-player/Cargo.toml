@@ -1,0 +1,12 @@
+[package]
+name = "gonk-player"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cpal = "0.13.5"
+gonk-types = { path = "../gonk-types" }
+kira = "0.6.0"
+rand = "0.8.5"

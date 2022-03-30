@@ -1,7 +1,7 @@
 use super::{Mode as AppMode, COLORS};
-use crate::index::Index;
 use crossterm::event::KeyModifiers;
 use gonk_database::Database;
+use gonk_types::Index;
 use lib::{Album, Artist, Engine, Item, SearchItem, Song};
 use rodio::Player;
 use tui::{
