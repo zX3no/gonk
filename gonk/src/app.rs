@@ -84,7 +84,7 @@ impl App {
 
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        let mut toml = Toml::new().unwrap();
+        let mut toml = Toml::new()?;
         let db = Database::new().unwrap();
         db.add(&TOML.paths());
 
@@ -130,19 +130,16 @@ impl App {
             if crossterm::event::poll(timeout)? {
                 match event::read()? {
                     Event::Key(event) => {
-                        let modifiers = event.modifiers;
-                        let key = event.code;
-
                         let bind = Bind {
-                            key: Key::from(key),
-                            modifiers: Modifier::from_u32(modifiers),
+                            key: Key::from(event.code),
+                            modifiers: Modifier::from_u32(event.modifiers),
                         };
 
                         if HK.quit.contains(&bind) {
                             break;
                         };
 
-                        match key {
+                        match event.code {
                             KeyCode::Char(c) if self.mode == Mode::Search => {
                                 self.search.on_key(c);
                             }
@@ -156,7 +153,7 @@ impl App {
                                     }
                                 };
                             }
-                            KeyCode::Backspace => self.search.on_backspace(modifiers),
+                            KeyCode::Backspace => self.search.on_backspace(event.modifiers),
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
@@ -182,15 +179,14 @@ impl App {
                                 _ => (),
                             },
                             KeyCode::Char('1' | '!') => {
-                                self.queue.move_constraint('1', modifiers);
+                                self.queue.move_constraint('1', event.modifiers);
                             }
                             KeyCode::Char('2' | '@') => {
-                                self.queue.move_constraint('2', modifiers);
+                                self.queue.move_constraint('2', event.modifiers);
                             }
                             KeyCode::Char('3' | '#') => {
-                                self.queue.move_constraint('3', modifiers);
+                                self.queue.move_constraint('3', event.modifiers);
                             }
-
                             _ if HK.up.contains(&bind) => {
                                 self.up();
                             }
@@ -201,6 +197,7 @@ impl App {
                             _ if HK.right.contains(&bind) => self.browser.next(),
                             _ if HK.play_pause.contains(&bind) => self.player.toggle_playback(),
                             _ if HK.clear.contains(&bind) => self.player.clear_songs(),
+                            //TODO: If I spam this the program will crash with no error.
                             _ if HK.refresh_database.contains(&bind) => {
                                 for path in TOML.paths() {
                                     db.force_add(&path);

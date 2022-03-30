@@ -20,15 +20,6 @@ pub enum Mode {
     Select,
 }
 
-impl Mode {
-    pub fn next(&mut self) {
-        match self {
-            Mode::Search => *self = Mode::Select,
-            Mode::Select => *self = Mode::Search,
-        }
-    }
-}
-
 pub struct Search {
     db: Database,
     query: String,
@@ -43,11 +34,10 @@ impl Search {
         let songs = self.db.get_songs();
         let artists = self.db.artists();
         let albums = self.db.albums();
-
-        let engine = &mut self.engine;
+        self.engine = Engine::default();
 
         for (id, song) in songs {
-            engine.push(Item::Song(Song::new(
+            self.engine.push(Item::Song(Song::new(
                 id,
                 song.name,
                 song.album,
@@ -56,11 +46,11 @@ impl Search {
         }
 
         for (album, artist) in albums {
-            engine.push(Item::Album(Album::new(album, artist)));
+            self.engine.push(Item::Album(Album::new(album, artist)));
         }
 
         for artist in artists {
-            engine.push(Item::Artist(Artist::new(artist)));
+            self.engine.push(Item::Artist(Artist::new(artist)));
         }
     }
     pub fn new() -> Self {
@@ -141,7 +131,7 @@ impl Search {
             }
             Mode::Select => {
                 self.results.select(None);
-                self.mode.next();
+                self.mode = Mode::Search;
             }
         }
     }
@@ -162,7 +152,7 @@ impl Search {
                 }
             }
             Mode::Select => {
-                self.mode.next();
+                self.mode = Mode::Search;
                 self.results.select(None);
             }
         }
@@ -171,7 +161,7 @@ impl Search {
         match self.mode {
             Mode::Search => {
                 if !self.results.is_empty() {
-                    self.mode.next();
+                    self.mode = Mode::Select;
                     self.results.select(Some(0));
                 }
             }
