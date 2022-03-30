@@ -1,8 +1,11 @@
 #![allow(dead_code)]
+
+use std::time::Duration;
+
 use crate::app::COLORS;
 use crossterm::event::KeyModifiers;
-use gonk_player::Player;
 use gonk_types::{Index, Song};
+use rodio::Player;
 use tui::{backend::Backend, Frame};
 
 #[derive(Default)]
@@ -75,16 +78,14 @@ impl Queue {
         }
     }
     pub fn update(&mut self, player: &Player) {
-        self.songs = player.songs.clone();
-
-        if self.ui.is_none() && !self.songs.is_empty() {
+        if self.ui.is_none() {
             self.ui.select(Some(0));
-        } else if self.songs.is_empty() {
-            self.ui.select(None);
         }
-
+        self.songs.data = player.songs.clone();
+        self.songs.select(player.current_song);
         self.scroll_text.next();
     }
+
     pub fn selected(&self) -> Option<usize> {
         self.ui.index
     }
@@ -141,7 +142,7 @@ use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 
 impl Queue {
-    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>, player: &mut Player) {
+    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>, player: &Player) {
         //Songs
         if let Some((_, row)) = self.clicked_pos {
             let size = f.size();
@@ -172,13 +173,13 @@ impl Queue {
                 let ratio = f64::from(column - 3) / f64::from(size.width);
                 if let Some(duration) = player.duration() {
                     let new_time = duration * ratio;
-                    player.seek_to(new_time);
+                    player.seek_to(Duration::from_secs_f64(new_time));
                 }
             }
             self.clicked_pos = None;
         }
     }
-    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, player: &mut Player) {
+    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, player: &Player) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -203,23 +204,21 @@ impl Queue {
         //Left
         let time = if self.songs.is_empty() {
             String::from("╭─Stopped")
-        } else if player.is_playing() {
+        } else if !player.is_paused() {
             if let Some(duration) = player.duration() {
-                if let Some(elapsed) = player.elapsed() {
-                    let mins = elapsed / 60.0;
-                    let rem = elapsed % 60.0;
-                    let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+                let elapsed = player.elapsed().as_secs_f64();
 
-                    let mins = duration / 60.0;
-                    let rem = duration % 60.0;
-                    let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+                let mins = elapsed / 60.0;
+                let rem = elapsed % 60.0;
+                let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
-                    format!("╭─{}/{}", e, d)
-                } else {
-                    String::from("╭─0:00/0:00")
-                }
+                let mins = duration / 60.0;
+                let rem = duration % 60.0;
+                let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+
+                format!("╭─{}/{}", e, d)
             } else {
-                String::from("╭─Stopped")
+                String::from("╭─0:00/0:00")
             }
         } else {
             String::from("╭─Paused")

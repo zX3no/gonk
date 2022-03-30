@@ -6,7 +6,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use gonk_database::{Bind, Colors, Database, Hotkey, Key, Modifier, Toml};
-use gonk_player::Player;
+use rodio::Player;
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
@@ -19,10 +19,10 @@ use std::{
 };
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
-use {browser::Browser, queue::Queue, search::Search};
+use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 mod browser;
-// mod options;
+mod options;
 mod queue;
 mod search;
 
@@ -40,7 +40,7 @@ pub enum Mode {
     Browser,
     Queue,
     Search,
-    // Options,
+    Options,
 }
 
 #[dynamic]
@@ -57,7 +57,7 @@ pub struct App {
     pub mode: Mode,
     queue: Queue,
     browser: Browser,
-    // options: Options,
+    options: Options,
     search: Search,
     player: Player,
 }
@@ -76,7 +76,7 @@ impl App {
             mode: Mode::Browser,
             queue: Queue::new(),
             browser: Browser::new(),
-            // options: Options::new(),
+            options: Options::new(),
             search: Search::new(),
             player: Player::new(TOML.volume()),
         }
@@ -97,8 +97,8 @@ impl App {
 
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f),
-                Mode::Queue => self.queue.draw(f, &mut self.player),
-                // Mode::Options => self.options.draw(f),
+                Mode::Queue => self.queue.draw(f, &self.player),
+                Mode::Options => self.options.draw(f),
                 Mode::Search => self.search.draw(f),
             })?;
 
@@ -145,8 +145,7 @@ impl App {
                             }
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
-                                    // Mode::Browser | Mode::Options => Mode::Queue,
-                                    Mode::Browser => Mode::Queue,
+                                    Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,
                                     Mode::Search => {
                                         self.search.on_tab();
@@ -158,26 +157,25 @@ impl App {
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
-                                    self.player.add_songs(&songs);
+                                    self.player.add_songs(songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.selected() {
-                                        self.player.play_index(i);
+                                        self.player.play_song(i);
                                     }
                                 }
                                 Mode::Search => self.search.on_enter(&mut self.player),
-                                // Mode::Options => {
-                                //     if let Some(dir) = self.options.on_enter(&mut self.player) {
-                                //         db.delete_path(&dir);
-                                //         self.browser.refresh();
-                                //         self.search.update_engine();
-                                //     }
-                                // }
+                                Mode::Options => {
+                                    if let Some(dir) = self.options.on_enter(&mut self.player) {
+                                        db.delete_path(&dir);
+                                        self.browser.refresh();
+                                        self.search.update_engine();
+                                    }
+                                }
                             },
-                            #[allow(clippy::single_match)]
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
-                                // Mode::Options => self.mode = Mode::Queue,
+                                Mode::Options => self.mode = Mode::Queue,
                                 _ => (),
                             },
                             KeyCode::Char('1' | '!') => {
@@ -218,7 +216,7 @@ impl App {
                                 toml.set_volume(vol);
                             }
                             _ if HK.search.contains(&bind) => self.mode = Mode::Search,
-                            // _ if HK.options.contains(&bind) => self.mode = Mode::Options,
+                            _ if HK.options.contains(&bind) => self.mode = Mode::Options,
                             _ if HK.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.selected() {
@@ -255,7 +253,7 @@ impl App {
             Mode::Browser => self.browser.up(),
             Mode::Queue => self.queue.up(),
             Mode::Search => self.search.up(),
-            // Mode::Options => self.options.up(),
+            Mode::Options => self.options.up(),
         }
     }
 
@@ -264,7 +262,7 @@ impl App {
             Mode::Browser => self.browser.down(),
             Mode::Queue => self.queue.down(),
             Mode::Search => self.search.down(),
-            // Mode::Options => self.options.down(),
+            Mode::Options => self.options.down(),
         }
     }
 
