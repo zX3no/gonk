@@ -1,9 +1,9 @@
 use super::{Mode as AppMode, COLORS};
 use crossterm::event::KeyModifiers;
 use gonk_database::Database;
+use gonk_player::Player;
 use gonk_types::Index;
 use lib::{Album, Artist, Engine, Item, SearchItem, Song};
-use rodio::Player;
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -179,7 +179,7 @@ impl Search {
                         panic!("Invalid search item");
                     };
 
-                    player.add_songs(songs);
+                    player.add_songs(&songs);
                 }
             }
         }

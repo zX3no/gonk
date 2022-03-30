@@ -13,10 +13,8 @@ use kira::{
     tween::Tween,
     Volume,
 };
-
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
-use std::time::Duration;
 
 static VOLUME_STEP: u16 = 5;
 
@@ -42,11 +40,14 @@ impl Player {
         }
 
         if let Some(song) = &self.songs.selected() {
+            let v = f64::from(self.volume) / 1000.0;
+
             let sound = StreamingSoundData::from_file(
                 &song.path,
-                StreamingSoundSettings::new().volume(Volume::Amplitude(0.03)),
+                StreamingSoundSettings::new().volume(Volume::Amplitude(v)),
             )
             .unwrap();
+
             self.handle = Some(self.manager.play(sound).unwrap());
         }
     }
@@ -193,7 +194,7 @@ impl Player {
                 if seek > duration {
                     self.next_song();
                 } else {
-                    self.seek_to(Duration::from_secs_f64(seek));
+                    self.seek_to(seek);
                 }
             }
         }
@@ -206,12 +207,12 @@ impl Player {
                 seek = 0.0;
             }
 
-            self.seek_to(Duration::from_secs_f64(seek));
+            self.seek_to(seek);
         }
     }
-    pub fn seek_to(&mut self, time: Duration) {
+    pub fn seek_to(&mut self, time: f64) {
         if let Some(handle) = &mut self.handle {
-            handle.seek_to(time.as_secs_f64()).unwrap();
+            handle.seek_to(time).unwrap();
         }
     }
     pub fn seeker(&self) -> f64 {
