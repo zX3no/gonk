@@ -10,7 +10,7 @@ use std::{
         Arc,
     },
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 fn fix(item: &str) -> String {
