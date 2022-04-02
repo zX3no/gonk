@@ -77,9 +77,9 @@ pub struct Search {
 
 impl Search {
     pub fn update_engine(&mut self) {
-        let songs = self.db.get_songs();
-        let artists = self.db.artists();
-        let albums = self.db.albums();
+        let songs = self.db.get_all_songs();
+        let artists = self.db.get_all_artists();
+        let albums = self.db.get_all_albums();
         self.cache = Vec::new();
 
         for (id, song) in songs {
@@ -206,11 +206,11 @@ impl Search {
             Mode::Select => {
                 if let Some(item) = self.results.selected() {
                     let songs = match item {
-                        Item::Song(song) => {
-                            vec![self.db.get_song_from_id(song.id)]
+                        Item::Song(song) => self.db.get_songs_from_id(&[song.id]),
+                        Item::Album(album) => {
+                            self.db.get_songs_from_album(&album.name, &album.artist)
                         }
-                        Item::Album(album) => self.db.album(&album.name, &album.artist),
-                        Item::Artist(artist) => self.db.artist(&artist.name),
+                        Item::Artist(artist) => self.db.get_songs_by_artist(&artist.name),
                     };
 
                     player.add_songs(songs);
@@ -260,7 +260,7 @@ impl Search {
                     self.artist(f, &album.artist, h[1]);
                 }
                 Item::Artist(artist) => {
-                    let albums = self.db.albums_by_artist(&artist.name);
+                    let albums = self.db.get_all_albums_by_artist(&artist.name);
 
                     self.artist(f, &artist.name, h[0]);
 
@@ -311,7 +311,7 @@ impl Search {
     fn album<B: Backend>(&self, f: &mut Frame<B>, album: &str, artist: &str, area: Rect) {
         let cells: Vec<_> = self
             .db
-            .album(artist, album)
+            .get_songs_from_album(artist, album)
             .iter()
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
             .collect();
@@ -335,7 +335,7 @@ impl Search {
         f.render_widget(album_table, area);
     }
     fn artist<B: Backend>(&self, f: &mut Frame<B>, artist: &str, area: Rect) {
-        let albums = self.db.albums_by_artist(artist);
+        let albums = self.db.get_all_albums_by_artist(artist);
         let cells: Vec<_> = albums
             .iter()
             .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -363,13 +363,13 @@ impl Search {
         let get_cell = |item: &Item, modifier: Modifier| -> Row {
             match item {
                 Item::Song(song) => {
-                    let song = self.db.get_song_from_id(song.id);
+                    let song = &self.db.get_songs_from_id(&[song.id])[0];
                     Row::new(vec![
-                        Cell::from(song.name)
+                        Cell::from(song.name.clone())
                             .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
                         Cell::from(song.album.clone())
                             .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
-                        Cell::from(song.artist)
+                        Cell::from(song.artist.clone())
                             .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                     ])
                 }

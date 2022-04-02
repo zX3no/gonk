@@ -1,11 +1,8 @@
-#![allow(dead_code)]
-
-use std::time::Duration;
-
 use crate::app::COLORS;
 use crossterm::event::KeyModifiers;
 use gonk_types::{Index, Song};
 use rodio::Player;
+use std::time::Duration;
 use tui::{backend::Backend, Frame};
 
 #[derive(Default)]
@@ -16,6 +13,7 @@ pub struct ScrollText {
     max: usize,
 }
 
+#[allow(unused)]
 impl ScrollText {
     pub fn new(string: &str, max: usize) -> Self {
         let mut s = Self {
@@ -85,6 +83,7 @@ impl Queue {
         self.songs.select(player.current_song);
         self.scroll_text.next();
     }
+    #[allow(unused)]
     fn update_text(&mut self) {
         if let Some(song) = self.songs.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
@@ -233,7 +232,6 @@ impl Queue {
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
-
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.songs.selected() {
             //I wish that paragraphs had clipping
@@ -277,7 +275,7 @@ impl Queue {
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }
-
+    #[allow(unused)]
     fn draw_scrolling_text<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.scroll_text.is_empty() {
             self.update_text();

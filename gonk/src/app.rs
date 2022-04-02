@@ -84,9 +84,12 @@ impl App {
 
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
+
         let mut toml = Toml::new()?;
         let db = Database::new().unwrap();
-        db.add(&TOML.paths());
+
+        let paths = TOML.paths();
+        db.sync_database(&paths);
 
         #[cfg(windows)]
         let tx = App::register_hotkeys();
@@ -165,13 +168,7 @@ impl App {
                                     }
                                 }
                                 Mode::Search => self.search.on_enter(&mut self.player),
-                                Mode::Options => {
-                                    if let Some(dir) = self.options.on_enter(&mut self.player) {
-                                        db.delete_path(&dir);
-                                        self.browser.refresh();
-                                        self.search.update_engine();
-                                    }
-                                }
+                                Mode::Options => self.options.on_enter(&mut self.player),
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -197,12 +194,8 @@ impl App {
                             _ if HK.right.contains(&bind) => self.browser.next(),
                             _ if HK.play_pause.contains(&bind) => self.player.toggle_playback(),
                             _ if HK.clear.contains(&bind) => self.player.clear_songs(),
-                            //TODO: If I spam this the program will crash with no error.
-                            _ if HK.refresh_database.contains(&bind) => {
-                                for path in TOML.paths() {
-                                    db.force_add(&path);
-                                }
-                            }
+                            //TODO: rewrite update function
+                            _ if HK.refresh_database.contains(&bind) => todo!(),
                             _ if HK.seek_backward.contains(&bind) => self.player.seek_bw(),
                             _ if HK.seek_forward.contains(&bind) => self.player.seek_fw(),
                             _ if HK.previous.contains(&bind) => self.player.prev_song(),

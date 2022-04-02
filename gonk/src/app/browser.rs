@@ -28,6 +28,7 @@ pub struct Browser {
     db: Database,
     artists: Index<String>,
     albums: Index<String>,
+    //TODO: change to just a string?
     songs: Index<(u16, String)>,
     pub mode: Mode,
 }
@@ -35,13 +36,17 @@ pub struct Browser {
 impl Browser {
     pub fn new() -> Self {
         let db = Database::new().unwrap();
-        let artists = Index::new(db.artists(), Some(0));
+        let artists = Index::new(db.get_all_artists(), Some(0));
 
         let (albums, songs) = if let Some(first_artist) = artists.selected() {
-            let albums = Index::new(db.albums_by_artist(first_artist), Some(0));
+            let albums = Index::new(db.get_all_albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = db.songs_from_album(first_album, first_artist);
+                let songs = db
+                    .get_songs_from_album(first_album, first_artist)
+                    .iter()
+                    .map(|song| (song.number, song.name.clone()))
+                    .collect();
                 (albums, Index::new(songs, Some(0)))
             } else {
                 (albums, Index::default())
@@ -83,18 +88,21 @@ impl Browser {
     }
     pub fn update_albums(&mut self) {
         //Update the album based on artist selection
-        if let Some(name) = self.artists.selected() {
-            self.albums.data = self.db.albums_by_artist(name);
-            self.albums.select(Some(0));
-
+        if let Some(artist) = self.artists.selected() {
+            self.albums = Index::new(self.db.get_all_albums_by_artist(artist), Some(0));
             self.update_songs();
         }
     }
     pub fn update_songs(&mut self) {
         if let Some(artist) = self.artists.selected() {
             if let Some(album) = self.albums.selected() {
-                self.songs.data = self.db.songs_from_album(album, artist);
-                self.songs.select(Some(0));
+                let songs = self
+                    .db
+                    .get_songs_from_album(album, artist)
+                    .iter()
+                    .map(|song| (song.number, song.name.clone()))
+                    .collect();
+                self.songs = Index::new(songs, Some(0));
             }
         }
     }
@@ -109,8 +117,8 @@ impl Browser {
             if let Some(album) = self.albums.selected() {
                 if let Some(song) = self.songs.selected() {
                     return match self.mode {
-                        Mode::Artist => self.db.artist(artist),
-                        Mode::Album => self.db.album(album, artist),
+                        Mode::Artist => self.db.get_songs_by_artist(artist),
+                        Mode::Album => self.db.get_songs_from_album(album, artist),
                         Mode::Song => self.db.get_song(song, album, artist),
                     };
                 }
@@ -120,21 +128,12 @@ impl Browser {
     }
     pub fn refresh(&mut self) {
         self.mode = Mode::Artist;
+
+        self.artists = Index::new(self.db.get_all_artists(), Some(0));
         self.albums = Index::default();
         self.songs = Index::default();
 
-        self.artists = Index::new(self.db.artists(), Some(0));
-
-        if let Some(first_artist) = self.artists.selected() {
-            self.albums = Index::new(self.db.albums_by_artist(first_artist), Some(0));
-        }
-
-        if let Some(first_artist) = self.artists.selected() {
-            if let Some(first_album) = self.albums.selected() {
-                self.songs =
-                    Index::new(self.db.songs_from_album(first_album, first_artist), Some(0));
-            }
-        }
+        self.update_albums();
     }
 }
 

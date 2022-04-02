@@ -22,7 +22,6 @@ pub struct Database {
     busy: Arc<AtomicBool>,
 }
 
-//TODO: fix function names, they don't follow any convention.
 impl Database {
     pub fn new() -> rusqlite::Result<Self> {
         if !Path::new(CONFIG_DIR.as_path()).exists() {
@@ -56,49 +55,71 @@ impl Database {
             busy: Arc::new(AtomicBool::new(false)),
         })
     }
-    //TODO: this is super overcomplicated
-    pub fn add(&self, toml_paths: &[String]) {
-        let db_paths = self.get_paths();
+    pub fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::Relaxed)
+    }
+    pub fn sync_database(&self, toml_paths: &[String]) {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT parent FROM song")
+            .unwrap();
 
-        //add paths that are in toml file but not the database
-        for t_path in toml_paths {
-            if !db_paths.contains(t_path) {
-                self.force_add(t_path);
-            }
-        }
+        let paths: Vec<_> = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .flatten()
+            .collect();
 
         //delete paths that aren't in the toml file but are in the database
-        for db_path in db_paths {
-            if !toml_paths.contains(&db_path) {
-                self.delete_path(&db_path);
+        paths.iter().for_each(|path| {
+            if !toml_paths.contains(path) {
+                self.conn
+                    .execute("DELETE FROM song WHERE parent = ?", [path])
+                    .unwrap();
             }
+        });
+
+        //find the paths that are missing from the database
+        let paths_to_add: Vec<_> = toml_paths
+            .iter()
+            .filter_map(|path| {
+                if !paths.contains(path) {
+                    Some(path.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !paths_to_add.is_empty() {
+            self.add_dirs(paths_to_add);
         }
     }
-    pub fn force_add(&self, dir: &str) {
-        let dir = dir.to_owned();
+    pub fn add_dirs(&self, dirs: Vec<String>) {
         let busy = self.busy.clone();
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
-            let songs: Vec<Song> = WalkDir::new(&dir)
-                .into_iter()
-                .map(|dir| dir.unwrap().path())
-                .filter(|dir| {
-                    if let Some(ex) = dir.extension() {
-                        matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
-                    } else {
-                        false
-                    }
-                })
-                .parallel_map(|dir| Song::from(&dir))
-                .collect();
+            for dir in dirs {
+                let songs: Vec<Song> = WalkDir::new(&dir)
+                    .into_iter()
+                    .map(|dir| dir.unwrap().path())
+                    .filter(|dir| {
+                        if let Some(ex) = dir.extension() {
+                            matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
+                        } else {
+                            false
+                        }
+                    })
+                    .parallel_map(|dir| Song::from(&dir))
+                    .collect();
 
-            if songs.is_empty() {
-                return busy.store(false, Ordering::SeqCst);
-            }
+                if songs.is_empty() {
+                    return busy.store(false, Ordering::SeqCst);
+                }
 
-            let mut stmt = String::from("BEGIN;\n");
-            stmt.push_str(&songs.iter()
+                let mut stmt = String::from("BEGIN;\n");
+                stmt.push_str(&songs.iter()
                 .map(|song| {
                     let artist = fix(&song.artist);
                     let album = fix(&song.album);
@@ -111,59 +132,26 @@ impl Database {
                 })
                 .collect::<Vec<_>>().join("\n"));
 
-            stmt.push_str("COMMIT;\n");
+                stmt.push_str("COMMIT;\n");
 
-            let conn = Connection::open(DB_DIR.as_path()).unwrap();
+                let conn = Connection::open(DB_DIR.as_path()).unwrap();
 
-            conn.execute_batch(&stmt).unwrap();
+                conn.execute_batch(&stmt).unwrap();
+            }
 
             busy.store(false, Ordering::SeqCst);
         });
     }
-    pub fn is_busy(&self) -> bool {
-        self.busy.load(Ordering::Relaxed)
-    }
-    pub fn delete_path(&self, path: &str) {
-        self.conn
-            .execute("DELETE FROM song WHERE parent = ?", [path])
-            .unwrap();
-    }
-    pub fn get_paths(&self) -> Vec<String> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT DISTINCT parent FROM song")
-            .unwrap();
-
-        stmt.query_map([], |row| Ok(row.get(0).unwrap()))
-            .unwrap()
-            .flatten()
-            .collect()
-    }
-    pub fn get_songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
-        if ids.is_empty() {
-            return Vec::new();
-        }
-
-        let mut query = format!("SELECT * FROM song WHERE rowid={}", ids.first().unwrap());
-
+    pub fn get_songs_from_id(&self, ids: &[usize]) -> Vec<Song> {
         ids.iter()
-            .skip(1)
-            .for_each(|id| query.push_str(&format!(" OR rowid={}", id)));
-
-        let mut stmt = self.conn.prepare(&query).unwrap();
-        stmt.query_map([], |row| Ok(Database::song(row)))
-            .unwrap()
-            .flatten()
+            .filter_map(|id| {
+                self.collect_songs("SELECT * FROM song WHERE rowid = ?", params![id])
+                    .first()
+                    .cloned()
+            })
             .collect()
     }
-    pub fn get_song_from_id(&self, id: usize) -> Song {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT * FROM song WHERE rowid=?")
-            .unwrap();
-        stmt.query_row([id], |row| Ok(Database::song(row))).unwrap()
-    }
-    pub fn get_songs(&self) -> Vec<(usize, Song)> {
+    pub fn get_all_songs(&self) -> Vec<(usize, Song)> {
         let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
 
         stmt.query_map([], |row| {
@@ -175,7 +163,7 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn artists(&self) -> Vec<String> {
+    pub fn get_all_artists(&self) -> Vec<String> {
         let mut stmt = self
             .conn
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
@@ -189,7 +177,7 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn albums(&self) -> Vec<(String, String)> {
+    pub fn get_all_albums(&self) -> Vec<(String, String)> {
         let mut stmt = self
             .conn
             .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
@@ -204,7 +192,7 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
+    pub fn get_all_albums_by_artist(&self, artist: &str) -> Vec<String> {
         let mut stmt = self
             .conn
             .prepare(
@@ -212,33 +200,18 @@ impl Database {
             )
             .unwrap();
 
-        stmt.query_map([artist], |row| {
-            let album: String = row.get(0).unwrap();
-            Ok(album)
-        })
-        .unwrap()
-        .flatten()
-        .collect()
+        stmt.query_map([artist], |row| row.get(0))
+            .unwrap()
+            .flatten()
+            .collect()
     }
-    pub fn songs_from_album(&self, album: &str, artist: &str) -> Vec<(u16, String)> {
-        let mut stmt = self.conn.prepare("SELECT number, name FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number").unwrap();
-
-        stmt.query_map([artist, album], |row| {
-            let number: u16 = row.get(0).unwrap();
-            let name: String = row.get(1).unwrap();
-            Ok((number, name))
-        })
-        .unwrap()
-        .flatten()
-        .collect()
-    }
-    pub fn artist(&self, artist: &str) -> Vec<Song> {
+    pub fn get_songs_by_artist(&self, artist: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE artist = ? ORDER BY album, disc, number",
             params![artist],
         )
     }
-    pub fn album(&self, album: &str, artist: &str) -> Vec<Song> {
+    pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
             params![artist, album],
@@ -275,6 +248,8 @@ impl Database {
         }
     }
     pub fn delete() {
-        std::fs::remove_file(DB_DIR.as_path()).unwrap();
+        if DB_DIR.as_path().exists() {
+            std::fs::remove_file(DB_DIR.as_path()).unwrap();
+        }
     }
 }
