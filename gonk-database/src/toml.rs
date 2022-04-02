@@ -127,9 +127,27 @@ impl Bind {
             "INSERT" => keys::INSERT,
             "ESCAPE" => keys::ESCAPE,
             "CAPSLOCK" => keys::CAPS_LOCK,
-            _ => 0,
+            key => {
+                if let Some(char) = key.chars().next() {
+                    char as u32
+                } else {
+                    0
+                }
+            }
         }
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn test() {
+    let b = Bind {
+        key: Key::from("A"),
+        modifiers: Some(vec![Modifier::ALT, Modifier::SHIFT]),
+    };
+    assert_eq!(Bind::new("A").key(), 'A' as u32);
+    assert_eq!(Bind::new("TAB").key(), keys::TAB);
+    assert_eq!(b.modifiers(), modifiers::ALT | modifiers::SHIFT);
 }
 
 #[derive(Serialize, Deserialize, Clone)]
