@@ -78,7 +78,7 @@ impl Queue {
         }
     }
     pub fn update(&mut self, player: &Player) {
-        if self.ui.is_none() {
+        if self.ui.is_none() && !self.songs.is_empty() {
             self.ui.select(Some(0));
         }
         self.songs.data = player.songs.clone();
