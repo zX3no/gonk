@@ -107,13 +107,14 @@ impl Browser {
         self.mode.prev();
     }
     pub fn on_enter(&self) -> Vec<Song> {
+        //TODO: what is this?
         let artist = self.artists.selected().unwrap();
         let album = self.albums.selected().unwrap();
         let song = self.songs.selected().unwrap();
         match self.mode {
             Mode::Artist => self.db.artist(artist),
-            Mode::Album => self.db.album(artist, album),
-            Mode::Song => self.db.get_song(artist, album, song),
+            Mode::Album => self.db.album(album, artist),
+            Mode::Song => self.db.get_song(song, album, artist),
         }
     }
     pub fn refresh(&mut self) {

@@ -247,13 +247,13 @@ impl Database {
             params![artist],
         )
     }
-    pub fn album(&self, artist: &str, album: &str) -> Vec<Song> {
+    pub fn album(&self, album: &str, artist: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
             params![artist, album],
         )
     }
-    pub fn get_song(&self, artist: &str, album: &str, song: &(u16, String)) -> Vec<Song> {
+    pub fn get_song(&self, song: &(u16, String), album: &str, artist: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE name=(?1) AND number=(?2) AND artist=(?3) AND album=(?4)",
             params![song.1, song.0, artist, album],

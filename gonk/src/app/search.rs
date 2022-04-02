@@ -2,7 +2,6 @@ use super::{Mode as AppMode, COLORS};
 use crossterm::event::KeyModifiers;
 use gonk_database::Database;
 use gonk_types::Index;
-use lib::{Album, Artist, Engine, Item, SearchItem, Song};
 use rodio::Player;
 use tui::{
     backend::Backend,
@@ -13,7 +12,54 @@ use tui::{
     Frame,
 };
 
-mod lib;
+#[derive(Clone)]
+pub enum Item {
+    Song(Song),
+    Album(Album),
+    Artist(Artist),
+}
+
+#[derive(Clone)]
+pub struct Song {
+    pub id: usize,
+    pub name: String,
+    pub album: String,
+    pub artist: String,
+}
+
+impl Song {
+    pub fn new(id: usize, name: String, album: String, artist: String) -> Self {
+        Self {
+            id,
+            name,
+            album,
+            artist,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Album {
+    pub name: String,
+    pub artist: String,
+}
+
+impl Album {
+    pub fn new(name: String, artist: String) -> Self {
+        Self { name, artist }
+    }
+}
+
+#[derive(Clone)]
+pub struct Artist {
+    pub name: String,
+}
+
+impl Artist {
+    pub fn new(name: String) -> Self {
+        Self { name }
+    }
+}
 
 pub enum Mode {
     Search,
@@ -26,7 +72,7 @@ pub struct Search {
     prev_query: String,
     mode: Mode,
     results: Index<Item>,
-    engine: Engine<Item>,
+    cache: Vec<Item>,
 }
 
 impl Search {
@@ -34,10 +80,10 @@ impl Search {
         let songs = self.db.get_songs();
         let artists = self.db.artists();
         let albums = self.db.albums();
-        self.engine = Engine::default();
+        self.cache = Vec::new();
 
         for (id, song) in songs {
-            self.engine.push(Item::Song(Song::new(
+            self.cache.push(Item::Song(Song::new(
                 id,
                 song.name,
                 song.album,
@@ -46,16 +92,16 @@ impl Search {
         }
 
         for (album, artist) in albums {
-            self.engine.push(Item::Album(Album::new(album, artist)));
+            self.cache.push(Item::Album(Album::new(album, artist)));
         }
 
         for artist in artists {
-            self.engine.push(Item::Artist(Artist::new(artist)));
+            self.cache.push(Item::Artist(Artist::new(artist)));
         }
     }
     pub fn new() -> Self {
         let mut s = Self {
-            engine: Engine::default(),
+            cache: Vec::new(),
             db: Database::new().unwrap(),
             query: String::new(),
             prev_query: String::new(),
@@ -70,26 +116,18 @@ impl Search {
         let query = &self.query.to_lowercase();
         let mut results = Vec::new();
 
-        for item in &self.engine.data {
-            let acc = if let Some(artist) = item.artist() {
-                if let Some(album) = item.album() {
-                    if let Some((_, song)) = item.song() {
-                        strsim::jaro_winkler(query, &song.to_lowercase())
-                    } else {
-                        strsim::jaro_winkler(query, &album.to_lowercase())
-                    }
-                } else {
-                    strsim::jaro_winkler(query, &artist.to_lowercase())
-                }
-            } else {
-                panic!("Invalid search item")
+        for item in &self.cache {
+            let acc = match item {
+                Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+                Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
+                Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
             };
 
             if acc > 0.75 {
                 results.push((item, acc));
             }
         }
-        //TODO: sort self titled albums bellow artists
+        //TODO: sort self-titled albums bellow artists
         results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
         self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
     }
@@ -167,16 +205,12 @@ impl Search {
             }
             Mode::Select => {
                 if let Some(item) = self.results.selected() {
-                    let songs = if let Some((id, _)) = item.song() {
-                        vec![self.db.get_song_from_id(id)]
-                    } else if let Some(artist) = item.artist() {
-                        if let Some(album) = item.album() {
-                            self.db.album(artist, album)
-                        } else {
-                            self.db.artist(artist)
+                    let songs = match item {
+                        Item::Song(song) => {
+                            vec![self.db.get_song_from_id(song.id)]
                         }
-                    } else {
-                        panic!("Invalid search item");
+                        Item::Album(album) => self.db.album(&album.name, &album.artist),
+                        Item::Artist(artist) => self.db.artist(&artist.name),
                     };
 
                     player.add_songs(songs);
@@ -216,22 +250,19 @@ impl Search {
         };
 
         if let Some(item) = item {
-            if let Some(artist) = item.artist() {
-                if let Some(album) = item.album() {
-                    if let Some(song) = item.song() {
-                        //song
-                        Search::song(f, song, album, artist, h[0]);
-                        self.album(f, album, artist, h[1]);
-                    } else {
-                        //album
-                        self.album(f, album, artist, h[0]);
-                        self.artist(f, artist, h[1]);
-                    }
-                } else {
-                    //artist
-                    let albums = self.db.albums_by_artist(artist);
+            match item {
+                Item::Song(song) => {
+                    Search::song(f, &song.name, &song.album, &song.artist, h[0]);
+                    self.album(f, &song.album, &song.artist, h[1]);
+                }
+                Item::Album(album) => {
+                    self.album(f, &album.name, &album.artist, h[0]);
+                    self.artist(f, &album.artist, h[1]);
+                }
+                Item::Artist(artist) => {
+                    let albums = self.db.albums_by_artist(&artist.name);
 
-                    self.artist(f, artist, h[0]);
+                    self.artist(f, &artist.name, h[0]);
 
                     let h_split = Layout::default()
                         .direction(Direction::Horizontal)
@@ -243,7 +274,7 @@ impl Search {
                     //draw the first two albums
                     for (i, area) in h_split.iter().enumerate() {
                         if let Some(album) = albums.get(i) {
-                            self.album(f, album, artist, *area);
+                            self.album(f, album, &artist.name, *area);
                         }
                     }
                 }
@@ -255,20 +286,14 @@ impl Search {
 
         self.update_cursor(f);
     }
-    fn song<B: Backend>(
-        f: &mut Frame<B>,
-        (_, song): (usize, &String),
-        album: &str,
-        artist: &str,
-        area: Rect,
-    ) {
+    fn song<B: Backend>(f: &mut Frame<B>, name: &str, album: &str, artist: &str, area: Rect) {
         let song_table = Table::new(vec![
             Row::new(vec![Spans::from(Span::raw(album))]),
             Row::new(vec![Spans::from(Span::raw(artist))]),
         ])
         .header(
             Row::new(vec![Span::styled(
-                format!("{} ", song),
+                format!("{} ", name),
                 Style::default().add_modifier(Modifier::ITALIC),
             )])
             .bottom_margin(1),
@@ -335,44 +360,32 @@ impl Search {
         f.render_widget(artist_table, area);
     }
     fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
-        let get_cell = |item: &dyn SearchItem, modifier: Modifier| -> Row {
-            if let Some(artist) = item.artist() {
-                if let Some(album) = item.album() {
-                    if let Some((id, _)) = item.song() {
-                        //song
-                        let song = self.db.get_song_from_id(id);
-                        Row::new(vec![
-                            Cell::from(song.name)
-                                .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
-                            Cell::from(song.album.clone())
-                                .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
-                            Cell::from(song.artist)
-                                .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
-                        ])
-                    } else {
-                        //album
-                        Row::new(vec![
-                            Cell::from(format!("{} - Album", album))
-                                .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
-                            Cell::from("")
-                                .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
-                            Cell::from(artist.clone())
-                                .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
-                        ])
-                    }
-                } else {
+        let get_cell = |item: &Item, modifier: Modifier| -> Row {
+            match item {
+                Item::Song(song) => {
+                    let song = self.db.get_song_from_id(song.id);
                     Row::new(vec![
-                        Cell::from(format!("{} - Artist", artist))
+                        Cell::from(song.name)
                             .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
-                        Cell::from("")
+                        Cell::from(song.album.clone())
                             .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
-                        Cell::from("")
+                        Cell::from(song.artist)
                             .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                     ])
-                    //artist
                 }
-            } else {
-                panic!();
+                Item::Album(album) => Row::new(vec![
+                    Cell::from(format!("{} - Album", album.name))
+                        .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(COLORS.album).add_modifier(modifier)),
+                    Cell::from(album.artist.clone())
+                        .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
+                ]),
+                Item::Artist(artist) => Row::new(vec![
+                    Cell::from(format!("{} - Artist", artist.name))
+                        .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(COLORS.album).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
+                ]),
             }
         };
 
