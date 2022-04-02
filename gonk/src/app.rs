@@ -96,7 +96,9 @@ impl App {
             App::global_hotkeys(&tx, &mut self.player, &mut toml);
 
             self.terminal.draw(|f| match self.mode {
-                Mode::Browser => self.browser.draw(f),
+                Mode::Browser => {
+                    self.browser.draw(f, db.is_busy());
+                }
                 Mode::Queue => self.queue.draw(f, &self.player),
                 Mode::Options => self.options.draw(f),
                 Mode::Search => self.search.draw(f),
@@ -108,12 +110,9 @@ impl App {
 
             //on update
             if last_tick.elapsed() >= TICK_RATE {
-                if let Some(busy) = db.is_busy() {
-                    if busy {
-                        self.browser.refresh();
-                        self.search.update_engine();
-                    }
-                    self.browser.is_busy = busy;
+                if db.is_busy() {
+                    self.browser.refresh();
+                    self.search.update_engine();
                 }
 
                 if self.search.has_query_changed() {

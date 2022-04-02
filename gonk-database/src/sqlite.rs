@@ -6,7 +6,7 @@ use rusqlite::{params, Connection, Params, Row};
 use std::{
     path::{Path, PathBuf},
     sync::{
-        mpsc::{self, Receiver, SyncSender},
+        atomic::{AtomicBool, Ordering},
         Arc,
     },
     thread,
@@ -19,8 +19,7 @@ fn fix(item: &str) -> String {
 
 pub struct Database {
     conn: Connection,
-    tx: Arc<SyncSender<bool>>,
-    rx: Arc<Receiver<bool>>,
+    busy: Arc<AtomicBool>,
 }
 
 //TODO: fix function names, they don't follow any convention.
@@ -52,11 +51,9 @@ impl Database {
             )?;
         }
 
-        let (tx, rx) = mpsc::sync_channel(1);
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
-            tx: Arc::new(tx),
-            rx: Arc::new(rx),
+            busy: Arc::new(AtomicBool::new(false)),
         })
     }
     //TODO: this is super overcomplicated
@@ -78,10 +75,9 @@ impl Database {
         }
     }
     pub fn force_add(&self, dir: &str) {
-        let tx = self.tx.clone();
-        tx.send(true).unwrap();
-
         let dir = dir.to_owned();
+        let busy = self.busy.clone();
+        busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
             let songs: Vec<Song> = WalkDir::new(&dir)
@@ -98,7 +94,7 @@ impl Database {
                 .collect();
 
             if songs.is_empty() {
-                return tx.send(false).unwrap();
+                return busy.store(false, Ordering::SeqCst);
             }
 
             let mut stmt = String::from("BEGIN;\n");
@@ -121,16 +117,11 @@ impl Database {
 
             conn.execute_batch(&stmt).unwrap();
 
-            tx.send(true).unwrap();
-            tx.send(false).unwrap();
+            busy.store(false, Ordering::SeqCst);
         });
     }
-    pub fn is_busy(&self) -> Option<bool> {
-        if let Ok(recv) = self.rx.try_recv() {
-            Some(recv)
-        } else {
-            None
-        }
+    pub fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::Relaxed)
     }
     pub fn delete_path(&self, path: &str) {
         self.conn
@@ -229,7 +220,7 @@ impl Database {
         .flatten()
         .collect()
     }
-    pub fn songs_from_album(&self, artist: &str, album: &str) -> Vec<(u16, String)> {
+    pub fn songs_from_album(&self, album: &str, artist: &str) -> Vec<(u16, String)> {
         let mut stmt = self.conn.prepare("SELECT number, name FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number").unwrap();
 
         stmt.query_map([artist, album], |row| {

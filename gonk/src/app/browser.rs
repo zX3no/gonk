@@ -30,7 +30,6 @@ pub struct Browser {
     albums: Index<String>,
     songs: Index<(u16, String)>,
     pub mode: Mode,
-    pub is_busy: bool,
 }
 
 impl Browser {
@@ -42,7 +41,7 @@ impl Browser {
             let albums = Index::new(db.albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = db.songs_from_album(first_artist, first_album);
+                let songs = db.songs_from_album(first_album, first_artist);
                 (albums, Index::new(songs, Some(0)))
             } else {
                 (albums, Index::default())
@@ -57,7 +56,6 @@ impl Browser {
             albums,
             songs,
             mode: Mode::Artist,
-            is_busy: false,
         }
     }
     pub fn up(&mut self) {
@@ -95,7 +93,7 @@ impl Browser {
     pub fn update_songs(&mut self) {
         if let Some(artist) = self.artists.selected() {
             if let Some(album) = self.albums.selected() {
-                self.songs.data = self.db.songs_from_album(artist, album);
+                self.songs.data = self.db.songs_from_album(album, artist);
                 self.songs.select(Some(0));
             }
         }
@@ -131,7 +129,7 @@ impl Browser {
         if let Some(first_artist) = self.artists.selected() {
             if let Some(first_album) = self.albums.selected() {
                 self.songs =
-                    Index::new(self.db.songs_from_album(first_artist, first_album), Some(0));
+                    Index::new(self.db.songs_from_album(first_album, first_artist), Some(0));
             }
         }
     }
@@ -146,10 +144,9 @@ use tui::{
     Frame,
 };
 impl Browser {
-    pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
+    pub fn draw<B: Backend>(&self, f: &mut Frame<B>, busy: bool) {
         self.draw_browser(f);
-
-        if self.is_busy {
+        if busy {
             Browser::draw_popup(f);
         }
     }
