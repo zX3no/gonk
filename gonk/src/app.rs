@@ -262,11 +262,6 @@ impl App {
         }
     }
 
-    #[cfg(unix)]
-    fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {
-        todo!();
-    }
-
     #[cfg(windows)]
     fn register_hotkeys() -> Receiver<HotkeyEvent> {
         use win_hotkey::{keys, modifiers, Listener};

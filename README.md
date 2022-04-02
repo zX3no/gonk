@@ -29,9 +29,16 @@ sudo apt install libasound2-dev pkg-config
 ```
 
 Fedora:
+> Not tested.
 
 ```
-dnf install alsa-lib-devel
+dnf install alsa-lib-devel pkgconfig
+```
+
+Alpine:
+
+```
+apk add pkgconf alsa-lib-dev
 ```
 
 #### From source
