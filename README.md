@@ -25,7 +25,7 @@
 Debian:
 
 ```
-sudo apt install libasound2-dev pkg-config
+sudo apt install libasound2-dev pkg-config build-essential
 ```
 
 Fedora:
@@ -38,7 +38,7 @@ dnf install alsa-lib-devel pkgconfig
 Alpine:
 
 ```
-apk add pkgconf alsa-lib-dev
+apk add pkgconf alsa-lib-dev alpine-sdk
 ```
 
 #### From source

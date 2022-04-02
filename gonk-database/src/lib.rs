@@ -9,13 +9,13 @@ mod sqlite;
 mod toml;
 
 #[dynamic]
-static DIR: PathBuf = dirs::config_dir().unwrap();
+static CONFIG_DIR: PathBuf = dirs::config_dir().unwrap();
 
 #[dynamic]
-pub static CONFIG_DIR: PathBuf = DIR.join("gonk");
+pub static GONK_DIR: PathBuf = CONFIG_DIR.join("gonk");
 
 #[dynamic]
-pub static DB_DIR: PathBuf = DIR.join("gonk\\gonk.db");
+pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 #[dynamic]
-pub static TOML_DIR: PathBuf = DIR.join("gonk\\gonk.toml");
+pub static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");

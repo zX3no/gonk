@@ -1,4 +1,4 @@
-use crate::{CONFIG_DIR, DB_DIR};
+use crate::{CONFIG_DIR, DB_DIR, GONK_DIR};
 use dpc_pariter::IteratorExt;
 use gonk_types::Song;
 use jwalk::WalkDir;
@@ -26,6 +26,10 @@ impl Database {
     pub fn new() -> rusqlite::Result<Self> {
         if !Path::new(CONFIG_DIR.as_path()).exists() {
             std::fs::create_dir(CONFIG_DIR.as_path()).unwrap();
+        }
+
+        if !Path::new(GONK_DIR.as_path()).exists() {
+            std::fs::create_dir(GONK_DIR.as_path()).unwrap();
         }
 
         if !Path::new(DB_DIR.as_path()).exists() {
