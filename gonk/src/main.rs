@@ -1,5 +1,5 @@
 use app::App;
-use gonk_database::{Database, Toml, CONFIG_DIR};
+use gonk_database::{Database, Toml, GONK_DIR};
 use std::io::Result;
 mod app;
 
@@ -20,7 +20,7 @@ fn main() -> Result<()> {
                 }
             }
             "config" => {
-                println!("Gonk directory:  {}", CONFIG_DIR.to_string_lossy());
+                println!("Gonk directory:  {}", GONK_DIR.to_string_lossy());
                 return Ok(());
             }
             "reset" | "rm" => {
