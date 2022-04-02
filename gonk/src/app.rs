@@ -6,7 +6,6 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use gonk_database::{Bind, Colors, Database, Hotkey, Key, Modifier, Toml};
-use rodio::Player;
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
@@ -59,7 +58,7 @@ pub struct App {
     browser: Browser,
     options: Options,
     search: Search,
-    player: Player,
+    db: Database,
 }
 
 impl App {
@@ -71,6 +70,9 @@ impl App {
         terminal.clear().unwrap();
         terminal.hide_cursor().unwrap();
 
+        let db = Database::new().unwrap();
+        db.sync_database(&TOML.paths());
+
         Self {
             terminal,
             mode: Mode::Browser,
@@ -78,31 +80,35 @@ impl App {
             browser: Browser::new(),
             options: Options::new(),
             search: Search::new(),
-            player: Player::new(TOML.volume()),
+            db: Database::new().unwrap(),
         }
     }
+    fn on_update(&mut self) {
+        if self.db.is_busy() {
+            self.browser.refresh();
+            self.search.update_engine();
+        }
 
+        if self.search.has_query_changed() {
+            self.search.update_search();
+        }
+
+        self.queue.update();
+    }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-
         let mut toml = Toml::new()?;
-        let db = Database::new().unwrap();
-
-        let paths = TOML.paths();
-        db.sync_database(&paths);
 
         #[cfg(windows)]
         let tx = App::register_hotkeys();
 
         loop {
             #[cfg(windows)]
-            App::handle_global_hotkeys(&tx, &mut self.player, &mut toml);
+            self.handle_global_hotkeys(&tx, &mut toml);
 
             self.terminal.draw(|f| match self.mode {
-                Mode::Browser => {
-                    self.browser.draw(f, db.is_busy());
-                }
-                Mode::Queue => self.queue.draw(f, &self.player),
+                Mode::Browser => self.browser.draw(f, self.db.is_busy()),
+                Mode::Queue => self.queue.draw(f),
                 Mode::Options => self.options.draw(f),
                 Mode::Search => self.search.draw(f),
             })?;
@@ -111,24 +117,10 @@ impl App {
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
-            //on update
             if last_tick.elapsed() >= TICK_RATE {
-                if db.is_busy() {
-                    self.browser.refresh();
-                    self.search.update_engine();
-                }
-
-                if self.search.has_query_changed() {
-                    self.search.update_search();
-                }
+                self.on_update();
                 last_tick = Instant::now();
             }
-
-            //skip to the next track when ready
-            self.player.update();
-
-            //sync the player and queue
-            self.queue.update(&self.player);
 
             if crossterm::event::poll(timeout)? {
                 match event::read()? {
@@ -143,9 +135,7 @@ impl App {
                         };
 
                         match event.code {
-                            KeyCode::Char(c) if self.mode == Mode::Search => {
-                                self.search.on_key(c);
-                            }
+                            KeyCode::Char(c) if self.mode == Mode::Search => self.search.on_key(c),
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
                                     Mode::Browser | Mode::Options => Mode::Queue,
@@ -160,15 +150,15 @@ impl App {
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
-                                    self.player.add_songs(songs);
+                                    self.queue.player.add_songs(songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index {
-                                        self.player.play_song(i);
+                                        self.queue.player.play_song(i);
                                     }
                                 }
-                                Mode::Search => self.search.on_enter(&mut self.player),
-                                Mode::Options => self.options.on_enter(&mut self.player),
+                                Mode::Search => self.search.on_enter(&mut self.queue.player),
+                                Mode::Options => self.options.on_enter(&mut self.queue.player),
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -184,28 +174,26 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint('3', event.modifiers);
                             }
-                            _ if HK.up.contains(&bind) => {
-                                self.up();
-                            }
-                            _ if HK.down.contains(&bind) => {
-                                self.down();
-                            }
+                            _ if HK.up.contains(&bind) => self.up(),
+                            _ if HK.down.contains(&bind) => self.down(),
                             _ if HK.left.contains(&bind) => self.browser.prev(),
                             _ if HK.right.contains(&bind) => self.browser.next(),
-                            _ if HK.play_pause.contains(&bind) => self.player.toggle_playback(),
-                            _ if HK.clear.contains(&bind) => self.player.clear_songs(),
+                            _ if HK.play_pause.contains(&bind) => {
+                                self.queue.player.toggle_playback()
+                            }
+                            _ if HK.clear.contains(&bind) => self.queue.player.clear_songs(),
                             //TODO: rewrite update function
                             _ if HK.refresh_database.contains(&bind) => todo!(),
-                            _ if HK.seek_backward.contains(&bind) => self.player.seek_bw(),
-                            _ if HK.seek_forward.contains(&bind) => self.player.seek_fw(),
-                            _ if HK.previous.contains(&bind) => self.player.prev_song(),
-                            _ if HK.next.contains(&bind) => self.player.next_song(),
+                            _ if HK.seek_backward.contains(&bind) => self.queue.player.seek_bw(),
+                            _ if HK.seek_forward.contains(&bind) => self.queue.player.seek_fw(),
+                            _ if HK.previous.contains(&bind) => self.queue.player.prev_song(),
+                            _ if HK.next.contains(&bind) => self.queue.player.next_song(),
                             _ if HK.volume_up.contains(&bind) => {
-                                let vol = self.player.volume_up();
+                                let vol = self.queue.player.volume_up();
                                 toml.set_volume(vol);
                             }
                             _ if HK.volume_down.contains(&bind) => {
-                                let vol = self.player.volume_down();
+                                let vol = self.queue.player.volume_down();
                                 toml.set_volume(vol);
                             }
                             _ if HK.search.contains(&bind) => self.mode = Mode::Search,
@@ -213,21 +201,17 @@ impl App {
                             _ if HK.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
-                                        self.player.delete_song(i);
+                                        self.queue.player.delete_song(i);
                                     }
                                 }
                             }
-                            _ if HK.random.contains(&bind) => self.player.randomize(),
+                            _ if HK.random.contains(&bind) => self.queue.player.randomize(),
                             _ => (),
                         }
                     }
                     Event::Mouse(event) => match event.kind {
-                        MouseEventKind::ScrollUp => {
-                            self.up();
-                        }
-                        MouseEventKind::ScrollDown => {
-                            self.down();
-                        }
+                        MouseEventKind::ScrollUp => self.up(),
+                        MouseEventKind::ScrollDown => self.down(),
                         MouseEventKind::Down(_) => {
                             self.queue.clicked_pos = Some((event.column, event.row));
                         }
@@ -260,20 +244,20 @@ impl App {
     }
 
     //TODO: this should be platform agnostic
-    fn handle_global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {
+    fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>, toml: &mut Toml) {
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => {
-                    let vol = player.volume_up();
+                    let vol = self.queue.player.volume_up();
                     toml.set_volume(vol);
                 }
                 HotkeyEvent::VolDown => {
-                    let vol = player.volume_down();
+                    let vol = self.queue.player.volume_down();
                     toml.set_volume(vol);
                 }
-                HotkeyEvent::PlayPause => player.toggle_playback(),
-                HotkeyEvent::Prev => player.prev_song(),
-                HotkeyEvent::Next => player.next_song(),
+                HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
+                HotkeyEvent::Prev => self.queue.player.prev_song(),
+                HotkeyEvent::Next => self.queue.player.next_song(),
             }
         }
     }

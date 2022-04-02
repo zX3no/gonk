@@ -1,6 +1,6 @@
 use crate::app::COLORS;
 use crossterm::event::KeyModifiers;
-use gonk_types::{Index, Song};
+use gonk_types::Index;
 use rodio::Player;
 use std::time::Duration;
 use tui::{backend::Backend, Frame};
@@ -58,34 +58,33 @@ impl ScrollText {
 }
 
 pub struct Queue {
-    pub songs: Index<Song>,
     pub ui: Index<()>,
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
     pub scroll_text: ScrollText,
+    pub player: Player,
 }
 
 impl Queue {
     pub fn new() -> Self {
         Self {
-            songs: Index::default(),
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             scroll_text: ScrollText::default(),
+            player: Player::new(TOML.volume()),
         }
     }
-    pub fn update(&mut self, player: &Player) {
-        if self.ui.is_none() && !self.songs.is_empty() {
+    pub fn update(&mut self) {
+        if self.ui.is_none() && !self.player.songs.is_empty() {
             self.ui.select(Some(0));
         }
-        self.songs.data = player.songs.clone();
-        self.songs.select(player.current_song);
         self.scroll_text.next();
+        self.player.update();
     }
     #[allow(unused)]
     fn update_text(&mut self) {
-        if let Some(song) = self.songs.selected() {
+        if let Some(song) = self.player.songs.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
 
             //TODO: this is broken
@@ -124,10 +123,10 @@ impl Queue {
         );
     }
     pub fn up(&mut self) {
-        self.ui.up_with_len(self.songs.len());
+        self.ui.up_with_len(self.player.songs.len());
     }
     pub fn down(&mut self) {
-        self.ui.down_with_len(self.songs.len());
+        self.ui.down_with_len(self.player.songs.len());
     }
 }
 
@@ -136,13 +135,15 @@ use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 
+use super::TOML;
+
 impl Queue {
-    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>, player: &Player) {
+    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {
         //Songs
         if let Some((_, row)) = self.clicked_pos {
             let size = f.size();
             let height = size.height as usize;
-            let len = self.songs.len();
+            let len = self.player.songs.len();
             if height > 7 {
                 if height - 7 < len {
                     //TODO: I have no idea how to figure out what index i clicked on
@@ -166,15 +167,15 @@ impl Queue {
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
                 let ratio = f64::from(column - 3) / f64::from(size.width);
-                if let Some(duration) = player.duration() {
+                if let Some(duration) = self.player.duration() {
                     let new_time = duration * ratio;
-                    player.seek_to(Duration::from_secs_f64(new_time));
+                    self.player.seek_to(Duration::from_secs_f64(new_time));
                 }
             }
             self.clicked_pos = None;
         }
     }
-    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>, player: &Player) {
+    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -184,12 +185,12 @@ impl Queue {
             ])
             .split(f.size());
 
-        self.handle_mouse(f, player);
-        self.draw_header(f, chunks[0], player);
+        self.handle_mouse(f);
+        self.draw_header(f, chunks[0]);
         self.draw_songs(f, chunks[1]);
-        self.draw_seeker(f, chunks[2], player);
+        self.draw_seeker(f, chunks[2]);
     }
-    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect, player: &Player) {
+    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         //Render the borders first
         let b = Block::default()
             .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -197,11 +198,11 @@ impl Queue {
         f.render_widget(b, chunk);
 
         //Left
-        let time = if self.songs.is_empty() {
+        let time = if self.player.songs.is_empty() {
             String::from("╭─Stopped")
-        } else if !player.is_paused() {
-            if let Some(duration) = player.duration() {
-                let elapsed = player.elapsed().as_secs_f64();
+        } else if !self.player.is_paused() {
+            if let Some(duration) = self.player.duration() {
+                let elapsed = self.player.elapsed().as_secs_f64();
 
                 let mins = elapsed / 60.0;
                 let rem = elapsed % 60.0;
@@ -223,17 +224,17 @@ impl Queue {
         f.render_widget(left, chunk);
 
         //Center
-        if !self.songs.is_empty() {
+        if !self.player.songs.is_empty() {
             self.draw_scrolling_text_old(f, chunk);
         }
 
         //Right
-        let text = Spans::from(format!("Vol: {}%─╮", player.volume));
+        let text = Spans::from(format!("Vol: {}%─╮", self.player.volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        let center = if let Some(song) = self.songs.selected() {
+        let center = if let Some(song) = self.player.songs.selected() {
             //I wish that paragraphs had clipping
             //I think constraints do
             //I could render the -| |- on a seperate layer
@@ -288,7 +289,7 @@ impl Queue {
         f.render_widget(p, chunk);
     }
     fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.songs.is_empty() {
+        if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::LEFT | Borders::RIGHT)
@@ -297,7 +298,11 @@ impl Queue {
             );
         }
 
-        let (songs, now_playing, ui_index) = (&self.songs.data, self.songs.index, self.ui.index);
+        let (songs, now_playing, ui_index) = (
+            &self.player.songs.data,
+            self.player.songs.index,
+            self.ui.index,
+        );
 
         let mut items: Vec<Row> = songs
             .iter()
@@ -402,8 +407,8 @@ impl Queue {
 
         f.render_stateful_widget(t, chunk, &mut state);
     }
-    fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect, player: &Player) {
-        if self.songs.is_empty() {
+    fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+        if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
@@ -414,7 +419,7 @@ impl Queue {
 
         let area = f.size();
         let width = area.width;
-        let percent = player.seeker();
+        let percent = self.player.seeker();
         //TOOD: casting to usize could fail
         let pos = (f64::from(width) * percent) as usize;
 

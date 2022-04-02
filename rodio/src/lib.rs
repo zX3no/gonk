@@ -5,7 +5,7 @@ pub use cpal::{
     SupportedStreamConfig,
 };
 use decoder::Decoder;
-use gonk_types::Song;
+use gonk_types::{Index, Song};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 
@@ -35,9 +35,7 @@ pub struct Player {
     sink: Sink,
     total_duration: Option<Duration>,
     pub volume: u16,
-    safe_guard: bool,
-    pub songs: Vec<Song>,
-    pub current_song: Option<usize>,
+    pub songs: Index<Song>,
 }
 
 impl Player {
@@ -53,56 +51,33 @@ impl Player {
             sink,
             total_duration: None,
             volume,
-            safe_guard: true,
-            songs: Vec::new(),
-            current_song: None,
+            songs: Index::default(),
         }
     }
     pub fn add_songs(&mut self, song: Vec<Song>) {
-        self.songs.extend(song);
-        if self.current_song.is_none() && !self.songs.is_empty() {
-            self.current_song = Some(0);
+        self.songs.data.extend(song);
+        if self.songs.is_none() && !self.songs.is_empty() {
+            self.songs.select(Some(0));
             self.play_selected();
         }
     }
     pub fn play_song(&mut self, i: usize) {
-        if self.songs.get(i).is_some() {
-            self.current_song = Some(i);
+        if self.songs.data.get(i).is_some() {
+            self.songs.select(Some(i));
             self.play_selected();
         };
     }
     pub fn clear_songs(&mut self) {
-        self.songs = Vec::new();
-        self.current_song = None;
+        self.songs = Index::default();
         self.stop();
     }
     pub fn prev_song(&mut self) {
-        if let Some(i) = &self.current_song {
-            let i = if i == &0 {
-                self.songs.len().saturating_sub(1)
-            } else {
-                i.saturating_sub(1)
-            };
-
-            if self.songs.get(i).is_some() {
-                self.current_song = Some(i);
-                self.play_selected();
-            };
-        }
+        self.songs.up();
+        self.play_selected();
     }
     pub fn next_song(&mut self) {
-        if let Some(i) = &self.current_song {
-            let i = if (i + 1) == self.songs.len() {
-                0
-            } else {
-                i.saturating_add(1)
-            };
-
-            if self.songs.get(i).is_some() {
-                self.current_song = Some(i);
-                self.play_selected();
-            };
-        }
+        self.songs.down();
+        self.play_selected();
     }
     pub fn volume_up(&mut self) -> u16 {
         self.volume += VOLUME_STEP;
@@ -126,38 +101,36 @@ impl Player {
         self.volume
     }
     pub fn play_selected(&mut self) {
-        if let Some(i) = self.current_song {
-            if let Some(song) = self.songs.get(i).cloned() {
-                self.stop();
-                let file = File::open(&song.path).expect("Could not open song.");
-                let decoder = Decoder::new(file).unwrap();
-                self.total_duration = decoder.total_duration();
-                self.sink.append(decoder);
-            }
+        if let Some(song) = self.songs.selected().cloned() {
+            self.stop();
+            let file = File::open(&song.path).expect("Could not open song.");
+            let decoder = Decoder::new(file).unwrap();
+            self.total_duration = decoder.total_duration();
+            self.sink.append(decoder);
         }
     }
     pub fn delete_song(&mut self, selected: usize) {
         //delete the song from the queue
-        self.songs.remove(selected);
+        self.songs.data.remove(selected);
 
-        if let Some(current_song) = self.current_song {
+        if let Some(current_song) = self.songs.index {
             let len = self.songs.len();
 
             if len == 0 {
                 self.clear_songs();
                 return;
             } else if current_song == selected && selected == 0 {
-                self.current_song = Some(0);
+                self.songs.select(Some(0));
             } else if current_song == selected && len == selected {
-                self.current_song = Some(len - 1);
+                self.songs.select(Some(len - 1));
             } else if selected < current_song {
-                self.current_song = Some(current_song - 1);
+                self.songs.select(Some(current_song - 1));
             }
 
             let end = len.saturating_sub(1);
 
             if selected > end {
-                self.current_song = Some(end);
+                self.songs.select(Some(end));
             }
 
             //if the playing song was deleted
@@ -168,18 +141,16 @@ impl Player {
         };
     }
     pub fn randomize(&mut self) {
-        if let Some(i) = self.current_song {
-            if let Some(song) = self.songs.get(i).cloned() {
-                self.songs.shuffle(&mut thread_rng());
+        if let Some(song) = &self.songs.selected().cloned() {
+            self.songs.data.shuffle(&mut thread_rng());
 
-                let mut index = 0;
-                for (i, s) in self.songs.iter().enumerate() {
-                    if s == &song {
-                        index = i;
-                    }
+            let mut index = 0;
+            for (i, s) in self.songs.data.iter().enumerate() {
+                if s == song {
+                    index = i;
                 }
-                self.current_song = Some(index);
             }
+            self.songs.select(Some(index));
         }
     }
     pub fn stop(&mut self) {
@@ -205,7 +176,7 @@ impl Player {
         let seek = self.elapsed().as_secs_f64() + 10.0;
         if let Some(duration) = self.duration() {
             if seek > duration {
-                self.safe_guard = true;
+                self.next_song();
             } else {
                 self.seek_to(Duration::from_secs_f64(seek));
             }
@@ -237,20 +208,6 @@ impl Player {
             }
         }
     }
-    // pub fn trigger_next(&mut self) -> bool {
-    //     if let Some(duration) = self.duration() {
-    //         if self.elapsed().as_secs_f64() > duration {
-    //             self.safe_guard = true;
-    //         }
-    //     }
-
-    //     if self.safe_guard {
-    //         self.safe_guard = false;
-    //         true
-    //     } else {
-    //         false
-    //     }
-    // }
     pub fn output_devices() -> Vec<Device> {
         let host_id = cpal::default_host().id();
         let host = cpal::host_from_id(host_id).unwrap();
