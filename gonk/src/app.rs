@@ -145,7 +145,6 @@ impl App {
                                 self.search.on_key(c);
                             }
                             KeyCode::Tab => {
-                                info!("tab");
                                 self.mode = match self.mode {
                                     Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,

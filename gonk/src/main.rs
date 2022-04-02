@@ -3,12 +3,7 @@ use gonk_database::{Database, Toml, CONFIG_DIR};
 use std::io::Result;
 mod app;
 
-#[macro_use]
-extern crate log;
-
 fn main() -> Result<()> {
-    env_logger::init();
-
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         orig_hook(panic_info);
@@ -51,7 +46,6 @@ fn main() -> Result<()> {
         }
     }
 
-    info!("app running");
     App::new().run()?;
 
     Ok(())
