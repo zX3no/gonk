@@ -124,6 +124,7 @@ impl App {
 
             //skip to the next track when ready
             self.player.update();
+
             //sync the player and queue
             self.queue.update(&self.player);
 
@@ -144,6 +145,7 @@ impl App {
                                 self.search.on_key(c);
                             }
                             KeyCode::Tab => {
+                                info!("tab");
                                 self.mode = match self.mode {
                                     Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,

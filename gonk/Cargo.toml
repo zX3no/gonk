@@ -13,6 +13,8 @@ gonk-types = { path = "../gonk-types" }
 rodio = { path = "../rodio" }
 strsim = "0.10.0"
 static_init = "1.0.2"
+log = "0.4.16"
+env_logger = "0.9.0"
 
 [target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }

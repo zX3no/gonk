@@ -238,7 +238,6 @@ impl Queue {
         f.render_widget(right, chunk);
     }
 
-    #[allow(unused)]
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.songs.selected() {
             //I wish that paragraphs had clipping
@@ -248,21 +247,28 @@ impl Queue {
 
             //clip the name so it doesn't overflow
             const MAX_WIDTH: u16 = 60;
-            let mut name = song.name.clone();
-            while (name.len() + song.artist.len() + "─| - |─".len())
+            let mut artist = song.artist.clone();
+
+            //TODO: this while loop is dangerous
+            //might want a few safe guards or swap to for loop.
+            while (artist.len() + song.name.len() + "─| - |─".len())
                 > (chunk.width - MAX_WIDTH) as usize
             {
-                name.pop();
+                if artist.is_empty() {
+                    break;
+                }
+                artist.pop();
             }
-
-            let name = name.trim_end().to_string();
 
             vec![
                 Spans::from(vec![
                     Span::raw("─| "),
-                    Span::styled(&song.artist, Style::default().fg(COLORS.artist)),
+                    Span::styled(
+                        artist.trim_end().to_string(),
+                        Style::default().fg(COLORS.artist),
+                    ),
                     Span::raw(" - "),
-                    Span::styled(name, Style::default().fg(COLORS.title)),
+                    Span::styled(&song.name, Style::default().fg(COLORS.title)),
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(&song.album, Style::default().fg(COLORS.album))),
@@ -275,6 +281,7 @@ impl Queue {
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }
+
     fn draw_scrolling_text<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.scroll_text.is_empty() {
             self.update_text();
