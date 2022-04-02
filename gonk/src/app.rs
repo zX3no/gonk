@@ -93,7 +93,7 @@ impl App {
 
         loop {
             #[cfg(windows)]
-            App::global_hotkeys(&tx, &mut self.player, &mut toml);
+            App::handle_global_hotkeys(&tx, &mut self.player, &mut toml);
 
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => {
@@ -160,7 +160,7 @@ impl App {
                                     self.player.add_songs(songs);
                                 }
                                 Mode::Queue => {
-                                    if let Some(i) = self.queue.selected() {
+                                    if let Some(i) = self.queue.ui.index {
                                         self.player.play_song(i);
                                     }
                                 }
@@ -219,7 +219,7 @@ impl App {
                             _ if HK.options.contains(&bind) => self.mode = Mode::Options,
                             _ if HK.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
-                                    if let Some(i) = self.queue.selected() {
+                                    if let Some(i) = self.queue.ui.index {
                                         self.player.delete_song(i);
                                     }
                                 }
@@ -266,8 +266,8 @@ impl App {
         }
     }
 
-    #[cfg(windows)]
-    fn global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {
+    //TODO: this should be platform agnostic
+    fn handle_global_hotkeys(tx: &Receiver<HotkeyEvent>, player: &mut Player, toml: &mut Toml) {
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => {

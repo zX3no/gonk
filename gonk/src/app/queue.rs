@@ -85,10 +85,6 @@ impl Queue {
         self.songs.select(player.current_song);
         self.scroll_text.next();
     }
-
-    pub fn selected(&self) -> Option<usize> {
-        self.ui.index
-    }
     fn update_text(&mut self) {
         if let Some(song) = self.songs.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
