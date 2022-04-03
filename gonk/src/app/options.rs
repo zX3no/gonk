@@ -35,12 +35,12 @@ impl Options {
                 .flat_map(rodio::DeviceTrait::name)
                 .collect();
 
-            data.retain(|name| name == &config_device);
+            data.retain(|name| name == config_device);
 
             if data.is_empty() {
                 default_device
             } else {
-                config_device
+                config_device.to_string()
             }
         };
 
@@ -71,7 +71,7 @@ impl Options {
             .iter()
             .map(|device| {
                 let name = device.name().expect("Device has no name!");
-                if name == default_device {
+                if &name == default_device {
                     ListItem::new(name)
                 } else {
                     ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))

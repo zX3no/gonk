@@ -96,11 +96,12 @@ impl Database {
             .collect();
 
         if !paths_to_add.is_empty() {
-            self.add_dirs(paths_to_add);
+            self.add_dirs(&paths_to_add);
         }
     }
-    pub fn add_dirs(&self, dirs: Vec<String>) {
+    pub fn add_dirs(&self, dirs: &[String]) {
         let busy = self.busy.clone();
+        let dirs = dirs.to_owned();
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {

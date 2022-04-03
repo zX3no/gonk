@@ -367,21 +367,18 @@ impl Toml {
     pub fn volume(&self) -> u16 {
         self.config.volume
     }
-    pub fn paths(&self) -> Vec<String> {
-        self.config.paths.clone()
+    //TODO: paths are not updated in real time
+    pub fn paths(&self) -> &Vec<String> {
+        &self.config.paths
     }
-    pub fn output_device(&self) -> String {
-        self.config.output_device.clone()
+    pub fn output_device(&self) -> &String {
+        &self.config.output_device
     }
     pub fn add_path(&mut self, path: String) {
         if !self.config.paths.contains(&path) {
             self.config.paths.push(path);
             self.write();
         }
-    }
-    pub fn remove_path(&mut self, path: &str) {
-        self.config.paths.retain(|x| x != path);
-        self.write();
     }
     pub fn set_volume(&mut self, vol: u16) {
         self.config.volume = vol;

@@ -81,7 +81,7 @@ impl App {
         terminal.hide_cursor().unwrap();
 
         let db = Database::new().unwrap();
-        db.sync_database(&TOML.paths());
+        db.sync_database(TOML.paths());
 
         Self {
             terminal,
@@ -192,8 +192,10 @@ impl App {
                                 self.queue.player.toggle_playback()
                             }
                             _ if HK.clear.contains(&bind) => self.queue.player.clear_songs(),
-                            //TODO: rewrite update function
-                            _ if HK.refresh_database.contains(&bind) => todo!(),
+                            _ if HK.refresh_database.contains(&bind) => {
+                                self.db.add_dirs(TOML.paths());
+                                self.db.sync_database(TOML.paths());
+                            }
                             _ if HK.seek_backward.contains(&bind) => self.queue.player.seek_bw(),
                             _ if HK.seek_forward.contains(&bind) => self.queue.player.seek_fw(),
                             _ if HK.previous.contains(&bind) => self.queue.player.prev_song(),
