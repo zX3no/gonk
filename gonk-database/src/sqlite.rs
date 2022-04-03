@@ -19,7 +19,8 @@ fn fix(item: &str) -> String {
 
 pub struct Database {
     conn: Connection,
-    busy: Arc<AtomicBool>,
+    is_busy: Arc<AtomicBool>,
+    needs_update: Arc<AtomicBool>,
 }
 
 impl Database {
@@ -56,11 +57,18 @@ impl Database {
 
         Ok(Self {
             conn: Connection::open(DB_DIR.as_path()).unwrap(),
-            busy: Arc::new(AtomicBool::new(false)),
+            needs_update: Arc::new(AtomicBool::new(false)),
+            is_busy: Arc::new(AtomicBool::new(false)),
         })
     }
+    pub fn needs_update(&self) -> bool {
+        self.needs_update.load(Ordering::Relaxed)
+    }
+    pub fn stop(&mut self) {
+        self.needs_update.store(false, Ordering::SeqCst)
+    }
     pub fn is_busy(&self) -> bool {
-        self.busy.load(Ordering::Relaxed)
+        self.is_busy.load(Ordering::Relaxed)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
         let mut stmt = self
@@ -100,8 +108,10 @@ impl Database {
         }
     }
     pub fn add_dirs(&self, dirs: &[String]) {
-        let busy = self.busy.clone();
+        let busy = self.is_busy.clone();
+        let update = self.needs_update.clone();
         let dirs = dirs.to_owned();
+
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
@@ -120,7 +130,7 @@ impl Database {
                     .collect();
 
                 if songs.is_empty() {
-                    return busy.store(false, Ordering::SeqCst);
+                    return;
                 }
 
                 let mut stmt = String::from("BEGIN;\n");
@@ -145,6 +155,7 @@ impl Database {
             }
 
             busy.store(false, Ordering::SeqCst);
+            update.store(true, Ordering::SeqCst);
         });
     }
     pub fn get_songs_from_id(&self, ids: &[usize]) -> Vec<Song> {

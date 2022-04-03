@@ -80,9 +80,6 @@ impl App {
         terminal.clear().unwrap();
         terminal.hide_cursor().unwrap();
 
-        let db = Database::new().unwrap();
-        db.sync_database(TOML.paths());
-
         Self {
             terminal,
             mode: Mode::Browser,
@@ -94,9 +91,11 @@ impl App {
         }
     }
     fn on_update(&mut self) {
-        if self.db.is_busy() {
+        if self.db.needs_update() {
             self.browser.refresh();
             self.search.update_engine();
+
+            self.db.stop();
         }
 
         if self.search.has_query_changed() {
@@ -112,7 +111,14 @@ impl App {
         #[cfg(windows)]
         let tx = App::register_hotkeys();
 
+        self.db.sync_database(TOML.paths());
+
         loop {
+            if last_tick.elapsed() >= TICK_RATE {
+                self.on_update();
+                last_tick = Instant::now();
+            }
+
             #[cfg(windows)]
             self.handle_global_hotkeys(&tx, &mut toml);
 
@@ -126,11 +132,6 @@ impl App {
             let timeout = TICK_RATE
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
-
-            if last_tick.elapsed() >= TICK_RATE {
-                self.on_update();
-                last_tick = Instant::now();
-            }
 
             if crossterm::event::poll(timeout)? {
                 match event::read()? {
