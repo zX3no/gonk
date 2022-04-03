@@ -128,6 +128,11 @@ impl Queue {
     pub fn down(&mut self) {
         self.ui.down_with_len(self.player.songs.len());
     }
+
+    pub fn clear(&mut self) {
+        self.player.clear_songs();
+        self.ui = Index::default();
+    }
 }
 
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};

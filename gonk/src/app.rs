@@ -192,7 +192,7 @@ impl App {
                             _ if HK.play_pause.contains(&bind) => {
                                 self.queue.player.toggle_playback()
                             }
-                            _ if HK.clear.contains(&bind) => self.queue.player.clear_songs(),
+                            _ if HK.clear.contains(&bind) => self.queue.clear(),
                             _ if HK.refresh_database.contains(&bind) => {
                                 self.db.add_dirs(TOML.paths());
                                 self.db.sync_database(TOML.paths());
