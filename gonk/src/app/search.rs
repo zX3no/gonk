@@ -311,7 +311,7 @@ impl Search {
     fn album<B: Backend>(&self, f: &mut Frame<B>, album: &str, artist: &str, area: Rect) {
         let cells: Vec<_> = self
             .db
-            .get_songs_from_album(artist, album)
+            .get_songs_from_album(album, artist)
             .iter()
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
             .collect();
