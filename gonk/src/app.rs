@@ -315,5 +315,14 @@ impl App {
 }
 
 impl Drop for App {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        disable_raw_mode().unwrap();
+        self.terminal.show_cursor().unwrap();
+        execute!(
+            self.terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )
+        .unwrap();
+    }
 }
