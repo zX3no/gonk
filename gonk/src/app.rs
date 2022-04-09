@@ -5,7 +5,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, Colors, Database, Hotkey, Key, Modifier, Toml};
+use gonk_database::{Bind, Colors, Database, GlobalHotkey, Hotkey, Key, Modifier, Toml};
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
@@ -43,10 +43,16 @@ pub enum Mode {
 }
 
 #[dynamic]
-static COLORS: Colors = Toml::new().colors;
+static TOML: Toml = Toml::new();
 
 #[dynamic]
-static HK: Hotkey = Toml::new().hotkey;
+static COLORS: &'static Colors = &TOML.colors;
+
+#[dynamic]
+static HK: &'static Hotkey = &TOML.hotkey;
+
+#[dynamic]
+static GHK: &'static GlobalHotkey = &TOML.global_hotkey;
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 
@@ -58,10 +64,11 @@ pub struct App {
     options: Options,
     search: Search,
     db: Database,
+    toml: Toml,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(toml: Toml) -> Self {
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
@@ -79,11 +86,12 @@ impl App {
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(),
+            queue: Queue::new(toml.volume()),
             browser: Browser::new(),
             options: Options::new(),
             search: Search::new(),
             db: Database::new().unwrap(),
+            toml,
         }
     }
     fn on_update(&mut self) {
@@ -102,12 +110,10 @@ impl App {
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        let mut toml = Toml::new();
-
         #[cfg(windows)]
         let tx = App::register_hotkeys();
 
-        self.db.sync_database(toml.paths());
+        self.db.sync_database(self.toml.paths());
 
         loop {
             if last_tick.elapsed() >= TICK_RATE {
@@ -116,7 +122,7 @@ impl App {
             }
 
             #[cfg(windows)]
-            self.handle_global_hotkeys(&tx, &mut toml);
+            self.handle_global_hotkeys(&tx);
 
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f, self.db.is_busy()),
@@ -190,8 +196,8 @@ impl App {
                             }
                             _ if HK.clear.contains(&bind) => self.queue.clear(),
                             _ if HK.refresh_database.contains(&bind) => {
-                                self.db.add_dirs(toml.paths());
-                                self.db.sync_database(toml.paths());
+                                self.db.add_dirs(self.toml.paths());
+                                self.db.sync_database(self.toml.paths());
                             }
                             _ if HK.seek_backward.contains(&bind) => self.queue.player.seek_bw(),
                             _ if HK.seek_forward.contains(&bind) => self.queue.player.seek_fw(),
@@ -199,11 +205,11 @@ impl App {
                             _ if HK.next.contains(&bind) => self.queue.player.next_song(),
                             _ if HK.volume_up.contains(&bind) => {
                                 let vol = self.queue.player.volume_up();
-                                toml.set_volume(vol);
+                                self.toml.set_volume(vol);
                             }
                             _ if HK.volume_down.contains(&bind) => {
                                 let vol = self.queue.player.volume_down();
-                                toml.set_volume(vol);
+                                self.toml.set_volume(vol);
                             }
                             _ if HK.search.contains(&bind) => self.mode = Mode::Search,
                             _ if HK.options.contains(&bind) => self.mode = Mode::Options,
@@ -253,16 +259,16 @@ impl App {
     }
 
     //TODO: this should be platform agnostic
-    fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>, toml: &mut Toml) {
+    fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>) {
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => {
                     let vol = self.queue.player.volume_up();
-                    toml.set_volume(vol);
+                    self.toml.set_volume(vol);
                 }
                 HotkeyEvent::VolDown => {
                     let vol = self.queue.player.volume_down();
-                    toml.set_volume(vol);
+                    self.toml.set_volume(vol);
                 }
                 HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
                 HotkeyEvent::Prev => self.queue.player.prev_song(),
@@ -279,24 +285,22 @@ impl App {
         let rx = Arc::new(rx);
         std::thread::spawn(move || {
             let mut hk = Listener::<HotkeyEvent>::new();
-            let ghk = Toml::new().global_hotkey;
-
             hk.register_hotkey(
-                ghk.volume_up.modifiers(),
-                ghk.volume_up.key(),
+                GHK.volume_up.modifiers(),
+                GHK.volume_up.key(),
                 HotkeyEvent::VolUp,
             );
             hk.register_hotkey(
-                ghk.volume_down.modifiers(),
-                ghk.volume_down.key(),
+                GHK.volume_down.modifiers(),
+                GHK.volume_down.key(),
                 HotkeyEvent::VolDown,
             );
             hk.register_hotkey(
-                ghk.previous.modifiers(),
-                ghk.previous.key(),
+                GHK.previous.modifiers(),
+                GHK.previous.key(),
                 HotkeyEvent::Prev,
             );
-            hk.register_hotkey(ghk.next.modifiers(), ghk.next.key(), HotkeyEvent::Next);
+            hk.register_hotkey(GHK.next.modifiers(), GHK.next.key(), HotkeyEvent::Next);
             hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
             loop {
                 if let Some(event) = hk.listen() {

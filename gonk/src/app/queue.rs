@@ -1,7 +1,6 @@
 use crate::app::COLORS;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_database::Toml;
 use gonk_types::Index;
 use rodio::Player;
 use std::time::Duration;
@@ -72,13 +71,13 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new() -> Self {
+    pub fn new(start_vol: u16) -> Self {
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             scroll_text: ScrollText::default(),
-            player: Player::new(Toml::new().volume()),
+            player: Player::new(start_vol),
         }
     }
     pub fn update(&mut self) {

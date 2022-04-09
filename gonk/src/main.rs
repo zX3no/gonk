@@ -4,17 +4,15 @@ use std::io::Result;
 mod app;
 mod widget;
 
-//TODO: there are so many instances of Toml::new()
-//really need to clean them up.
-
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    let mut toml = Toml::new();
     if let Some(first) = args.first() {
         match first as &str {
             "add" => {
                 if let Some(dir) = args.get(1..) {
                     let dir = dir.join(" ");
-                    Toml::new().add_path(dir);
+                    toml.add_path(dir);
                 }
             }
             "config" => {
@@ -22,7 +20,7 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" | "rm" => {
-                Toml::new().reset();
+                toml.reset();
                 Database::delete();
                 println!("Database reset!");
                 return Ok(());
@@ -45,7 +43,7 @@ fn main() -> Result<()> {
         }
     }
 
-    App::new().run()?;
+    App::new(toml).run()?;
 
     Ok(())
 }

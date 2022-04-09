@@ -23,7 +23,8 @@ impl Options {
 
         let devices = Index::new(Player::output_devices(), Some(0));
 
-        let config_device = Toml::new().output_device().clone();
+        let mut toml = Toml::new();
+        let config_device = toml.output_device().clone();
 
         let current_device = if config_device.is_empty() {
             default_device
@@ -43,7 +44,6 @@ impl Options {
             }
         };
 
-        let mut toml = Toml::new();
         toml.set_output_device(current_device);
 
         Self { devices, toml }
