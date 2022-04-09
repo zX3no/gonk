@@ -86,19 +86,23 @@ impl Player {
             self.volume = 100;
         }
 
-        self.sink.set_volume(f32::from(self.volume) / 1000.0);
-
+        self.update_volume();
         self.volume
     }
-
     pub fn volume_down(&mut self) -> u16 {
         if self.volume != 0 {
             self.volume -= VOLUME_STEP;
         }
 
-        self.sink.set_volume(f32::from(self.volume) / 1000.0);
-
+        self.update_volume();
         self.volume
+    }
+    fn update_volume(&self) {
+        if let Some(song) = self.songs.selected() {
+            let volume = self.volume as f32 / 1000.0;
+            let gain = song.track_gain / 1000.0;
+            self.sink.set_volume(volume + gain as f32);
+        }
     }
     pub fn play_selected(&mut self) {
         if let Some(song) = self.songs.selected().cloned() {
@@ -107,6 +111,7 @@ impl Player {
             let decoder = Decoder::new(file).unwrap();
             self.total_duration = decoder.total_duration();
             self.sink.append(decoder);
+            self.update_volume();
         }
     }
     pub fn delete_song(&mut self, selected: usize) {

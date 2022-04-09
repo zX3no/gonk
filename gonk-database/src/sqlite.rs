@@ -49,6 +49,7 @@ impl Database {
                     artist   TEXT NOT NULL,
                     path     TEXT NOT NULL UNIQUE,
                     duration DOUBLE NOT NULL,
+                    track_gain DOUBLE NOT NULL,
                     parent   TEXT NOT NULL
                 )",
                 [],
@@ -142,8 +143,8 @@ impl Database {
                     let path = fix(song.path.to_str().unwrap());
                     let parent = fix(&dir);
                     //TODO: would be nice to have batch params, don't think it's implemented.
-                    format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                                song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), parent)
+                    format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                                song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), song.track_gain, parent)
                 })
                 .collect::<Vec<_>>().join("\n"));
 
@@ -171,7 +172,7 @@ impl Database {
         let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
 
         stmt.query_map([], |row| {
-            let id = row.get(8).unwrap();
+            let id = row.get(9).unwrap();
             let song = Database::song(row);
             Ok((id, song))
         })
@@ -261,7 +262,7 @@ impl Database {
             artist: row.get(4).unwrap(),
             duration: Duration::from_secs_f64(dur),
             path: PathBuf::from(path),
-            track_gain: String::new(),
+            track_gain: row.get(7).unwrap(),
         }
     }
     pub fn delete() {

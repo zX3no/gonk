@@ -10,6 +10,10 @@ use symphonia::core::{
     probe::Hint,
 };
 
+fn db_to_amplitude(db: f64) -> f64 {
+    10.0_f64.powf(db / 20.0_f64)
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Song {
     pub number: u64,
@@ -19,7 +23,7 @@ pub struct Song {
     pub artist: String,
     pub path: PathBuf,
     pub duration: Duration,
-    pub track_gain: String,
+    pub track_gain: f64,
 }
 
 impl Song {
@@ -67,7 +71,16 @@ impl Song {
                             }
                         }
                         StandardTagKey::ReplayGainTrackGain => {
-                            song.track_gain = tag.value.to_string();
+                            let db = tag
+                                .value
+                                .to_string()
+                                .split(' ')
+                                .next()
+                                .unwrap()
+                                .parse()
+                                .unwrap_or(0.0);
+                            song.track_gain = db_to_amplitude(db);
+                            dbg!(&song.name, song.track_gain);
                         }
                         _ => (),
                     }
