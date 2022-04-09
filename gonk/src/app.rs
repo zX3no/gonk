@@ -55,6 +55,7 @@ static HK: &'static Hotkey = &TOML.hotkey;
 static GHK: &'static GlobalHotkey = &TOML.global_hotkey;
 
 const TICK_RATE: Duration = Duration::from_millis(100);
+const POLL_RATE: Duration = Duration::from_millis(16);
 const SEEK_TIME: f64 = 10.0;
 
 pub struct App {
@@ -132,7 +133,7 @@ impl App {
                 Mode::Search => self.search.draw(f),
             })?;
 
-            if crossterm::event::poll(Duration::from_secs(0))? {
+            if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {
                     Event::Key(event) => {
                         let bind = Bind {
