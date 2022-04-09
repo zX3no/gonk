@@ -261,7 +261,7 @@ impl Database {
             artist: row.get(4).unwrap(),
             duration: Duration::from_secs_f64(dur),
             path: PathBuf::from(path),
-            track_gain: 0.0,
+            track_gain: String::new(),
         }
     }
     pub fn delete() {
