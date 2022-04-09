@@ -3,7 +3,7 @@ use std::{fmt, fs::File, time::Duration};
 use symphonia::{
     core::{
         audio::{AudioBufferRef, SampleBuffer, SignalSpec},
-        codecs,
+        codecs::{self, CodecParameters},
         errors::Error,
         formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
         io::MediaSourceStream,
@@ -24,7 +24,7 @@ pub struct Decoder {
     format: Box<dyn FormatReader>,
     buffer: SampleBuffer<i16>,
     spec: SignalSpec,
-    total_duration: Duration,
+    duration: Duration,
     elapsed: Duration,
 }
 
@@ -66,18 +66,7 @@ impl Decoder {
             &codecs::DecoderOptions { verify: true },
         )?;
 
-        //duartion
-        let params = &track.codec_params;
-        let total_duration = if let Some(n_frames) = params.n_frames {
-            if let Some(tb) = params.time_base {
-                let time = tb.calc_time(n_frames);
-                Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
-            } else {
-                panic!("no time base?");
-            }
-        } else {
-            panic!("no n_frames");
-        };
+        let duration = Decoder::get_duration(&track.codec_params);
 
         let mut decode_errors: usize = 0;
         let decoded = loop {
@@ -106,9 +95,22 @@ impl Decoder {
             format: probed.format,
             buffer,
             spec,
-            total_duration,
+            duration,
             elapsed: Duration::from_secs(0),
         }))
+    }
+
+    fn get_duration(params: &CodecParameters) -> Duration {
+        if let Some(n_frames) = params.n_frames {
+            if let Some(tb) = params.time_base {
+                let time = tb.calc_time(n_frames);
+                Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
+            } else {
+                panic!("no time base?");
+            }
+        } else {
+            panic!("no n_frames");
+        }
     }
 
     #[inline]
@@ -138,7 +140,7 @@ impl Source for Decoder {
 
     #[inline]
     fn total_duration(&self) -> Option<Duration> {
-        Some(self.total_duration)
+        Some(self.duration)
     }
 
     #[inline]
