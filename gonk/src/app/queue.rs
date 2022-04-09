@@ -170,10 +170,9 @@ impl Queue {
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
                 let ratio = f64::from(column - 3) / f64::from(size.width);
-                if let Some(duration) = self.player.duration() {
-                    let new_time = duration * ratio;
-                    self.player.seek_to(Duration::from_secs_f64(new_time));
-                }
+                let duration = self.player.duration;
+                let new_time = duration * ratio;
+                self.player.seek_to(Duration::from_secs_f64(new_time));
             }
             self.clicked_pos = None;
         }
@@ -204,21 +203,18 @@ impl Queue {
         let time = if self.player.songs.is_empty() {
             String::from("╭─Stopped")
         } else if !self.player.is_paused() {
-            if let Some(duration) = self.player.duration() {
-                let elapsed = self.player.elapsed().as_secs_f64();
+            let duration = self.player.duration;
+            let elapsed = self.player.elapsed().as_secs_f64();
 
-                let mins = elapsed / 60.0;
-                let rem = elapsed % 60.0;
-                let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+            let mins = elapsed / 60.0;
+            let rem = elapsed % 60.0;
+            let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
-                let mins = duration / 60.0;
-                let rem = duration % 60.0;
-                let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+            let mins = duration / 60.0;
+            let rem = duration % 60.0;
+            let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
-                format!("╭─{}/{}", e, d)
-            } else {
-                String::from("╭─0:00/0:00")
-            }
+            format!("╭─{}/{}", e, d)
         } else {
             String::from("╭─Paused")
         };

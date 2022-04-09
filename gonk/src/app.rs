@@ -55,6 +55,7 @@ static HK: &'static Hotkey = &TOML.hotkey;
 static GHK: &'static GlobalHotkey = &TOML.global_hotkey;
 
 const TICK_RATE: Duration = Duration::from_millis(100);
+const SEEK_TIME: f64 = 10.0;
 
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -131,11 +132,7 @@ impl App {
                 Mode::Search => self.search.draw(f),
             })?;
 
-            let timeout = TICK_RATE
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
-
-            if crossterm::event::poll(timeout)? {
+            if crossterm::event::poll(Duration::from_secs(0))? {
                 match event::read()? {
                     Event::Key(event) => {
                         let bind = Bind {
@@ -199,8 +196,12 @@ impl App {
                                 self.db.add_dirs(self.toml.paths());
                                 self.db.sync_database(self.toml.paths());
                             }
-                            _ if HK.seek_backward.contains(&bind) => self.queue.player.seek_bw(),
-                            _ if HK.seek_forward.contains(&bind) => self.queue.player.seek_fw(),
+                            _ if HK.seek_backward.contains(&bind) => {
+                                self.queue.player.seek_by(-SEEK_TIME)
+                            }
+                            _ if HK.seek_forward.contains(&bind) => {
+                                self.queue.player.seek_by(SEEK_TIME)
+                            }
                             _ if HK.previous.contains(&bind) => self.queue.player.prev_song(),
                             _ if HK.next.contains(&bind) => self.queue.player.next_song(),
                             _ if HK.volume_up.contains(&bind) => {

@@ -33,7 +33,7 @@ pub struct Player {
     stream: OutputStream,
     handle: OutputStreamHandle,
     sink: Sink,
-    total_duration: Option<Duration>,
+    pub duration: f64,
     pub volume: u16,
     pub songs: Index<Song>,
 }
@@ -49,7 +49,7 @@ impl Player {
             stream,
             handle,
             sink,
-            total_duration: None,
+            duration: 0.0,
             volume,
             songs: Index::default(),
         }
@@ -109,7 +109,13 @@ impl Player {
             self.stop();
             let file = File::open(&song.path).expect("Could not open song.");
             let decoder = Decoder::new(file).unwrap();
-            self.total_duration = decoder.total_duration();
+
+            //TODO: wtf is this?
+            self.duration = decoder
+                .total_duration()
+                .expect("could not get duration")
+                .as_secs_f64()
+                - 0.29;
             self.sink.append(decoder);
             self.update_volume();
         }
@@ -165,51 +171,31 @@ impl Player {
     pub fn elapsed(&self) -> Duration {
         self.sink.elapsed()
     }
-    pub fn duration(&self) -> Option<f64> {
-        //TODO: wtf is this?
-        self.total_duration
-            .map(|duration| duration.as_secs_f64() - 0.29)
-    }
     pub fn toggle_playback(&self) {
         self.sink.toggle_playback();
     }
     pub fn is_paused(&self) -> bool {
         self.sink.is_paused()
     }
-    pub fn seek_fw(&mut self) {
-        let seek = self.elapsed().as_secs_f64() + 10.0;
-        if let Some(duration) = self.duration() {
-            if seek > duration {
-                self.next_song();
-            } else {
-                self.seek_to(Duration::from_secs_f64(seek));
-            }
-        }
-    }
-    pub fn seek_bw(&mut self) {
-        let mut seek = self.elapsed().as_secs_f64() - 10.0;
-        if seek < 0.0 {
+    pub fn seek_by(&mut self, amount: f64) {
+        let mut seek = self.elapsed().as_secs_f64() + amount;
+        if seek > self.duration {
+            return self.next_song();
+        } else if seek < 0.0 {
             seek = 0.0;
         }
-
-        self.seek_to(Duration::from_secs_f64(seek));
+        self.sink.seek(Duration::from_secs_f64(seek));
     }
     pub fn seek_to(&self, time: Duration) {
         self.sink.seek(time);
     }
     pub fn seeker(&self) -> f64 {
-        if let Some(duration) = self.duration() {
-            let elapsed = self.elapsed();
-            elapsed.as_secs_f64() / duration
-        } else {
-            0.0
-        }
+        let elapsed = self.elapsed();
+        elapsed.as_secs_f64() / self.duration
     }
     pub fn update(&mut self) {
-        if let Some(duration) = self.duration() {
-            if self.elapsed().as_secs_f64() > duration {
-                self.next_song();
-            }
+        if self.elapsed().as_secs_f64() > self.duration {
+            self.next_song();
         }
     }
     pub fn output_devices() -> Vec<Device> {
