@@ -49,9 +49,12 @@ impl Decoder {
         }
     }
     fn init(mss: MediaSourceStream) -> symphonia::core::errors::Result<Option<Decoder>> {
-        let format_opts: FormatOptions = Default::default();
-        let metadata_opts: MetadataOptions = Default::default();
-        let mut probed = get_probe().format(&Hint::default(), mss, &format_opts, &metadata_opts)?;
+        let mut probed = get_probe().format(
+            &Hint::default(),
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )?;
 
         let track = match probed.format.default_track() {
             Some(stream) => stream,
@@ -176,7 +179,17 @@ impl Iterator for Decoder {
             let decoded = loop {
                 match self.format.next_packet() {
                     Ok(packet) => match self.decoder.decode(&packet) {
-                        Ok(decoded) => break decoded,
+                        Ok(decoded) => {
+                            let ts = packet.ts();
+                            if let Some(track) = self.format.default_track() {
+                                if let Some(tb) = track.codec_params.time_base {
+                                    let t = tb.calc_time(ts);
+                                    self.elapsed = Duration::from_secs(t.seconds)
+                                        + Duration::from_secs_f64(t.frac);
+                                }
+                            }
+                            break decoded;
+                        }
                         Err(e) => match e {
                             Error::DecodeError(_) => {
                                 decode_errors += 1;
