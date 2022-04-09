@@ -80,7 +80,6 @@ impl Song {
                                 .parse()
                                 .unwrap_or(0.0);
                             song.track_gain = db_to_amplitude(db);
-                            dbg!(&song.name, song.track_gain);
                         }
                         _ => (),
                     }

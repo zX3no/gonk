@@ -65,9 +65,7 @@ impl App {
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
             disable_raw_mode().unwrap();
-            terminal.show_cursor().unwrap();
             execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
             orig_hook(panic_info);
             std::process::exit(1);
@@ -77,7 +75,6 @@ impl App {
         execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
         enable_raw_mode().unwrap();
         terminal.clear().unwrap();
-        terminal.hide_cursor().unwrap();
 
         Self {
             terminal,
@@ -319,7 +316,6 @@ impl App {
 impl Drop for App {
     fn drop(&mut self) {
         disable_raw_mode().unwrap();
-        self.terminal.show_cursor().unwrap();
         execute!(
             self.terminal.backend_mut(),
             LeaveAlternateScreen,
