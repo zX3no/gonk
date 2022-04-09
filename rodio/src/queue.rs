@@ -41,13 +41,11 @@ where
     (input, output)
 }
 
-// TODO: consider reimplementing this with `from_factory`
-
-/// The input of the queue.
-
 type BoxSource<S> = Box<dyn Source<Item = S> + Send>;
 type OptionSender = Option<Sender<()>>;
 
+// TODO: consider reimplementing this with `from_factory`
+/// The input of the queue.
 pub struct SourcesQueueInput<S> {
     next_sounds: Mutex<Vec<(BoxSource<S>, OptionSender)>>,
 
@@ -229,29 +227,7 @@ where
                     return Err(());
                 }
             } else {
-                let (mut next, signal_after_end) = next.remove(0);
-                loop {
-                    let l = next.next();
-                    let r = next.next();
-
-                    match (l, r) {
-                        (Some(ll), Some(rr)) => {
-                            if ll.to_f32() == 0. && rr.to_f32() == 0. {
-                                continue;
-                            } else {
-                                self.sample_cache.push_back(l);
-                                self.sample_cache.push_back(r);
-                                break;
-                            }
-                        }
-                        _ => {
-                            self.sample_cache.push_back(l);
-                            self.sample_cache.push_back(r);
-                            break;
-                        }
-                    }
-                }
-                (next, signal_after_end)
+                next.remove(0)
             }
         };
 

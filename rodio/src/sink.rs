@@ -1,10 +1,7 @@
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
-use std::{
-    collections::VecDeque,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
-};
 
 use crate::stream::{OutputStreamHandle, PlayError};
 use crate::{queue, source::Done, Sample, Source};
@@ -15,7 +12,7 @@ use crate::{queue, source::Done, Sample, Source};
 /// playing.
 pub struct Sink {
     queue_tx: Arc<queue::SourcesQueueInput<f32>>,
-    sleep_until_end: Mutex<VecDeque<Receiver<()>>>,
+    sleep_until_end: Mutex<Option<Receiver<()>>>,
 
     controls: Arc<Controls>,
     sound_count: Arc<AtomicUsize>,
@@ -48,7 +45,7 @@ impl Sink {
 
         let sink = Sink {
             queue_tx,
-            sleep_until_end: Mutex::new(VecDeque::new()),
+            sleep_until_end: Mutex::new(None),
             controls: Arc::new(Controls {
                 pause: AtomicBool::new(false),
                 volume: Mutex::new(1.0),
@@ -94,10 +91,7 @@ impl Sink {
             .convert_samples();
         self.sound_count.fetch_add(1, Ordering::Relaxed);
         let source = Done::new(source, self.sound_count.clone());
-        self.sleep_until_end
-            .lock()
-            .unwrap()
-            .push_back(self.queue_tx.append_with_signal(source));
+        *self.sleep_until_end.lock().unwrap() = Some(self.queue_tx.append_with_signal(source));
     }
 
     /// Gets the volume of the sound.
@@ -165,13 +159,9 @@ impl Sink {
     /// Sleeps the current thread until the sound ends.
     #[inline]
     pub fn sleep_until_end(&self) {
-        if let Some(sleep_until_end) = self.sleep_until_end.lock().unwrap().back() {
+        if let Some(sleep_until_end) = self.sleep_until_end.lock().unwrap().take() {
             let _ = sleep_until_end.recv();
         }
-    }
-
-    pub fn get_current_receiver(&self) -> Option<Receiver<()>> {
-        self.sleep_until_end.lock().unwrap().pop_front()
     }
     /// Returns true if this sink has no more sounds to play.
     #[inline]
@@ -189,8 +179,11 @@ impl Sink {
     pub fn elapsed(&self) -> Duration {
         *self.elapsed.read().unwrap()
     }
+}
 
-    pub fn destroy(&mut self) {
+impl Drop for Sink {
+    #[inline]
+    fn drop(&mut self) {
         self.queue_tx.set_keep_alive_if_empty(false);
 
         if !self.detached {

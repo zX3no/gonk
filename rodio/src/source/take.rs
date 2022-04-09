@@ -54,7 +54,7 @@ pub struct TakeDuration<I> {
     filter: Option<DurationFilter>,
     // Remaining samples in current frame.
     current_frame_len: Option<usize>,
-    // Only updated when the current frame len is exausted.
+    // Only updated when the current frame len is exhausted.
     duration_per_sample: Duration,
 }
 
@@ -66,7 +66,7 @@ where
     /// Returns the duration elapsed for each sample extracted.
     #[inline]
     fn get_duration_per_sample(input: &I) -> Duration {
-        let ns = NANOS_PER_SEC / input.sample_rate() as u64 * input.channels() as u64;
+        let ns = NANOS_PER_SEC / (input.sample_rate() as u64 * input.channels() as u64);
         // \|/ the maximum value of `ns` is one billion, so this can't fail
         Duration::new(0, ns as u32)
     }

@@ -154,7 +154,6 @@ impl Player {
         }
     }
     pub fn stop(&mut self) {
-        self.sink.destroy();
         self.sink = Sink::try_new(&self.handle).expect("Could not create new sink.");
         self.sink.set_volume(f32::from(self.volume) / 1000.0);
     }
