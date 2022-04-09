@@ -9,15 +9,31 @@ use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug, Clone, Default)]
 pub struct ListState {
-    selection: Option<usize>,
+    selection: usize,
+    selected: bool,
 }
 
 impl ListState {
     pub fn new(index: Option<usize>) -> Self {
-        Self { selection: index }
+        if let Some(i) = index {
+            Self {
+                selection: i,
+                selected: true,
+            }
+        } else {
+            Self {
+                selection: 0,
+                selected: false,
+            }
+        }
     }
     pub fn select(&mut self, index: Option<usize>) {
-        self.selection = index;
+        if let Some(i) = index {
+            self.selection = i;
+            self.selected = true;
+        } else {
+            self.selected = false;
+        }
     }
 }
 
@@ -99,39 +115,35 @@ impl<'a> List<'a> {
         self
     }
 
-    fn get_items_bounds(&self, selection: Option<usize>, terminal_height: usize) -> (usize, usize) {
-        if let Some(selection) = selection {
-            let mut real_end = 0;
-            let mut height = 0;
-            for item in self.items.iter() {
-                if height + item.height() > terminal_height {
-                    break;
-                }
-                height += item.height();
-                real_end += 1;
+    fn get_items_bounds(&self, selection: usize, terminal_height: usize) -> (usize, usize) {
+        let mut real_end = 0;
+        let mut height = 0;
+        for item in self.items.iter() {
+            if height + item.height() > terminal_height {
+                break;
             }
+            height += item.height();
+            real_end += 1;
+        }
 
-            let selection = selection.min(self.items.len() - 1);
+        let selection = selection.min(self.items.len() - 1);
 
-            let half = if height == 0 { 0 } else { (height - 1) / 2 };
+        let half = if height == 0 { 0 } else { (height - 1) / 2 };
 
-            let start = selection.saturating_sub(half);
+        let start = selection.saturating_sub(half);
 
-            let end = if selection <= half {
-                real_end
-            } else if height % 2 == 0 {
-                selection + 2 + half
-            } else {
-                selection + 1 + half
-            };
-
-            if end > self.items.len() {
-                (self.items.len() - height, self.items.len())
-            } else {
-                (start, end)
-            }
+        let end = if selection <= half {
+            real_end
+        } else if height % 2 == 0 {
+            selection + 2 + half
         } else {
-            (0, 0)
+            selection + 1 + half
+        };
+
+        if end > self.items.len() {
+            (self.items.len() - height, self.items.len())
+        } else {
+            (start, end)
         }
     }
 }
@@ -163,9 +175,7 @@ impl<'a> StatefulWidget for List<'a> {
 
         let highlight_symbol = self.highlight_symbol.unwrap_or("");
         let blank_symbol = " ".repeat(highlight_symbol.width());
-
         let mut current_height = 0;
-        let has_selection = state.selection.is_some();
 
         for (i, item) in self
             .items
@@ -197,8 +207,8 @@ impl<'a> StatefulWidget for List<'a> {
             buf.set_style(area, item_style);
 
             //check if the current index is selected
-            let is_selected = if let Some(selected) = state.selection {
-                selected == i
+            let is_selected = if state.selected {
+                state.selection == i
             } else {
                 false
             };
@@ -213,7 +223,7 @@ impl<'a> StatefulWidget for List<'a> {
                     &blank_symbol
                 };
 
-                let (elem_x, max_element_width) = if has_selection {
+                let (elem_x, max_element_width) = if state.selected {
                     let (elem_x, _) = buf.set_stringn(
                         x,
                         y + j as u16,
@@ -229,7 +239,7 @@ impl<'a> StatefulWidget for List<'a> {
             }
 
             //sets the style of the selection
-            if state.selection.is_some() {
+            if state.selected {
                 buf.set_style(area, self.highlight_style);
             }
         }
