@@ -233,7 +233,7 @@ impl Database {
             params![artist, album],
         )
     }
-    pub fn get_song(&self, song: &(u16, String), album: &str, artist: &str) -> Vec<Song> {
+    pub fn get_song(&self, song: &(u64, String), album: &str, artist: &str) -> Vec<Song> {
         self.collect_songs(
             "SELECT * FROM song WHERE name=(?1) AND number=(?2) AND artist=(?3) AND album=(?4)",
             params![song.1, song.0, artist, album],
@@ -261,6 +261,7 @@ impl Database {
             artist: row.get(4).unwrap(),
             duration: Duration::from_secs_f64(dur),
             path: PathBuf::from(path),
+            track_gain: 0.0,
         }
     }
     pub fn delete() {

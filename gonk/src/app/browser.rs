@@ -29,7 +29,7 @@ pub struct Browser {
     artists: Index<String>,
     albums: Index<String>,
     //TODO: change to just a string?
-    songs: Index<(u16, String)>,
+    songs: Index<(u64, String)>,
     pub mode: Mode,
 }
 

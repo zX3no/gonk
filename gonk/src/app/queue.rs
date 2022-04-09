@@ -1,5 +1,6 @@
 use crate::app::COLORS;
 use crossterm::event::KeyModifiers;
+use gonk_database::Toml;
 use gonk_types::Index;
 use rodio::Player;
 use std::time::Duration;
@@ -72,7 +73,7 @@ impl Queue {
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             scroll_text: ScrollText::default(),
-            player: Player::new(TOML.volume()),
+            player: Player::new(Toml::new().volume()),
         }
     }
     pub fn update(&mut self) {
@@ -139,8 +140,6 @@ use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
-
-use super::TOML;
 
 impl Queue {
     fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {

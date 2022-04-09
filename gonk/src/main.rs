@@ -3,6 +3,9 @@ use gonk_database::{Database, Toml, GONK_DIR};
 use std::io::Result;
 mod app;
 
+//TODO: there are so many instances of Toml::new()
+//really need to clean them up.
+
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some(first) = args.first() {
@@ -10,7 +13,7 @@ fn main() -> Result<()> {
             "add" => {
                 if let Some(dir) = args.get(1..) {
                     let dir = dir.join(" ");
-                    Toml::new()?.add_path(dir);
+                    Toml::new().add_path(dir);
                 }
             }
             "config" => {
@@ -18,7 +21,7 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" | "rm" => {
-                Toml::new()?.reset();
+                Toml::new().reset();
                 Database::delete();
                 println!("Database reset!");
                 return Ok(());

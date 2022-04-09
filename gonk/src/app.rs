@@ -43,11 +43,10 @@ pub enum Mode {
 }
 
 #[dynamic]
-static TOML: Toml = Toml::new().unwrap();
+static COLORS: Colors = Toml::new().colors;
+
 #[dynamic]
-static COLORS: Colors = TOML.colors.clone();
-#[dynamic]
-static HK: Hotkey = TOML.hotkey.clone();
+static HK: Hotkey = Toml::new().hotkey;
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 
@@ -106,12 +105,12 @@ impl App {
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        let mut toml = Toml::new()?;
+        let mut toml = Toml::new();
 
         #[cfg(windows)]
         let tx = App::register_hotkeys();
 
-        self.db.sync_database(TOML.paths());
+        self.db.sync_database(toml.paths());
 
         loop {
             if last_tick.elapsed() >= TICK_RATE {
@@ -194,8 +193,8 @@ impl App {
                             }
                             _ if HK.clear.contains(&bind) => self.queue.clear(),
                             _ if HK.refresh_database.contains(&bind) => {
-                                self.db.add_dirs(TOML.paths());
-                                self.db.sync_database(TOML.paths());
+                                self.db.add_dirs(toml.paths());
+                                self.db.sync_database(toml.paths());
                             }
                             _ if HK.seek_backward.contains(&bind) => self.queue.player.seek_bw(),
                             _ if HK.seek_forward.contains(&bind) => self.queue.player.seek_fw(),
@@ -283,7 +282,7 @@ impl App {
         let rx = Arc::new(rx);
         std::thread::spawn(move || {
             let mut hk = Listener::<HotkeyEvent>::new();
-            let ghk = Toml::new().unwrap().global_hotkey;
+            let ghk = Toml::new().global_hotkey;
 
             hk.register_hotkey(
                 ghk.volume_up.modifiers(),

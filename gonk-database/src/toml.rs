@@ -206,11 +206,11 @@ pub struct Toml {
 }
 
 impl Toml {
-    pub fn new() -> std::io::Result<Self> {
+    pub fn new() -> Self {
         let path = TOML_DIR.as_path();
 
         let file = if path.exists() {
-            fs::read_to_string(path)?
+            fs::read_to_string(path).unwrap()
         } else {
             let toml = Toml {
                 config: Config {
@@ -357,7 +357,7 @@ impl Toml {
         };
 
         match toml::from_str(&file) {
-            Ok(toml) => Ok(toml),
+            Ok(toml) => toml,
             Err(err) => {
                 //TODO: parse and describe error to user?
                 panic!("{:#?}", &err);
@@ -395,5 +395,11 @@ impl Toml {
     pub fn write(&self) {
         let toml = toml::to_string(&self).expect("Failed to write toml file.");
         fs::write(TOML_DIR.as_path(), toml).expect("Could not write toml flie.");
+    }
+}
+
+impl Default for Toml {
+    fn default() -> Self {
+        Toml::new()
     }
 }

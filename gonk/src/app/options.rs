@@ -8,8 +8,6 @@ use tui::{
     Frame,
 };
 
-use super::TOML;
-
 pub struct Options {
     pub devices: Index<Device>,
     toml: Toml,
@@ -24,7 +22,7 @@ impl Options {
 
         let devices = Index::new(Player::output_devices(), Some(0));
 
-        let config_device = TOML.output_device();
+        let config_device = Toml::new().output_device().clone();
 
         let current_device = if config_device.is_empty() {
             default_device
@@ -35,7 +33,7 @@ impl Options {
                 .flat_map(rodio::DeviceTrait::name)
                 .collect();
 
-            data.retain(|name| name == config_device);
+            data.retain(|name| name == &config_device);
 
             if data.is_empty() {
                 default_device
@@ -44,7 +42,7 @@ impl Options {
             }
         };
 
-        let mut toml = Toml::new().unwrap();
+        let mut toml = Toml::new();
         toml.set_output_device(current_device);
 
         Self { devices, toml }

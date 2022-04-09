@@ -12,13 +12,14 @@ use symphonia::core::{
 
 #[derive(Debug, Clone, Default)]
 pub struct Song {
-    pub number: u16,
-    pub disc: u16,
+    pub number: u64,
+    pub disc: u64,
     pub name: String,
     pub album: String,
     pub artist: String,
     pub path: PathBuf,
     pub duration: Duration,
+    pub track_gain: String,
 }
 
 impl Song {
@@ -52,18 +53,21 @@ impl Song {
                         StandardTagKey::TrackNumber => {
                             let number = tag.value.to_string();
                             if let Some((num, _)) = number.split_once('/') {
-                                song.number = num.parse::<u16>().unwrap_or(1);
+                                song.number = num.parse().unwrap_or(1);
                             } else {
-                                song.number = tag.value.to_string().parse::<u16>().unwrap_or(1);
+                                song.number = number.parse().unwrap_or(1);
                             }
                         }
                         StandardTagKey::DiscNumber => {
                             let number = tag.value.to_string();
                             if let Some((num, _)) = number.split_once('/') {
-                                song.disc = num.parse::<u16>().unwrap_or(1);
+                                song.disc = num.parse().unwrap_or(1);
                             } else {
-                                song.disc = tag.value.to_string().parse::<u16>().unwrap_or(1);
+                                song.disc = number.parse().unwrap_or(1);
                             }
+                        }
+                        StandardTagKey::ReplayGainTrackGain => {
+                            song.track_gain = tag.value.to_string();
                         }
                         _ => (),
                     }
@@ -86,9 +90,6 @@ impl Song {
         }
         if song.album.is_empty() {
             song.album = String::from("Unknown Album");
-        }
-        if song.number == 0 {
-            song.number = 1;
         }
 
         //Calculate duration
