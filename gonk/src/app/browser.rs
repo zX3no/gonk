@@ -1,5 +1,14 @@
+use crate::widget::{List, ListItem, ListState};
 use gonk_database::Database;
 use gonk_types::{Index, Song};
+use tui::{
+    backend::Backend,
+    layout::{Alignment, Constraint, Direction, Layout},
+    style::{Color, Style},
+    text::Spans,
+    widgets::{Block, BorderType, Borders, Paragraph},
+    Frame,
+};
 
 pub enum Mode {
     Artist,
@@ -137,14 +146,6 @@ impl Browser {
     }
 }
 
-use tui::{
-    backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Style},
-    text::Spans,
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
-    Frame,
-};
 impl Browser {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>, busy: bool) {
         self.draw_browser(f);
@@ -199,8 +200,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut artist_state = ListState::default();
-        artist_state.select(self.artists.index);
+        let mut artist_state = ListState::new(self.artists.index);
 
         let albums = List::new(b)
             .block(
@@ -213,8 +213,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut album_state = ListState::default();
-        album_state.select(self.albums.index);
+        let mut album_state = ListState::new(self.albums.index);
 
         let songs = List::new(c)
             .block(
@@ -227,8 +226,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut song_state = ListState::default();
-        song_state.select(self.songs.index);
+        let mut song_state = ListState::new(self.songs.index);
 
         //TODO: better way of doing this?
         match self.mode {

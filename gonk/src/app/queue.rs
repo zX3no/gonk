@@ -1,9 +1,14 @@
 use crate::app::COLORS;
+use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_database::Toml;
 use gonk_types::Index;
 use rodio::Player;
 use std::time::Duration;
+use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use tui::style::{Color, Modifier, Style};
+use tui::text::{Span, Spans};
+use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::{backend::Backend, Frame};
 
 #[derive(Default)]
@@ -135,11 +140,6 @@ impl Queue {
         self.ui = Index::default();
     }
 }
-
-use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
-use tui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState};
 
 impl Queue {
     fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {
@@ -406,9 +406,7 @@ impl Queue {
             .widths(&con);
 
         //required to scroll songs
-        let mut state = TableState::default();
-        state.select(ui_index);
-
+        let mut state = TableState::new(ui_index);
         f.render_stateful_widget(t, chunk, &mut state);
     }
     fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {

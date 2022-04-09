@@ -2,6 +2,7 @@ use app::App;
 use gonk_database::{Database, Toml, GONK_DIR};
 use std::io::Result;
 mod app;
+mod widget;
 
 //TODO: there are so many instances of Toml::new()
 //really need to clean them up.

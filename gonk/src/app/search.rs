@@ -1,4 +1,5 @@
 use super::{Mode as AppMode, COLORS};
+use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_database::Database;
 use gonk_types::Index;
@@ -8,7 +9,7 @@ use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, TableState},
+    widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
 };
 
@@ -429,9 +430,7 @@ impl Search {
             ])
             .highlight_symbol("> ");
 
-        let mut state = TableState::default();
-        state.select(self.results.index);
-
+        let mut state = TableState::new(self.results.index);
         f.render_stateful_widget(t, area, &mut state);
     }
     fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {

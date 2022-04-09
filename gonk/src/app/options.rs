@@ -1,10 +1,11 @@
+use crate::widget::{List, ListItem, ListState};
 use gonk_database::Toml;
 use gonk_types::Index;
 use rodio::{Device, DeviceTrait, Player};
 use tui::{
     backend::Backend,
     style::{Color, Modifier, Style},
-    widgets::{Block, BorderType, Borders, List, ListItem, ListState},
+    widgets::{Block, BorderType, Borders},
     Frame,
 };
 
