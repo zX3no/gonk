@@ -6,8 +6,8 @@ default-run = "gonk"
 authors = ["Bay <example@email.com>"]
 
 [dependencies]
-crossterm = "0.23.1"
-tui = { git = "https://github.com/fdehau/tui-rs", features = ["serde"] }
+crossterm = "0.23.2"
+tui = { version = "0.17.0", features = ["serde"] }
 gonk-database = { path = "../gonk-database" }
 gonk-types = { path = "../gonk-types" }
 rodio = { path = "../rodio" }
