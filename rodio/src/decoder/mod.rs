@@ -13,6 +13,10 @@ use symphonia::{
     },
     default::get_probe,
 };
+// Decoder errors are not considered fatal.
+// The correct action is to just get a new packet and try again.
+// But a decode error in more than 3 consecutive packets is fatal.
+const MAX_DECODE_ERRORS: usize = 3;
 
 pub struct Decoder {
     decoder: Box<dyn codecs::Decoder>,
@@ -29,7 +33,6 @@ impl Decoder {
         let source = Box::new(file);
 
         let mss = MediaSourceStream::new(source, Default::default());
-
         match Decoder::init(mss) {
             Err(e) => match e {
                 Error::IoError(e) => Err(DecoderError::IoError(e.to_string())),
@@ -45,26 +48,23 @@ impl Decoder {
             Ok(None) => Err(DecoderError::NoStreams),
         }
     }
-
-    pub fn into_inner(self) -> MediaSourceStream {
-        self.format.into_inner()
-    }
-
     fn init(mss: MediaSourceStream) -> symphonia::core::errors::Result<Option<Decoder>> {
         let format_opts: FormatOptions = Default::default();
         let metadata_opts: MetadataOptions = Default::default();
-        let probed = get_probe().format(&Hint::new(), mss, &format_opts, &metadata_opts)?;
+        let mut probed = get_probe().format(&Hint::default(), mss, &format_opts, &metadata_opts)?;
 
-        let mut format = probed.format;
-        let decoder_opts = &codecs::DecoderOptions { verify: true };
+        let track = match probed.format.default_track() {
+            Some(stream) => stream,
+            None => return Ok(None),
+        };
 
-        let track = format.default_track().unwrap();
+        let mut decoder = symphonia::default::get_codecs().make(
+            &track.codec_params,
+            &codecs::DecoderOptions { verify: true },
+        )?;
 
-        let mut decoder =
-            symphonia::default::get_codecs().make(&track.codec_params, decoder_opts)?;
-
+        //duartion
         let params = &track.codec_params;
-
         let total_duration = if let Some(n_frames) = params.n_frames {
             if let Some(tb) = params.time_base {
                 let time = tb.calc_time(n_frames);
@@ -76,15 +76,31 @@ impl Decoder {
             panic!("no n_frames");
         };
 
-        let current_frame = format.next_packet()?;
-        let decoded = decoder.decode(&current_frame)?;
+        let mut decode_errors: usize = 0;
+        let decoded = loop {
+            let current_frame = probed.format.next_packet()?;
+            match decoder.decode(&current_frame) {
+                Ok(decoded) => break decoded,
+                Err(e) => match e {
+                    Error::DecodeError(_) => {
+                        decode_errors += 1;
+                        if decode_errors > MAX_DECODE_ERRORS {
+                            return Err(e);
+                        } else {
+                            continue;
+                        }
+                    }
+                    _ => return Err(e),
+                },
+            }
+        };
         let spec = decoded.spec().to_owned();
         let buffer = Decoder::get_buffer(decoded, &spec);
 
         Ok(Some(Decoder {
             decoder,
             current_frame_offset: 0,
-            format,
+            format: probed.format,
             buffer,
             spec,
             total_duration,
@@ -156,31 +172,28 @@ impl Iterator for Decoder {
     #[inline]
     fn next(&mut self) -> Option<i16> {
         if self.current_frame_offset == self.buffer.len() {
-            match self.format.next_packet() {
-                Ok(packet) => match self.decoder.decode(&packet) {
-                    Ok(decoded) => {
-                        self.spec = decoded.spec().to_owned();
-                        self.buffer = Decoder::get_buffer(decoded, &self.spec);
-
-                        let ts = packet.ts();
-                        let tb = self
-                            .format
-                            .tracks()
-                            .first()
-                            .unwrap()
-                            .codec_params
-                            .time_base
-                            .unwrap();
-
-                        let t = tb.calc_time(ts);
-
-                        self.elapsed =
-                            Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
-                    }
+            let mut decode_errors: usize = 0;
+            let decoded = loop {
+                match self.format.next_packet() {
+                    Ok(packet) => match self.decoder.decode(&packet) {
+                        Ok(decoded) => break decoded,
+                        Err(e) => match e {
+                            Error::DecodeError(_) => {
+                                decode_errors += 1;
+                                if decode_errors > MAX_DECODE_ERRORS {
+                                    return None;
+                                } else {
+                                    continue;
+                                }
+                            }
+                            _ => return None,
+                        },
+                    },
                     Err(_) => return None,
-                },
-                Err(_) => return None,
-            }
+                }
+            };
+            self.spec = decoded.spec().to_owned();
+            self.buffer = Decoder::get_buffer(decoded, &self.spec);
             self.current_frame_offset = 0;
         }
 

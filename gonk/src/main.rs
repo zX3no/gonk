@@ -18,6 +18,7 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" | "rm" => {
+                Toml::new()?.reset();
                 Database::delete();
                 println!("Database reset!");
                 return Ok(());
