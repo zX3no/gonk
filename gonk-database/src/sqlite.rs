@@ -73,7 +73,7 @@ impl Database {
         self.needs_update.store(false, Ordering::SeqCst)
     }
     pub fn is_busy(&self) -> bool {
-        self.is_busy.load(Ordering::Relaxed)
+        self.is_busy.load(Ordering::SeqCst)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
         optick::event!("sync database");
@@ -112,13 +112,19 @@ impl Database {
         }
     }
     pub fn add_dirs(&self, dirs: &[String]) {
+        optick::event!("add_dirs() Database");
+        if self.is_busy() {
+            return;
+        }
+
         let busy = self.is_busy.clone();
         let update = self.needs_update.clone();
         let dirs = dirs.to_owned();
-
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
+            optick::register_thread("Database");
+            optick::event!("adding files");
             for dir in dirs {
                 let songs: Vec<Song> = WalkDir::new(&dir)
                     .into_iter()

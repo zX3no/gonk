@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 symphonia = { git="https://github.com/pdeljanov/Symphonia"}
+optick = "1.3.4"

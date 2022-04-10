@@ -49,7 +49,7 @@ fn main() -> Result<()> {
 
     App::new(toml).run()?;
 
-    optick::stop_capture("capture_name");
+    optick::stop_capture("gonk");
 
     Ok(())
 }
