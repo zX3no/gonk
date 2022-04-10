@@ -25,6 +25,7 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> rusqlite::Result<Self> {
+        optick::event!("new database");
         if !Path::new(CONFIG_DIR.as_path()).exists() {
             std::fs::create_dir(CONFIG_DIR.as_path()).unwrap();
         }
@@ -75,6 +76,7 @@ impl Database {
         self.is_busy.load(Ordering::Relaxed)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
+        optick::event!("sync database");
         let conn = self.conn();
         let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
 

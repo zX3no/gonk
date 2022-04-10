@@ -7,5 +7,6 @@ version = "0.0.1"
 [dependencies]
 cpal = "0.13.5"
 gonk-types = { path = "../gonk-types" }
+optick = "1.3.4"
 rand = "0.8.5"
 symphonia = { git="https://github.com/pdeljanov/Symphonia", features = ["aac", "mp3", "isomp4"] }

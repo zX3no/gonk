@@ -40,6 +40,7 @@ pub struct Player {
 
 impl Player {
     pub fn new(volume: u16) -> Self {
+        optick::event!("new player");
         let (stream, handle) =
             OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
@@ -199,15 +200,20 @@ impl Player {
         }
     }
     pub fn output_devices() -> Vec<Device> {
+        optick::event!("output_devices");
         let host_id = cpal::default_host().id();
         let host = cpal::host_from_id(host_id).unwrap();
 
-        let mut devices: Vec<_> = host.output_devices().unwrap().collect();
-        devices.sort_by_key(|a| a.name().unwrap().to_lowercase());
-        devices
+        //TODO: this contains inputs aswell as outputs
+        //getting just the outputs was too slow 150+ ms
+        host.devices().unwrap().collect()
+        // devices.sort_by_key(|a| a.name().unwrap().to_lowercase());
+        // devices
     }
-    pub fn default_device() -> Option<Device> {
-        cpal::default_host().default_output_device()
+    pub fn default_device() -> Device {
+        cpal::default_host()
+            .default_output_device()
+            .expect("Could not get default device.")
     }
     pub fn change_output_device(&mut self, device: &Device) {
         self.stop();

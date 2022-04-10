@@ -73,6 +73,7 @@ pub struct Queue {
 
 impl Queue {
     pub fn new(start_vol: u16) -> Self {
+        optick::event!("new queue");
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],

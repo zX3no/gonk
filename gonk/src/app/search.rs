@@ -99,6 +99,7 @@ impl Search {
         }
     }
     pub fn new() -> Self {
+        optick::event!("new search");
         let mut s = Self {
             cache: Vec::new(),
             query: String::new(),

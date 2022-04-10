@@ -1,3 +1,5 @@
 [workspace]
-
 members = ["gonk", "gonk-database", "gonk-types"]
+
+[profile.release]
+debug = true

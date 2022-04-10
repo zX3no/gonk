@@ -2,3 +2,4 @@
 /gonk/target
 Cargo.lock
 *.log
+*.opt

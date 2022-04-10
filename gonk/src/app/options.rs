@@ -1,4 +1,7 @@
-use crate::widget::{List, ListItem, ListState};
+use crate::{
+    app::TOML,
+    widget::{List, ListItem, ListState},
+};
 use gonk_database::Toml;
 use gonk_types::Index;
 use rodio::{Device, DeviceTrait, Player};
@@ -15,35 +18,32 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn new() -> Self {
-        let default_device = Player::default_device()
-            .expect("Can't find output device!")
-            .name()
-            .expect("Device has no name!");
+    fn get_current_device(devices: &Index<Device>) -> String {
+        optick::event!("get devices");
+        let config_device = TOML.output_device();
+        let default_device = Player::default_device().name().unwrap();
 
-        let devices = Index::new(Player::output_devices(), Some(0));
+        let mut data: Vec<_> = devices
+            .data
+            .iter()
+            .flat_map(rodio::DeviceTrait::name)
+            .collect();
 
-        let mut toml = Toml::new();
-        let config_device = toml.output_device().clone();
+        data.retain(|name| name == config_device);
 
-        let current_device = if config_device.is_empty() {
+        if data.is_empty() {
             default_device
         } else {
-            let mut data: Vec<_> = devices
-                .data
-                .iter()
-                .flat_map(rodio::DeviceTrait::name)
-                .collect();
+            config_device.to_string()
+        }
+    }
+    pub fn new() -> Self {
+        optick::event!("new options");
 
-            data.retain(|name| name == &config_device);
+        let devices = Index::new(Player::output_devices(), Some(0));
+        let current_device = Self::get_current_device(&devices);
 
-            if data.is_empty() {
-                default_device
-            } else {
-                config_device.to_string()
-            }
-        };
-
+        let mut toml = Toml::new();
         toml.set_output_device(current_device);
 
         Self { devices, toml }
