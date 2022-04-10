@@ -46,7 +46,6 @@ impl Song {
         };
 
         let mut get_songs = |metadata: &MetadataRevision| {
-            optick::event!("get_songs() Song");
             for tag in metadata.tags() {
                 if let Some(std_key) = tag.std_key {
                     match std_key {

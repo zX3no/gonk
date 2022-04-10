@@ -124,7 +124,7 @@ impl Database {
 
         thread::spawn(move || {
             optick::register_thread("Database");
-            optick::event!("adding files");
+            optick::event!("Adding files");
             for dir in dirs {
                 let songs: Vec<Song> = WalkDir::new(&dir)
                     .into_iter()
@@ -136,13 +136,15 @@ impl Database {
                             false
                         }
                     })
-                    .parallel_map(|dir| Song::from(&dir))
+                    .parallel_map(|dir| {
+                        optick::register_thread("Song");
+                        Song::from(&dir)
+                    })
                     .collect();
 
                 if songs.is_empty() {
                     return;
                 }
-
                 let mut stmt = String::from("BEGIN;\n");
                 stmt.push_str(&songs.iter()
                 .map(|song| {
@@ -159,9 +161,11 @@ impl Database {
 
                 stmt.push_str("COMMIT;\n");
 
-                let conn = Connection::open(DB_DIR.as_path()).unwrap();
-
-                conn.execute_batch(&stmt).unwrap();
+                {
+                    optick::event!("execute_batch() Database");
+                    let conn = Connection::open(DB_DIR.as_path()).unwrap();
+                    conn.execute_batch(&stmt).unwrap();
+                }
             }
 
             busy.store(false, Ordering::SeqCst);
