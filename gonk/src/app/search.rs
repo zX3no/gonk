@@ -219,6 +219,7 @@ impl Search {
 
 impl Search {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
+        optick::event!("draw Search");
         let area = f.size();
 
         let v = Layout::default()

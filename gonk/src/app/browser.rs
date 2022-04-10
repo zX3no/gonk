@@ -145,7 +145,7 @@ impl Browser {
 
 impl Browser {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>, busy: bool) {
-        optick::event!("draw browser");
+        optick::event!("draw Browser");
         self.draw_browser(f);
         if busy {
             Browser::draw_popup(f);

@@ -62,6 +62,7 @@ impl Options {
         }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
+        optick::event!("draw Options");
         let default_device = self.toml.output_device();
 
         let items: Vec<_> = self

@@ -49,7 +49,7 @@ static TOML: Toml = Toml::new();
 static DB: Database = Database::new().unwrap();
 
 const TICK_RATE: Duration = Duration::from_millis(100);
-const POLL_RATE: Duration = Duration::from_millis(16);
+const POLL_RATE: Duration = Duration::from_millis(4);
 const SEEK_TIME: f64 = 10.0;
 
 pub struct App {
@@ -123,18 +123,15 @@ impl App {
 
             #[cfg(windows)]
             self.handle_global_hotkeys(&tx);
-            self.terminal.draw(|f| {
-                optick::event!("draw");
-                match self.mode {
-                    Mode::Browser => self.browser.draw(f, self.db.is_busy()),
-                    Mode::Queue => self.queue.draw(f),
-                    Mode::Options => self.options.draw(f),
-                    Mode::Search => self.search.draw(f),
-                }
+
+            self.terminal.draw(|f| match self.mode {
+                Mode::Browser => self.browser.draw(f, self.db.is_busy()),
+                Mode::Queue => self.queue.draw(f),
+                Mode::Options => self.options.draw(f),
+                Mode::Search => self.search.draw(f),
             })?;
 
             if crossterm::event::poll(POLL_RATE)? {
-                optick::event!("poll");
                 match event::read()? {
                     Event::Key(event) => {
                         optick::event!("key event");

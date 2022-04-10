@@ -180,6 +180,7 @@ impl Queue {
         }
     }
     pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
+        optick::event!("draw Queue");
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
