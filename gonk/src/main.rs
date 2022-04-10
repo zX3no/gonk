@@ -7,6 +7,7 @@ mod widget;
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let mut toml = Toml::new();
+
     if let Some(first) = args.first() {
         match first as &str {
             "add" => {

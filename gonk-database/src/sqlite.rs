@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex, MutexGuard,
     },
     thread,
     time::Duration,
@@ -18,7 +18,7 @@ fn fix(item: &str) -> String {
 }
 
 pub struct Database {
-    conn: Connection,
+    conn: Mutex<Connection>,
     is_busy: Arc<AtomicBool>,
     needs_update: Arc<AtomicBool>,
 }
@@ -57,10 +57,13 @@ impl Database {
         }
 
         Ok(Self {
-            conn: Connection::open(DB_DIR.as_path()).unwrap(),
+            conn: Mutex::new(Connection::open(DB_DIR.as_path()).unwrap()),
             needs_update: Arc::new(AtomicBool::new(false)),
             is_busy: Arc::new(AtomicBool::new(false)),
         })
+    }
+    fn conn(&self) -> MutexGuard<Connection> {
+        self.conn.lock().unwrap()
     }
     pub fn needs_update(&self) -> bool {
         self.needs_update.load(Ordering::Relaxed)
@@ -72,10 +75,8 @@ impl Database {
         self.is_busy.load(Ordering::Relaxed)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT DISTINCT parent FROM song")
-            .unwrap();
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
 
         let paths: Vec<_> = stmt
             .query_map([], |row| row.get(0))
@@ -86,7 +87,7 @@ impl Database {
         //delete paths that aren't in the toml file but are in the database
         paths.iter().for_each(|path| {
             if !toml_paths.contains(path) {
-                self.conn
+                self.conn()
                     .execute("DELETE FROM song WHERE parent = ?", [path])
                     .unwrap();
             }
@@ -169,7 +170,8 @@ impl Database {
             .collect()
     }
     pub fn get_all_songs(&self) -> Vec<(usize, Song)> {
-        let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
 
         stmt.query_map([], |row| {
             let id = row.get(9).unwrap();
@@ -181,8 +183,8 @@ impl Database {
         .collect()
     }
     pub fn get_all_artists(&self) -> Vec<String> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
@@ -195,8 +197,8 @@ impl Database {
         .collect()
     }
     pub fn get_all_albums(&self) -> Vec<(String, String)> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
@@ -210,8 +212,8 @@ impl Database {
         .collect()
     }
     pub fn get_all_albums_by_artist(&self, artist: &str) -> Vec<String> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare(
                 "SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE",
             )
@@ -244,7 +246,8 @@ impl Database {
     where
         P: Params,
     {
-        let mut stmt = self.conn.prepare(query).unwrap();
+        let conn = self.conn();
+        let mut stmt = conn.prepare(query).unwrap();
 
         stmt.query_map(params, |row| Ok(Database::song(row)))
             .unwrap()

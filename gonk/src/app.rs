@@ -5,7 +5,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, Colors, Database, GlobalHotkey, Hotkey, Key, Modifier, Toml};
+use gonk_database::{Bind, Database, Key, Modifier, Toml};
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
@@ -46,13 +46,7 @@ pub enum Mode {
 static TOML: Toml = Toml::new();
 
 #[dynamic]
-static COLORS: &'static Colors = &TOML.colors;
-
-#[dynamic]
-static HK: &'static Hotkey = &TOML.hotkey;
-
-#[dynamic]
-static GHK: &'static GlobalHotkey = &TOML.global_hotkey;
+static DB: Database = Database::new().unwrap();
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(16);
@@ -112,10 +106,10 @@ impl App {
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
+        self.db.sync_database(self.toml.paths());
+
         #[cfg(windows)]
         let tx = App::register_hotkeys();
-
-        self.db.sync_database(self.toml.paths());
 
         loop {
             if last_tick.elapsed() >= TICK_RATE {
@@ -125,7 +119,6 @@ impl App {
 
             #[cfg(windows)]
             self.handle_global_hotkeys(&tx);
-
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f, self.db.is_busy()),
                 Mode::Queue => self.queue.draw(f),
@@ -141,7 +134,7 @@ impl App {
                             modifiers: Modifier::from_u32(event.modifiers),
                         };
 
-                        if HK.quit.contains(&bind) {
+                        if TOML.hotkey.quit.contains(&bind) {
                             break;
                         };
 
@@ -185,44 +178,48 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint('3', event.modifiers);
                             }
-                            _ if HK.up.contains(&bind) => self.up(),
-                            _ if HK.down.contains(&bind) => self.down(),
-                            _ if HK.left.contains(&bind) => self.browser.prev(),
-                            _ if HK.right.contains(&bind) => self.browser.next(),
-                            _ if HK.play_pause.contains(&bind) => {
+                            _ if TOML.hotkey.up.contains(&bind) => self.up(),
+                            _ if TOML.hotkey.down.contains(&bind) => self.down(),
+                            _ if TOML.hotkey.left.contains(&bind) => self.browser.prev(),
+                            _ if TOML.hotkey.right.contains(&bind) => self.browser.next(),
+                            _ if TOML.hotkey.play_pause.contains(&bind) => {
                                 self.queue.player.toggle_playback()
                             }
-                            _ if HK.clear.contains(&bind) => self.queue.clear(),
-                            _ if HK.refresh_database.contains(&bind) => {
+                            _ if TOML.hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if TOML.hotkey.refresh_database.contains(&bind) => {
                                 self.db.add_dirs(self.toml.paths());
                                 self.db.sync_database(self.toml.paths());
                             }
-                            _ if HK.seek_backward.contains(&bind) => {
+                            _ if TOML.hotkey.seek_backward.contains(&bind) => {
                                 self.queue.player.seek_by(-SEEK_TIME)
                             }
-                            _ if HK.seek_forward.contains(&bind) => {
+                            _ if TOML.hotkey.seek_forward.contains(&bind) => {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
-                            _ if HK.previous.contains(&bind) => self.queue.player.prev_song(),
-                            _ if HK.next.contains(&bind) => self.queue.player.next_song(),
-                            _ if HK.volume_up.contains(&bind) => {
+                            _ if TOML.hotkey.previous.contains(&bind) => {
+                                self.queue.player.prev_song()
+                            }
+                            _ if TOML.hotkey.next.contains(&bind) => self.queue.player.next_song(),
+                            _ if TOML.hotkey.volume_up.contains(&bind) => {
                                 let vol = self.queue.player.volume_up();
                                 self.toml.set_volume(vol);
                             }
-                            _ if HK.volume_down.contains(&bind) => {
+                            _ if TOML.hotkey.volume_down.contains(&bind) => {
                                 let vol = self.queue.player.volume_down();
                                 self.toml.set_volume(vol);
                             }
-                            _ if HK.search.contains(&bind) => self.mode = Mode::Search,
-                            _ if HK.options.contains(&bind) => self.mode = Mode::Options,
-                            _ if HK.delete.contains(&bind) => {
+                            _ if TOML.hotkey.search.contains(&bind) => self.mode = Mode::Search,
+                            _ if TOML.hotkey.options.contains(&bind) => self.mode = Mode::Options,
+                            _ if TOML.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
                                         self.queue.player.delete_song(i);
                                     }
                                 }
                             }
-                            _ if HK.random.contains(&bind) => self.queue.player.randomize(),
+                            _ if TOML.hotkey.random.contains(&bind) => {
+                                self.queue.player.randomize()
+                            }
                             _ => (),
                         }
                     }
@@ -234,7 +231,7 @@ impl App {
                         }
                         _ => (),
                     },
-                    Event::Resize(..) => (),
+                    _ => (),
                 }
             }
         }
@@ -260,7 +257,6 @@ impl App {
         }
     }
 
-    //TODO: this should be platform agnostic
     fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>) {
         if let Ok(recv) = tx.try_recv() {
             match recv {
@@ -288,21 +284,25 @@ impl App {
         std::thread::spawn(move || {
             let mut hk = Listener::<HotkeyEvent>::new();
             hk.register_hotkey(
-                GHK.volume_up.modifiers(),
-                GHK.volume_up.key(),
+                TOML.global_hotkey.volume_up.modifiers(),
+                TOML.global_hotkey.volume_up.key(),
                 HotkeyEvent::VolUp,
             );
             hk.register_hotkey(
-                GHK.volume_down.modifiers(),
-                GHK.volume_down.key(),
+                TOML.global_hotkey.volume_down.modifiers(),
+                TOML.global_hotkey.volume_down.key(),
                 HotkeyEvent::VolDown,
             );
             hk.register_hotkey(
-                GHK.previous.modifiers(),
-                GHK.previous.key(),
+                TOML.global_hotkey.previous.modifiers(),
+                TOML.global_hotkey.previous.key(),
                 HotkeyEvent::Prev,
             );
-            hk.register_hotkey(GHK.next.modifiers(), GHK.next.key(), HotkeyEvent::Next);
+            hk.register_hotkey(
+                TOML.global_hotkey.next.modifiers(),
+                TOML.global_hotkey.next.key(),
+                HotkeyEvent::Next,
+            );
             hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
             loop {
                 if let Some(event) = hk.listen() {
