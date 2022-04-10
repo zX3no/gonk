@@ -56,9 +56,11 @@ impl Options {
     }
     pub fn on_enter(&mut self, player: &mut Player) {
         if let Some(device) = self.devices.selected() {
-            self.toml
-                .set_output_device(device.name().expect("Device has no name!"));
-            player.change_output_device(device);
+            //don't set update the device if there is an error
+            if player.change_output_device(device) {
+                self.toml
+                    .set_output_device(device.name().expect("Device has no name!"));
+            }
         }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {

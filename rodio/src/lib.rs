@@ -215,11 +215,15 @@ impl Player {
             .default_output_device()
             .expect("Could not get default device.")
     }
-    pub fn change_output_device(&mut self, device: &Device) {
-        self.stop();
-        let (stream, handle) =
-            OutputStream::try_from_device(device).expect("Failed to change output device.");
-        self.stream = stream;
-        self.handle = handle;
+    pub fn change_output_device(&mut self, device: &Device) -> bool {
+        //temp fix so that changing to an input doesn't crash
+        if let Ok((stream, handle)) = OutputStream::try_from_device(device) {
+            self.stop();
+            self.stream = stream;
+            self.handle = handle;
+            true
+        } else {
+            false
+        }
     }
 }
