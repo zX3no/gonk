@@ -62,7 +62,7 @@ impl ScrollText {
 }
 
 #[derive(Default)]
-struct ServerState {
+pub struct ServerState {
     //TODO: replace with index
     pub queue: Vec<Song>,
     pub selected: Option<Song>,
@@ -72,6 +72,8 @@ struct ServerState {
     pub total_songs: usize,
 
     pub elapsed: f64,
+
+    //TODO: should duration be removed from gonk_types::Song
     pub duration: f64,
 
     //TODO: why not precalculate the percentage on the server side?
@@ -112,7 +114,7 @@ impl Queue {
     }
     #[allow(unused)]
     fn update_text(&mut self) {
-        if let Some(song) = self.server_state.selected {
+        if let Some(song) = &self.server_state.selected {
             let mut name = format!("{} - {}", &song.artist, &song.name);
 
             //TODO: this is broken
@@ -257,7 +259,7 @@ impl Queue {
         f.render_widget(right, chunk);
     }
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        let center = if let Some(song) = self.server_state.selected {
+        let center = if let Some(song) = &self.server_state.selected {
             //I wish that paragraphs had clipping
             //I think constraints do
             //I could render the -| |- on a seperate layer

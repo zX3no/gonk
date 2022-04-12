@@ -59,6 +59,8 @@ pub struct App {
     browser: Browser,
     options: Options,
     search: Search,
+    //TODO: keep in mind that the server should
+    //handle the toml file and database
     db: Database,
     toml: Toml,
 }
@@ -157,18 +159,24 @@ impl App {
                                 };
                             }
                             KeyCode::Backspace => self.search.on_backspace(event.modifiers),
+                            //TODO: we should not send songs over tcp it should be ids only
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
-                                    self.queue.player.add_songs(songs);
+                                    // self.queue.player.add_songs(songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index {
-                                        self.queue.player.play_song(i);
+                                        // self.queue.player.play_song(i);
                                     }
                                 }
-                                Mode::Search => self.search.on_enter(&mut self.queue.player),
-                                Mode::Options => self.options.on_enter(&mut self.queue.player),
+                                Mode::Search => {
+                                    if let Some(songs) = self.search.on_enter() {
+                                        // self.queue.client.add_songs(songs);
+                                    }
+                                }
+                                _ => (),
+                                // Mode::Options => self.options.on_enter(),
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -189,7 +197,7 @@ impl App {
                             _ if TOML.hotkey.left.contains(&bind) => self.browser.prev(),
                             _ if TOML.hotkey.right.contains(&bind) => self.browser.next(),
                             _ if TOML.hotkey.play_pause.contains(&bind) => {
-                                self.queue.player.toggle_playback()
+                                self.queue.client.toggle_playback()
                             }
                             _ if TOML.hotkey.clear.contains(&bind) => self.queue.clear(),
                             _ if TOML.hotkey.refresh_database.contains(&bind) => {
@@ -197,34 +205,30 @@ impl App {
                                 self.db.sync_database(self.toml.paths());
                             }
                             _ if TOML.hotkey.seek_backward.contains(&bind) => {
-                                self.queue.player.seek_by(-SEEK_TIME)
+                                self.queue.client.seek_by(-SEEK_TIME)
                             }
                             _ if TOML.hotkey.seek_forward.contains(&bind) => {
-                                self.queue.player.seek_by(SEEK_TIME)
+                                self.queue.client.seek_by(SEEK_TIME)
                             }
-                            _ if TOML.hotkey.previous.contains(&bind) => {
-                                self.queue.player.prev_song()
-                            }
-                            _ if TOML.hotkey.next.contains(&bind) => self.queue.player.next_song(),
+                            _ if TOML.hotkey.previous.contains(&bind) => self.queue.client.prev(),
+                            _ if TOML.hotkey.next.contains(&bind) => self.queue.client.next(),
                             _ if TOML.hotkey.volume_up.contains(&bind) => {
-                                let vol = self.queue.player.volume_up();
-                                self.toml.set_volume(vol);
+                                self.queue.client.volume_up()
                             }
                             _ if TOML.hotkey.volume_down.contains(&bind) => {
-                                let vol = self.queue.player.volume_down();
-                                self.toml.set_volume(vol);
+                                self.queue.client.volume_down();
                             }
                             _ if TOML.hotkey.search.contains(&bind) => self.mode = Mode::Search,
                             _ if TOML.hotkey.options.contains(&bind) => self.mode = Mode::Options,
                             _ if TOML.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
-                                        self.queue.player.delete_song(i);
+                                        self.queue.client.delete_song(i);
                                     }
                                 }
                             }
                             _ if TOML.hotkey.random.contains(&bind) => {
-                                self.queue.player.randomize()
+                                self.queue.client.randomize()
                             }
                             _ => (),
                         }
@@ -268,16 +272,14 @@ impl App {
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => {
-                    let vol = self.queue.player.volume_up();
-                    self.toml.set_volume(vol);
+                    self.queue.client.volume_up();
                 }
                 HotkeyEvent::VolDown => {
-                    let vol = self.queue.player.volume_down();
-                    self.toml.set_volume(vol);
+                    self.queue.client.volume_down();
                 }
-                HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
-                HotkeyEvent::Prev => self.queue.player.prev_song(),
-                HotkeyEvent::Next => self.queue.player.next_song(),
+                HotkeyEvent::PlayPause => self.queue.client.toggle_playback(),
+                HotkeyEvent::Prev => self.queue.client.prev(),
+                HotkeyEvent::Next => self.queue.client.next(),
             }
         }
     }

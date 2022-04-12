@@ -194,13 +194,14 @@ impl Search {
             }
         }
     }
-    pub fn on_enter(&mut self, player: &mut Player) {
+    pub fn on_enter(&mut self) -> Option<Vec<gonk_types::Song>> {
         match self.mode {
             Mode::Search => {
                 if !self.results.is_empty() {
                     self.mode = Mode::Select;
                     self.results.select(Some(0));
                 }
+                None
             }
             Mode::Select => {
                 if let Some(item) = self.results.selected() {
@@ -209,8 +210,9 @@ impl Search {
                         Item::Album(album) => DB.get_songs_from_album(&album.name, &album.artist),
                         Item::Artist(artist) => DB.get_songs_by_artist(&artist.name),
                     };
-
-                    player.add_songs(songs);
+                    Some(songs)
+                } else {
+                    None
                 }
             }
         }

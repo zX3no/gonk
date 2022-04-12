@@ -54,15 +54,15 @@ impl Options {
     pub fn down(&mut self) {
         self.devices.down();
     }
-    pub fn on_enter(&mut self, player: &mut Player) {
-        if let Some(device) = self.devices.selected() {
-            //don't set update the device if there is an error
-            if player.change_output_device(device) {
-                self.toml
-                    .set_output_device(device.name().expect("Device has no name!"));
-            }
-        }
-    }
+    // pub fn on_enter(&mut self) {
+    //     if let Some(device) = self.devices.selected() {
+    //         //don't set update the device if there is an error
+    //         if player.change_output_device(device) {
+    //             self.toml
+    //                 .set_output_device(device.name().expect("Device has no name!"));
+    //         }
+    //     }
+    // }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
         optick::event!("draw Options");
         let default_device = self.toml.output_device();
