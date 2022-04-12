@@ -15,6 +15,7 @@ strsim = "0.10.0"
 static_init = "1.0.2"
 unicode-width = "0.1.9"
 optick = "1.3.4"
+gonk-tcp = {path = "../gonk-tcp"}
 
 [target.'cfg(windows)'.dependencies]
 win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }

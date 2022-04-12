@@ -187,8 +187,8 @@ impl Player {
         }
         self.sink.seek(Duration::from_secs_f64(seek));
     }
-    pub fn seek_to(&self, time: Duration) {
-        self.sink.seek(time);
+    pub fn seek_to(&self, pos: f64) {
+        self.sink.seek(Duration::from_secs_f64(pos));
     }
     pub fn seeker(&self) -> f64 {
         let elapsed = self.elapsed();
