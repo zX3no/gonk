@@ -1,4 +1,5 @@
 #![allow(unused)]
+use gonk_database::Database;
 use rodio::Player;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -11,6 +12,7 @@ use std::{
 struct Server {
     listener: TcpListener,
 }
+
 impl Server {
     pub fn new() -> Self {
         let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
@@ -19,12 +21,13 @@ impl Server {
     }
     pub fn run(&mut self) {
         let mut player = Player::new(10);
+        let db = Database::new().unwrap();
 
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
                     println!("New connection: {}", stream.peer_addr().unwrap());
-                    Server::handle_client(stream, &mut player);
+                    Server::handle_client(stream, &mut player, db);
                     println!("Server shutting down.");
                     break;
                 }
@@ -32,29 +35,34 @@ impl Server {
             }
         }
     }
-    fn handle_client(mut stream: TcpStream, mut player: &mut Player) {
-        let mut buf = [0_u8; 16];
-        let mut buffer = [0u8; 4];
+    fn handle_client(mut stream: TcpStream, mut player: &mut Player, db: Database) {
+        let mut buf = [0u8; 4];
         loop {
-            if stream.read_exact(&mut buffer[..]).is_ok() {
+            player.update();
+
+            if stream.read_exact(&mut buf[..]).is_ok() {
                 //get the payload size
-                let size = u32::from_le_bytes(buffer);
-                println!("Receive size: {}", size);
+                let size = u32::from_le_bytes(buf);
 
                 //read the payload
                 let mut payload = vec![0; size as usize];
                 stream.read_exact(&mut payload[..]).unwrap();
 
-                let e: Event = bincode::deserialize(&payload).unwrap();
-                match e {
-                    Event::Shutdown => break,
-                    Event::PlaySong(id) => println!("Playing song: {}", id),
+                match bincode::deserialize(&payload).unwrap() {
+                    Event::ShutDown => break,
+                    Event::Add(ids) => {
+                        let songs = db.get_songs_from_id(&ids);
+                        player.add_songs(songs);
+                    }
+                    Event::TogglePlayback => player.toggle_playback(),
                     Event::VolumeDown => {
                         player.volume_down();
                     }
                     Event::VolumeUp => {
                         player.volume_down();
                     }
+                    Event::Prev => player.prev_song(),
+                    Event::Next => player.next_song(),
                     _ => (),
                 }
             }
@@ -76,11 +84,10 @@ impl Client {
             Err(e) => panic!("Failed to connect: {}", e),
         }
     }
-    pub fn run(&mut self) {
-        let e = Event::Shutdown;
-        let encode = bincode::serialize(&e).unwrap();
+    pub fn send(&mut self, event: Event) {
+        let encode = bincode::serialize(&event).unwrap();
         let size = encode.len() as u32;
-        println!("Send size: {}", size);
+
         self.stream.write_all(&size.to_le_bytes());
         self.stream.write_all(&encode);
     }
@@ -88,20 +95,24 @@ impl Client {
 
 #[derive(Serialize, Deserialize, Debug)]
 enum Event {
-    PlaySong(u64),
+    Add(Vec<usize>),
+    TogglePlayback,
     VolumeUp,
     VolumeDown,
-    Shutdown,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-
-struct Command {
-    event: Event,
+    Prev,
+    Next,
+    ShutDown,
 }
 
 fn main() {
     let handle = thread::spawn(|| Server::new().run());
-    Client::new().run();
+
+    let mut c = Client::new();
+
+    c.send(Event::Add(vec![1, 2, 3]));
+    c.send(Event::Next);
+    c.send(Event::TogglePlayback);
+    c.send(Event::TogglePlayback);
+
     handle.join();
 }
