@@ -1,7 +1,6 @@
 use std::{
     fs::File,
     path::{Path, PathBuf},
-    time::Duration,
 };
 use symphonia::core::{
     formats::FormatOptions,
@@ -22,8 +21,8 @@ pub struct Song {
     pub album: String,
     pub artist: String,
     pub path: PathBuf,
-    pub duration: Duration,
     pub track_gain: f64,
+    pub id: Option<u64>,
 }
 
 impl Song {
@@ -103,27 +102,6 @@ impl Song {
         }
         if song.album.is_empty() {
             song.album = String::from("Unknown Album");
-        }
-
-        //Calculate duration
-        let track = probe.format.default_track().unwrap();
-        if let Some(tb) = track.codec_params.time_base {
-            let ts = track.codec_params.start_ts;
-
-            let dur = track
-                .codec_params
-                .n_frames
-                .map(|frames| track.codec_params.start_ts + frames);
-
-            if let Some(dur) = dur {
-                let d = tb.calc_time(dur.saturating_sub(ts));
-                let duration = Duration::from_secs(d.seconds) + Duration::from_secs_f64(d.frac);
-                song.duration = duration;
-            } else {
-                song.duration = Duration::from_secs(0);
-            }
-        } else {
-            song.duration = Duration::from_secs(0);
         }
 
         song

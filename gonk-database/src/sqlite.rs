@@ -49,7 +49,6 @@ impl Database {
                     album    TEXT NOT NULL,
                     artist   TEXT NOT NULL,
                     path     TEXT NOT NULL UNIQUE,
-                    duration DOUBLE NOT NULL,
                     track_gain DOUBLE NOT NULL,
                     parent   TEXT NOT NULL
                 )",
@@ -154,8 +153,8 @@ impl Database {
                     let path = fix(song.path.to_str().unwrap());
                     let parent = fix(&dir);
                     //TODO: would be nice to have batch params, don't think it's implemented.
-                    format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                                song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), song.track_gain, parent)
+                    format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                                song.number, song.disc, name, album, artist,path, song.track_gain, parent)
                 })
                 .collect::<Vec<_>>().join("\n"));
 
@@ -238,19 +237,19 @@ impl Database {
     }
     pub fn get_songs_by_artist(&self, artist: &str) -> Vec<Song> {
         self.collect_songs(
-            "SELECT * FROM song WHERE artist = ? ORDER BY album, disc, number",
+            "SELECT rowid, * FROM song WHERE artist = ? ORDER BY album, disc, number",
             params![artist],
         )
     }
     pub fn get_songs_from_album(&self, album: &str, artist: &str) -> Vec<Song> {
         self.collect_songs(
-            "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
+            "SELECT rowid, * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
             params![artist, album],
         )
     }
     pub fn get_song(&self, song: &(u64, String), album: &str, artist: &str) -> Vec<Song> {
         self.collect_songs(
-            "SELECT * FROM song WHERE name=(?1) AND number=(?2) AND artist=(?3) AND album=(?4)",
+            "SELECT rowid, * FROM song WHERE name=(?1) AND number=(?2) AND artist=(?3) AND album=(?4)",
             params![song.1, song.0, artist, album],
         )
     }
@@ -267,15 +266,14 @@ impl Database {
             .collect()
     }
     fn song(row: &Row) -> Song {
-        let path: String = row.get(5).unwrap();
-        let dur: f64 = row.get(6).unwrap();
+        let path: String = row.get(6).unwrap();
         Song {
-            number: row.get(0).unwrap(),
-            disc: row.get(1).unwrap(),
-            name: row.get(2).unwrap(),
-            album: row.get(3).unwrap(),
-            artist: row.get(4).unwrap(),
-            duration: Duration::from_secs_f64(dur),
+            id: Some(row.get(0).unwrap()),
+            number: row.get(1).unwrap(),
+            disc: row.get(2).unwrap(),
+            name: row.get(3).unwrap(),
+            album: row.get(4).unwrap(),
+            artist: row.get(5).unwrap(),
             path: PathBuf::from(path),
             track_gain: row.get(7).unwrap(),
         }
