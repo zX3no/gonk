@@ -62,7 +62,7 @@ impl Player {
             self.play_selected();
         }
     }
-    pub fn play_song(&mut self, i: usize) {
+    pub fn play_index(&mut self, i: usize) {
         if self.songs.data.get(i).is_some() {
             self.songs.select(Some(i));
             self.play_selected();

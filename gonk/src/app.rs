@@ -103,14 +103,14 @@ impl App {
         //     self.search.update_search();
         // }
 
-        self.queue.update();
+        // self.queue.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
         self.db.sync_database(self.toml.paths());
 
-        #[cfg(windows)]
-        let tx = App::register_hotkeys();
+        // #[cfg(windows)]
+        // let tx = App::register_hotkeys();
 
         loop {
             optick::event!("loop");
@@ -120,8 +120,8 @@ impl App {
                 last_tick = Instant::now();
             }
 
-            #[cfg(windows)]
-            self.handle_global_hotkeys(&tx);
+            // #[cfg(windows)]
+            // self.handle_global_hotkeys(&tx);
 
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f, self.db.is_busy()),
@@ -159,12 +159,17 @@ impl App {
                             //TODO: we should not send songs over tcp it should be ids only
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
-                                    let songs = self.browser.on_enter();
-                                    // self.queue.player.add_songs(songs);
+                                    let songs: Vec<u64> = self
+                                        .browser
+                                        .on_enter()
+                                        .iter()
+                                        .flat_map(|song| song.id)
+                                        .collect();
+                                    self.queue.client.add_ids(&songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index {
-                                        // self.queue.player.play_song(i);
+                                        self.queue.client.play_index(i);
                                     }
                                 }
                                 // Mode::Search => {
@@ -172,8 +177,8 @@ impl App {
                                 //         // self.queue.client.add_songs(songs);
                                 //     }
                                 // }
-                                _ => (),
                                 // Mode::Options => self.options.on_enter(),
+                                _ => (),
                             },
                             KeyCode::Esc => {
                                 if self.mode == Mode::Options {

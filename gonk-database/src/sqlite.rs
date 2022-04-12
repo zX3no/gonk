@@ -171,10 +171,10 @@ impl Database {
             update.store(true, Ordering::SeqCst);
         });
     }
-    pub fn get_songs_from_id(&self, ids: &[usize]) -> Vec<Song> {
+    pub fn get_songs_from_id(&self, ids: &[u64]) -> Vec<Song> {
         ids.iter()
             .filter_map(|id| {
-                self.collect_songs("SELECT * FROM song WHERE rowid = ?", params![id])
+                self.collect_songs("SELECT rowid, * FROM song WHERE rowid = ?", params![id])
                     .first()
                     .cloned()
             })

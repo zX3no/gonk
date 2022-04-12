@@ -81,6 +81,10 @@ pub struct ServerState {
 
     //TODO: change to queue.is_empty()
     pub empty: bool,
+
+    pub paused: bool,
+
+    pub volume: u16,
 }
 
 pub struct Queue {
@@ -228,7 +232,7 @@ impl Queue {
         //Left
         let time = if self.server_state.empty {
             String::from("╭─Stopped")
-        } else if !self.client.is_paused() {
+        } else if !self.server_state.paused {
             let duration = self.server_state.duration;
             let elapsed = self.server_state.elapsed;
 
@@ -254,7 +258,7 @@ impl Queue {
         }
 
         //Right
-        let text = Spans::from(format!("Vol: {}%─╮", self.client.get_volume()));
+        let text = Spans::from(format!("Vol: {}%─╮", self.server_state.volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
