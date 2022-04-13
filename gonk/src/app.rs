@@ -79,7 +79,7 @@ impl App {
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(toml.volume()),
+            queue: Queue::new(),
             browser: Browser::new(),
             // search: Search::new(),
             db: Database::new().unwrap(),

@@ -2,7 +2,7 @@ use super::TOML;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_tcp::Client;
-use gonk_types::{Index, Song};
+use gonk_types::Index;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
@@ -71,7 +71,7 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new(start_vol: u16) -> Self {
+    pub fn new() -> Self {
         optick::event!("new queue");
         Self {
             ui: Index::default(),
