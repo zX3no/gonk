@@ -7,7 +7,11 @@ use std::{
     collections::binary_heap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, AtomicU16, Ordering},
+        mpsc::{sync_channel, Receiver, SyncSender},
+        Arc,
+    },
     thread,
 };
 
@@ -46,7 +50,7 @@ impl Server {
                 //update the clients current song
                 Server::send(
                     &mut stream,
-                    Response::UpdateQueue(UpdateQueue {
+                    Response::Update(Update {
                         index: player.songs.index,
                         duration: player.duration,
                     }),
@@ -114,14 +118,8 @@ impl Default for Server {
 }
 
 pub struct Client {
-    //TODO: this tcp stream should be removed
-    //Client.run() will consume self
-    //so you won't be able to do Client.next()
-    //since the tcpstream was also consumed
-    //the connection should be established
-    //somewhere else, might help with the slow connection time.
     stream: TcpStream,
-
+    receiver: Receiver<Response>,
     pub queue: Index<Song>,
     pub paused: bool,
     pub volume: u16,
@@ -134,50 +132,52 @@ impl Client {
         match TcpStream::connect("localhost:3333") {
             Ok(mut stream) => {
                 println!("Successfully connected to server in port 3333");
+                let (sender, receiver) = sync_channel(0);
+                let mut s = stream.try_clone().unwrap();
+
+                //start receiving messages from the server
+                thread::spawn(move || {
+                    let mut buf = [0u8; 4];
+                    loop {
+                        if s.read_exact(&mut buf[..]).is_ok() {
+                            //get the payload size
+                            let size = u32::from_le_bytes(buf);
+
+                            //read the payload
+                            let mut payload = vec![0; size as usize];
+                            s.read_exact(&mut payload[..]).unwrap();
+
+                            let res: Response = bincode::deserialize(&payload).unwrap();
+                            sender.send(res).unwrap();
+                        }
+                    }
+                });
+
                 Self {
                     stream,
+                    receiver,
                     ..Default::default()
                 }
             }
             Err(e) => panic!("Failed to connect: {}", e),
         }
     }
-    //TODO: should run pass in an arc<rwlock<client>> instead??
-    //i don't think it should be part of the struct
-    pub fn run(mut self) {
-        //TODO: loop and wait for messages from the server
-        //after receiving a response update the client data
-        //this should be done on another thread so data is blocked
-        thread::spawn(move || {
-            let mut buf = [0u8; 4];
-            loop {
-                if self.stream.read_exact(&mut buf[..]).is_ok() {
-                    //get the payload size
-                    let size = u32::from_le_bytes(buf);
-
-                    //read the payload
-                    let mut payload = vec![0; size as usize];
-                    self.stream.read_exact(&mut payload[..]).unwrap();
-
-                    let res: Response = bincode::deserialize(&payload).unwrap();
-                    match res {
-                        Response::Elapsed(elapsed) => self.elapsed = elapsed,
-                        Response::Paused(paused) => self.paused = paused,
-                        Response::Volume(volume) => self.volume = volume,
-                        Response::Queue(queue) => {
-                            self.queue = queue.songs;
-                            if let Some(duration) = queue.duration {
-                                self.duration = duration
-                            }
-                        }
-                        Response::UpdateQueue(uq) => {
-                            self.duration = uq.duration;
-                            self.queue.select(uq.index);
-                        }
-                    }
+    pub fn update(&mut self) {
+        if let Ok(res) = self.receiver.try_recv() {
+            match res {
+                Response::Elapsed(e) => self.elapsed = e,
+                Response::Paused(p) => self.paused = p,
+                Response::Volume(v) => self.volume = v,
+                Response::Queue(q) => {
+                    self.queue = q.songs;
+                    self.duration = q.duration
+                }
+                Response::Update(uq) => {
+                    self.duration = uq.duration;
+                    self.queue.select(uq.index);
                 }
             }
-        });
+        }
     }
     fn send(&mut self, event: Request) {
         let encode = bincode::serialize(&event).unwrap();
@@ -222,9 +222,6 @@ impl Client {
     pub fn play_index(&mut self, i: usize) {
         self.send(Request::PlayIndex(i));
     }
-    pub fn is_paused(&mut self) -> bool {
-        self.paused
-    }
 }
 
 impl Default for Client {
@@ -261,7 +258,7 @@ pub enum Response {
     Paused(bool),
     Volume(u16),
     Queue(Queue),
-    UpdateQueue(UpdateQueue),
+    Update(Update),
 }
 
 //send which songs are in the queue
@@ -269,14 +266,14 @@ pub enum Response {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Queue {
     songs: Index<Song>,
-    duration: Option<f64>,
+    duration: f64,
 }
 
 //when the song changes instead of sending the entire queue
 //again just send the new index to select
 //durations aren't held in songs anymore so send that too.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct UpdateQueue {
+pub struct Update {
     index: Option<usize>,
     duration: f64,
 }

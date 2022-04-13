@@ -86,6 +86,7 @@ impl Queue {
             self.ui.select(Some(0));
         }
         self.scroll_text.next();
+        self.client.update();
     }
     #[allow(unused)]
     fn update_text(&mut self) {
@@ -204,8 +205,8 @@ impl Queue {
         let time = if self.client.queue.is_empty() {
             String::from("╭─Stopped")
         } else if !self.client.paused {
-            let duration = self.client.duration;
             let elapsed = self.client.elapsed;
+            let duration = self.client.duration;
 
             let mins = elapsed / 60.0;
             let rem = elapsed % 60.0;

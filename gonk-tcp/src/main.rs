@@ -1,5 +1,12 @@
-use gonk_tcp::Server;
+use std::thread;
+
+use gonk_tcp::{Client, Server};
 
 fn main() {
-    Server::new().run();
+    thread::spawn(|| Server::new().run());
+    let _client = Client::new();
+    // loop {
+    //     client.update();
+    // }
+    thread::park();
 }
