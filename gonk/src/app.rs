@@ -18,12 +18,10 @@ use std::{
 };
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
-use {browser::Browser, options::Options, queue::Queue};
+use {browser::Browser, queue::Queue};
 
 mod browser;
-mod options;
 mod queue;
-// mod search;
 
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
@@ -38,8 +36,8 @@ enum HotkeyEvent {
 pub enum Mode {
     Browser,
     Queue,
-    // Search,
-    Options,
+    //TODO: search and options
+    //need to be re-implimented
 }
 
 #[dynamic]
@@ -57,7 +55,6 @@ pub struct App {
     pub mode: Mode,
     queue: Queue,
     browser: Browser,
-    options: Options,
     db: Database,
     toml: Toml,
 }
@@ -84,7 +81,6 @@ impl App {
             mode: Mode::Browser,
             queue: Queue::new(toml.volume()),
             browser: Browser::new(),
-            options: Options::new(),
             // search: Search::new(),
             db: Database::new().unwrap(),
             toml,
@@ -94,23 +90,16 @@ impl App {
         optick::event!("on update");
         if self.db.needs_update() {
             self.browser.refresh();
-            // self.search.update_engine();
 
             self.db.stop();
         }
-
-        // if self.search.has_query_changed() {
-        //     self.search.update_search();
-        // }
-
-        // self.queue.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
         self.db.sync_database(self.toml.paths());
 
-        // #[cfg(windows)]
-        // let tx = App::register_hotkeys();
+        #[cfg(windows)]
+        let tx = App::register_hotkeys();
 
         loop {
             optick::event!("loop");
@@ -120,14 +109,12 @@ impl App {
                 last_tick = Instant::now();
             }
 
-            // #[cfg(windows)]
-            // self.handle_global_hotkeys(&tx);
+            #[cfg(windows)]
+            self.handle_global_hotkeys(&tx);
 
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f, self.db.is_busy()),
                 Mode::Queue => self.queue.draw(f),
-                Mode::Options => self.options.draw(f),
-                // Mode::Search => self.search.draw(f),
             })?;
 
             if crossterm::event::poll(POLL_RATE)? {
@@ -144,18 +131,13 @@ impl App {
                         };
 
                         match event.code {
-                            // KeyCode::Char(c) if self.mode == Mode::Search => self.search.on_key(c),
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
-                                    Mode::Browser | Mode::Options => Mode::Queue,
+                                    Mode::Browser => Mode::Queue,
                                     Mode::Queue => Mode::Browser,
-                                    // Mode::Search => {
-                                    //     self.search.on_tab();
-                                    //     Mode::Queue
-                                    // }
                                 };
                             }
-                            // KeyCode::Backspace => self.search.on_backspace(event.modifiers),
+                            KeyCode::Backspace => (),
                             //TODO: we should not send songs over tcp it should be ids only
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
@@ -172,19 +154,8 @@ impl App {
                                         self.queue.client.play_index(i);
                                     }
                                 }
-                                // Mode::Search => {
-                                //     if let Some(songs) = self.search.on_enter() {
-                                //         // self.queue.client.add_songs(songs);
-                                //     }
-                                // }
-                                // Mode::Options => self.options.on_enter(),
-                                _ => (),
                             },
-                            KeyCode::Esc => {
-                                if self.mode == Mode::Options {
-                                    self.mode = Mode::Queue
-                                }
-                            }
+                            KeyCode::Esc => (),
                             KeyCode::Char('1' | '!') => {
                                 self.queue.move_constraint('1', event.modifiers);
                             }
@@ -220,8 +191,8 @@ impl App {
                             _ if TOML.hotkey.volume_down.contains(&bind) => {
                                 self.queue.client.volume_down();
                             }
-                            // _ if TOML.hotkey.search.contains(&bind) => self.mode = Mode::Search,
-                            _ if TOML.hotkey.options.contains(&bind) => self.mode = Mode::Options,
+                            _ if TOML.hotkey.search.contains(&bind) => (),
+                            _ if TOML.hotkey.options.contains(&bind) => (),
                             _ if TOML.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
@@ -255,8 +226,6 @@ impl App {
         match self.mode {
             Mode::Browser => self.browser.up(),
             Mode::Queue => self.queue.up(),
-            // Mode::Search => self.search.up(),
-            Mode::Options => self.options.up(),
         }
     }
 
@@ -264,8 +233,6 @@ impl App {
         match self.mode {
             Mode::Browser => self.browser.down(),
             Mode::Queue => self.queue.down(),
-            // Mode::Search => self.search.down(),
-            Mode::Options => self.options.down(),
         }
     }
 
