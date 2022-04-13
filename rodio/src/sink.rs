@@ -177,6 +177,7 @@ impl Sink {
     }
 
     #[inline]
+    //TODO: change this to f64
     pub fn elapsed(&self) -> Duration {
         *self.elapsed.read().unwrap()
     }

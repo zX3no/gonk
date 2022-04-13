@@ -61,32 +61,6 @@ impl ScrollText {
     }
 }
 
-#[derive(Default)]
-pub struct ServerState {
-    //TODO: replace with index
-    pub queue: Vec<Song>,
-    pub selected: Option<Song>,
-    pub index: Option<usize>,
-
-    //TODO: change to queue.len()
-    pub total_songs: usize,
-
-    pub elapsed: f64,
-
-    //TODO: should duration be removed from gonk_types::Song
-    pub duration: f64,
-
-    //TODO: why not precalculate the percentage on the server side?
-    pub seeker: f64,
-
-    //TODO: change to queue.is_empty()
-    pub empty: bool,
-
-    pub paused: bool,
-
-    pub volume: u16,
-}
-
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
@@ -94,7 +68,6 @@ pub struct Queue {
     pub scroll_text: ScrollText,
     // pub player: Player,
     pub client: Client,
-    pub server_state: ServerState,
 }
 
 impl Queue {
@@ -105,20 +78,18 @@ impl Queue {
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             scroll_text: ScrollText::default(),
-            // player: Player::new(start_vol),
             client: Client::new(),
-            server_state: ServerState::default(),
         }
     }
     pub fn update(&mut self) {
-        if self.ui.is_none() && !self.server_state.empty {
+        if self.ui.is_none() && !self.client.queue.is_empty() {
             self.ui.select(Some(0));
         }
         self.scroll_text.next();
     }
     #[allow(unused)]
     fn update_text(&mut self) {
-        if let Some(song) = &self.server_state.selected {
+        if let Some(song) = &self.client.queue.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
 
             //TODO: this is broken
@@ -157,10 +128,10 @@ impl Queue {
         );
     }
     pub fn up(&mut self) {
-        self.ui.up_with_len(self.server_state.total_songs);
+        self.ui.up_with_len(self.client.queue.len());
     }
     pub fn down(&mut self) {
-        self.ui.down_with_len(self.server_state.total_songs)
+        self.ui.down_with_len(self.client.queue.len())
     }
 
     pub fn clear(&mut self) {
@@ -175,7 +146,7 @@ impl Queue {
         if let Some((_, row)) = self.clicked_pos {
             let size = f.size();
             let height = size.height as usize;
-            let len = self.server_state.total_songs;
+            let len = self.client.queue.len();
             if height > 7 {
                 if height - 7 < len {
                     //TODO: I have no idea how to figure out what index i clicked on
@@ -199,7 +170,7 @@ impl Queue {
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
                 let ratio = f64::from(column - 3) / f64::from(size.width);
-                let duration = self.server_state.duration;
+                let duration = self.client.duration;
                 let new_time = duration * ratio;
                 self.client.seek_to(new_time);
             }
@@ -230,11 +201,11 @@ impl Queue {
         f.render_widget(b, chunk);
 
         //Left
-        let time = if self.server_state.empty {
+        let time = if self.client.queue.is_empty() {
             String::from("╭─Stopped")
-        } else if !self.server_state.paused {
-            let duration = self.server_state.duration;
-            let elapsed = self.server_state.elapsed;
+        } else if !self.client.paused {
+            let duration = self.client.duration;
+            let elapsed = self.client.elapsed;
 
             let mins = elapsed / 60.0;
             let rem = elapsed % 60.0;
@@ -253,17 +224,17 @@ impl Queue {
         f.render_widget(left, chunk);
 
         //Center
-        if !self.server_state.empty {
+        if !self.client.queue.is_empty() {
             self.draw_scrolling_text_old(f, chunk);
         }
 
         //Right
-        let text = Spans::from(format!("Vol: {}%─╮", self.server_state.volume));
+        let text = Spans::from(format!("Vol: {}%─╮", self.client.volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        let center = if let Some(song) = &self.server_state.selected {
+        let center = if let Some(song) = &self.client.queue.selected() {
             //I wish that paragraphs had clipping
             //I think constraints do
             //I could render the -| |- on a seperate layer
@@ -321,7 +292,7 @@ impl Queue {
         f.render_widget(p, chunk);
     }
     fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.server_state.empty {
+        if self.client.queue.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::LEFT | Borders::RIGHT)
@@ -331,8 +302,8 @@ impl Queue {
         }
 
         let (songs, now_playing, ui_index) = (
-            &self.server_state.queue,
-            self.server_state.index,
+            &self.client.queue.data,
+            self.client.queue.index,
             self.ui.index,
         );
 
@@ -443,7 +414,7 @@ impl Queue {
         f.render_stateful_widget(t, chunk, &mut state);
     }
     fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.server_state.empty {
+        if self.client.queue.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
@@ -454,7 +425,7 @@ impl Queue {
 
         let area = f.size();
         let width = area.width;
-        let percent = self.server_state.seeker;
+        let percent = self.client.elapsed / self.client.duration;
         //TOOD: casting to usize could fail
         let pos = (f64::from(width) * percent) as usize;
 

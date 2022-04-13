@@ -1,4 +1,6 @@
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Index<T> {
     pub data: Vec<T>,
     pub index: Option<usize>,

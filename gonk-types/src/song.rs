@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     path::{Path, PathBuf},
@@ -13,7 +14,7 @@ fn db_to_amplitude(db: f64) -> f64 {
     10.0_f64.powf(db / 20.0_f64)
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Song {
     pub number: u64,
     pub disc: u64,
