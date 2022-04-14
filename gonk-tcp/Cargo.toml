@@ -11,3 +11,5 @@ serde = {version = "1.0.136", features = ["derive"]}
 rodio = {path = "../rodio"}
 gonk-database = {path = "../gonk-database"}
 gonk-types = {path = "../gonk-types"}
+crossbeam-channel = "0.5"
+
