@@ -15,21 +15,15 @@ use std::{
     thread,
 };
 
-pub struct Server {
-    listener: TcpListener,
-}
+pub struct Server {}
 
 impl Server {
-    pub fn new() -> Self {
-        let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
-        println!("Server listening on port 3333");
-        Self { listener }
-    }
-    pub fn run(&mut self) {
+    pub fn run() {
+        let listener = TcpListener::bind("localhost:3333").unwrap();
         let mut player = Player::new(10);
         let db = Database::new().unwrap();
 
-        for stream in self.listener.incoming() {
+        for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     println!("New connection: {}", stream.peer_addr().unwrap());
@@ -103,17 +97,12 @@ impl Server {
         }
     }
     fn send(stream: &mut TcpStream, response: Response) {
+        println!("Sent: Response::{:?}", response);
         let encode = bincode::serialize(&response).unwrap();
         let size = encode.len() as u32;
 
         stream.write_all(&size.to_le_bytes());
         stream.write_all(&encode);
-    }
-}
-
-impl Default for Server {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -129,37 +118,35 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Self {
-        match TcpStream::connect("localhost:3333") {
-            Ok(mut stream) => {
-                println!("Successfully connected to server in port 3333");
-                let (sender, receiver) = sync_channel(0);
-                let mut s = stream.try_clone().unwrap();
+        let stream = TcpStream::connect("localhost:3333").expect("Could not connect to server.");
+        let (sender, receiver) = sync_channel(0);
+        let mut s = stream.try_clone().unwrap();
 
-                //start receiving messages from the server
-                thread::spawn(move || {
-                    let mut buf = [0u8; 4];
-                    loop {
-                        if s.read_exact(&mut buf[..]).is_ok() {
-                            //get the payload size
-                            let size = u32::from_le_bytes(buf);
+        thread::spawn(move || {
+            let mut buf = [0u8; 4];
+            loop {
+                if s.read_exact(&mut buf[..]).is_ok() {
+                    //get the payload size
+                    let size = u32::from_le_bytes(buf);
 
-                            //read the payload
-                            let mut payload = vec![0; size as usize];
-                            s.read_exact(&mut payload[..]).unwrap();
+                    //read the payload
+                    let mut payload = vec![0; size as usize];
+                    s.read_exact(&mut payload[..]).unwrap();
 
-                            let res: Response = bincode::deserialize(&payload).unwrap();
-                            sender.send(res).unwrap();
-                        }
-                    }
-                });
-
-                Self {
-                    stream,
-                    receiver,
-                    ..Default::default()
+                    let res: Response = bincode::deserialize(&payload).unwrap();
+                    sender.send(res).unwrap();
                 }
             }
-            Err(e) => panic!("Failed to connect: {}", e),
+        });
+
+        Self {
+            stream,
+            receiver,
+            queue: Index::default(),
+            paused: false,
+            volume: 0,
+            elapsed: 0.0,
+            duration: 0.0,
         }
     }
     pub fn update(&mut self) {
@@ -179,12 +166,12 @@ impl Client {
             }
         }
     }
-    fn send(&mut self, event: Request) {
+    pub fn send(&mut self, event: Request) {
         let encode = bincode::serialize(&event).unwrap();
         let size = encode.len() as u32;
 
-        self.stream.write_all(&size.to_le_bytes());
-        self.stream.write_all(&encode);
+        self.stream.write_all(&size.to_le_bytes()).unwrap();
+        self.stream.write_all(&encode).unwrap();
     }
     pub fn volume_down(&mut self) {
         self.send(Request::VolumeDown);
@@ -223,7 +210,6 @@ impl Client {
         self.send(Request::PlayIndex(i));
     }
 }
-
 impl Default for Client {
     fn default() -> Self {
         Self::new()
@@ -265,8 +251,8 @@ pub enum Response {
 //also send the duration of the current song
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Queue {
-    songs: Index<Song>,
-    duration: f64,
+    pub songs: Index<Song>,
+    pub duration: f64,
 }
 
 //when the song changes instead of sending the entire queue
@@ -274,6 +260,6 @@ pub struct Queue {
 //durations aren't held in songs anymore so send that too.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Update {
-    index: Option<usize>,
-    duration: f64,
+    pub index: Option<usize>,
+    pub duration: f64,
 }

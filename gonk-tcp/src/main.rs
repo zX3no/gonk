@@ -1,12 +1,12 @@
+use gonk_tcp::{Client, Request, Server};
 use std::thread;
-
-use gonk_tcp::{Client, Server};
-
 fn main() {
-    thread::spawn(|| Server::new().run());
-    let _client = Client::new();
-    // loop {
-    //     client.update();
-    // }
-    thread::park();
+    thread::spawn(|| {
+        Server::run();
+    });
+    let mut client = Client::new();
+    client.send(Request::GetElapsed);
+    loop {
+        client.update();
+    }
 }
