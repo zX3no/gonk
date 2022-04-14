@@ -49,7 +49,7 @@ pub struct Server {
 
 impl Server {
     pub fn new() -> Self {
-        let listener = TcpListener::bind("localhost:3333").unwrap();
+        let listener = TcpListener::bind("localhost:0673").unwrap();
         let (request_s, request_r) = unbounded();
         let (event_s, event_r) = unbounded();
 
@@ -109,15 +109,15 @@ impl Server {
                     }
                     Event::TogglePlayback => {
                         player.toggle_playback();
-                        rs.send(Response::Paused(player.is_paused())).unwrap();
+                        // rs.send(Response::Paused(player.is_paused())).unwrap();
                     }
                     Event::VolumeDown => {
                         player.volume_down();
-                        rs.send(Response::Volume(player.volume)).unwrap();
+                        // rs.send(Response::Volume(player.volume)).unwrap();
                     }
                     Event::VolumeUp => {
                         player.volume_up();
-                        rs.send(Response::Volume(player.volume)).unwrap();
+                        // rs.send(Response::Volume(player.volume)).unwrap();
                     }
                     Event::Prev => {
                         player.prev_song();
@@ -129,7 +129,7 @@ impl Server {
                     }
                     Event::ClearQueue => {
                         player.clear_songs();
-                        queue(&player);
+                        // queue(&player);
                     }
                     Event::SeekBy(amount) => player.seek_by(amount),
                     Event::SeekTo(pos) => player.seek_to(pos),
@@ -229,7 +229,7 @@ pub struct Queue {
 }
 
 //when the song changes instead of sending the entire queue
-//again just send the new index to select
+//again just send the new selected song
 //durations aren't held in songs anymore so send that too.
 
 //maybe just remove this, probably not faster and over complicated
@@ -251,7 +251,7 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Self {
-        let stream = TcpStream::connect("localhost:3333").expect("Could not connect to server.");
+        let stream = TcpStream::connect("localhost:0673").expect("Could not connect to server.");
         let (sender, receiver) = sync_channel(0);
         let mut s = stream.try_clone().unwrap();
 
@@ -287,7 +287,7 @@ impl Client {
             match response {
                 Response::Elapsed(e) => self.elapsed = e,
                 Response::Paused(p) => self.paused = p,
-                Response::Volume(v) => self.volume = v,
+                // Response::Volume(v) => self.volume = v,
                 Response::Queue(q) => {
                     self.queue = q.songs;
                     self.duration = q.duration
@@ -296,6 +296,7 @@ impl Client {
                     self.duration = uq.duration;
                     self.queue.select(uq.index);
                 }
+                _ => (),
             }
         }
     }
@@ -308,9 +309,18 @@ impl Client {
     }
     pub fn volume_down(&mut self) {
         self.send(Event::VolumeDown);
+        //HACK: this might get out of sync
+        self.volume = self.volume.saturating_sub(5);
     }
     pub fn volume_up(&mut self) {
         self.send(Event::VolumeUp);
+        //HACK: this might get out of sync
+        let v = self.volume.saturating_add(5);
+        if v > 100 {
+            self.volume = 100;
+        } else {
+            self.volume = v;
+        }
     }
     pub fn next(&mut self) {
         self.send(Event::Next);
@@ -320,12 +330,17 @@ impl Client {
     }
     pub fn toggle_playback(&mut self) {
         self.send(Event::TogglePlayback);
+
+        //HACK: this might get out of sync
+        self.paused = !self.paused;
     }
     pub fn add_ids(&mut self, ids: &[u64]) {
         self.send(Event::Add(ids.to_vec()));
     }
     pub fn clear_songs(&mut self) {
         self.send(Event::ClearQueue);
+        //HACK: this might get out of sync
+        self.queue = Index::default();
     }
     pub fn seek_to(&mut self, pos: f64) {
         self.send(Event::SeekTo(pos))
