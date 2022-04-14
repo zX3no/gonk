@@ -69,27 +69,25 @@ impl Server {
     fn handle_client(mut stream: TcpStream, sender: SyncSender<Request>) {
         let mut buf = [0u8; 4];
         loop {
-            if stream.read(&mut []).is_err() {
-                println!("Lost connection to: {}", stream.peer_addr().unwrap());
-                return;
-            }
+            match stream.read_exact(&mut buf[..]) {
+                Ok(_) => {
+                    //get the payload size
+                    let size = u32::from_le_bytes(buf);
 
-            if stream.read_exact(&mut buf[..]).is_ok() {
-                //get the payload size
-                let size = u32::from_le_bytes(buf);
+                    //read the payload
+                    let mut payload = vec![0; size as usize];
+                    stream.read_exact(&mut payload[..]).unwrap();
 
-                //read the payload
-                let mut payload = vec![0; size as usize];
-                stream.read_exact(&mut payload[..]).unwrap();
-
-                let event = bincode::deserialize(&payload).unwrap();
-                println!("Received: Event::{:?}", event);
-                sender.send(event).unwrap();
+                    let request = bincode::deserialize(&payload).unwrap();
+                    println!("Server received: {:?}", request);
+                    sender.send(request).unwrap();
+                }
+                Err(e) => return println!("{}", e),
             }
         }
     }
     fn player_loop(receiver: Receiver<Request>) {
-        let mut player = Player::new(0);
+        let mut player = Player::new(5);
         let db = Database::new().unwrap();
 
         loop {
@@ -106,8 +104,8 @@ impl Server {
                 // );
             }
 
-            if let Ok(event) = receiver.try_recv() {
-                match event {
+            if let Ok(request) = receiver.try_recv() {
+                match request {
                     Request::ShutDown => break,
                     Request::Add(ref ids) => {
                         let songs = db.get_songs_from_id(ids);
@@ -116,9 +114,11 @@ impl Server {
                     Request::TogglePlayback => player.toggle_playback(),
                     Request::VolumeDown => {
                         player.volume_down();
+                        println!("Volume: {}", player.volume);
                     }
                     Request::VolumeUp => {
-                        player.volume_down();
+                        player.volume_up();
+                        println!("Volume: {}", player.volume);
                     }
                     Request::Prev => player.prev_song(),
                     Request::Next => player.next_song(),
@@ -140,15 +140,14 @@ impl Server {
             }
         }
     }
+    // fn send(stream: &mut TcpStream, response: Response) {
+    //     println!("Sent: Response::{:?}", response);
+    //     let encode = bincode::serialize(&response).unwrap();
+    //     let size = encode.len() as u32;
 
-    fn send(stream: &mut TcpStream, response: Response) {
-        println!("Sent: Response::{:?}", response);
-        let encode = bincode::serialize(&response).unwrap();
-        let size = encode.len() as u32;
-
-        stream.write_all(&size.to_le_bytes()).unwrap();
-        stream.write_all(&encode).unwrap();
-    }
+    //     stream.write_all(&size.to_le_bytes()).unwrap();
+    //     stream.write_all(&encode).unwrap();
+    // }
 }
 
 impl Default for Server {

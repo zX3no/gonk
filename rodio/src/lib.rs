@@ -80,7 +80,7 @@ impl Player {
         self.songs.down();
         self.play_selected();
     }
-    pub fn volume_up(&mut self) -> u16 {
+    pub fn volume_up(&mut self) {
         self.volume += VOLUME_STEP;
 
         if self.volume > 100 {
@@ -88,15 +88,13 @@ impl Player {
         }
 
         self.update_volume();
-        self.volume
     }
-    pub fn volume_down(&mut self) -> u16 {
+    pub fn volume_down(&mut self) {
         if self.volume != 0 {
             self.volume -= VOLUME_STEP;
         }
 
         self.update_volume();
-        self.volume
     }
     fn update_volume(&self) {
         if let Some(song) = self.songs.selected() {
