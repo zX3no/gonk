@@ -1,54 +1,77 @@
-#![allow(unused)]
 use gonk_database::Database;
 use gonk_types::{Index, Song};
 use rodio::Player;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::binary_heap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{
-        atomic::{AtomicBool, AtomicU16, Ordering},
-        mpsc::{sync_channel, Receiver, SyncSender},
-        Arc,
-    },
+    sync::mpsc::{sync_channel, Receiver, SyncSender},
     thread,
 };
 
-pub struct Server {}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Request {
+    Add(Vec<u64>),
+    PlayIndex(usize),
+    Delete(usize),
+    ClearSongs,
+    TogglePlayback,
+    VolumeUp,
+    VolumeDown,
+    Prev,
+    Next,
+    SeekTo(f64),
+    SeekBy(f64),
+    ShutDown,
+    Randomize,
+
+    GetElapsed,
+    GetPaused,
+    GetVolume,
+    GetQueue,
+}
+
+pub struct Server {
+    listener: TcpListener,
+    sender: SyncSender<Request>,
+    //TODO: I might need a vec of tcpstreams to send responses too???
+    //Arc<TcpStream>
+    streams: Vec<TcpStream>,
+}
 
 impl Server {
-    pub fn run() {
+    pub fn new() -> Self {
         let listener = TcpListener::bind("localhost:3333").unwrap();
-        let mut player = Player::new(10);
-        let db = Database::new().unwrap();
+        let (sender, receiver) = sync_channel(0);
+        thread::spawn(|| Server::player_loop(receiver));
 
-        for stream in listener.incoming() {
+        Self {
+            listener,
+            sender,
+            streams: Vec::new(),
+        }
+    }
+    pub fn run(&mut self) {
+        for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
                     println!("New connection: {}", stream.peer_addr().unwrap());
-                    Server::handle_client(stream, &mut player, db);
-                    println!("Server shutting down.");
-                    break;
+                    let s = stream.try_clone().unwrap();
+                    let sender = self.sender.clone();
+                    self.streams.push(stream);
+                    thread::spawn(|| Server::handle_client(s, sender));
                 }
                 Err(e) => println!("Server Error: {}", e),
             }
         }
+        println!("Server shutting down.");
     }
-    fn handle_client(mut stream: TcpStream, mut player: &mut Player, db: Database) {
+    fn handle_client(mut stream: TcpStream, sender: SyncSender<Request>) {
         let mut buf = [0u8; 4];
         loop {
-            if player.elapsed() > player.duration {
-                player.next_song();
-
-                //update the clients current song
-                Server::send(
-                    &mut stream,
-                    Response::Update(Update {
-                        index: player.songs.index,
-                        duration: player.duration,
-                    }),
-                );
+            if stream.read(&mut []).is_err() {
+                println!("Lost connection to: {}", stream.peer_addr().unwrap());
+                return;
             }
 
             if stream.read_exact(&mut buf[..]).is_ok() {
@@ -61,10 +84,33 @@ impl Server {
 
                 let event = bincode::deserialize(&payload).unwrap();
                 println!("Received: Event::{:?}", event);
+                sender.send(event).unwrap();
+            }
+        }
+    }
+    fn player_loop(receiver: Receiver<Request>) {
+        let mut player = Player::new(0);
+        let db = Database::new().unwrap();
+
+        loop {
+            if player.elapsed() > player.duration {
+                player.next_song();
+
+                //update the clients current song
+                // Server::send(
+                //     &mut stream,
+                //     Response::Update(Update {
+                //         index: player.songs.index,
+                //         duration: player.duration,
+                //     }),
+                // );
+            }
+
+            if let Ok(event) = receiver.try_recv() {
                 match event {
                     Request::ShutDown => break,
-                    Request::Add(ids) => {
-                        let songs = db.get_songs_from_id(&ids);
+                    Request::Add(ref ids) => {
+                        let songs = db.get_songs_from_id(ids);
                         player.add_songs(songs);
                     }
                     Request::TogglePlayback => player.toggle_playback(),
@@ -83,27 +129,56 @@ impl Server {
                     Request::Randomize => player.randomize(),
                     Request::PlayIndex(i) => player.play_index(i),
                     Request::GetElapsed => {
-                        Server::send(&mut stream, Response::Elapsed(player.elapsed()))
+                        // Server::send(&mut stream, Response::Elapsed(player.elapsed()))
                     }
                     Request::GetPaused => {
-                        Server::send(&mut stream, Response::Paused(player.is_paused()))
+                        // Server::send(&mut stream, Response::Paused(player.is_paused()))
                     }
-                    Request::GetVolume => {
-                        Server::send(&mut stream, Response::Volume(player.volume))
-                    }
+                    // Request::GetVolume => Server::send(&mut stream, Response::Volume(player.volume)),
                     _ => (),
                 }
             }
         }
     }
+
     fn send(stream: &mut TcpStream, response: Response) {
         println!("Sent: Response::{:?}", response);
         let encode = bincode::serialize(&response).unwrap();
         let size = encode.len() as u32;
 
-        stream.write_all(&size.to_le_bytes());
-        stream.write_all(&encode);
+        stream.write_all(&size.to_le_bytes()).unwrap();
+        stream.write_all(&encode).unwrap();
     }
+}
+
+impl Default for Server {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Response {
+    Elapsed(f64),
+    Paused(bool),
+    Volume(u16),
+    Queue(Queue),
+    Update(Update),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Queue {
+    pub songs: Index<Song>,
+    pub duration: f64,
+}
+
+//when the song changes instead of sending the entire queue
+//again just send the new index to select
+//durations aren't held in songs anymore so send that too.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Update {
+    pub index: Option<usize>,
+    pub duration: f64,
 }
 
 pub struct Client {
@@ -139,7 +214,7 @@ impl Client {
             }
         });
 
-        Self {
+        let mut client = Self {
             stream,
             receiver,
             queue: Index::default(),
@@ -147,7 +222,11 @@ impl Client {
             volume: 0,
             elapsed: 0.0,
             duration: 0.0,
-        }
+        };
+        //update the volume and state of the player
+        client.send(Request::GetPaused);
+        client.send(Request::GetVolume);
+        client
     }
     pub fn update(&mut self) {
         if let Ok(res) = self.receiver.try_recv() {
@@ -166,7 +245,7 @@ impl Client {
             }
         }
     }
-    pub fn send(&mut self, event: Request) {
+    fn send(&mut self, event: Request) {
         let encode = bincode::serialize(&event).unwrap();
         let size = encode.len() as u32;
 
@@ -210,56 +289,9 @@ impl Client {
         self.send(Request::PlayIndex(i));
     }
 }
+
 impl Default for Client {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Request {
-    Add(Vec<u64>),
-    PlayIndex(usize),
-    Delete(usize),
-    ClearSongs,
-    TogglePlayback,
-    VolumeUp,
-    VolumeDown,
-    Prev,
-    Next,
-    SeekTo(f64),
-    SeekBy(f64),
-    ShutDown,
-    Randomize,
-
-    GetElapsed,
-    GetPaused,
-    GetVolume,
-    GetQueue,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Response {
-    Elapsed(f64),
-    Paused(bool),
-    Volume(u16),
-    Queue(Queue),
-    Update(Update),
-}
-
-//send which songs are in the queue
-//also send the duration of the current song
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Queue {
-    pub songs: Index<Song>,
-    pub duration: f64,
-}
-
-//when the song changes instead of sending the entire queue
-//again just send the new index to select
-//durations aren't held in songs anymore so send that too.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Update {
-    pub index: Option<usize>,
-    pub duration: f64,
 }

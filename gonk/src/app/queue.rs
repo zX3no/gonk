@@ -66,7 +66,6 @@ pub struct Queue {
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
     pub scroll_text: ScrollText,
-    // pub player: Player,
     pub client: Client,
 }
 
