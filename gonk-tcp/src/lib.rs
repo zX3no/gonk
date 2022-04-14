@@ -26,6 +26,14 @@ pub enum Event {
     ShutDown,
     Randomize,
 
+    GetElapsed,
+    GetPaused,
+    GetVolume,
+    GetQueue,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Response {
     Elapsed(f64),
     Paused(bool),
     Volume(u16),
@@ -33,19 +41,10 @@ pub enum Event {
     Update(Update),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Request {
-    GetElapsed,
-    GetPaused,
-    GetVolume,
-    GetQueue,
-}
-
 pub struct Server {
     listener: TcpListener,
     event_s: Sender<Event>,
-    event_r: Receiver<Event>,
-    request_s: Sender<Request>,
+    request_r: Receiver<Response>,
 }
 
 impl Server {
@@ -53,29 +52,48 @@ impl Server {
         let listener = TcpListener::bind("localhost:3333").unwrap();
         let (request_s, request_r) = unbounded();
         let (event_s, event_r) = unbounded();
-        let (es, er) = (event_s.clone(), event_r.clone());
 
-        thread::spawn(|| Server::player_loop(es, er, request_r));
+        thread::spawn(|| Server::player_loop(event_r, request_s));
 
         Self {
             listener,
             event_s,
-            event_r,
-            request_s,
+            request_r,
         }
     }
-    fn player_loop(es: Sender<Event>, er: Receiver<Event>, rr: Receiver<Request>) {
+    fn player_loop(er: Receiver<Event>, rs: Sender<Response>) {
         let mut player = Player::new(5);
         let db = Database::new().unwrap();
 
+        let queue = |player: &Player| {
+            rs.send(Response::Queue(Queue {
+                songs: player.songs.clone(),
+                duration: player.duration,
+            }))
+            .unwrap();
+        };
+
+        let update = |player: &Player| {
+            rs.send(Response::Update(Update {
+                index: player.songs.index,
+                duration: player.duration,
+            }))
+            .unwrap();
+        };
+
+        let mut elapsed = 0.0;
         loop {
             if player.elapsed() > player.duration {
                 player.next_song();
-                es.send(Event::Update(Update {
-                    index: player.songs.index,
-                    duration: player.duration,
-                }))
-                .unwrap();
+                queue(&player);
+            }
+
+            //send the position of the player
+            //rounding is an optimisation to update every half a second.
+            let e = player.elapsed().round();
+            if elapsed != e {
+                elapsed = e;
+                rs.send(Response::Elapsed(player.elapsed())).unwrap();
             }
 
             //check if client wants to change player
@@ -87,47 +105,51 @@ impl Server {
                         let songs = db.get_songs_from_id(&ids);
                         player.add_songs(songs);
 
-                        es.send(Event::Queue(Queue {
-                            songs: player.songs.clone(),
-                            duration: player.duration,
-                        }))
-                        .unwrap();
+                        queue(&player);
                     }
-                    Event::TogglePlayback => player.toggle_playback(),
+                    Event::TogglePlayback => {
+                        player.toggle_playback();
+                        rs.send(Response::Paused(player.is_paused())).unwrap();
+                    }
                     Event::VolumeDown => {
                         player.volume_down();
-                        println!("Volume: {}", player.volume);
+                        rs.send(Response::Volume(player.volume)).unwrap();
                     }
                     Event::VolumeUp => {
                         player.volume_up();
-                        println!("Volume: {}", player.volume);
+                        rs.send(Response::Volume(player.volume)).unwrap();
                     }
-                    Event::Prev => player.prev_song(),
-                    Event::Next => player.next_song(),
-                    Event::ClearQueue => player.clear_songs(),
+                    Event::Prev => {
+                        player.prev_song();
+                        update(&player);
+                    }
+                    Event::Next => {
+                        player.next_song();
+                        update(&player);
+                    }
+                    Event::ClearQueue => {
+                        player.clear_songs();
+                        queue(&player);
+                    }
                     Event::SeekBy(amount) => player.seek_by(amount),
                     Event::SeekTo(pos) => player.seek_to(pos),
-                    Event::Delete(id) => player.delete_song(id),
-                    Event::Randomize => player.randomize(),
-                    Event::PlayIndex(i) => player.play_index(i),
-                    _ => (),
+                    Event::Delete(id) => {
+                        player.delete_song(id);
+                        queue(&player);
+                    }
+                    Event::Randomize => {
+                        player.randomize();
+                        queue(&player);
+                    }
+                    Event::PlayIndex(i) => {
+                        player.play_index(i);
+                        update(&player);
+                    }
+                    Event::GetElapsed => rs.send(Response::Elapsed(player.elapsed())).unwrap(),
+                    Event::GetPaused => rs.send(Response::Paused(player.is_paused())).unwrap(),
+                    Event::GetVolume => rs.send(Response::Volume(player.volume)).unwrap(),
+                    Event::GetQueue => queue(&player),
                 }
-            }
-
-            //check if data should be sent to client
-            if let Ok(request) = rr.try_recv() {
-                println!("Request received: {:?}", request);
-                match request {
-                    Request::GetElapsed => es.send(Event::Elapsed(player.elapsed())).unwrap(),
-                    Request::GetPaused => es.send(Event::Paused(player.is_paused())).unwrap(),
-                    Request::GetVolume => es.send(Event::Volume(player.volume)).unwrap(),
-                    Request::GetQueue => es
-                        .send(Event::Queue(Queue {
-                            songs: player.songs.clone(),
-                            duration: player.duration,
-                        }))
-                        .unwrap(),
-                };
             }
         }
     }
@@ -138,64 +160,52 @@ impl Server {
                     println!("New connection: {}", stream.peer_addr().unwrap());
                     let stream = stream.try_clone().unwrap();
                     let es = self.event_s.clone();
-                    let er = self.event_r.clone();
-                    let rs = self.request_s.clone();
-                    thread::spawn(|| Server::handle_client(stream, es, er, rs));
+                    let rr = self.request_r.clone();
+                    thread::spawn(|| Server::handle_client(stream, es, rr));
                 }
                 Err(e) => println!("Server Error: {}", e),
             }
         }
         println!("Server shutting down.");
     }
-    fn handle_client(
-        mut stream: TcpStream,
-        es: Sender<Event>,
-        er: Receiver<Event>,
-        rs: Sender<Request>,
-    ) {
+    fn handle_client(mut stream: TcpStream, es: Sender<Event>, rr: Receiver<Response>) {
         //update the clients data on connect
-        rs.send(Request::GetVolume).unwrap();
-        rs.send(Request::GetQueue).unwrap();
-        rs.send(Request::GetElapsed).unwrap();
-        rs.send(Request::GetPaused).unwrap();
+        es.send(Event::GetVolume).unwrap();
+        es.send(Event::GetQueue).unwrap();
+        es.send(Event::GetElapsed).unwrap();
+        es.send(Event::GetPaused).unwrap();
 
-        let mut buf = [0u8; 4];
-        loop {
-            //send info about the player
-            if let Ok(event) = er.try_recv() {
-                println!("Local messge: {:?}", event);
-                match event {
-                    Event::Elapsed(_)
-                    | Event::Paused(_)
-                    | Event::Volume(_)
-                    | Event::Queue(_)
-                    | Event::Update(_) => {
-                        println!("Sent: Response::{:?}", event);
-                        let encode = bincode::serialize(&event).unwrap();
-                        let size = encode.len() as u32;
+        let mut s = stream.try_clone().unwrap();
+        thread::spawn(move || {
+            let mut buf = [0u8; 4];
+            loop {
+                //read_exact is blocking(i think)
+                match s.read_exact(&mut buf[..]) {
+                    Ok(_) => {
+                        //get the payload size
+                        let size = u32::from_le_bytes(buf);
 
-                        stream.write_all(&size.to_le_bytes()).unwrap();
-                        stream.write_all(&encode).unwrap();
+                        //read the payload
+                        let mut payload = vec![0; size as usize];
+                        s.read_exact(&mut payload[..]).unwrap();
+
+                        let request = bincode::deserialize(&payload).unwrap();
+                        println!("Server received: {:?}", request);
+                        es.send(request).unwrap();
                     }
-                    //resend the event if we weren't meant to have it
-                    _ => es.send(event).unwrap(),
+                    Err(e) => return println!("{}", e),
                 }
             }
+        });
 
-            match stream.read_exact(&mut buf[..]) {
-                Ok(_) => {
-                    //get the payload size
-                    let size = u32::from_le_bytes(buf);
+        loop {
+            if let Ok(response) = rr.try_recv() {
+                println!("Received Response::{:?}", response);
+                let encode = bincode::serialize(&response).unwrap();
+                let size = encode.len() as u32;
 
-                    //read the payload
-                    let mut payload = vec![0; size as usize];
-                    stream.read_exact(&mut payload[..]).unwrap();
-
-                    let request = bincode::deserialize(&payload).unwrap();
-                    println!("Server received: {:?}", request);
-                    es.send(request).unwrap();
-                }
-                Err(e) => return println!("{}", e),
+                stream.write_all(&size.to_le_bytes()).unwrap();
+                stream.write_all(&encode).unwrap();
             }
         }
     }
@@ -226,7 +236,7 @@ pub struct Update {
 
 pub struct Client {
     stream: TcpStream,
-    receiver: mpsc::Receiver<Event>,
+    receiver: mpsc::Receiver<Response>,
     pub queue: Index<Song>,
     pub paused: bool,
     pub volume: u16,
@@ -251,7 +261,7 @@ impl Client {
                     let mut payload = vec![0; size as usize];
                     s.read_exact(&mut payload[..]).unwrap();
 
-                    let res: Event = bincode::deserialize(&payload).unwrap();
+                    let res: Response = bincode::deserialize(&payload).unwrap();
                     sender.send(res).unwrap();
                 }
             }
@@ -268,20 +278,19 @@ impl Client {
         }
     }
     pub fn update(&mut self) {
-        if let Ok(event) = self.receiver.try_recv() {
-            match event {
-                Event::Elapsed(e) => self.elapsed = e,
-                Event::Paused(p) => self.paused = p,
-                Event::Volume(v) => self.volume = v,
-                Event::Queue(q) => {
+        if let Ok(response) = self.receiver.try_recv() {
+            match response {
+                Response::Elapsed(e) => self.elapsed = e,
+                Response::Paused(p) => self.paused = p,
+                Response::Volume(v) => self.volume = v,
+                Response::Queue(q) => {
                     self.queue = q.songs;
                     self.duration = q.duration
                 }
-                Event::Update(uq) => {
+                Response::Update(uq) => {
                     self.duration = uq.duration;
                     self.queue.select(uq.index);
                 }
-                _ => (),
             }
         }
     }
