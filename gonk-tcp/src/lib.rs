@@ -73,13 +73,13 @@ impl Server {
             .unwrap();
         };
 
-        let update = |player: &Player| {
-            rs.send(Response::Update(Update {
-                index: player.songs.index,
-                duration: player.duration,
-            }))
-            .unwrap();
-        };
+        // let update = |player: &Player| {
+        //     rs.send(Response::Update(Update {
+        //         index: player.songs.index,
+        //         duration: player.duration,
+        //     }))
+        //     .unwrap();
+        // };
 
         let mut elapsed = 0.0;
         loop {
@@ -121,11 +121,11 @@ impl Server {
                     }
                     Event::Prev => {
                         player.prev_song();
-                        update(&player);
+                        // update(&player);
                     }
                     Event::Next => {
                         player.next_song();
-                        update(&player);
+                        // update(&player);
                     }
                     Event::ClearQueue => {
                         player.clear_songs();
@@ -143,7 +143,7 @@ impl Server {
                     }
                     Event::PlayIndex(i) => {
                         player.play_index(i);
-                        update(&player);
+                        // update(&player);
                     }
                     Event::GetElapsed => rs.send(Response::Elapsed(player.elapsed())).unwrap(),
                     Event::GetPaused => rs.send(Response::Paused(player.is_paused())).unwrap(),
@@ -170,10 +170,9 @@ impl Server {
     }
     fn handle_client(mut stream: TcpStream, es: Sender<Event>, rr: Receiver<Response>) {
         //update the clients data on connect
+        es.send(Event::GetPaused).unwrap();
         es.send(Event::GetVolume).unwrap();
         es.send(Event::GetQueue).unwrap();
-        es.send(Event::GetElapsed).unwrap();
-        es.send(Event::GetPaused).unwrap();
 
         let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {
@@ -324,9 +323,15 @@ impl Client {
     }
     pub fn next(&mut self) {
         self.send(Event::Next);
+
+        //HACK: this might get out of sync
+        self.queue.down();
     }
     pub fn prev(&mut self) {
         self.send(Event::Prev);
+
+        //HACK: this might get out of sync
+        self.queue.up();
     }
     pub fn toggle_playback(&mut self) {
         self.send(Event::TogglePlayback);
@@ -356,6 +361,8 @@ impl Client {
     }
     pub fn play_index(&mut self, i: usize) {
         self.send(Event::PlayIndex(i));
+        //HACK: this might get out of sync
+        self.queue.select(Some(i));
     }
 }
 
