@@ -73,19 +73,19 @@ impl Server {
             .unwrap();
         };
 
-        // let update = |player: &Player| {
-        //     rs.send(Response::Update(Update {
-        //         index: player.songs.index,
-        //         duration: player.duration,
-        //     }))
-        //     .unwrap();
-        // };
+        let update = |player: &Player| {
+            rs.send(Response::Update(Update {
+                index: player.songs.index,
+                duration: player.duration,
+            }))
+            .unwrap();
+        };
 
         let mut elapsed = 0.0;
         loop {
             if player.elapsed() > player.duration {
                 player.next_song();
-                queue(&player);
+                update(&player);
             }
 
             //send the position of the player
@@ -131,8 +131,16 @@ impl Server {
                         player.clear_songs();
                         // queue(&player);
                     }
-                    Event::SeekBy(amount) => player.seek_by(amount),
-                    Event::SeekTo(pos) => player.seek_to(pos),
+                    Event::SeekBy(amount) => {
+                        if player.seek_by(amount) {
+                            update(&player);
+                        }
+                    }
+                    Event::SeekTo(pos) => {
+                        if player.seek_to(pos) {
+                            update(&player);
+                        }
+                    }
                     Event::Delete(id) => {
                         player.delete_song(id);
                         queue(&player);

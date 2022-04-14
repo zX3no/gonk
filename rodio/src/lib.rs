@@ -176,17 +176,25 @@ impl Player {
     pub fn is_paused(&self) -> bool {
         self.sink.is_paused()
     }
-    pub fn seek_by(&mut self, amount: f64) {
+    pub fn seek_by(&mut self, amount: f64) -> bool {
         let mut seek = self.elapsed() + amount;
         if seek > self.duration {
-            return self.next_song();
+            self.next_song();
+            return true;
         } else if seek < 0.0 {
             seek = 0.0;
         }
         self.sink.seek(Duration::from_secs_f64(seek));
+        false
     }
-    pub fn seek_to(&self, pos: f64) {
-        self.sink.seek(Duration::from_secs_f64(pos));
+    pub fn seek_to(&mut self, pos: f64) -> bool {
+        if pos > self.duration {
+            self.next_song();
+            true
+        } else {
+            self.sink.seek(Duration::from_secs_f64(pos));
+            false
+        }
     }
     pub fn update(&mut self) {
         if self.elapsed() > self.duration {
