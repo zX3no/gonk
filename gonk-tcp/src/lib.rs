@@ -176,7 +176,7 @@ impl Server {
         es.send(Event::GetPaused).unwrap();
 
         let mut s = stream.try_clone().unwrap();
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             let mut buf = [0u8; 4];
             loop {
                 //read_exact is blocking(i think)
@@ -199,6 +199,11 @@ impl Server {
         });
 
         loop {
+            //quit when the client disconnects
+            if handle.is_finished() {
+                return;
+            }
+
             if let Ok(response) = rr.try_recv() {
                 println!("Received Response::{:?}", response);
                 let encode = bincode::serialize(&response).unwrap();
