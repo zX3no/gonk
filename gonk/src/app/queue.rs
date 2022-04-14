@@ -84,6 +84,7 @@ impl Queue {
         if self.ui.is_none() && !self.client.queue.is_empty() {
             self.ui.select(Some(0));
         }
+        dbg!(&self.client.queue);
         self.scroll_text.next();
         self.client.update();
     }
