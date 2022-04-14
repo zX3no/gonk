@@ -62,7 +62,7 @@ impl Server {
         }
     }
     fn player_loop(er: Receiver<Event>, rs: Sender<Response>) {
-        let mut player = Player::new(5);
+        let mut player = Player::new(0);
         let db = Database::new().unwrap();
 
         let queue = |player: &Player| {
@@ -286,7 +286,7 @@ impl Client {
             match response {
                 Response::Elapsed(e) => self.elapsed = e,
                 Response::Paused(p) => self.paused = p,
-                // Response::Volume(v) => self.volume = v,
+                Response::Volume(v) => self.volume = v,
                 Response::Queue(q) => {
                     self.queue = q.songs;
                     self.duration = q.duration
@@ -295,7 +295,6 @@ impl Client {
                     self.duration = uq.duration;
                     self.queue.select(uq.index);
                 }
-                _ => (),
             }
         }
     }
