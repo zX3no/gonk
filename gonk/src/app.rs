@@ -5,7 +5,8 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, Database, Key, Modifier, Toml};
+use gonk_database::{Bind, ClientConfig, Database, Key, Modifier};
+use gonk_tcp::Client;
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
@@ -41,7 +42,7 @@ pub enum Mode {
 }
 
 #[dynamic]
-static TOML: Toml = Toml::new();
+static CONFIG: ClientConfig = ClientConfig::new();
 
 #[dynamic]
 static DB: Database = Database::new().unwrap();
@@ -55,11 +56,11 @@ pub struct App {
     pub mode: Mode,
     queue: Queue,
     browser: Browser,
-    db: Database,
+    pub db: Database,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(client: Client) -> Self {
         optick::event!("new app");
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
@@ -78,7 +79,7 @@ impl App {
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(),
+            queue: Queue::new(client),
             browser: Browser::new(),
             // search: Search::new(),
             db: Database::new().unwrap(),
@@ -123,7 +124,7 @@ impl App {
                             modifiers: Modifier::from_u32(event.modifiers),
                         };
 
-                        if TOML.client.hotkey.quit.contains(&bind) {
+                        if CONFIG.hotkey.quit.contains(&bind) {
                             break;
                         };
 
@@ -162,45 +163,41 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint('3', event.modifiers);
                             }
-                            _ if TOML.client.hotkey.up.contains(&bind) => self.up(),
-                            _ if TOML.client.hotkey.down.contains(&bind) => self.down(),
-                            _ if TOML.client.hotkey.left.contains(&bind) => self.browser.prev(),
-                            _ if TOML.client.hotkey.right.contains(&bind) => self.browser.next(),
-                            _ if TOML.client.hotkey.play_pause.contains(&bind) => {
+                            _ if CONFIG.hotkey.up.contains(&bind) => self.up(),
+                            _ if CONFIG.hotkey.down.contains(&bind) => self.down(),
+                            _ if CONFIG.hotkey.left.contains(&bind) => self.browser.prev(),
+                            _ if CONFIG.hotkey.right.contains(&bind) => self.browser.next(),
+                            _ if CONFIG.hotkey.play_pause.contains(&bind) => {
                                 self.queue.client.toggle_playback()
                             }
-                            _ if TOML.client.hotkey.clear.contains(&bind) => self.queue.clear(),
-                            _ if TOML.client.hotkey.refresh_database.contains(&bind) => {
+                            _ if CONFIG.hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if CONFIG.hotkey.refresh_database.contains(&bind) => {
                                 todo!();
                             }
-                            _ if TOML.client.hotkey.seek_backward.contains(&bind) => {
+                            _ if CONFIG.hotkey.seek_backward.contains(&bind) => {
                                 self.queue.client.seek_by(-SEEK_TIME)
                             }
-                            _ if TOML.client.hotkey.seek_forward.contains(&bind) => {
+                            _ if CONFIG.hotkey.seek_forward.contains(&bind) => {
                                 self.queue.client.seek_by(SEEK_TIME)
                             }
-                            _ if TOML.client.hotkey.previous.contains(&bind) => {
-                                self.queue.client.prev()
-                            }
-                            _ if TOML.client.hotkey.next.contains(&bind) => {
-                                self.queue.client.next()
-                            }
-                            _ if TOML.client.hotkey.volume_up.contains(&bind) => {
+                            _ if CONFIG.hotkey.previous.contains(&bind) => self.queue.client.prev(),
+                            _ if CONFIG.hotkey.next.contains(&bind) => self.queue.client.next(),
+                            _ if CONFIG.hotkey.volume_up.contains(&bind) => {
                                 self.queue.client.volume_up()
                             }
-                            _ if TOML.client.hotkey.volume_down.contains(&bind) => {
+                            _ if CONFIG.hotkey.volume_down.contains(&bind) => {
                                 self.queue.client.volume_down();
                             }
-                            _ if TOML.client.hotkey.search.contains(&bind) => (),
-                            _ if TOML.client.hotkey.options.contains(&bind) => (),
-                            _ if TOML.client.hotkey.delete.contains(&bind) => {
+                            _ if CONFIG.hotkey.search.contains(&bind) => (),
+                            _ if CONFIG.hotkey.options.contains(&bind) => (),
+                            _ if CONFIG.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
                                         self.queue.client.delete_song(i);
                                     }
                                 }
                             }
-                            _ if TOML.client.hotkey.random.contains(&bind) => {
+                            _ if CONFIG.hotkey.random.contains(&bind) => {
                                 self.queue.client.randomize()
                             }
                             _ => (),
@@ -264,23 +261,23 @@ impl App {
         std::thread::spawn(move || {
             let mut hk = Listener::<HotkeyEvent>::new();
             hk.register_hotkey(
-                TOML.client.global_hotkey.volume_up.modifiers(),
-                TOML.client.global_hotkey.volume_up.key(),
+                CONFIG.global_hotkey.volume_up.modifiers(),
+                CONFIG.global_hotkey.volume_up.key(),
                 HotkeyEvent::VolUp,
             );
             hk.register_hotkey(
-                TOML.client.global_hotkey.volume_down.modifiers(),
-                TOML.client.global_hotkey.volume_down.key(),
+                CONFIG.global_hotkey.volume_down.modifiers(),
+                CONFIG.global_hotkey.volume_down.key(),
                 HotkeyEvent::VolDown,
             );
             hk.register_hotkey(
-                TOML.client.global_hotkey.previous.modifiers(),
-                TOML.client.global_hotkey.previous.key(),
+                CONFIG.global_hotkey.previous.modifiers(),
+                CONFIG.global_hotkey.previous.key(),
                 HotkeyEvent::Prev,
             );
             hk.register_hotkey(
-                TOML.client.global_hotkey.next.modifiers(),
-                TOML.client.global_hotkey.next.key(),
+                CONFIG.global_hotkey.next.modifiers(),
+                CONFIG.global_hotkey.next.key(),
                 HotkeyEvent::Next,
             );
             hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);

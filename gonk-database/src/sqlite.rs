@@ -79,21 +79,20 @@ impl Database {
         optick::event!("sync database");
         let conn = self.conn();
         let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
-
-        let paths: Vec<_> = stmt
+        let paths: Vec<String> = stmt
             .query_map([], |row| row.get(0))
             .unwrap()
             .flatten()
             .collect();
 
         //delete paths that aren't in the toml file but are in the database
-        paths.iter().for_each(|path| {
+        for path in &paths {
             if !toml_paths.contains(path) {
-                self.conn()
-                    .execute("DELETE FROM song WHERE parent = ?", [path])
+                println!("Removing: {path}");
+                conn.execute("DELETE FROM song WHERE parent = ?", [path])
                     .unwrap();
             }
-        });
+        }
 
         //find the paths that are missing from the database
         let paths_to_add: Vec<_> = toml_paths
@@ -108,10 +107,11 @@ impl Database {
             .collect();
 
         if !paths_to_add.is_empty() {
-            self.add_dirs(&paths_to_add);
+            println!("Adding: {:?}", paths_to_add);
+            self.add_paths(&paths_to_add);
         }
     }
-    pub fn add_dirs(&self, dirs: &[String]) {
+    pub fn add_paths(&self, paths: &[String]) {
         optick::event!("add_dirs() Database");
         if self.is_busy() {
             return;
@@ -119,7 +119,7 @@ impl Database {
 
         let busy = self.is_busy.clone();
         let update = self.needs_update.clone();
-        let dirs = dirs.to_owned();
+        let dirs = paths.to_owned();
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {

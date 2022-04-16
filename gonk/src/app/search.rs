@@ -365,17 +365,17 @@ impl Search {
                     Row::new(vec![
                         Cell::from(song.name.clone()).style(
                             Style::default()
-                                .fg(TOML.client.colors.title)
+                                .fg(TOML.colors.title)
                                 .add_modifier(modifier),
                         ),
                         Cell::from(song.album.clone()).style(
                             Style::default()
-                                .fg(TOML.client.colors.album)
+                                .fg(TOML.colors.album)
                                 .add_modifier(modifier),
                         ),
                         Cell::from(song.artist.clone()).style(
                             Style::default()
-                                .fg(TOML.client.colors.artist)
+                                .fg(TOML.colors.artist)
                                 .add_modifier(modifier),
                         ),
                     ])
@@ -383,34 +383,34 @@ impl Search {
                 Item::Album(album) => Row::new(vec![
                     Cell::from(format!("{} - Album", album.name)).style(
                         Style::default()
-                            .fg(TOML.client.colors.title)
+                            .fg(TOML.colors.title)
                             .add_modifier(modifier),
                     ),
                     Cell::from("").style(
                         Style::default()
-                            .fg(TOML.client.colors.album)
+                            .fg(TOML.colors.album)
                             .add_modifier(modifier),
                     ),
                     Cell::from(album.artist.clone()).style(
                         Style::default()
-                            .fg(TOML.client.colors.artist)
+                            .fg(TOML.colors.artist)
                             .add_modifier(modifier),
                     ),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
                     Cell::from(format!("{} - Artist", artist.name)).style(
                         Style::default()
-                            .fg(TOML.client.colors.title)
+                            .fg(TOML.colors.title)
                             .add_modifier(modifier),
                     ),
                     Cell::from("").style(
                         Style::default()
-                            .fg(TOML.client.colors.album)
+                            .fg(TOML.colors.album)
                             .add_modifier(modifier),
                     ),
                     Cell::from("").style(
                         Style::default()
-                            .fg(TOML.client.colors.artist)
+                            .fg(TOML.colors.artist)
                             .add_modifier(modifier),
                     ),
                 ]),

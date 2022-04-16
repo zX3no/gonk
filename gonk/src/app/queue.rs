@@ -1,4 +1,4 @@
-use super::TOML;
+use super::CONFIG;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_tcp::Client;
@@ -70,14 +70,14 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new() -> Self {
+    pub fn new(client: Client) -> Self {
         optick::event!("new queue");
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             scroll_text: ScrollText::default(),
-            client: Client::new(),
+            client,
         }
     }
     pub fn update(&mut self) {
@@ -260,15 +260,15 @@ impl Queue {
                     Span::raw("─| "),
                     Span::styled(
                         artist.trim_end().to_string(),
-                        Style::default().fg(TOML.client.colors.artist),
+                        Style::default().fg(CONFIG.colors.artist),
                     ),
                     Span::raw(" - "),
-                    Span::styled(&song.name, Style::default().fg(TOML.client.colors.title)),
+                    Span::styled(&song.name, Style::default().fg(CONFIG.colors.title)),
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(
                     &song.album,
-                    Style::default().fg(TOML.client.colors.album),
+                    Style::default().fg(CONFIG.colors.album),
                 )),
             ]
         } else {
@@ -313,13 +313,11 @@ impl Queue {
                 Row::new(vec![
                     Cell::from(""),
                     Cell::from(song.number.to_string())
-                        .style(Style::default().fg(TOML.client.colors.track)),
-                    Cell::from(song.name.clone())
-                        .style(Style::default().fg(TOML.client.colors.title)),
-                    Cell::from(song.album.clone())
-                        .style(Style::default().fg(TOML.client.colors.album)),
+                        .style(Style::default().fg(CONFIG.colors.track)),
+                    Cell::from(song.name.clone()).style(Style::default().fg(CONFIG.colors.title)),
+                    Cell::from(song.album.clone()).style(Style::default().fg(CONFIG.colors.album)),
                     Cell::from(song.artist.clone())
-                        .style(Style::default().fg(TOML.client.colors.artist)),
+                        .style(Style::default().fg(CONFIG.colors.artist)),
                 ])
             })
             .collect();
@@ -335,26 +333,14 @@ impl Queue {
                                     .fg(Color::White)
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
-                            Cell::from(song.number.to_string()).style(
-                                Style::default()
-                                    .bg(TOML.client.colors.track)
-                                    .fg(Color::Black),
-                            ),
-                            Cell::from(song.name.clone()).style(
-                                Style::default()
-                                    .bg(TOML.client.colors.title)
-                                    .fg(Color::Black),
-                            ),
-                            Cell::from(song.album.clone()).style(
-                                Style::default()
-                                    .bg(TOML.client.colors.album)
-                                    .fg(Color::Black),
-                            ),
-                            Cell::from(song.artist.clone()).style(
-                                Style::default()
-                                    .bg(TOML.client.colors.artist)
-                                    .fg(Color::Black),
-                            ),
+                            Cell::from(song.number.to_string())
+                                .style(Style::default().bg(CONFIG.colors.track).fg(Color::Black)),
+                            Cell::from(song.name.clone())
+                                .style(Style::default().bg(CONFIG.colors.title).fg(Color::Black)),
+                            Cell::from(song.album.clone())
+                                .style(Style::default().bg(CONFIG.colors.album).fg(Color::Black)),
+                            Cell::from(song.artist.clone())
+                                .style(Style::default().bg(CONFIG.colors.artist).fg(Color::Black)),
                         ])
                     } else {
                         Row::new(vec![
@@ -364,13 +350,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(TOML.client.colors.track)),
+                                .style(Style::default().fg(CONFIG.colors.track)),
                             Cell::from(song.name.clone())
-                                .style(Style::default().fg(TOML.client.colors.title)),
+                                .style(Style::default().fg(CONFIG.colors.title)),
                             Cell::from(song.album.clone())
-                                .style(Style::default().fg(TOML.client.colors.album)),
+                                .style(Style::default().fg(CONFIG.colors.album)),
                             Cell::from(song.artist.clone())
-                                .style(Style::default().fg(TOML.client.colors.artist)),
+                                .style(Style::default().fg(CONFIG.colors.artist)),
                         ])
                     };
 
@@ -383,13 +369,13 @@ impl Queue {
                         let row = Row::new(vec![
                             Cell::from(""),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(TOML.client.colors.track)),
+                                .style(Style::default().bg(CONFIG.colors.track)),
                             Cell::from(song.name.clone())
-                                .style(Style::default().bg(TOML.client.colors.title)),
+                                .style(Style::default().bg(CONFIG.colors.title)),
                             Cell::from(song.album.clone())
-                                .style(Style::default().bg(TOML.client.colors.album)),
+                                .style(Style::default().bg(CONFIG.colors.album)),
                             Cell::from(song.artist.clone())
-                                .style(Style::default().bg(TOML.client.colors.artist)),
+                                .style(Style::default().bg(CONFIG.colors.artist)),
                         ])
                         .style(Style::default().fg(Color::Black));
                         items.remove(ui_index);

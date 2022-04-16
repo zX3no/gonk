@@ -1,5 +1,6 @@
 use app::App;
 use gonk_database::{Database, GONK_DIR};
+use gonk_tcp::Client;
 use std::io::Result;
 mod app;
 mod widget;
@@ -10,14 +11,15 @@ fn main() -> Result<()> {
     optick::event!("main");
 
     let args: Vec<_> = std::env::args().skip(1).collect();
-    let db = Database::new().unwrap();
+    //TODO: remove
+    let mut client = Client::new();
 
     if let Some(first) = args.first() {
         match first as &str {
             "add" => {
-                if let Some(dir) = args.get(1..) {
-                    let dir = dir.join(" ");
-                    db.add_dirs(&[dir]);
+                if let Some(path) = args.get(1..) {
+                    let path = path.join(" ");
+                    client.add_path(path);
                 }
             }
             "config" => {
@@ -47,7 +49,7 @@ fn main() -> Result<()> {
         }
     }
 
-    App::new().run()?;
+    App::new(client).run()?;
 
     // #[cfg(debug_assertions)]
     // optick::stop_capture("gonk");

@@ -1,18 +1,19 @@
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use gonk_database::Database;
+use gonk_database::{Database, ServerConfig};
 use gonk_types::{Index, Song};
 use rodio::Player;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::mpsc::{self, sync_channel},
     thread,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Event {
+    AddPath(String),
     Add(Vec<u64>),
     PlayIndex(usize),
     Delete(usize),
@@ -46,11 +47,12 @@ pub struct Server {}
 
 impl Server {
     pub fn run() {
-        let listener = TcpListener::bind("localhost:673").unwrap();
+        let config = ServerConfig::new();
+        let listener = TcpListener::bind(config.ip()).unwrap();
         let (request_s, request_r) = unbounded();
         let (event_s, event_r) = unbounded();
 
-        thread::spawn(|| Server::player_loop(event_r, request_s));
+        thread::spawn(|| Server::player_loop(config, event_r, request_s));
 
         for stream in listener.incoming() {
             match stream {
@@ -67,9 +69,12 @@ impl Server {
         }
         println!("Server shutting down.");
     }
-    fn player_loop(er: Receiver<Event>, rs: Sender<Response>) {
+    fn player_loop(mut config: ServerConfig, er: Receiver<Event>, rs: Sender<Response>) {
         let mut player = Player::new(0);
         let db = Database::new().unwrap();
+
+        //sync the datbase
+        db.sync_database(&config.paths);
 
         let queue = |player: &Player| {
             let mut songs = player.songs.clone();
@@ -114,6 +119,13 @@ impl Server {
                 println!("Event received: {:?}", event);
                 match event {
                     Event::ShutDown => break,
+                    Event::AddPath(path) => {
+                        if Path::new(&path).exists() {
+                            println!("Adding path: {path}");
+                            config.add_path(path.clone());
+                            db.add_paths(&[path]);
+                        }
+                    }
                     Event::Add(ids) => {
                         let songs = db.get_songs_from_id(&ids);
                         player.add_songs(songs);
@@ -251,7 +263,8 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Self {
-        let stream = TcpStream::connect("localhost:673").expect("Could not connect to server.");
+        let server_config = ServerConfig::new();
+        let stream = TcpStream::connect(server_config.ip()).expect("Could not connect to server.");
         let (sender, receiver) = sync_channel(0);
         let mut s = stream.try_clone().unwrap();
 
@@ -363,6 +376,9 @@ impl Client {
         self.send(Event::PlayIndex(i));
         //HACK: this might get out of sync
         self.queue.select(Some(i));
+    }
+    pub fn add_path(&mut self, path: String) {
+        self.send(Event::AddPath(path));
     }
 }
 
