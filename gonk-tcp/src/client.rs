@@ -16,9 +16,9 @@ pub struct Client {
     pub elapsed: f64,
     pub duration: f64,
 
-    pub artists: Vec<String>,
-    pub albums: Vec<String>,
-    pub songs: Vec<(u64, String)>,
+    pub artists: Index<String>,
+    pub albums: Index<String>,
+    pub songs: Index<(u64, String)>,
 }
 
 impl Client {
@@ -51,9 +51,9 @@ impl Client {
             volume: 0,
             elapsed: 0.0,
             duration: 0.0,
-            artists: Vec::new(),
-            albums: Vec::new(),
-            songs: Vec::new(),
+            artists: Index::default(),
+            albums: Index::default(),
+            songs: Index::default(),
         }
     }
     pub fn update(&mut self) {
@@ -70,17 +70,36 @@ impl Client {
                     self.duration = uq.duration;
                     self.queue.select(uq.index);
                 }
-                Response::Artists(a) => self.artists = a,
+                Response::Browser(b) => {
+                    self.artists = Index::new(b.artists, Some(0));
+                    self.albums = Index::new(b.first_artist.album_names, Some(0));
+                    self.songs = Index::new(
+                        b.first_artist
+                            .selected_album
+                            .into_iter()
+                            .map(|song| (song.number, song.name))
+                            .collect(),
+                        Some(0),
+                    );
+                }
                 Response::Artist(a) => {
-                    self.albums = a.albums.iter().map(|album| album.name.clone()).collect();
-                    self.songs = a
-                        .albums
-                        .first()
-                        .unwrap()
-                        .songs
-                        .iter()
-                        .map(|song| (song.number, song.name.clone()))
-                        .collect();
+                    self.albums = Index::new(a.album_names, Some(0));
+                    self.songs = Index::new(
+                        a.selected_album
+                            .into_iter()
+                            .map(|song| (song.number, song.name))
+                            .collect(),
+                        Some(0),
+                    );
+                }
+                Response::Album(songs) => {
+                    self.songs = Index::new(
+                        songs
+                            .into_iter()
+                            .map(|song| (song.number, song.name))
+                            .collect(),
+                        None,
+                    )
                 }
             }
         }
@@ -153,28 +172,12 @@ impl Client {
     pub fn add_path(&mut self, path: String) {
         self.send(Event::AddPath(path));
     }
-    pub fn get_artist(&mut self, artist: String) {
+    pub fn update_artist(&mut self, artist: String) {
         self.send(Event::GetArtist(artist));
     }
-    // pub fn update_albums(&mut self, i: Option<usize>) {
-    //     if let Some(i) = i {
-    //         if let Some(artist) = self.artists.get(i).cloned() {
-    //             self.send(Event::GetAlbums(artist));
-    //         };
-    //     }
-    // }
-    // pub fn update_songs(&mut self, album: Option<usize>, artist: Option<usize>) {
-    //     //TODO: wtf?
-    //     if let Some(album) = album {
-    //         if let Some(artist) = artist {
-    //             if let Some(artist) = self.artists.get(artist).cloned() {
-    //                 if let Some(album) = self.albums.get(album).cloned() {
-    //                     self.send(Event::GetSongs(album, artist));
-    //                 };
-    //             };
-    //         }
-    //     }
-    // }
+    pub fn update_album(&mut self, album: String, artist: String) {
+        self.send(Event::GetAlbum(album, artist));
+    }
 }
 
 impl Default for Client {

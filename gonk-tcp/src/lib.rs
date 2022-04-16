@@ -31,23 +31,9 @@ pub enum Event {
     GetPaused,
     GetVolume,
     GetQueue,
-    GetAllArtists,
-    GetFirstArtist,
+    GetBrowser,
     GetArtist(String),
-    // GetAlbums(String),
-    // GetSongs(String, String),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Artist {
-    name: String,
-    albums: Vec<Album>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Album {
-    name: String,
-    songs: Vec<Song>,
+    GetAlbum(String, String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -57,9 +43,21 @@ pub enum Response {
     Volume(u16),
     Queue(Queue),
     Update(Update),
-    //TODO: this is slow as shit
-    Artists(Vec<String>),
+    Browser(Browser),
     Artist(Artist),
+    Album(Vec<Song>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Browser {
+    artists: Vec<String>,
+    first_artist: Artist,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Artist {
+    album_names: Vec<String>,
+    selected_album: Vec<Song>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

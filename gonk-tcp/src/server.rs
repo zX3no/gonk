@@ -1,4 +1,4 @@
-use crate::{Album, Artist, Event, Queue, Response, Update, CONFIG};
+use crate::{Artist, Browser, Event, Queue, Response, Update, CONFIG};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use gonk_database::{Database, ServerConfig};
 use rodio::Player;
@@ -65,27 +65,20 @@ impl Server {
             .unwrap();
         };
 
-        let artist = |artist: String| {
+        let artist = |artist: String| -> Artist {
             let albums = db.get_all_albums_by_artist(&artist);
 
-            let albums: Vec<Album> = albums
+            let album = albums.first().unwrap();
+            let songs = db
+                .get_songs_from_album(album, &artist)
                 .into_iter()
-                .map(|album| Album {
-                    songs: db
-                        .get_songs_from_album(&album, &artist)
-                        .into_iter()
-                        .map(|song| song.nuke_useless())
-                        .collect(),
-                    name: album,
-                })
+                .map(|song| song.nuke_useless())
                 .collect();
 
-            let artist = Artist {
-                name: artist,
-                albums,
-            };
-
-            rs.send(Response::Artist(artist)).unwrap();
+            Artist {
+                album_names: albums,
+                selected_album: songs,
+            }
         };
 
         let mut elapsed = 0.0;
@@ -170,16 +163,30 @@ impl Server {
                     Event::GetPaused => rs.send(Response::Paused(player.is_paused())).unwrap(),
                     Event::GetVolume => rs.send(Response::Volume(player.volume)).unwrap(),
                     Event::GetQueue => queue(&player),
-                    Event::GetAllArtists => {
+                    Event::GetBrowser => {
                         let artists = db.get_all_artists();
-                        rs.send(Response::Artists(artists)).unwrap();
-                    }
-                    Event::GetFirstArtist => {
                         if let Some(a) = db.get_all_artists().first() {
-                            artist(a.clone())
+                            let first_artist = artist(a.clone());
+                            let browser = Browser {
+                                artists,
+                                first_artist,
+                            };
+                            rs.send(Response::Browser(browser)).unwrap();
                         }
                     }
-                    Event::GetArtist(a) => artist(a),
+                    Event::GetArtist(a) => {
+                        let artist = artist(a);
+                        rs.send(Response::Artist(artist)).unwrap();
+                    }
+                    Event::GetAlbum(album, artist) => {
+                        let songs = db
+                            .get_songs_from_album(&album, &artist)
+                            .into_iter()
+                            .map(|song| song.nuke_useless())
+                            .collect();
+
+                        rs.send(Response::Album(songs)).unwrap();
+                    }
                 }
             }
         }
@@ -190,8 +197,7 @@ impl Server {
         es.send(Event::GetPaused).unwrap();
         es.send(Event::GetVolume).unwrap();
         es.send(Event::GetQueue).unwrap();
-        es.send(Event::GetFirstArtist).unwrap();
-        es.send(Event::GetAllArtists).unwrap();
+        es.send(Event::GetBrowser).unwrap();
 
         let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {

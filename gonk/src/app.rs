@@ -136,6 +136,7 @@ impl App {
                             //TODO: we should not send songs over tcp it should be ids only
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
+                                    self.browser.on_enter();
                                     // let songs: Vec<u64> = self
                                     //     .browser
                                     //     .on_enter()

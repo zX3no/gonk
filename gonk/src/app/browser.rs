@@ -9,6 +9,7 @@ use tui::{
     Frame,
 };
 
+#[derive(Debug)]
 pub enum Mode {
     Artist,
     Album,
@@ -34,9 +35,6 @@ impl Mode {
 
 pub struct Browser {
     pub mode: Mode,
-    pub artists: Option<usize>,
-    pub albums: Option<usize>,
-    pub songs: Option<usize>,
     client: Rc<RefCell<Client>>,
 }
 
@@ -46,73 +44,64 @@ impl Browser {
 
         Self {
             mode: Mode::Artist,
-            artists: Some(0),
-            albums: None,
-            songs: None,
             client,
         }
     }
-    pub fn on_enter(&self) {
-        todo!();
-    }
+    pub fn on_enter(&self) {}
     pub fn prev(&mut self) {
         self.mode.prev();
     }
     pub fn next(&mut self) {
-        self.mode.prev();
+        self.mode.next();
     }
     pub fn up(&mut self) {
-        let client = self.client.borrow();
+        let mut client = self.client.borrow_mut();
         match self.mode {
             Mode::Artist => {
-                Browser::index_up(&mut self.artists, client.artists.len());
+                client.artists.up();
             }
             Mode::Album => {
-                Browser::index_up(&mut self.albums, client.albums.len());
+                client.albums.up();
             }
             Mode::Song => {
-                Browser::index_up(&mut self.songs, client.songs.len());
+                client.songs.up();
             }
         }
+        drop(client);
+        self.update();
     }
     pub fn down(&mut self) {
-        let client = self.client.borrow();
+        let mut client = self.client.borrow_mut();
         match self.mode {
             Mode::Artist => {
-                Browser::index_down(&mut self.artists, client.artists.len());
+                client.artists.down();
             }
             Mode::Album => {
-                Browser::index_down(&mut self.albums, client.albums.len());
+                client.albums.down();
             }
             Mode::Song => {
-                Browser::index_down(&mut self.songs, client.songs.len());
+                client.songs.down();
             }
         }
+        drop(client);
+        self.update();
     }
-    pub fn index_up(index: &mut Option<usize>, len: usize) {
-        if len == 0 {
-            return;
-        }
-
-        if let Some(index) = index {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = len - 1;
+    pub fn update(&mut self) {
+        let mut client = self.client.borrow_mut();
+        match self.mode {
+            Mode::Artist => {
+                if let Some(artist) = client.artists.selected().cloned() {
+                    client.update_artist(artist);
+                }
             }
-        }
-    }
-    pub fn index_down(index: &mut Option<usize>, len: usize) {
-        if len == 0 {
-            return;
-        }
-
-        if let Some(index) = index {
-            if *index + 1 < len {
-                *index += 1;
-            } else {
-                *index = 0;
+            Mode::Album => {
+                if let Some(artist) = client.artists.selected().cloned() {
+                    if let Some(album) = client.albums.selected().cloned() {
+                        client.update_album(album, artist);
+                    }
+                }
             }
+            Mode::Song => (),
         }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
@@ -136,18 +125,21 @@ impl Browser {
 
         let a: Vec<_> = client
             .artists
+            .data
             .iter()
             .map(|name| ListItem::new(name.as_str()))
             .collect();
 
         let b: Vec<_> = client
             .albums
+            .data
             .iter()
             .map(|name| ListItem::new(name.as_str()))
             .collect();
 
         let c: Vec<_> = client
             .songs
+            .data
             .iter()
             .map(|song| ListItem::new(format!("{}. {}", song.0, song.1)))
             .collect();
@@ -163,7 +155,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut artist_state = ListState::new(self.artists);
+        let mut artist_state = ListState::new(client.artists.index);
 
         let albums = List::new(b)
             .block(
@@ -176,7 +168,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut album_state = ListState::new(self.albums);
+        let mut album_state = ListState::new(client.albums.index);
 
         let songs = List::new(c)
             .block(
@@ -189,7 +181,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut song_state = ListState::new(self.songs);
+        let mut song_state = ListState::new(client.songs.index);
 
         //TODO: better way of doing this?
         match self.mode {
