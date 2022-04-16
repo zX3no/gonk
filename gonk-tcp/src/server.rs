@@ -187,6 +187,12 @@ impl Server {
 
                         rs.send(Response::Album(songs)).unwrap();
                     }
+                    Event::PlayArtist(artist) => {
+                        let songs = db.get_songs_by_artist(&artist);
+                        player.add_songs(songs);
+
+                        queue(&player);
+                    }
                 }
             }
         }

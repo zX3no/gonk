@@ -14,6 +14,7 @@ static CONFIG: ServerConfig = ServerConfig::new();
 pub enum Event {
     AddPath(String),
     Add(Vec<u64>),
+    PlayArtist(String),
     PlayIndex(usize),
     Delete(usize),
     ClearQueue,

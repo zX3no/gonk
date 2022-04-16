@@ -18,7 +18,7 @@ pub struct Client {
 
     pub artists: Index<String>,
     pub albums: Index<String>,
-    pub songs: Index<(u64, String)>,
+    pub songs: Index<Song>,
 }
 
 impl Client {
@@ -73,34 +73,13 @@ impl Client {
                 Response::Browser(b) => {
                     self.artists = Index::new(b.artists, Some(0));
                     self.albums = Index::new(b.first_artist.album_names, Some(0));
-                    self.songs = Index::new(
-                        b.first_artist
-                            .selected_album
-                            .into_iter()
-                            .map(|song| (song.number, song.name))
-                            .collect(),
-                        Some(0),
-                    );
+                    self.songs = Index::new(b.first_artist.selected_album, Some(0));
                 }
                 Response::Artist(a) => {
                     self.albums = Index::new(a.album_names, Some(0));
-                    self.songs = Index::new(
-                        a.selected_album
-                            .into_iter()
-                            .map(|song| (song.number, song.name))
-                            .collect(),
-                        Some(0),
-                    );
+                    self.songs = Index::new(a.selected_album, Some(0));
                 }
-                Response::Album(songs) => {
-                    self.songs = Index::new(
-                        songs
-                            .into_iter()
-                            .map(|song| (song.number, song.name))
-                            .collect(),
-                        None,
-                    )
-                }
+                Response::Album(songs) => self.songs = Index::new(songs, None),
             }
         }
     }
@@ -168,6 +147,9 @@ impl Client {
         self.send(Event::PlayIndex(i));
         //HACK: this might get out of sync
         self.queue.select(Some(i));
+    }
+    pub fn play_artist(&mut self, artist: String) {
+        self.send(Event::PlayArtist(artist));
     }
     pub fn add_path(&mut self, path: String) {
         self.send(Event::AddPath(path));
