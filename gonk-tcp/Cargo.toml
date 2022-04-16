@@ -12,4 +12,5 @@ rodio = {path = "../rodio"}
 gonk-database = {path = "../gonk-database"}
 gonk-types = {path = "../gonk-types"}
 crossbeam-channel = "0.5"
+static_init = "1.0.2"
 
