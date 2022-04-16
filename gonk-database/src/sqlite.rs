@@ -41,6 +41,7 @@ impl Database {
             conn.pragma_update(None, "synchronous", "0")?;
             conn.pragma_update(None, "temp_store", "MEMORY")?;
 
+            //TODO: store the volume in the database
             conn.execute(
                 "CREATE TABLE song (
                     number   INTEGER NOT NULL,

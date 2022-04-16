@@ -1,7 +1,7 @@
 use crate::TOML_DIR;
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{fs, path::PathBuf};
 use tui::style::Color;
 
 //TODO: test on linux
@@ -182,13 +182,6 @@ pub struct GlobalHotkey {
     pub previous: Bind,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    paths: Vec<String>,
-    output_device: String,
-    volume: u16,
-}
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Colors {
     pub track: Color,
@@ -197,157 +190,171 @@ pub struct Colors {
     pub artist: Color,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Toml {
-    pub config: Config,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Client {
     pub colors: Colors,
     pub hotkey: Hotkey,
     pub global_hotkey: GlobalHotkey,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Server {
+    pub paths: Vec<PathBuf>,
+    pub ip: String,
+    pub port: u16,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Toml {
+    pub client: Client,
+    pub server: Server,
+}
+
 impl Toml {
     pub fn new() -> Self {
         optick::event!("new toml");
-        let path = TOML_DIR.as_path();
 
-        let file = if path.exists() {
-            fs::read_to_string(path).unwrap()
+        let file = if TOML_DIR.exists() {
+            fs::read_to_string(TOML_DIR.as_path()).unwrap()
         } else {
             let toml = Toml {
-                config: Config {
+                server: Server {
                     paths: Vec::new(),
-                    output_device: String::new(),
-                    volume: 15,
+                    ip: String::from("localhost"),
+                    #[allow(clippy::zero_prefixed_literal)]
+                    port: 673,
                 },
-                colors: Colors {
-                    track: Color::Green,
-                    title: Color::Cyan,
-                    album: Color::Magenta,
-                    artist: Color::Blue,
-                },
-                global_hotkey: GlobalHotkey {
-                    play_pause: Bind {
-                        key: Key::from("CAPSLOCK"),
-                        modifiers: Some(vec![Modifier::SHIFT]),
+                client: Client {
+                    colors: Colors {
+                        track: Color::Green,
+                        title: Color::Cyan,
+                        album: Color::Magenta,
+                        artist: Color::Blue,
                     },
-                    volume_up: Bind {
-                        key: Key::from("2"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                    global_hotkey: GlobalHotkey {
+                        play_pause: Bind {
+                            key: Key::from("CAPSLOCK"),
+                            modifiers: Some(vec![Modifier::SHIFT]),
+                        },
+                        volume_up: Bind {
+                            key: Key::from("2"),
+                            modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                        },
+                        volume_down: Bind {
+                            key: Key::from("1"),
+                            modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                        },
+                        next: Bind {
+                            key: Key::from("W"),
+                            modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                        },
+                        previous: Bind {
+                            key: Key::from("Q"),
+                            modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                        },
                     },
-                    volume_down: Bind {
-                        key: Key::from("1"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
+                    hotkey: Hotkey {
+                        up: vec![
+                            Bind {
+                                key: Key::from("K"),
+                                modifiers: None,
+                            },
+                            Bind {
+                                key: Key::from("UP"),
+                                modifiers: None,
+                            },
+                        ],
+                        down: vec![
+                            Bind {
+                                key: Key::from("J"),
+                                modifiers: None,
+                            },
+                            Bind {
+                                key: Key::from("DOWN"),
+                                modifiers: None,
+                            },
+                        ],
+                        left: vec![
+                            Bind {
+                                key: Key::from("H"),
+                                modifiers: None,
+                            },
+                            Bind {
+                                key: Key::from("LEFT"),
+                                modifiers: None,
+                            },
+                        ],
+                        right: vec![
+                            Bind {
+                                key: Key::from("L"),
+                                modifiers: None,
+                            },
+                            Bind {
+                                key: Key::from("RIGHT"),
+                                modifiers: None,
+                            },
+                        ],
+                        play_pause: vec![Bind {
+                            key: Key::from("SPACE"),
+                            modifiers: None,
+                        }],
+                        volume_up: vec![Bind {
+                            key: Key::from("W"),
+                            modifiers: None,
+                        }],
+                        volume_down: vec![Bind {
+                            key: Key::from("S"),
+                            modifiers: None,
+                        }],
+                        seek_forward: vec![Bind {
+                            key: Key::from("E"),
+                            modifiers: None,
+                        }],
+                        seek_backward: vec![Bind {
+                            key: Key::from("Q"),
+                            modifiers: None,
+                        }],
+                        next: vec![Bind {
+                            key: Key::from("D"),
+                            modifiers: None,
+                        }],
+                        previous: vec![Bind {
+                            key: Key::from("A"),
+                            modifiers: None,
+                        }],
+                        clear: vec![Bind {
+                            key: Key::from("C"),
+                            modifiers: None,
+                        }],
+                        delete: vec![Bind {
+                            key: Key::from("X"),
+                            modifiers: None,
+                        }],
+                        search: vec![Bind {
+                            key: Key::from("/"),
+                            modifiers: None,
+                        }],
+                        options: vec![Bind {
+                            key: Key::from("."),
+                            modifiers: None,
+                        }],
+                        random: vec![Bind {
+                            key: Key::from("R"),
+                            modifiers: None,
+                        }],
+                        change_mode: vec![Bind {
+                            key: Key::from("TAB"),
+                            modifiers: None,
+                        }],
+                        refresh_database: vec![Bind {
+                            key: Key::from("U"),
+                            modifiers: None,
+                        }],
+                        quit: vec![Bind {
+                            key: Key::from("C"),
+                            modifiers: Some(vec![Modifier::CONTROL]),
+                        }],
                     },
-                    next: Bind {
-                        key: Key::from("W"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    previous: Bind {
-                        key: Key::from("Q"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                },
-                hotkey: Hotkey {
-                    up: vec![
-                        Bind {
-                            key: Key::from("K"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("UP"),
-                            modifiers: None,
-                        },
-                    ],
-                    down: vec![
-                        Bind {
-                            key: Key::from("J"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("DOWN"),
-                            modifiers: None,
-                        },
-                    ],
-                    left: vec![
-                        Bind {
-                            key: Key::from("H"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("LEFT"),
-                            modifiers: None,
-                        },
-                    ],
-                    right: vec![
-                        Bind {
-                            key: Key::from("L"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("RIGHT"),
-                            modifiers: None,
-                        },
-                    ],
-                    play_pause: vec![Bind {
-                        key: Key::from("SPACE"),
-                        modifiers: None,
-                    }],
-                    volume_up: vec![Bind {
-                        key: Key::from("W"),
-                        modifiers: None,
-                    }],
-                    volume_down: vec![Bind {
-                        key: Key::from("S"),
-                        modifiers: None,
-                    }],
-                    seek_forward: vec![Bind {
-                        key: Key::from("E"),
-                        modifiers: None,
-                    }],
-                    seek_backward: vec![Bind {
-                        key: Key::from("Q"),
-                        modifiers: None,
-                    }],
-                    next: vec![Bind {
-                        key: Key::from("D"),
-                        modifiers: None,
-                    }],
-                    previous: vec![Bind {
-                        key: Key::from("A"),
-                        modifiers: None,
-                    }],
-                    clear: vec![Bind {
-                        key: Key::from("C"),
-                        modifiers: None,
-                    }],
-                    delete: vec![Bind {
-                        key: Key::from("X"),
-                        modifiers: None,
-                    }],
-                    search: vec![Bind {
-                        key: Key::from("/"),
-                        modifiers: None,
-                    }],
-                    options: vec![Bind {
-                        key: Key::from("."),
-                        modifiers: None,
-                    }],
-                    random: vec![Bind {
-                        key: Key::from("R"),
-                        modifiers: None,
-                    }],
-                    change_mode: vec![Bind {
-                        key: Key::from("TAB"),
-                        modifiers: None,
-                    }],
-                    refresh_database: vec![Bind {
-                        key: Key::from("U"),
-                        modifiers: None,
-                    }],
-                    quit: vec![Bind {
-                        key: Key::from("C"),
-                        modifiers: Some(vec![Modifier::CONTROL]),
-                    }],
                 },
             };
 
@@ -364,34 +371,6 @@ impl Toml {
                 panic!("{:#?}", &err);
             }
         }
-    }
-    pub fn volume(&self) -> u16 {
-        self.config.volume
-    }
-    //TODO: paths are not updated in real time
-    pub fn paths(&self) -> &Vec<String> {
-        &self.config.paths
-    }
-    pub fn output_device(&self) -> &String {
-        &self.config.output_device
-    }
-    pub fn add_path(&mut self, path: String) {
-        if !self.config.paths.contains(&path) {
-            self.config.paths.push(path);
-            self.write();
-        }
-    }
-    pub fn set_volume(&mut self, vol: u16) {
-        self.config.volume = vol;
-        self.write();
-    }
-    pub fn set_output_device(&mut self, device: String) {
-        self.config.output_device = device;
-        self.write();
-    }
-    pub fn reset(&mut self) {
-        self.config.paths = Vec::new();
-        self.write();
     }
     pub fn write(&self) {
         let toml = toml::to_string(&self).expect("Failed to write toml file.");

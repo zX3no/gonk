@@ -260,15 +260,15 @@ impl Queue {
                     Span::raw("─| "),
                     Span::styled(
                         artist.trim_end().to_string(),
-                        Style::default().fg(TOML.colors.artist),
+                        Style::default().fg(TOML.client.colors.artist),
                     ),
                     Span::raw(" - "),
-                    Span::styled(&song.name, Style::default().fg(TOML.colors.title)),
+                    Span::styled(&song.name, Style::default().fg(TOML.client.colors.title)),
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(
                     &song.album,
-                    Style::default().fg(TOML.colors.album),
+                    Style::default().fg(TOML.client.colors.album),
                 )),
             ]
         } else {
@@ -313,10 +313,13 @@ impl Queue {
                 Row::new(vec![
                     Cell::from(""),
                     Cell::from(song.number.to_string())
-                        .style(Style::default().fg(TOML.colors.track)),
-                    Cell::from(song.name.clone()).style(Style::default().fg(TOML.colors.title)),
-                    Cell::from(song.album.clone()).style(Style::default().fg(TOML.colors.album)),
-                    Cell::from(song.artist.clone()).style(Style::default().fg(TOML.colors.artist)),
+                        .style(Style::default().fg(TOML.client.colors.track)),
+                    Cell::from(song.name.clone())
+                        .style(Style::default().fg(TOML.client.colors.title)),
+                    Cell::from(song.album.clone())
+                        .style(Style::default().fg(TOML.client.colors.album)),
+                    Cell::from(song.artist.clone())
+                        .style(Style::default().fg(TOML.client.colors.artist)),
                 ])
             })
             .collect();
@@ -332,14 +335,26 @@ impl Queue {
                                     .fg(Color::White)
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
-                            Cell::from(song.number.to_string())
-                                .style(Style::default().bg(TOML.colors.track).fg(Color::Black)),
-                            Cell::from(song.name.clone())
-                                .style(Style::default().bg(TOML.colors.title).fg(Color::Black)),
-                            Cell::from(song.album.clone())
-                                .style(Style::default().bg(TOML.colors.album).fg(Color::Black)),
-                            Cell::from(song.artist.clone())
-                                .style(Style::default().bg(TOML.colors.artist).fg(Color::Black)),
+                            Cell::from(song.number.to_string()).style(
+                                Style::default()
+                                    .bg(TOML.client.colors.track)
+                                    .fg(Color::Black),
+                            ),
+                            Cell::from(song.name.clone()).style(
+                                Style::default()
+                                    .bg(TOML.client.colors.title)
+                                    .fg(Color::Black),
+                            ),
+                            Cell::from(song.album.clone()).style(
+                                Style::default()
+                                    .bg(TOML.client.colors.album)
+                                    .fg(Color::Black),
+                            ),
+                            Cell::from(song.artist.clone()).style(
+                                Style::default()
+                                    .bg(TOML.client.colors.artist)
+                                    .fg(Color::Black),
+                            ),
                         ])
                     } else {
                         Row::new(vec![
@@ -349,13 +364,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(TOML.colors.track)),
+                                .style(Style::default().fg(TOML.client.colors.track)),
                             Cell::from(song.name.clone())
-                                .style(Style::default().fg(TOML.colors.title)),
+                                .style(Style::default().fg(TOML.client.colors.title)),
                             Cell::from(song.album.clone())
-                                .style(Style::default().fg(TOML.colors.album)),
+                                .style(Style::default().fg(TOML.client.colors.album)),
                             Cell::from(song.artist.clone())
-                                .style(Style::default().fg(TOML.colors.artist)),
+                                .style(Style::default().fg(TOML.client.colors.artist)),
                         ])
                     };
 
@@ -368,13 +383,13 @@ impl Queue {
                         let row = Row::new(vec![
                             Cell::from(""),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(TOML.colors.track)),
+                                .style(Style::default().bg(TOML.client.colors.track)),
                             Cell::from(song.name.clone())
-                                .style(Style::default().bg(TOML.colors.title)),
+                                .style(Style::default().bg(TOML.client.colors.title)),
                             Cell::from(song.album.clone())
-                                .style(Style::default().bg(TOML.colors.album)),
+                                .style(Style::default().bg(TOML.client.colors.album)),
                             Cell::from(song.artist.clone())
-                                .style(Style::default().bg(TOML.colors.artist)),
+                                .style(Style::default().bg(TOML.client.colors.artist)),
                         ])
                         .style(Style::default().fg(Color::Black));
                         items.remove(ui_index);

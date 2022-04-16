@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
+    path::PathBuf,
     sync::mpsc::{self, sync_channel},
     thread,
 };
@@ -41,33 +42,45 @@ pub enum Response {
     Update(Update),
 }
 
-pub struct Server {
-    listener: TcpListener,
-    event_s: Sender<Event>,
-    request_r: Receiver<Response>,
-}
+pub struct Server {}
 
 impl Server {
-    pub fn new() -> Self {
-        let listener = TcpListener::bind("localhost:0673").unwrap();
+    pub fn run() {
+        let listener = TcpListener::bind("localhost:673").unwrap();
         let (request_s, request_r) = unbounded();
         let (event_s, event_r) = unbounded();
 
         thread::spawn(|| Server::player_loop(event_r, request_s));
 
-        Self {
-            listener,
-            event_s,
-            request_r,
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    println!("New connection: {}", stream.peer_addr().unwrap());
+                    let stream = stream.try_clone().unwrap();
+                    let es = event_s.clone();
+                    let rr = request_r.clone();
+
+                    thread::spawn(|| Server::handle_client(stream, es, rr));
+                }
+                Err(e) => println!("Server Error: {}", e),
+            }
         }
+        println!("Server shutting down.");
     }
     fn player_loop(er: Receiver<Event>, rs: Sender<Response>) {
         let mut player = Player::new(0);
         let db = Database::new().unwrap();
 
         let queue = |player: &Player| {
+            let mut songs = player.songs.clone();
+
+            //HACK: remove the path so there's less data to send
+            for song in &mut songs.data {
+                song.path = PathBuf::default();
+            }
+
             rs.send(Response::Queue(Queue {
-                songs: player.songs.clone(),
+                songs,
                 duration: player.duration,
             }))
             .unwrap();
@@ -161,21 +174,7 @@ impl Server {
             }
         }
     }
-    pub fn run(&mut self) {
-        for stream in self.listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    println!("New connection: {}", stream.peer_addr().unwrap());
-                    let stream = stream.try_clone().unwrap();
-                    let es = self.event_s.clone();
-                    let rr = self.request_r.clone();
-                    thread::spawn(|| Server::handle_client(stream, es, rr));
-                }
-                Err(e) => println!("Server Error: {}", e),
-            }
-        }
-        println!("Server shutting down.");
-    }
+
     fn handle_client(mut stream: TcpStream, es: Sender<Event>, rr: Receiver<Response>) {
         //update the clients data on connect
         es.send(Event::GetPaused).unwrap();
@@ -223,12 +222,6 @@ impl Server {
     }
 }
 
-impl Default for Server {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Queue {
     pub songs: Index<Song>,
@@ -258,7 +251,7 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Self {
-        let stream = TcpStream::connect("localhost:0673").expect("Could not connect to server.");
+        let stream = TcpStream::connect("localhost:673").expect("Could not connect to server.");
         let (sender, receiver) = sync_channel(0);
         let mut s = stream.try_clone().unwrap();
 

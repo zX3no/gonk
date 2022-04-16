@@ -1,5 +1,5 @@
 use app::App;
-use gonk_database::{Database, Toml, GONK_DIR};
+use gonk_database::{Database, GONK_DIR};
 use std::io::Result;
 mod app;
 mod widget;
@@ -10,14 +10,14 @@ fn main() -> Result<()> {
     optick::event!("main");
 
     let args: Vec<_> = std::env::args().skip(1).collect();
-    let mut toml = Toml::new();
+    let db = Database::new().unwrap();
 
     if let Some(first) = args.first() {
         match first as &str {
             "add" => {
                 if let Some(dir) = args.get(1..) {
                     let dir = dir.join(" ");
-                    toml.add_path(dir);
+                    db.add_dirs(&[dir]);
                 }
             }
             "config" => {
@@ -25,7 +25,6 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" | "rm" => {
-                toml.reset();
                 Database::delete();
                 println!("Database reset!");
                 return Ok(());
@@ -48,7 +47,7 @@ fn main() -> Result<()> {
         }
     }
 
-    App::new(toml).run()?;
+    App::new().run()?;
 
     // #[cfg(debug_assertions)]
     // optick::stop_capture("gonk");
