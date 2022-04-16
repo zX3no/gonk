@@ -71,6 +71,17 @@ impl Client {
                     self.queue.select(uq.index);
                 }
                 Response::Artists(a) => self.artists = a,
+                Response::Artist(a) => {
+                    self.albums = a.albums.iter().map(|album| album.name.clone()).collect();
+                    self.songs = a
+                        .albums
+                        .first()
+                        .unwrap()
+                        .songs
+                        .iter()
+                        .map(|song| (song.number, song.name.clone()))
+                        .collect();
+                }
             }
         }
     }
@@ -141,6 +152,9 @@ impl Client {
     }
     pub fn add_path(&mut self, path: String) {
         self.send(Event::AddPath(path));
+    }
+    pub fn get_artist(&mut self, artist: String) {
+        self.send(Event::GetArtist(artist));
     }
     // pub fn update_albums(&mut self, i: Option<usize>) {
     //     if let Some(i) = i {

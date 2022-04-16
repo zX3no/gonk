@@ -7,9 +7,6 @@ pub use {client::Client, server::Server};
 mod client;
 mod server;
 
-type Artist = String;
-type Album = String;
-
 #[dynamic]
 static CONFIG: ServerConfig = ServerConfig::new();
 
@@ -34,9 +31,23 @@ pub enum Event {
     GetPaused,
     GetVolume,
     GetQueue,
-    GetArtists,
-    GetAlbums(Artist),
-    GetSongs(Album, Artist),
+    GetAllArtists,
+    GetFirstArtist,
+    GetArtist(String),
+    // GetAlbums(String),
+    // GetSongs(String, String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Artist {
+    name: String,
+    albums: Vec<Album>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Album {
+    name: String,
+    songs: Vec<Song>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,7 +57,9 @@ pub enum Response {
     Volume(u16),
     Queue(Queue),
     Update(Update),
+    //TODO: this is slow as shit
     Artists(Vec<String>),
+    Artist(Artist),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

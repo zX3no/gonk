@@ -1,4 +1,4 @@
-use crate::{Event, Queue, Response, Update, CONFIG};
+use crate::{Album, Artist, Event, Queue, Response, Update, CONFIG};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use gonk_database::{Database, ServerConfig};
 use rodio::Player;
@@ -63,6 +63,29 @@ impl Server {
                 duration: player.duration,
             }))
             .unwrap();
+        };
+
+        let artist = |artist: String| {
+            let albums = db.get_all_albums_by_artist(&artist);
+
+            let albums: Vec<Album> = albums
+                .into_iter()
+                .map(|album| Album {
+                    songs: db
+                        .get_songs_from_album(&album, &artist)
+                        .into_iter()
+                        .map(|song| song.nuke_useless())
+                        .collect(),
+                    name: album,
+                })
+                .collect();
+
+            let artist = Artist {
+                name: artist,
+                albums,
+            };
+
+            rs.send(Response::Artist(artist)).unwrap();
         };
 
         let mut elapsed = 0.0;
@@ -147,11 +170,16 @@ impl Server {
                     Event::GetPaused => rs.send(Response::Paused(player.is_paused())).unwrap(),
                     Event::GetVolume => rs.send(Response::Volume(player.volume)).unwrap(),
                     Event::GetQueue => queue(&player),
-                    Event::GetArtists => {
+                    Event::GetAllArtists => {
                         let artists = db.get_all_artists();
                         rs.send(Response::Artists(artists)).unwrap();
                     }
-                    _ => (),
+                    Event::GetFirstArtist => {
+                        if let Some(a) = db.get_all_artists().first() {
+                            artist(a.clone())
+                        }
+                    }
+                    Event::GetArtist(a) => artist(a),
                 }
             }
         }
@@ -162,7 +190,8 @@ impl Server {
         es.send(Event::GetPaused).unwrap();
         es.send(Event::GetVolume).unwrap();
         es.send(Event::GetQueue).unwrap();
-        es.send(Event::GetArtists).unwrap();
+        es.send(Event::GetFirstArtist).unwrap();
+        es.send(Event::GetAllArtists).unwrap();
 
         let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {
@@ -194,12 +223,12 @@ impl Server {
             }
 
             if let Ok(response) = rr.try_recv() {
-                println!("Server sent: {:?}", response);
                 let encode = bincode::serialize(&response).unwrap();
                 let size = encode.len() as u32;
-
                 stream.write_all(&size.to_le_bytes()).unwrap();
                 stream.write_all(&encode).unwrap();
+
+                println!("Server sent: {:?}", response);
             }
         }
     }

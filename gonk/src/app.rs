@@ -46,7 +46,7 @@ pub enum Mode {
 #[dynamic]
 static CONFIG: ClientConfig = ClientConfig::new();
 
-const TICK_RATE: Duration = Duration::from_millis(100);
+const TICK_RATE: Duration = Duration::from_millis(10);
 const POLL_RATE: Duration = Duration::from_millis(4);
 const SEEK_TIME: f64 = 10.0;
 
@@ -87,7 +87,6 @@ impl App {
     }
     fn on_update(&mut self) {
         optick::event!("on update");
-        self.browser.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
@@ -103,13 +102,15 @@ impl App {
                 last_tick = Instant::now();
             }
 
-            #[cfg(windows)]
-            self.handle_global_hotkeys(&tx);
-
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f),
                 Mode::Queue => self.queue.draw(f),
             })?;
+
+            #[cfg(windows)]
+            self.handle_global_hotkeys(&tx);
+
+            self.client.borrow_mut().update();
 
             if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {

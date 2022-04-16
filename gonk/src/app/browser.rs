@@ -1,18 +1,11 @@
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
-
 use crate::widget::{List, ListItem, ListState};
 use gonk_tcp::Client;
-use gonk_types::Index;
+use std::{cell::RefCell, rc::Rc};
 use tui::{
     backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    text::Spans,
-    widgets::{Block, BorderType, Borders, Paragraph},
+    widgets::{Block, BorderType, Borders},
     Frame,
 };
 
@@ -53,7 +46,7 @@ impl Browser {
 
         Self {
             mode: Mode::Artist,
-            artists: None,
+            artists: Some(0),
             albums: None,
             songs: None,
             client,
@@ -69,29 +62,62 @@ impl Browser {
         self.mode.prev();
     }
     pub fn up(&mut self) {
-        // match self.mode {
-        //     Mode::Artist => self.artists.up(),
-        //     Mode::Album => self.albums.up(),
-        //     Mode::Song => self.songs.up(),
-        // }
+        let client = self.client.borrow();
+        match self.mode {
+            Mode::Artist => {
+                Browser::index_up(&mut self.artists, client.artists.len());
+            }
+            Mode::Album => {
+                Browser::index_up(&mut self.albums, client.albums.len());
+            }
+            Mode::Song => {
+                Browser::index_up(&mut self.songs, client.songs.len());
+            }
+        }
     }
     pub fn down(&mut self) {
-        // match self.mode {
-        //     Mode::Artist => self.artists.down(),
-        //     Mode::Album => self.albums.down(),
-        //     Mode::Song => self.songs.down(),
-        // }
+        let client = self.client.borrow();
+        match self.mode {
+            Mode::Artist => {
+                Browser::index_down(&mut self.artists, client.artists.len());
+            }
+            Mode::Album => {
+                Browser::index_down(&mut self.albums, client.albums.len());
+            }
+            Mode::Song => {
+                Browser::index_down(&mut self.songs, client.songs.len());
+            }
+        }
     }
-    pub fn update(&mut self) {
-        // self.client.update_albums(self.artists);
-        // self.client.update_songs(self.albums, self.artists);
+    pub fn index_up(index: &mut Option<usize>, len: usize) {
+        if len == 0 {
+            return;
+        }
+
+        if let Some(index) = index {
+            if *index > 0 {
+                *index -= 1;
+            } else {
+                *index = len - 1;
+            }
+        }
+    }
+    pub fn index_down(index: &mut Option<usize>, len: usize) {
+        if len == 0 {
+            return;
+        }
+
+        if let Some(index) = index {
+            if *index + 1 < len {
+                *index += 1;
+            } else {
+                *index = 0;
+            }
+        }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
         optick::event!("draw Browser");
-        self.draw_browser(f);
-        // Browser::draw_popup(f);
-    }
-    pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
+
         let area = f.size();
 
         let chunks = Layout::default()
@@ -107,6 +133,7 @@ impl Browser {
             .split(area);
 
         let client = self.client.borrow();
+
         let a: Vec<_> = client
             .artists
             .iter()

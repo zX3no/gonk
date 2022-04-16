@@ -27,6 +27,11 @@ pub struct Song {
 }
 
 impl Song {
+    pub fn nuke_useless(mut self) -> Self {
+        self.path = PathBuf::default();
+        self.track_gain = 0.0;
+        self
+    }
     pub fn from(path: &Path) -> Song {
         optick::event!("from() Song");
         let file = Box::new(File::open(path).expect("Could not open file."));
