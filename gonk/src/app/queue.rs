@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+
 use super::CONFIG;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
@@ -66,11 +70,11 @@ pub struct Queue {
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
     pub scroll_text: ScrollText,
-    pub client: Client,
+    pub client: Rc<RefCell<Client>>,
 }
 
 impl Queue {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: Rc<RefCell<Client>>) -> Self {
         optick::event!("new queue");
         Self {
             ui: Index::default(),
@@ -81,15 +85,15 @@ impl Queue {
         }
     }
     pub fn update(&mut self) {
-        if self.ui.is_none() && !self.client.queue.is_empty() {
+        if self.ui.is_none() && !self.client.borrow().queue.is_empty() {
             self.ui.select(Some(0));
         }
         self.scroll_text.next();
-        self.client.update();
+        self.client.borrow_mut().update();
     }
     #[allow(unused)]
     fn update_text(&mut self) {
-        if let Some(song) = &self.client.queue.selected() {
+        if let Some(song) = &self.client.borrow().queue.selected() {
             let mut name = format!("{} - {}", &song.artist, &song.name);
 
             //TODO: this is broken
@@ -128,25 +132,21 @@ impl Queue {
         );
     }
     pub fn up(&mut self) {
-        self.ui.up_with_len(self.client.queue.len());
+        self.ui.up_with_len(self.client.borrow().queue.len());
     }
     pub fn down(&mut self) {
-        self.ui.down_with_len(self.client.queue.len())
+        self.ui.down_with_len(self.client.borrow().queue.len())
     }
-
     pub fn clear(&mut self) {
-        self.client.clear_songs();
+        self.client.borrow_mut().clear_songs();
         self.ui = Index::default();
     }
-}
-
-impl Queue {
     fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {
         //Songs
         if let Some((_, row)) = self.clicked_pos {
             let size = f.size();
             let height = size.height as usize;
-            let len = self.client.queue.len();
+            let len = self.client.borrow().queue.len();
             if height > 7 {
                 if height - 7 < len {
                     //TODO: I have no idea how to figure out what index i clicked on
@@ -170,9 +170,9 @@ impl Queue {
                 || size.height - 1 == row && column >= 3 && column < size.width - 2
             {
                 let ratio = f64::from(column - 3) / f64::from(size.width);
-                let duration = self.client.duration;
+                let duration = self.client.borrow().duration;
                 let new_time = duration * ratio;
-                self.client.seek_to(new_time);
+                self.client.borrow_mut().seek_to(new_time);
             }
             self.clicked_pos = None;
         }
@@ -201,11 +201,11 @@ impl Queue {
         f.render_widget(b, chunk);
 
         //Left
-        let time = if self.client.queue.is_empty() {
+        let time = if self.client.borrow().queue.is_empty() {
             String::from("╭─Stopped")
-        } else if !self.client.paused {
-            let elapsed = self.client.elapsed;
-            let duration = self.client.duration;
+        } else if !self.client.borrow().paused {
+            let elapsed = self.client.borrow().elapsed;
+            let duration = self.client.borrow().duration;
 
             let mins = elapsed / 60.0;
             let rem = elapsed % 60.0;
@@ -224,17 +224,18 @@ impl Queue {
         f.render_widget(left, chunk);
 
         //Center
-        if !self.client.queue.is_empty() {
+        if !self.client.borrow().queue.is_empty() {
             self.draw_scrolling_text_old(f, chunk);
         }
 
         //Right
-        let text = Spans::from(format!("Vol: {}%─╮", self.client.volume));
+        let text = Spans::from(format!("Vol: {}%─╮", self.client.borrow().volume));
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
     fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        let center = if let Some(song) = &self.client.queue.selected() {
+        let client = self.client.borrow();
+        let center = if let Some(song) = client.queue.selected() {
             //I wish that paragraphs had clipping
             //I think constraints do
             //I could render the -| |- on a seperate layer
@@ -292,7 +293,7 @@ impl Queue {
         f.render_widget(p, chunk);
     }
     fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.client.queue.is_empty() {
+        if self.client.borrow().queue.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::LEFT | Borders::RIGHT)
@@ -302,8 +303,8 @@ impl Queue {
         }
 
         let (songs, now_playing, ui_index) = (
-            &self.client.queue.data,
-            self.client.queue.index,
+            &self.client.borrow().queue.data,
+            self.client.borrow().queue.index,
             self.ui.index,
         );
 
@@ -415,7 +416,7 @@ impl Queue {
         f.render_stateful_widget(t, chunk, &mut state);
     }
     fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.client.queue.is_empty() {
+        if self.client.borrow().queue.is_empty() {
             return f.render_widget(
                 Block::default()
                     .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
@@ -426,7 +427,7 @@ impl Queue {
 
         let area = f.size();
         let width = area.width;
-        let percent = self.client.elapsed / self.client.duration;
+        let percent = self.client.borrow().elapsed / self.client.borrow().duration;
         //TOOD: casting to usize could fail
         let pos = (f64::from(width) * percent) as usize;
 

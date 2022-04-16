@@ -11,6 +11,9 @@ use std::{
     thread,
 };
 
+type Artist = String;
+type Album = String;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Event {
     AddPath(String),
@@ -32,6 +35,9 @@ pub enum Event {
     GetPaused,
     GetVolume,
     GetQueue,
+    GetArtists,
+    GetAlbums(Artist),
+    GetSongs(Album, Artist),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -41,6 +47,7 @@ pub enum Response {
     Volume(u16),
     Queue(Queue),
     Update(Update),
+    Artists(Vec<String>),
 }
 
 pub struct Server {}
@@ -116,7 +123,6 @@ impl Server {
 
             //check if client wants to change player
             if let Ok(event) = er.try_recv() {
-                println!("Event received: {:?}", event);
                 match event {
                     Event::ShutDown => break,
                     Event::AddPath(path) => {
@@ -182,6 +188,11 @@ impl Server {
                     Event::GetPaused => rs.send(Response::Paused(player.is_paused())).unwrap(),
                     Event::GetVolume => rs.send(Response::Volume(player.volume)).unwrap(),
                     Event::GetQueue => queue(&player),
+                    Event::GetArtists => {
+                        let artists = db.get_all_artists();
+                        rs.send(Response::Artists(artists)).unwrap();
+                    }
+                    _ => (),
                 }
             }
         }
@@ -192,6 +203,7 @@ impl Server {
         es.send(Event::GetPaused).unwrap();
         es.send(Event::GetVolume).unwrap();
         es.send(Event::GetQueue).unwrap();
+        es.send(Event::GetArtists).unwrap();
 
         let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {
@@ -223,7 +235,7 @@ impl Server {
             }
 
             if let Ok(response) = rr.try_recv() {
-                println!("Received Response::{:?}", response);
+                println!("Server sent: {:?}", response);
                 let encode = bincode::serialize(&response).unwrap();
                 let size = encode.len() as u32;
 
@@ -259,6 +271,10 @@ pub struct Client {
     pub volume: u16,
     pub elapsed: f64,
     pub duration: f64,
+
+    pub artists: Vec<String>,
+    pub albums: Vec<String>,
+    pub songs: Vec<(u64, String)>,
 }
 
 impl Client {
@@ -278,8 +294,9 @@ impl Client {
                     //read the payload
                     let mut payload = vec![0; size as usize];
                     s.read_exact(&mut payload[..]).unwrap();
-
                     let res: Response = bincode::deserialize(&payload).unwrap();
+                    eprintln!("Size: {size}");
+                    eprintln!("Response: {:?}", res);
                     sender.send(res).unwrap();
                 }
             }
@@ -293,6 +310,9 @@ impl Client {
             volume: 0,
             elapsed: 0.0,
             duration: 0.0,
+            artists: Vec::new(),
+            albums: Vec::new(),
+            songs: Vec::new(),
         }
     }
     pub fn update(&mut self) {
@@ -309,6 +329,7 @@ impl Client {
                     self.duration = uq.duration;
                     self.queue.select(uq.index);
                 }
+                Response::Artists(a) => self.artists = a,
             }
         }
     }
@@ -380,6 +401,25 @@ impl Client {
     pub fn add_path(&mut self, path: String) {
         self.send(Event::AddPath(path));
     }
+    // pub fn update_albums(&mut self, i: Option<usize>) {
+    //     if let Some(i) = i {
+    //         if let Some(artist) = self.artists.get(i).cloned() {
+    //             self.send(Event::GetAlbums(artist));
+    //         };
+    //     }
+    // }
+    // pub fn update_songs(&mut self, album: Option<usize>, artist: Option<usize>) {
+    //     //TODO: wtf?
+    //     if let Some(album) = album {
+    //         if let Some(artist) = artist {
+    //             if let Some(artist) = self.artists.get(artist).cloned() {
+    //                 if let Some(album) = self.albums.get(album).cloned() {
+    //                     self.send(Event::GetSongs(album, artist));
+    //                 };
+    //             };
+    //         }
+    //     }
+    // }
 }
 
 impl Default for Client {

@@ -5,10 +5,12 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, ClientConfig, Database, Key, Modifier};
+use gonk_database::{Bind, ClientConfig, Key, Modifier};
 use gonk_tcp::Client;
 use static_init::dynamic;
+use std::cell::RefCell;
 use std::io::{stdout, Stdout};
+use std::rc::Rc;
 use std::time::Duration;
 use std::{
     sync::{
@@ -44,9 +46,6 @@ pub enum Mode {
 #[dynamic]
 static CONFIG: ClientConfig = ClientConfig::new();
 
-#[dynamic]
-static DB: Database = Database::new().unwrap();
-
 const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(4);
 const SEEK_TIME: f64 = 10.0;
@@ -56,7 +55,7 @@ pub struct App {
     pub mode: Mode,
     queue: Queue,
     browser: Browser,
-    pub db: Database,
+    client: Rc<RefCell<Client>>,
 }
 
 impl App {
@@ -76,22 +75,19 @@ impl App {
         enable_raw_mode().unwrap();
         terminal.clear().unwrap();
 
+        let client = Rc::new(RefCell::new(client));
+
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(client),
-            browser: Browser::new(),
-            // search: Search::new(),
-            db: Database::new().unwrap(),
+            queue: Queue::new(client.clone()),
+            browser: Browser::new(client.clone()),
+            client,
         }
     }
     fn on_update(&mut self) {
         optick::event!("on update");
-        if self.db.needs_update() {
-            self.browser.refresh();
-            self.db.stop();
-        }
-        self.queue.update();
+        self.browser.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
@@ -111,7 +107,7 @@ impl App {
             self.handle_global_hotkeys(&tx);
 
             self.terminal.draw(|f| match self.mode {
-                Mode::Browser => self.browser.draw(f, self.db.is_busy()),
+                Mode::Browser => self.browser.draw(f),
                 Mode::Queue => self.queue.draw(f),
             })?;
 
@@ -139,17 +135,17 @@ impl App {
                             //TODO: we should not send songs over tcp it should be ids only
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
-                                    let songs: Vec<u64> = self
-                                        .browser
-                                        .on_enter()
-                                        .iter()
-                                        .flat_map(|song| song.id)
-                                        .collect();
-                                    self.queue.client.add_ids(&songs);
+                                    // let songs: Vec<u64> = self
+                                    //     .browser
+                                    //     .on_enter()
+                                    //     .iter()
+                                    //     .flat_map(|song| song.id)
+                                    //     .collect();
+                                    //self.queue().add_ids(&songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index {
-                                        self.queue.client.play_index(i);
+                                        self.client.borrow_mut().play_index(i);
                                     }
                                 }
                             },
@@ -168,37 +164,41 @@ impl App {
                             _ if CONFIG.hotkey.left.contains(&bind) => self.browser.prev(),
                             _ if CONFIG.hotkey.right.contains(&bind) => self.browser.next(),
                             _ if CONFIG.hotkey.play_pause.contains(&bind) => {
-                                self.queue.client.toggle_playback()
+                                self.client.borrow_mut().toggle_playback()
                             }
                             _ if CONFIG.hotkey.clear.contains(&bind) => self.queue.clear(),
                             _ if CONFIG.hotkey.refresh_database.contains(&bind) => {
                                 todo!();
                             }
                             _ if CONFIG.hotkey.seek_backward.contains(&bind) => {
-                                self.queue.client.seek_by(-SEEK_TIME)
+                                self.client.borrow_mut().seek_by(-SEEK_TIME)
                             }
                             _ if CONFIG.hotkey.seek_forward.contains(&bind) => {
-                                self.queue.client.seek_by(SEEK_TIME)
+                                self.client.borrow_mut().seek_by(SEEK_TIME)
                             }
-                            _ if CONFIG.hotkey.previous.contains(&bind) => self.queue.client.prev(),
-                            _ if CONFIG.hotkey.next.contains(&bind) => self.queue.client.next(),
+                            _ if CONFIG.hotkey.previous.contains(&bind) => {
+                                self.client.borrow_mut().prev()
+                            }
+                            _ if CONFIG.hotkey.next.contains(&bind) => {
+                                self.client.borrow_mut().next()
+                            }
                             _ if CONFIG.hotkey.volume_up.contains(&bind) => {
-                                self.queue.client.volume_up()
+                                self.client.borrow_mut().volume_up()
                             }
                             _ if CONFIG.hotkey.volume_down.contains(&bind) => {
-                                self.queue.client.volume_down();
+                                self.client.borrow_mut().volume_down();
                             }
                             _ if CONFIG.hotkey.search.contains(&bind) => (),
                             _ if CONFIG.hotkey.options.contains(&bind) => (),
                             _ if CONFIG.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
-                                        self.queue.client.delete_song(i);
+                                        self.client.borrow_mut().delete_song(i);
                                     }
                                 }
                             }
                             _ if CONFIG.hotkey.random.contains(&bind) => {
-                                self.queue.client.randomize()
+                                self.client.borrow_mut().randomize()
                             }
                             _ => (),
                         }
@@ -238,14 +238,14 @@ impl App {
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => {
-                    self.queue.client.volume_up();
+                    self.client.borrow_mut().volume_up();
                 }
                 HotkeyEvent::VolDown => {
-                    self.queue.client.volume_down();
+                    self.client.borrow_mut().volume_down();
                 }
-                HotkeyEvent::PlayPause => self.queue.client.toggle_playback(),
-                HotkeyEvent::Prev => self.queue.client.prev(),
-                HotkeyEvent::Next => self.queue.client.next(),
+                HotkeyEvent::PlayPause => self.client.borrow_mut().toggle_playback(),
+                HotkeyEvent::Prev => self.client.borrow_mut().prev(),
+                HotkeyEvent::Next => self.client.borrow_mut().next(),
             }
         }
     }

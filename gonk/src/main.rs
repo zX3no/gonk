@@ -1,5 +1,5 @@
 use app::App;
-use gonk_database::{Database, GONK_DIR};
+use gonk_database::GONK_DIR;
 use gonk_tcp::Client;
 use std::io::Result;
 mod app;
@@ -11,7 +11,6 @@ fn main() -> Result<()> {
     optick::event!("main");
 
     let args: Vec<_> = std::env::args().skip(1).collect();
-    //TODO: remove
     let mut client = Client::new();
 
     if let Some(first) = args.first() {
@@ -24,11 +23,6 @@ fn main() -> Result<()> {
             }
             "config" => {
                 println!("Gonk directory:  {}", GONK_DIR.to_string_lossy());
-                return Ok(());
-            }
-            "reset" | "rm" => {
-                Database::delete();
-                println!("Database reset!");
                 return Ok(());
             }
             "help" => {
