@@ -87,6 +87,7 @@ impl App {
     }
     fn on_update(&mut self) {
         optick::event!("on update");
+        self.queue.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();

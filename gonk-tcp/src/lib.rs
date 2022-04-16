@@ -49,6 +49,14 @@ pub enum Response {
     Album(Vec<Song>),
 }
 
+//TODO
+#[derive(Serialize, Deserialize, Debug)]
+pub enum State {
+    Playing,
+    Paused,
+    Stopped,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Browser {
     artists: Vec<String>,

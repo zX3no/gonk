@@ -89,8 +89,8 @@ impl Server {
             }
 
             //send the position of the player
-            //rounding is an optimisation to update every half a second.
-            let e = player.elapsed().round();
+            //rounding is an optimisation to update every second.
+            let e = player.elapsed().trunc();
             if elapsed != e {
                 elapsed = e;
                 rs.send(Response::Elapsed(player.elapsed())).unwrap();

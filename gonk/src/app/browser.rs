@@ -47,7 +47,34 @@ impl Browser {
             client,
         }
     }
-    pub fn on_enter(&self) {}
+    pub fn on_enter(&self) {
+        let mut client = self.client.borrow_mut();
+
+        //TODO: we can send the ids but we should also copy the data over to the queue
+        if let Some(artist) = client.artists.selected().cloned() {
+            if let Some(song) = client.songs.selected() {
+                match self.mode {
+                    Mode::Artist => {
+                        client.play_artist(artist);
+                    }
+                    Mode::Album => {
+                        let ids: Vec<u64> = client
+                            .songs
+                            .data
+                            .iter()
+                            .filter_map(|song| song.id)
+                            .collect();
+                        client.add_ids(&ids);
+                    }
+                    Mode::Song => {
+                        if let Some(id) = song.id {
+                            client.add_ids(&[id]);
+                        }
+                    }
+                }
+            }
+        }
+    }
     pub fn prev(&mut self) {
         self.mode.prev();
     }
@@ -141,7 +168,7 @@ impl Browser {
             .songs
             .data
             .iter()
-            .map(|song| ListItem::new(format!("{}. {}", song.0, song.1)))
+            .map(|song| ListItem::new(format!("{}. {}", song.number, song.name)))
             .collect();
 
         let artists = List::new(a)

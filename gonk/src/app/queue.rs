@@ -87,7 +87,6 @@ impl Queue {
             self.ui.select(Some(0));
         }
         self.scroll_text.next();
-        self.client.borrow_mut().update();
     }
     #[allow(unused)]
     fn update_text(&mut self) {
