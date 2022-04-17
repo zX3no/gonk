@@ -1,7 +1,7 @@
 use crate::{Artist, Browser, Event, MinSong, Queue, Response, Update, CONFIG};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use gonk_database::{Database, ServerConfig};
-use gonk_types::Index;
+use gonk_core::Index;
+use gonk_core::{Database, ServerConfig};
 use rodio::Player;
 use std::{
     io::{Read, Write},

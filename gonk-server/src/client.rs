@@ -1,6 +1,6 @@
 use crate::{Event, MinSong, Response, CONFIG};
 use crossbeam_channel::{unbounded, Receiver};
-use gonk_types::Index;
+use gonk_core::Index;
 use std::{
     io::{Read, Write},
     net::TcpStream,

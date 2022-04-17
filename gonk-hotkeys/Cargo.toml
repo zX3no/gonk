@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 win-hotkey = {git = "https://github.com/zX3no/win-hotkey"}
-gonk-database = { path = "../gonk-database" }
+gonk-core = { path = "../gonk-core" }
 gonk-server = {path = "../gonk-server"}

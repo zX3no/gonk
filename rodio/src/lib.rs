@@ -5,7 +5,7 @@ pub use cpal::{
     SupportedStreamConfig,
 };
 use decoder::Decoder;
-use gonk_types::{Index, Song};
+use gonk_core::{Index, Song};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 

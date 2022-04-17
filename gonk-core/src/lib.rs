@@ -1,7 +1,9 @@
 pub use crate::{
     client::{ClientConfig, Colors},
     hotkey::HotkeyConfig,
+    index::Index,
     server::ServerConfig,
+    song::Song,
     sqlite::Database,
 };
 
@@ -15,7 +17,9 @@ use win_hotkey::{keys, modifiers};
 
 mod client;
 mod hotkey;
+mod index;
 mod server;
+mod song;
 mod sqlite;
 
 #[dynamic]

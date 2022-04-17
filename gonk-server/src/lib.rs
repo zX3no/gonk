@@ -1,5 +1,5 @@
-use gonk_database::ServerConfig;
-use gonk_types::{Index, Song};
+use gonk_core::ServerConfig;
+use gonk_core::{Index, Song};
 use serde::{Deserialize, Serialize};
 use static_init::dynamic;
 pub use {client::Client, server::Server};

@@ -1,6 +1,5 @@
-use crate::{CONFIG_DIR, DB_DIR, GONK_DIR};
+use crate::{Song, CONFIG_DIR, DB_DIR, GONK_DIR};
 use dpc_pariter::IteratorExt;
-use gonk_types::Song;
 use jwalk::WalkDir;
 use rusqlite::{params, Connection, Params, Row};
 use std::{

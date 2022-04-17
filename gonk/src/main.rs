@@ -1,5 +1,5 @@
 use app::App;
-use gonk_database::GONK_DIR;
+use gonk_core::GONK_DIR;
 use gonk_server::Client;
 use std::io::Result;
 mod app;

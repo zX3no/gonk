@@ -1,7 +1,7 @@
 use super::{Mode as AppMode, DB, TOML};
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_types::Index;
+use gonk_core::Index;
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -193,7 +193,7 @@ impl Search {
             }
         }
     }
-    pub fn on_enter(&mut self) -> Option<Vec<gonk_types::Song>> {
+    pub fn on_enter(&mut self) -> Option<Vec<gonk_core::Song>> {
         match self.mode {
             Mode::Search => {
                 if !self.results.is_empty() {

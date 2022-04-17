@@ -5,7 +5,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, ClientConfig, Key, Modifier};
+use gonk_core::{Bind, ClientConfig, Key, Modifier};
 use gonk_server::Client;
 use static_init::dynamic;
 use std::cell::RefCell;

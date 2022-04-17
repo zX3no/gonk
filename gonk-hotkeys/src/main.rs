@@ -1,4 +1,4 @@
-use gonk_database::HotkeyConfig;
+use gonk_core::HotkeyConfig;
 use gonk_server::Client;
 use win_hotkey::{keys, modifiers, Listener};
 
