@@ -9,6 +9,7 @@ pub struct HotkeyConfig {
     pub volume_down: Bind,
     pub next: Bind,
     pub previous: Bind,
+    pub quit: Bind,
 }
 
 impl HotkeyConfig {
@@ -25,7 +26,7 @@ impl HotkeyConfig {
                 }
             }
         } else {
-            HotkeyConfig {
+            let toml = HotkeyConfig {
                 play_pause: Bind {
                     key: Key::from("CAPSLOCK"),
                     modifiers: Some(vec![Modifier::Shift]),
@@ -46,7 +47,13 @@ impl HotkeyConfig {
                     key: Key::from("Q"),
                     modifiers: Some(vec![Modifier::Shift, Modifier::Alt]),
                 },
-            }
+                quit: Bind {
+                    key: Key::from("Z"),
+                    modifiers: Some(vec![Modifier::Shift, Modifier::Control, Modifier::Alt]),
+                },
+            };
+            toml.write();
+            toml
         }
     }
     pub fn write(&self) {
