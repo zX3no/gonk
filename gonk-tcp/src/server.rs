@@ -7,6 +7,7 @@ use std::{
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     thread,
+    time::Duration,
 };
 
 pub struct Server {}
@@ -81,23 +82,25 @@ impl Server {
             }
         };
 
-        let mut elapsed = 0.0;
+        let mut old_elapsed = 0.0;
         loop {
-            if player.elapsed() > player.duration {
+            let elapsed = player.elapsed();
+            if elapsed > player.duration {
                 player.next_song();
                 update(&player);
             }
 
             //send the position of the player
             //rounding is an optimisation to update every second.
-            let e = player.elapsed().trunc();
-            if elapsed != e {
-                elapsed = e;
-                rs.send(Response::Elapsed(player.elapsed())).unwrap();
+            let trunc = elapsed.trunc();
+            if old_elapsed != trunc {
+                old_elapsed = trunc;
+                rs.send(Response::Elapsed(elapsed)).unwrap();
             }
 
-            //check if client wants to change player
-            if let Ok(event) = er.try_recv() {
+            //if this isn't semi-blocking it will waste cpu cycles
+            //16ms is probablby super over kill could change to 200ms.
+            if let Ok(event) = er.recv_timeout(Duration::from_millis(16)) {
                 match event {
                     Event::ShutDown => break,
                     Event::AddPath(path) => {
@@ -232,9 +235,7 @@ impl Server {
             //quit when the client disconnects
             if handle.is_finished() {
                 return;
-            }
-
-            if let Ok(response) = rr.try_recv() {
+            } else if let Ok(response) = rr.recv() {
                 let encode = bincode::serialize(&response).unwrap();
                 let size = encode.len() as u32;
                 stream.write_all(&size.to_le_bytes()).unwrap();
