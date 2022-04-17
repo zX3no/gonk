@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     optick::event!("main");
 
     let args: Vec<_> = std::env::args().skip(1).collect();
-    let mut client = Client::new();
+    let mut client = Client::new().sync();
 
     if let Some(first) = args.first() {
         match first as &str {

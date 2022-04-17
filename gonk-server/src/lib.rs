@@ -11,6 +11,13 @@ mod server;
 static CONFIG: ServerConfig = ServerConfig::new();
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum State {
+    Playing,
+    Paused,
+    Stopped,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Event {
     AddPath(String),
     Add(Vec<u64>),
@@ -29,7 +36,7 @@ pub enum Event {
     Randomize,
 
     GetElapsed,
-    GetPaused,
+    GetState,
     GetVolume,
     GetQueue,
     GetBrowser,
@@ -40,21 +47,13 @@ pub enum Event {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     Elapsed(f64),
-    Paused(bool),
+    State(State),
     Volume(u16),
     Queue(Queue),
     Update(Update),
     Browser(Browser),
     Artist(Artist),
     Album(Vec<MinSong>),
-}
-
-//TODO
-#[derive(Serialize, Deserialize, Debug)]
-pub enum State {
-    Playing,
-    Paused,
-    Stopped,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -1,4 +1,4 @@
-use crate::{Artist, Browser, Event, MinSong, Queue, Response, Update, CONFIG};
+use crate::{Artist, Browser, Event, MinSong, Queue, Response, State, Update, CONFIG};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use gonk_core::Index;
 use gonk_core::{Database, ServerConfig};
@@ -163,7 +163,16 @@ impl Server {
                         // update(&player);
                     }
                     Event::GetElapsed => rs.send(Response::Elapsed(player.elapsed())).unwrap(),
-                    Event::GetPaused => rs.send(Response::Paused(player.is_paused())).unwrap(),
+                    Event::GetState => {
+                        let state = if player.songs.is_empty() {
+                            State::Stopped
+                        } else if player.is_paused() {
+                            State::Paused
+                        } else {
+                            State::Playing
+                        };
+                        rs.send(Response::State(state)).unwrap();
+                    }
                     Event::GetVolume => rs.send(Response::Volume(player.volume)).unwrap(),
                     Event::GetQueue => queue(&player),
                     Event::GetBrowser => {
@@ -200,14 +209,9 @@ impl Server {
             }
         }
     }
-
+    //TODO: the server cannont handle multiple clients
+    //the performance degrades significantly
     fn handle_client(mut stream: TcpStream, es: Sender<Event>, rr: Receiver<Response>) {
-        //update the clients data on connect
-        es.send(Event::GetPaused).unwrap();
-        es.send(Event::GetVolume).unwrap();
-        es.send(Event::GetQueue).unwrap();
-        es.send(Event::GetBrowser).unwrap();
-
         let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {
             let mut buf = [0u8; 4];
@@ -222,8 +226,8 @@ impl Server {
                         let mut payload = vec![0; size as usize];
                         s.read_exact(&mut payload[..]).unwrap();
 
-                        let request = bincode::deserialize(&payload).unwrap();
-                        println!("Server received: {:?}", request);
+                        let request: Event = bincode::deserialize(&payload).unwrap();
+                        // println!("Server received: {:?}", request);
                         es.send(request).unwrap();
                     }
                     Err(e) => return println!("{}", e),
@@ -245,7 +249,7 @@ impl Server {
                 stream.write_all(&size.to_le_bytes()).unwrap();
                 stream.write_all(&encode).unwrap();
 
-                println!("Server sent: {:?}", response);
+                // println!("Server sent: {:?}", response);
             }
         }
     }

@@ -1,4 +1,4 @@
-use crate::{Event, MinSong, Response, CONFIG};
+use crate::{Event, MinSong, Response, State, CONFIG};
 use crossbeam_channel::{unbounded, Receiver};
 use gonk_core::Index;
 use std::{
@@ -11,7 +11,7 @@ pub struct Client {
     stream: TcpStream,
     receiver: Receiver<Response>,
     pub queue: Index<MinSong>,
-    pub paused: bool,
+    pub state: State,
     pub volume: u16,
     pub elapsed: f64,
     pub duration: f64,
@@ -47,7 +47,7 @@ impl Client {
             stream,
             receiver,
             queue: Index::default(),
-            paused: false,
+            state: State::Stopped,
             volume: 0,
             elapsed: 0.0,
             duration: 0.0,
@@ -60,7 +60,7 @@ impl Client {
         if let Ok(response) = self.receiver.try_recv() {
             match response {
                 Response::Elapsed(e) => self.elapsed = e,
-                Response::Paused(p) => self.paused = p,
+                Response::State(s) => self.state = s,
                 Response::Volume(v) => self.volume = v,
                 Response::Queue(q) => {
                     self.queue = q.songs;
@@ -119,9 +119,6 @@ impl Client {
     }
     pub fn toggle_playback(&mut self) {
         self.send(Event::TogglePlayback);
-
-        //HACK: this might get out of sync
-        self.paused = !self.paused;
     }
     pub fn add_ids(&mut self, ids: &[u64]) {
         self.send(Event::Add(ids.to_vec()));
@@ -159,6 +156,14 @@ impl Client {
     }
     pub fn update_album(&mut self, album: String, artist: String) {
         self.send(Event::GetAlbum(album, artist));
+    }
+    #[must_use]
+    pub fn sync(mut self) -> Self {
+        self.send(Event::GetBrowser);
+        self.send(Event::GetQueue);
+        self.send(Event::GetVolume);
+        self.send(Event::GetState);
+        self
     }
 }
 

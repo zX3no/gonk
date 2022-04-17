@@ -198,23 +198,23 @@ impl Queue {
         f.render_widget(b, chunk);
 
         //Left
-        let time = if self.client.borrow().queue.is_empty() {
-            String::from("╭─Stopped")
-        } else if !self.client.borrow().paused {
-            let elapsed = self.client.borrow().elapsed;
-            let duration = self.client.borrow().duration;
+        let time = match self.client.borrow().state {
+            gonk_server::State::Playing => {
+                let elapsed = self.client.borrow().elapsed;
+                let duration = self.client.borrow().duration;
 
-            let mins = elapsed / 60.0;
-            let rem = elapsed % 60.0;
-            let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+                let mins = elapsed / 60.0;
+                let rem = elapsed % 60.0;
+                let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
-            let mins = duration / 60.0;
-            let rem = duration % 60.0;
-            let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
+                let mins = duration / 60.0;
+                let rem = duration % 60.0;
+                let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
 
-            format!("╭─{}/{}", e, d)
-        } else {
-            String::from("╭─Paused")
+                format!("╭─{}/{}", e, d)
+            }
+            gonk_server::State::Paused => String::from("╭─Paused"),
+            gonk_server::State::Stopped => String::from("╭─Stopped"),
         };
 
         let left = Paragraph::new(time).alignment(Alignment::Left);
