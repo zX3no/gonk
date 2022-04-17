@@ -232,10 +232,14 @@ impl Server {
         });
 
         loop {
-            //quit when the client disconnects
-            if handle.is_finished() {
-                return;
-            } else if let Ok(response) = rr.recv() {
+            if let Ok(response) = rr.recv() {
+                //quit when client disconnects
+                //keep in mind if no events are sent
+                //this won't be checked
+                if handle.is_finished() {
+                    return;
+                }
+
                 let encode = bincode::serialize(&response).unwrap();
                 let size = encode.len() as u32;
                 stream.write_all(&size.to_le_bytes()).unwrap();
