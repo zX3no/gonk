@@ -1,154 +1,7 @@
-use crate::CLIENT_CONFIG;
-use crossterm::event::{KeyCode, KeyModifiers};
+use crate::{Bind, Key, Modifier, CLIENT_CONFIG};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tui::style::Color;
-
-//TODO: test on linux
-#[cfg(windows)]
-use win_hotkey::{keys, modifiers};
-
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum Modifier {
-    CONTROL,
-    SHIFT,
-    ALT,
-}
-
-impl Modifier {
-    #[cfg(windows)]
-    pub fn as_u32(&self) -> u32 {
-        match self {
-            Modifier::CONTROL => modifiers::CONTROL,
-            Modifier::SHIFT => modifiers::SHIFT,
-            Modifier::ALT => modifiers::ALT,
-        }
-    }
-    pub fn from_u32(m: KeyModifiers) -> Option<Vec<Self>> {
-        //TODO: this doesn't support triple modfifier combos
-        //plus this is stupid, surely there is a better way
-        match m.bits() {
-            0b0000_0001 => Some(vec![Modifier::SHIFT]),
-            0b0000_0100 => Some(vec![Modifier::ALT]),
-            0b0000_0010 => Some(vec![Modifier::CONTROL]),
-            3 => Some(vec![Modifier::CONTROL, Modifier::SHIFT]),
-            5 => Some(vec![Modifier::ALT, Modifier::SHIFT]),
-            6 => Some(vec![Modifier::CONTROL, Modifier::ALT]),
-            _ => None,
-        }
-    }
-}
-
-impl From<&Modifier> for KeyModifiers {
-    fn from(m: &Modifier) -> Self {
-        match m {
-            Modifier::CONTROL => KeyModifiers::CONTROL,
-            Modifier::SHIFT => KeyModifiers::SHIFT,
-            Modifier::ALT => KeyModifiers::ALT,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct Key(pub String);
-
-impl From<&str> for Key {
-    fn from(key: &str) -> Self {
-        Self(key.to_string())
-    }
-}
-
-impl From<KeyCode> for Key {
-    fn from(item: KeyCode) -> Self {
-        match item {
-            KeyCode::Char(' ') => Key::from("SPACE"),
-            KeyCode::Char(c) => Key(c.to_string().to_ascii_uppercase()),
-            KeyCode::Backspace => Key::from("BACKSPACE"),
-            KeyCode::Enter => Key::from("ENTER"),
-            KeyCode::Left => Key::from("LEFT"),
-            KeyCode::Right => Key::from("RIGHT"),
-            KeyCode::Up => Key::from("UP"),
-            KeyCode::Down => Key::from("DOWN"),
-            KeyCode::Home => Key::from("HOME"),
-            KeyCode::End => Key::from("END"),
-            KeyCode::PageUp => Key::from("PAGEUP"),
-            KeyCode::PageDown => Key::from("PAGEDOWN"),
-            KeyCode::Tab => Key::from("TAB"),
-            KeyCode::BackTab => Key::from("BACKTAB"),
-            KeyCode::Delete => Key::from("DELETE"),
-            KeyCode::Insert => Key::from("INSERT"),
-            KeyCode::F(num) => Key(format!("F{num}")),
-            KeyCode::Null => Key::from("NULL"),
-            KeyCode::Esc => Key::from("ESCAPE"),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct Bind {
-    pub key: Key,
-    pub modifiers: Option<Vec<Modifier>>,
-}
-
-impl Bind {
-    pub fn new(key: &str) -> Self {
-        Self {
-            key: Key::from(key),
-            modifiers: None,
-        }
-    }
-
-    #[cfg(windows)]
-    pub fn modifiers(&self) -> u32 {
-        if let Some(m) = &self.modifiers {
-            m.iter().map(Modifier::as_u32).sum()
-        } else {
-            0
-        }
-    }
-
-    #[cfg(windows)]
-    pub fn key(&self) -> u32 {
-        match self.key.0.as_str() {
-            "SPACE" => keys::SPACEBAR,
-            "BACKSPACE" => keys::BACKSPACE,
-            "ENTER" => keys::ENTER,
-            "UP" => keys::ARROW_UP,
-            "DOWN" => keys::ARROW_DOWN,
-            "LEFT" => keys::ARROW_LEFT,
-            "RIGHT" => keys::ARROW_RIGHT,
-            "HOME" => keys::HOME,
-            "END" => keys::END,
-            "PAGEUP" => keys::PAGE_UP,
-            "PAGEDOWN" => keys::PAGE_DOWN,
-            "TAB" => keys::TAB,
-            "DELETE" => keys::DELETE,
-            "INSERT" => keys::INSERT,
-            "ESCAPE" => keys::ESCAPE,
-            "CAPSLOCK" => keys::CAPS_LOCK,
-            key => {
-                if let Some(char) = key.chars().next() {
-                    char as u32
-                } else {
-                    0
-                }
-            }
-        }
-    }
-}
-
-#[cfg(windows)]
-#[test]
-fn test() {
-    let b = Bind {
-        key: Key::from("A"),
-        modifiers: Some(vec![Modifier::ALT, Modifier::SHIFT]),
-    };
-    assert_eq!(Bind::new("A").key(), 'A' as u32);
-    assert_eq!(Bind::new("TAB").key(), keys::TAB);
-    assert_eq!(b.modifiers(), modifiers::ALT | modifiers::SHIFT);
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Hotkey {
@@ -174,15 +27,6 @@ pub struct Hotkey {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct GlobalHotkey {
-    pub play_pause: Bind,
-    pub volume_up: Bind,
-    pub volume_down: Bind,
-    pub next: Bind,
-    pub previous: Bind,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
 pub struct Colors {
     pub track: Color,
     pub title: Color,
@@ -194,7 +38,6 @@ pub struct Colors {
 pub struct ClientConfig {
     pub colors: Colors,
     pub hotkey: Hotkey,
-    pub global_hotkey: GlobalHotkey,
 }
 
 impl ClientConfig {
@@ -217,28 +60,6 @@ impl ClientConfig {
                     title: Color::Cyan,
                     album: Color::Magenta,
                     artist: Color::Blue,
-                },
-                global_hotkey: GlobalHotkey {
-                    play_pause: Bind {
-                        key: Key::from("CAPSLOCK"),
-                        modifiers: Some(vec![Modifier::SHIFT]),
-                    },
-                    volume_up: Bind {
-                        key: Key::from("2"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    volume_down: Bind {
-                        key: Key::from("1"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    next: Bind {
-                        key: Key::from("W"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    previous: Bind {
-                        key: Key::from("Q"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
                 },
                 hotkey: Hotkey {
                     up: vec![
@@ -339,7 +160,7 @@ impl ClientConfig {
                     }],
                     quit: vec![Bind {
                         key: Key::from("C"),
-                        modifiers: Some(vec![Modifier::CONTROL]),
+                        modifiers: Some(vec![Modifier::Control]),
                     }],
                 },
             };

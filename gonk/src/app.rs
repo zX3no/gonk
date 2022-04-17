@@ -12,28 +12,13 @@ use std::cell::RefCell;
 use std::io::{stdout, Stdout};
 use std::rc::Rc;
 use std::time::Duration;
-use std::{
-    sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
-    time::Instant,
-};
+use std::time::Instant;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use {browser::Browser, queue::Queue};
 
 mod browser;
 mod queue;
-
-#[derive(Debug, Clone)]
-enum HotkeyEvent {
-    PlayPause,
-    Next,
-    Prev,
-    VolUp,
-    VolDown,
-}
 
 #[derive(PartialEq, Debug)]
 pub enum Mode {
@@ -92,9 +77,6 @@ impl App {
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
 
-        #[cfg(windows)]
-        let tx = App::register_hotkeys();
-
         loop {
             optick::event!("loop");
 
@@ -107,9 +89,6 @@ impl App {
                 Mode::Browser => self.browser.draw(f),
                 Mode::Queue => self.queue.draw(f),
             })?;
-
-            #[cfg(windows)]
-            self.handle_global_hotkeys(&tx);
 
             self.client.borrow_mut().update();
 
@@ -234,68 +213,6 @@ impl App {
             Mode::Browser => self.browser.down(),
             Mode::Queue => self.queue.down(),
         }
-    }
-
-    fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>) {
-        optick::event!("handle hotkeys");
-        if let Ok(recv) = tx.try_recv() {
-            match recv {
-                HotkeyEvent::VolUp => {
-                    self.client.borrow_mut().volume_up();
-                }
-                HotkeyEvent::VolDown => {
-                    self.client.borrow_mut().volume_down();
-                }
-                HotkeyEvent::PlayPause => self.client.borrow_mut().toggle_playback(),
-                HotkeyEvent::Prev => self.client.borrow_mut().prev(),
-                HotkeyEvent::Next => self.client.borrow_mut().next(),
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    fn register_hotkeys() -> Receiver<HotkeyEvent> {
-        use win_hotkey::{keys, modifiers, Listener};
-
-        optick::event!("register hotkeys");
-
-        let (rx, tx) = mpsc::sync_channel(1);
-        let rx = Arc::new(rx);
-        std::thread::spawn(move || {
-            let mut hk = Listener::<HotkeyEvent>::new();
-            hk.register_hotkey(
-                CONFIG.global_hotkey.volume_up.modifiers(),
-                CONFIG.global_hotkey.volume_up.key(),
-                HotkeyEvent::VolUp,
-            );
-            hk.register_hotkey(
-                CONFIG.global_hotkey.volume_down.modifiers(),
-                CONFIG.global_hotkey.volume_down.key(),
-                HotkeyEvent::VolDown,
-            );
-            hk.register_hotkey(
-                CONFIG.global_hotkey.previous.modifiers(),
-                CONFIG.global_hotkey.previous.key(),
-                HotkeyEvent::Prev,
-            );
-            hk.register_hotkey(
-                CONFIG.global_hotkey.next.modifiers(),
-                CONFIG.global_hotkey.next.key(),
-                HotkeyEvent::Next,
-            );
-            hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
-            loop {
-                if let Some(event) = hk.listen() {
-                    rx.send(event.clone()).unwrap();
-                }
-            }
-        });
-        tx
-    }
-
-    #[cfg(unix)]
-    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
-        todo!();
     }
 }
 
