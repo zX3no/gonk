@@ -46,7 +46,7 @@ pub enum Response {
     Update(Update),
     Browser(Browser),
     Artist(Artist),
-    Album(Vec<Song>),
+    Album(Vec<MinSong>),
 }
 
 //TODO
@@ -66,12 +66,12 @@ pub struct Browser {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Artist {
     album_names: Vec<String>,
-    selected_album: Vec<Song>,
+    selected_album: Vec<MinSong>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Queue {
-    pub songs: Index<Song>,
+    pub songs: Index<MinSong>,
     pub duration: f64,
 }
 
@@ -84,4 +84,25 @@ pub struct Queue {
 pub struct Update {
     pub index: Option<usize>,
     pub duration: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MinSong {
+    pub number: u64,
+    pub name: String,
+    pub album: String,
+    pub artist: String,
+    pub id: Option<u64>,
+}
+
+impl From<Song> for MinSong {
+    fn from(song: Song) -> Self {
+        Self {
+            number: song.number,
+            name: song.name,
+            album: song.album,
+            artist: song.artist,
+            id: song.id,
+        }
+    }
 }

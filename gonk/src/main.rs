@@ -1,6 +1,6 @@
 use app::App;
 use gonk_database::GONK_DIR;
-use gonk_tcp::Client;
+use gonk_server::Client;
 use std::io::Result;
 mod app;
 mod widget;

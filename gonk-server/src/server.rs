@@ -1,11 +1,12 @@
-use crate::{Artist, Browser, Event, Queue, Response, Update, CONFIG};
+use crate::{Artist, Browser, Event, MinSong, Queue, Response, Update, CONFIG};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use gonk_database::{Database, ServerConfig};
+use gonk_types::Index;
 use rodio::Player;
 use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::{Path, PathBuf},
+    path::Path,
     thread,
     time::Duration,
 };
@@ -15,6 +16,8 @@ pub struct Server {}
 impl Server {
     pub fn run() {
         let listener = TcpListener::bind(CONFIG.ip()).unwrap();
+        println!("Server running @ {}", CONFIG.ip());
+
         let (request_s, request_r) = unbounded();
         let (event_s, event_r) = unbounded();
 
@@ -44,15 +47,12 @@ impl Server {
         let mut config = ServerConfig::new();
 
         let queue = |player: &Player| {
-            let mut songs = player.songs.clone();
-
-            //HACK: remove the path so there's less data to send
-            for song in &mut songs.data {
-                song.path = PathBuf::default();
-            }
+            let queue = player.songs.clone();
+            let index = queue.index;
+            let songs = queue.data.into_iter().map(MinSong::from).collect();
 
             rs.send(Response::Queue(Queue {
-                songs,
+                songs: Index::new(songs, index),
                 duration: player.duration,
             }))
             .unwrap();
@@ -73,7 +73,7 @@ impl Server {
             let songs = db
                 .get_songs_from_album(album, &artist)
                 .into_iter()
-                .map(|song| song.nuke_useless())
+                .map(MinSong::from)
                 .collect();
 
             Artist {
@@ -185,7 +185,7 @@ impl Server {
                         let songs = db
                             .get_songs_from_album(&album, &artist)
                             .into_iter()
-                            .map(|song| song.nuke_useless())
+                            .map(MinSong::from)
                             .collect();
 
                         rs.send(Response::Album(songs)).unwrap();

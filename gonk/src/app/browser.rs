@@ -1,5 +1,5 @@
 use crate::widget::{List, ListItem, ListState};
-use gonk_tcp::Client;
+use gonk_server::Client;
 use std::{cell::RefCell, rc::Rc};
 use tui::{
     backend::Backend,

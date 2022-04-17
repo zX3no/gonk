@@ -1,6 +1,6 @@
-use crate::{Event, Response, CONFIG};
+use crate::{Event, MinSong, Response, CONFIG};
 use crossbeam_channel::{unbounded, Receiver};
-use gonk_types::{Index, Song};
+use gonk_types::Index;
 use std::{
     io::{Read, Write},
     net::TcpStream,
@@ -10,7 +10,7 @@ use std::{
 pub struct Client {
     stream: TcpStream,
     receiver: Receiver<Response>,
-    pub queue: Index<Song>,
+    pub queue: Index<MinSong>,
     pub paused: bool,
     pub volume: u16,
     pub elapsed: f64,
@@ -18,7 +18,7 @@ pub struct Client {
 
     pub artists: Index<String>,
     pub albums: Index<String>,
-    pub songs: Index<Song>,
+    pub songs: Index<MinSong>,
 }
 
 impl Client {

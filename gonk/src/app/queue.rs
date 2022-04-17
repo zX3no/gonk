@@ -1,7 +1,7 @@
 use super::CONFIG;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_tcp::Client;
+use gonk_server::Client;
 use gonk_types::Index;
 use std::cell::RefCell;
 use std::rc::Rc;
