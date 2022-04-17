@@ -28,7 +28,7 @@ impl HotkeyConfig {
         } else {
             let toml = HotkeyConfig {
                 play_pause: Bind {
-                    key: Key::from("CAPSLOCK"),
+                    key: Key::from("ESCAPE"),
                     modifiers: Some(vec![Modifier::Shift]),
                 },
                 volume_up: Bind {

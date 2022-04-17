@@ -38,12 +38,12 @@ impl Server {
         }
         println!("Server shutting down.");
     }
-    fn write(mut stream: TcpStream, response: Response) {
+    fn write(mut stream: &TcpStream, response: Response) {
         let encode = bincode::serialize(&response).unwrap();
         let size = encode.len() as u32;
         stream.write_all(&size.to_le_bytes()).unwrap();
         stream.write_all(&encode).unwrap();
-        println!("{}: {:?}", stream.peer_addr().unwrap(), response);
+        // println!("{}: {:?}", stream.peer_addr().unwrap(), response);
     }
     fn player_loop(er: Receiver<(TcpStream, Event)>, rs: Sender<Response>) {
         let mut player = Player::new(0);
@@ -88,13 +88,15 @@ impl Server {
         };
 
         let state = |player: &Player| -> Response {
-            Response::State(if player.songs.is_empty() {
+            let state = if player.songs.is_empty() {
                 State::Stopped
             } else if player.is_paused() {
                 State::Paused
             } else {
                 State::Playing
-            })
+            };
+
+            Response::State(state)
         };
 
         let mut old_elapsed = 0.0;
@@ -102,7 +104,7 @@ impl Server {
             let elapsed = player.elapsed();
             if elapsed > player.duration {
                 player.next_song();
-                update(&player);
+                rs.send(update(&player)).unwrap();
             }
 
             //send the position of the player
@@ -129,74 +131,64 @@ impl Server {
                         let songs = db.get_songs_from_id(&ids);
                         player.add_songs(songs);
 
-                        Server::write(stream, queue(&player));
+                        Server::write(&stream, queue(&player));
+                        rs.send(state(&player)).unwrap();
                     }
                     Event::TogglePlayback => {
                         player.toggle_playback();
-                        Server::write(stream, state(&player));
+                        Server::write(&stream, state(&player));
                     }
                     Event::VolumeDown => {
                         player.volume_down();
-                        //HACK
-                        // rs.send(Response::Volume(player.volume)).unwrap();
+                        //HACK: no response
                     }
                     Event::VolumeUp => {
                         player.volume_up();
-                        //HACK
-                        // rs.send(Response::Volume(player.volume)).unwrap();
+                        //HACK: no response
                     }
                     Event::Prev => {
                         player.prev_song();
-                        //HACK
-                        // update(&player);
+                        //HACK: no response
                     }
                     Event::Next => {
                         player.next_song();
-                        //HACK
-                        // update(&player);
+                        //HACK: no response
                     }
                     Event::ClearQueue => {
                         player.clear_songs();
-                        //HACK
-                        // Server::write(stream, queue(&player));
+                        //HACK: no response
                     }
                     Event::SeekBy(amount) => {
                         if player.seek_by(amount) {
-                            Server::write(stream, update(&player));
+                            Server::write(&stream, update(&player));
                         }
                     }
                     Event::SeekTo(pos) => {
                         if player.seek_to(pos) {
-                            Server::write(stream, update(&player));
+                            Server::write(&stream, update(&player));
                         }
                     }
                     Event::Delete(id) => {
                         player.delete_song(id);
-                        Server::write(stream, queue(&player));
+                        Server::write(&stream, queue(&player));
                     }
                     Event::Randomize => {
                         player.randomize();
-                        Server::write(stream, queue(&player));
+                        Server::write(&stream, queue(&player));
                     }
                     Event::PlayIndex(i) => {
                         player.play_index(i);
                         //HACK
-                        // Server::write(stream, update(&player));
+                        // Server::write(&stream, update(&player));
                     }
-                    Event::GetElapsed => rs.send(Response::Elapsed(player.elapsed())).unwrap(),
+                    Event::GetElapsed => {
+                        Server::write(&stream, Response::Elapsed(player.elapsed()))
+                    }
                     Event::GetState => {
-                        let state = if player.songs.is_empty() {
-                            State::Stopped
-                        } else if player.is_paused() {
-                            State::Paused
-                        } else {
-                            State::Playing
-                        };
-
-                        Server::write(stream, Response::State(state));
+                        Server::write(&stream, state(&player));
                     }
-                    Event::GetVolume => rs.send(Response::Volume(player.volume)).unwrap(),
-                    Event::GetQueue => Server::write(stream, queue(&player)),
+                    Event::GetVolume => Server::write(&stream, Response::Volume(player.volume)),
+                    Event::GetQueue => Server::write(&stream, queue(&player)),
                     Event::GetBrowser => {
                         let artists = db.get_all_artists();
                         if let Some(a) = db.get_all_artists().first() {
@@ -205,12 +197,13 @@ impl Server {
                                 artists,
                                 first_artist,
                             };
-                            Server::write(stream, Response::Browser(browser));
+
+                            Server::write(&stream, Response::Browser(browser));
                         }
                     }
                     Event::GetArtist(a) => {
                         let artist = artist(a);
-                        Server::write(stream, Response::Artist(artist));
+                        Server::write(&stream, Response::Artist(artist));
                     }
                     Event::GetAlbum(album, artist) => {
                         let songs = db
@@ -219,67 +212,53 @@ impl Server {
                             .map(MinSong::from)
                             .collect();
 
-                        Server::write(stream, Response::Album(songs));
+                        Server::write(&stream, Response::Album(songs));
                     }
                     Event::PlayArtist(artist) => {
                         let songs = db.get_songs_by_artist(&artist);
                         player.add_songs(songs);
 
-                        Server::write(stream, queue(&player));
+                        Server::write(&stream, queue(&player));
+                        Server::write(&stream, state(&player));
                     }
                 }
             }
         }
     }
-    //TODO: the server cannont handle multiple clients
-    //the performance degrades significantly
-    fn handle_client(
-        mut stream: TcpStream,
-        es: Sender<(TcpStream, Event)>,
-        _rr: Receiver<Response>,
-    ) {
+    fn handle_client(stream: TcpStream, es: Sender<(TcpStream, Event)>, rr: Receiver<Response>) {
+        let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {
             let mut buf = [0u8; 4];
             loop {
                 //read_exact is blocking(i think)
-                match stream.read_exact(&mut buf[..]) {
+                match s.read_exact(&mut buf[..]) {
                     Ok(_) => {
                         //get the payload size
                         let size = u32::from_le_bytes(buf);
 
                         //read the payload
                         let mut payload = vec![0; size as usize];
-                        stream.read_exact(&mut payload[..]).unwrap();
+                        s.read_exact(&mut payload[..]).unwrap();
 
                         let request: Event = bincode::deserialize(&payload).unwrap();
-                        println!("{}: {:?}", stream.peer_addr().unwrap(), request);
-                        es.send((stream.try_clone().unwrap(), request)).unwrap();
+                        println!("{}: {:?}", s.peer_addr().unwrap(), request);
+                        es.send((s.try_clone().unwrap(), request)).unwrap();
                     }
                     Err(e) => return println!("{}", e),
                 }
             }
         });
 
-        handle.join().unwrap();
-
-        //TODO: maybe some events should be sent to all clients?
-
-        // loop {
-        //     if let Ok(response) = rr.recv() {
-        //         //quit when client disconnects
-        //         //keep in mind if no events are sent
-        //         //this won't be checked
-        //         if handle.is_finished() {
-        //             return;
-        //         }
-
-        //         let encode = bincode::serialize(&response).unwrap();
-        //         let size = encode.len() as u32;
-        //         stream.write_all(&size.to_le_bytes()).unwrap();
-        //         stream.write_all(&encode).unwrap();
-
-        //         // println!("Server sent: {:?}", response);
-        //     }
-        // }
+        loop {
+            if let Ok(response) = rr.recv() {
+                //quit when client disconnects
+                //keep in mind if no events are sent
+                //this won't be checked
+                if handle.is_finished() {
+                    return;
+                }
+                Server::write(&stream, response);
+            }
+        }
     }
 }

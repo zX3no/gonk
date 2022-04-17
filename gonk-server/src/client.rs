@@ -127,6 +127,7 @@ impl Client {
         self.send(Event::ClearQueue);
         //HACK: this might get out of sync
         self.queue = Index::default();
+        self.state = State::Stopped;
     }
     pub fn seek_to(&mut self, pos: f64) {
         self.send(Event::SeekTo(pos))
