@@ -44,11 +44,18 @@ impl Server {
         stream.write_all(&size.to_le_bytes()).unwrap();
         stream.write_all(&encode).unwrap();
 
-        if let Some(res) = response.to_string().split_once('(') {
-            println!("{}: Response::{}", stream.peer_addr().unwrap(), res.0);
-        } else {
-            println!("{}: Response::{}", stream.peer_addr().unwrap(), response);
+        let response = match response {
+            Response::Elapsed(_)
+            | Response::State(_)
+            | Response::Volume(_)
+            | Response::Update(_) => format!("{:?}", response),
+            Response::Queue(_) => String::from("Queue"),
+            Response::Browser(_) => String::from("Browser"),
+            Response::Artist(_) => String::from("Artist"),
+            Response::Album(_) => String::from("Album"),
         };
+
+        println!("{}: Response::{}", stream.peer_addr().unwrap(), response);
     }
     fn player_loop(er: Receiver<(TcpStream, Event)>, rs: Sender<Response>) {
         let mut player = Player::new(0);

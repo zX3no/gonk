@@ -66,7 +66,7 @@ impl Client {
                     self.albums = Index::new(a.album_names, Some(0));
                     self.songs = Index::new(a.selected_album, Some(0));
                 }
-                Response::Album(songs) => self.songs = Index::new(songs, None),
+                Response::Album(songs) => self.songs = Index::new(songs, Some(0)),
             }
         }
     }
