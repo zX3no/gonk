@@ -1,4 +1,4 @@
-use crate::{Event, MinSong, Response, State, CONFIG};
+use crate::{MinSong, Request, Response, State, CONFIG};
 use gonk_core::Index;
 use std::{
     io::{Read, Write},
@@ -70,20 +70,20 @@ impl Client {
             }
         }
     }
-    fn send(&mut self, event: Event) {
-        let encode = bincode::serialize(&event).unwrap();
+    fn send(&mut self, request: Request) {
+        let encode = bincode::serialize(&request).unwrap();
         let size = encode.len() as u32;
 
         self.stream.write_all(&size.to_le_bytes()).unwrap();
         self.stream.write_all(&encode).unwrap();
     }
     pub fn volume_down(&mut self) {
-        self.send(Event::VolumeDown);
+        self.send(Request::VolumeDown);
         //HACK: this might get out of sync
         self.volume = self.volume.saturating_sub(5);
     }
     pub fn volume_up(&mut self) {
-        self.send(Event::VolumeUp);
+        self.send(Request::VolumeUp);
         //HACK: this might get out of sync
         let v = self.volume.saturating_add(5);
         if v > 100 {
@@ -93,64 +93,64 @@ impl Client {
         }
     }
     pub fn next(&mut self) {
-        self.send(Event::Next);
+        self.send(Request::Next);
 
         //HACK: this might get out of sync
         self.queue.down();
     }
     pub fn prev(&mut self) {
-        self.send(Event::Prev);
+        self.send(Request::Prev);
 
         //HACK: this might get out of sync
         self.queue.up();
     }
     pub fn toggle_playback(&mut self) {
-        self.send(Event::TogglePlayback);
+        self.send(Request::TogglePlayback);
     }
     pub fn add_ids(&mut self, ids: &[u64]) {
-        self.send(Event::Add(ids.to_vec()));
+        self.send(Request::Add(ids.to_vec()));
     }
     pub fn clear_songs(&mut self) {
-        self.send(Event::ClearQueue);
+        self.send(Request::ClearQueue);
         //HACK: this might get out of sync
         self.queue = Index::default();
         self.state = State::Stopped;
     }
     pub fn seek_to(&mut self, pos: f64) {
-        self.send(Event::SeekTo(pos))
+        self.send(Request::SeekTo(pos))
     }
     pub fn seek_by(&mut self, amount: f64) {
-        self.send(Event::SeekBy(amount))
+        self.send(Request::SeekBy(amount))
     }
     pub fn delete_song(&mut self, id: usize) {
-        self.send(Event::Delete(id));
+        self.send(Request::Delete(id));
     }
     pub fn randomize(&mut self) {
-        self.send(Event::Randomize);
+        self.send(Request::Randomize);
     }
     pub fn play_index(&mut self, i: usize) {
-        self.send(Event::PlayIndex(i));
+        self.send(Request::PlayIndex(i));
         //HACK: this might get out of sync
         self.queue.select(Some(i));
     }
     pub fn play_artist(&mut self, artist: String) {
-        self.send(Event::PlayArtist(artist));
+        self.send(Request::PlayArtist(artist));
     }
     pub fn add_path(&mut self, path: String) {
-        self.send(Event::AddPath(path));
+        self.send(Request::AddPath(path));
     }
     pub fn update_artist(&mut self, artist: String) {
-        self.send(Event::GetArtist(artist));
+        self.send(Request::GetArtist(artist));
     }
     pub fn update_album(&mut self, album: String, artist: String) {
-        self.send(Event::GetAlbum(album, artist));
+        self.send(Request::GetAlbum(album, artist));
     }
     #[must_use]
     pub fn sync(mut self) -> Self {
-        self.send(Event::GetBrowser);
-        self.send(Event::GetQueue);
-        self.send(Event::GetVolume);
-        self.send(Event::GetState);
+        self.send(Request::GetBrowser);
+        self.send(Request::GetQueue);
+        self.send(Request::GetVolume);
+        self.send(Request::GetState);
         self
     }
 }

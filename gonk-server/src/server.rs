@@ -1,4 +1,4 @@
-use crate::{Artist, Browser, Event, MinSong, Queue, Response, State, Update, CONFIG};
+use crate::{Artist, Browser, MinSong, Queue, Request, Response, State, Update, CONFIG};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use gonk_core::Index;
 use gonk_core::{Database, ServerConfig};
@@ -19,19 +19,19 @@ impl Server {
         println!("Server running @ {}", CONFIG.ip());
 
         let (request_s, request_r) = unbounded();
-        let (event_s, event_r) = unbounded();
+        let (response_s, response_r) = unbounded();
 
-        thread::spawn(|| Server::player_loop(event_r, request_s));
+        thread::spawn(|| Server::player_loop(request_r, response_s));
 
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     println!("New connection: {}", stream.peer_addr().unwrap());
                     let stream = stream.try_clone().unwrap();
-                    let es = event_s.clone();
-                    let rr = request_r.clone();
+                    let request_s = request_s.clone();
+                    let response_r = response_r.clone();
 
-                    thread::spawn(|| Server::handle_client(stream, es, rr));
+                    thread::spawn(|| Server::handle_client(stream, request_s, response_r));
                 }
                 Err(e) => println!("Server Error: {}", e),
             }
@@ -57,7 +57,7 @@ impl Server {
 
         println!("{}: Response::{}", stream.peer_addr().unwrap(), response);
     }
-    fn player_loop(er: Receiver<(TcpStream, Event)>, rs: Sender<Response>) {
+    fn player_loop(request_r: Receiver<(TcpStream, Request)>, response_s: Sender<Response>) {
         let mut player = Player::new(0);
         let db = Database::new().unwrap();
         //sync the datbase
@@ -116,7 +116,7 @@ impl Server {
             let elapsed = player.elapsed();
             if elapsed > player.duration {
                 player.next_song();
-                rs.send(update(&player)).unwrap();
+                response_s.send(update(&player)).unwrap();
             }
 
             //send the position of the player
@@ -124,85 +124,85 @@ impl Server {
             let trunc = elapsed.trunc();
             if old_elapsed != trunc {
                 old_elapsed = trunc;
-                rs.send(Response::Elapsed(elapsed)).unwrap();
+                response_s.send(Response::Elapsed(elapsed)).unwrap();
             }
 
             //if this isn't semi-blocking it will waste cpu cycles
             //16ms is probablby super over kill could change to 200ms.
-            if let Ok((stream, event)) = er.recv_timeout(Duration::from_millis(16)) {
-                match event {
-                    Event::ShutDown => break,
-                    Event::AddPath(path) => {
+            if let Ok((stream, request)) = request_r.recv_timeout(Duration::from_millis(16)) {
+                match request {
+                    Request::ShutDown => break,
+                    Request::AddPath(path) => {
                         if Path::new(&path).exists() {
                             println!("Adding path: {path}");
                             config.add_path(path.clone());
                             db.add_paths(&[path]);
                         }
                     }
-                    Event::Add(ids) => {
+                    Request::Add(ids) => {
                         let songs = db.get_songs_from_id(&ids);
                         player.add_songs(songs);
 
                         Server::write(&stream, queue(&player));
                         Server::write(&stream, state(&player));
                     }
-                    Event::TogglePlayback => {
+                    Request::TogglePlayback => {
                         player.toggle_playback();
                         Server::write(&stream, state(&player));
                     }
-                    Event::VolumeDown => {
+                    Request::VolumeDown => {
                         player.volume_down();
                         //HACK: no response
                     }
-                    Event::VolumeUp => {
+                    Request::VolumeUp => {
                         player.volume_up();
                         //HACK: no response
                     }
-                    Event::Prev => {
+                    Request::Prev => {
                         player.prev_song();
                         //HACK: no response
                     }
-                    Event::Next => {
+                    Request::Next => {
                         player.next_song();
                         //HACK: no response
                     }
-                    Event::ClearQueue => {
+                    Request::ClearQueue => {
                         player.clear_songs();
                         //HACK: no response
                     }
-                    Event::SeekBy(amount) => {
+                    Request::SeekBy(amount) => {
                         if player.seek_by(amount) {
                             Server::write(&stream, update(&player));
                         }
                     }
-                    Event::SeekTo(pos) => {
+                    Request::SeekTo(pos) => {
                         if player.seek_to(pos) {
                             Server::write(&stream, update(&player));
                         }
                     }
-                    Event::Delete(id) => {
+                    Request::Delete(id) => {
                         player.delete_song(id);
                         Server::write(&stream, queue(&player));
                     }
-                    Event::Randomize => {
+                    Request::Randomize => {
                         player.randomize();
                         Server::write(&stream, queue(&player));
                     }
-                    Event::PlayIndex(i) => {
+                    Request::PlayIndex(i) => {
                         player.play_index(i);
 
                         Server::write(&stream, update(&player));
                         Server::write(&stream, state(&player));
                     }
-                    Event::GetElapsed => {
+                    Request::GetElapsed => {
                         Server::write(&stream, Response::Elapsed(player.elapsed()))
                     }
-                    Event::GetState => {
+                    Request::GetState => {
                         Server::write(&stream, state(&player));
                     }
-                    Event::GetVolume => Server::write(&stream, Response::Volume(player.volume)),
-                    Event::GetQueue => Server::write(&stream, queue(&player)),
-                    Event::GetBrowser => {
+                    Request::GetVolume => Server::write(&stream, Response::Volume(player.volume)),
+                    Request::GetQueue => Server::write(&stream, queue(&player)),
+                    Request::GetBrowser => {
                         let artists = db.get_all_artists();
                         if let Some(a) = db.get_all_artists().first() {
                             let first_artist = artist(a.clone());
@@ -214,11 +214,11 @@ impl Server {
                             Server::write(&stream, Response::Browser(browser));
                         }
                     }
-                    Event::GetArtist(a) => {
+                    Request::GetArtist(a) => {
                         let artist = artist(a);
                         Server::write(&stream, Response::Artist(artist));
                     }
-                    Event::GetAlbum(album, artist) => {
+                    Request::GetAlbum(album, artist) => {
                         let songs = db
                             .get_songs_from_album(&album, &artist)
                             .into_iter()
@@ -227,7 +227,7 @@ impl Server {
 
                         Server::write(&stream, Response::Album(songs));
                     }
-                    Event::PlayArtist(artist) => {
+                    Request::PlayArtist(artist) => {
                         let songs = db.get_songs_by_artist(&artist);
                         player.add_songs(songs);
 
@@ -238,7 +238,11 @@ impl Server {
             }
         }
     }
-    fn handle_client(stream: TcpStream, es: Sender<(TcpStream, Event)>, rr: Receiver<Response>) {
+    fn handle_client(
+        stream: TcpStream,
+        request_s: Sender<(TcpStream, Request)>,
+        response_r: Receiver<Response>,
+    ) {
         let mut s = stream.try_clone().unwrap();
         let handle = thread::spawn(move || {
             let mut buf = [0u8; 4];
@@ -253,10 +257,10 @@ impl Server {
                         let mut payload = vec![0; size as usize];
                         s.read_exact(&mut payload[..]).unwrap();
 
-                        let request: Event = bincode::deserialize(&payload).unwrap();
+                        let request: Request = bincode::deserialize(&payload).unwrap();
                         let r = request.clone();
-                        es.send((s.try_clone().unwrap(), request)).unwrap();
-                        println!("{}: Event::{}", s.peer_addr().unwrap(), r);
+                        request_s.send((s.try_clone().unwrap(), request)).unwrap();
+                        println!("{}: Request::{}", s.peer_addr().unwrap(), r);
                     }
                     Err(e) => return println!("{}", e),
                 }
@@ -264,9 +268,9 @@ impl Server {
         });
 
         loop {
-            if let Ok(response) = rr.recv() {
+            if let Ok(response) = response_r.recv() {
                 //quit when client disconnects
-                //keep in mind if no events are sent
+                //keep in mind if no requests are sent
                 //this won't be checked
                 if handle.is_finished() {
                     return;

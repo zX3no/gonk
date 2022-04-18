@@ -20,7 +20,7 @@ pub enum State {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Event {
+pub enum Request {
     AddPath(String),
     Add(Vec<u64>),
     PlayArtist(String),
@@ -46,7 +46,7 @@ pub enum Event {
     GetAlbum(String, String),
 }
 
-impl Display for Event {
+impl Display for Request {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
