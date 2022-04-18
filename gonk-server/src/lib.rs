@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use gonk_core::ServerConfig;
 use gonk_core::{Index, Song};
 use serde::{Deserialize, Serialize};
@@ -17,7 +19,7 @@ pub enum State {
     Stopped,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Event {
     AddPath(String),
     Add(Vec<u64>),
@@ -44,6 +46,12 @@ pub enum Event {
     GetAlbum(String, String),
 }
 
+impl Display for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     Elapsed(f64),
@@ -54,6 +62,12 @@ pub enum Response {
     Browser(Browser),
     Artist(Artist),
     Album(Vec<MinSong>),
+}
+
+impl Display for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

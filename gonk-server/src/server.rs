@@ -43,7 +43,12 @@ impl Server {
         let size = encode.len() as u32;
         stream.write_all(&size.to_le_bytes()).unwrap();
         stream.write_all(&encode).unwrap();
-        // println!("{}: {:?}", stream.peer_addr().unwrap(), response);
+
+        if let Some(res) = response.to_string().split_once('(') {
+            println!("{}: Response::{}", stream.peer_addr().unwrap(), res.0);
+        } else {
+            println!("{}: Response::{}", stream.peer_addr().unwrap(), response);
+        };
     }
     fn player_loop(er: Receiver<(TcpStream, Event)>, rs: Sender<Response>) {
         let mut player = Player::new(0);
@@ -241,8 +246,9 @@ impl Server {
                         s.read_exact(&mut payload[..]).unwrap();
 
                         let request: Event = bincode::deserialize(&payload).unwrap();
-                        println!("{}: {:?}", s.peer_addr().unwrap(), request);
+                        let r = request.clone();
                         es.send((s.try_clone().unwrap(), request)).unwrap();
+                        println!("{}: Event::{}", s.peer_addr().unwrap(), r);
                     }
                     Err(e) => return println!("{}", e),
                 }
@@ -257,6 +263,7 @@ impl Server {
                 if handle.is_finished() {
                     return;
                 }
+
                 Server::write(&stream, response);
             }
         }
