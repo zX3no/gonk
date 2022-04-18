@@ -150,6 +150,7 @@ impl Browser {
 
         let client = self.client.borrow();
 
+        //TODO: these three should be cached
         let a: Vec<_> = client
             .artists
             .data

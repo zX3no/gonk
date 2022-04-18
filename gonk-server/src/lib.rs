@@ -87,6 +87,8 @@ pub struct Update {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MinSong {
+    //TODO: maybe number should be a string
+    //then I wont need to call number.to_string()
     pub number: u64,
     pub name: String,
     pub album: String,

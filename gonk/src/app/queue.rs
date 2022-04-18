@@ -261,7 +261,7 @@ impl Queue {
                         Style::default().fg(CONFIG.colors.artist),
                     ),
                     Span::raw(" - "),
-                    Span::styled(&song.name, Style::default().fg(CONFIG.colors.title)),
+                    Span::styled(&song.name, Style::default().fg(CONFIG.colors.name)),
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(
@@ -299,11 +299,9 @@ impl Queue {
             );
         }
 
-        let (songs, now_playing, ui_index) = (
-            &self.client.borrow().queue.data,
-            self.client.borrow().queue.index,
-            self.ui.index,
-        );
+        let client = self.client.borrow();
+        let (songs, now_playing, ui_index) =
+            (&client.queue.data, client.queue.index, self.ui.index);
 
         let mut items: Vec<Row> = songs
             .iter()
@@ -311,10 +309,10 @@ impl Queue {
                 Row::new(vec![
                     Cell::from(""),
                     Cell::from(song.number.to_string())
-                        .style(Style::default().fg(CONFIG.colors.track)),
-                    Cell::from(song.name.clone()).style(Style::default().fg(CONFIG.colors.title)),
-                    Cell::from(song.album.clone()).style(Style::default().fg(CONFIG.colors.album)),
-                    Cell::from(song.artist.clone())
+                        .style(Style::default().fg(CONFIG.colors.number)),
+                    Cell::from(song.name.as_str()).style(Style::default().fg(CONFIG.colors.name)),
+                    Cell::from(song.album.as_str()).style(Style::default().fg(CONFIG.colors.album)),
+                    Cell::from(song.artist.as_str())
                         .style(Style::default().fg(CONFIG.colors.artist)),
                 ])
             })
@@ -323,61 +321,46 @@ impl Queue {
         if let Some(playing_index) = now_playing {
             if let Some(song) = songs.get(playing_index) {
                 if let Some(ui_index) = ui_index {
-                    //Currently playing song
-                    let row = if ui_index == playing_index {
-                        Row::new(vec![
-                            Cell::from(">>").style(
-                                Style::default()
-                                    .fg(Color::White)
-                                    .add_modifier(Modifier::DIM | Modifier::BOLD),
-                            ),
-                            Cell::from(song.number.to_string())
-                                .style(Style::default().bg(CONFIG.colors.track).fg(Color::Black)),
-                            Cell::from(song.name.clone())
-                                .style(Style::default().bg(CONFIG.colors.title).fg(Color::Black)),
-                            Cell::from(song.album.clone())
-                                .style(Style::default().bg(CONFIG.colors.album).fg(Color::Black)),
-                            Cell::from(song.artist.clone())
-                                .style(Style::default().bg(CONFIG.colors.artist).fg(Color::Black)),
-                        ])
-                    } else {
-                        Row::new(vec![
-                            Cell::from(">>").style(
-                                Style::default()
-                                    .fg(Color::White)
-                                    .add_modifier(Modifier::DIM | Modifier::BOLD),
-                            ),
-                            Cell::from(song.number.to_string())
-                                .style(Style::default().fg(CONFIG.colors.track)),
-                            Cell::from(song.name.clone())
-                                .style(Style::default().fg(CONFIG.colors.title)),
-                            Cell::from(song.album.clone())
-                                .style(Style::default().fg(CONFIG.colors.album)),
-                            Cell::from(song.artist.clone())
-                                .style(Style::default().fg(CONFIG.colors.artist)),
-                        ])
+                    let style = |color: Color| -> Style {
+                        if ui_index == playing_index {
+                            Style::default().bg(color).fg(Color::Black)
+                        } else {
+                            Style::default().fg(color)
+                        }
                     };
 
-                    items.remove(playing_index);
-                    items.insert(playing_index, row);
+                    let playing_row = Row::new(vec![
+                        Cell::from(">>").style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::DIM | Modifier::BOLD),
+                        ),
+                        Cell::from(song.number.to_string()).style(style(CONFIG.colors.number)),
+                        Cell::from(song.name.as_str()).style(style(CONFIG.colors.name)),
+                        Cell::from(song.album.as_str()).style(style(CONFIG.colors.album)),
+                        Cell::from(song.artist.as_str()).style(style(CONFIG.colors.artist)),
+                    ]);
 
-                    //Current selection
+                    items.remove(playing_index);
+                    items.insert(playing_index, playing_row);
+
                     if ui_index != playing_index {
-                        let song = songs.get(ui_index).unwrap();
-                        let row = Row::new(vec![
-                            Cell::from(""),
-                            Cell::from(song.number.to_string())
-                                .style(Style::default().bg(CONFIG.colors.track)),
-                            Cell::from(song.name.clone())
-                                .style(Style::default().bg(CONFIG.colors.title)),
-                            Cell::from(song.album.clone())
-                                .style(Style::default().bg(CONFIG.colors.album)),
-                            Cell::from(song.artist.clone())
-                                .style(Style::default().bg(CONFIG.colors.artist)),
-                        ])
-                        .style(Style::default().fg(Color::Black));
-                        items.remove(ui_index);
-                        items.insert(ui_index, row);
+                        if let Some(song) = songs.get(ui_index) {
+                            let ui_row = Row::new(vec![
+                                Cell::from(""),
+                                Cell::from(song.number.to_string())
+                                    .style(Style::default().bg(CONFIG.colors.number)),
+                                Cell::from(song.name.as_str())
+                                    .style(Style::default().bg(CONFIG.colors.name)),
+                                Cell::from(song.album.as_str())
+                                    .style(Style::default().bg(CONFIG.colors.album)),
+                                Cell::from(song.artist.as_str())
+                                    .style(Style::default().bg(CONFIG.colors.artist)),
+                            ])
+                            .style(Style::default().fg(Color::Black));
+                            items.remove(ui_index);
+                            items.insert(ui_index, ui_row);
+                        }
                     }
                 }
             }
@@ -393,7 +376,7 @@ impl Queue {
 
         let t = Table::new(items)
             .header(
-                Row::new(vec!["", "Track", "Title", "Album", "Artist"])
+                Row::new(["", "Track", "Title", "Album", "Artist"])
                     .style(
                         Style::default()
                             .fg(Color::White)

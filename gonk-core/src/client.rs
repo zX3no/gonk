@@ -28,8 +28,8 @@ pub struct Hotkey {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Colors {
-    pub track: Color,
-    pub title: Color,
+    pub number: Color,
+    pub name: Color,
     pub album: Color,
     pub artist: Color,
 }
@@ -56,8 +56,8 @@ impl ClientConfig {
         } else {
             let toml = ClientConfig {
                 colors: Colors {
-                    track: Color::Green,
-                    title: Color::Cyan,
+                    number: Color::Green,
+                    name: Color::Cyan,
                     album: Color::Magenta,
                     artist: Color::Blue,
                 },
