@@ -144,7 +144,7 @@ impl Server {
                         player.add_songs(songs);
 
                         Server::write(&stream, queue(&player));
-                        rs.send(state(&player)).unwrap();
+                        Server::write(&stream, state(&player));
                     }
                     Event::TogglePlayback => {
                         player.toggle_playback();
@@ -190,8 +190,9 @@ impl Server {
                     }
                     Event::PlayIndex(i) => {
                         player.play_index(i);
-                        //HACK
-                        // Server::write(&stream, update(&player));
+
+                        Server::write(&stream, update(&player));
+                        Server::write(&stream, state(&player));
                     }
                     Event::GetElapsed => {
                         Server::write(&stream, Response::Elapsed(player.elapsed()))

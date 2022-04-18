@@ -113,13 +113,6 @@ impl App {
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     self.browser.on_enter();
-                                    // let songs: Vec<u64> = self
-                                    //     .browser
-                                    //     .on_enter()
-                                    //     .iter()
-                                    //     .flat_map(|song| song.id)
-                                    //     .collect();
-                                    //self.queue().add_ids(&songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index {
