@@ -1,15 +1,12 @@
 use crate::{Event, MinSong, Response, State, CONFIG};
-use crossbeam_channel::{unbounded, Receiver};
 use gonk_core::Index;
 use std::{
     io::{Read, Write},
     net::TcpStream,
-    thread,
 };
 
 pub struct Client {
     stream: TcpStream,
-    receiver: Receiver<Response>,
     pub queue: Index<MinSong>,
     pub state: State,
     pub volume: u16,
@@ -24,28 +21,10 @@ pub struct Client {
 impl Client {
     pub fn new() -> Self {
         let stream = TcpStream::connect(CONFIG.ip()).expect("Could not connect to server.");
-        let (sender, receiver) = unbounded();
-        let mut s = stream.try_clone().unwrap();
-
-        thread::spawn(move || {
-            let mut buf = [0u8; 4];
-            loop {
-                if s.read_exact(&mut buf[..]).is_ok() {
-                    //get the payload size
-                    let size = u32::from_le_bytes(buf);
-
-                    //read the payload
-                    let mut payload = vec![0; size as usize];
-                    s.read_exact(&mut payload[..]).unwrap();
-                    let res: Response = bincode::deserialize(&payload).unwrap();
-                    sender.send(res).unwrap();
-                }
-            }
-        });
+        stream.set_nonblocking(true).unwrap();
 
         Self {
             stream,
-            receiver,
             queue: Index::default(),
             state: State::Stopped,
             volume: 0,
@@ -57,7 +36,15 @@ impl Client {
         }
     }
     pub fn update(&mut self) {
-        if let Ok(response) = self.receiver.try_recv() {
+        let mut buf = [0u8; 4];
+        if self.stream.read_exact(&mut buf[..]).is_ok() {
+            //get the payload size
+            let size = u32::from_le_bytes(buf);
+
+            //read the payload
+            let mut payload = vec![0; size as usize];
+            self.stream.read_exact(&mut payload[..]).unwrap();
+            let response: Response = bincode::deserialize(&payload).unwrap();
             match response {
                 Response::Elapsed(e) => self.elapsed = e,
                 Response::State(s) => self.state = s,

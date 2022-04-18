@@ -70,10 +70,6 @@ impl App {
             client,
         }
     }
-    fn on_update(&mut self) {
-        optick::event!("on update");
-        self.queue.update();
-    }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
 
@@ -81,7 +77,7 @@ impl App {
             optick::event!("loop");
 
             if last_tick.elapsed() >= TICK_RATE {
-                self.on_update();
+                self.queue.update();
                 last_tick = Instant::now();
             }
 
