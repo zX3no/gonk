@@ -256,15 +256,15 @@ impl Queue {
                     Span::raw("─| "),
                     Span::styled(
                         artist.trim_end().to_string(),
-                        Style::default().fg(CONFIG.colors.artist),
+                        Style::default().fg(CONFIG.data.colors.artist),
                     ),
                     Span::raw(" - "),
-                    Span::styled(&song.name, Style::default().fg(CONFIG.colors.name)),
+                    Span::styled(&song.name, Style::default().fg(CONFIG.data.colors.name)),
                     Span::raw(" |─"),
                 ]),
                 Spans::from(Span::styled(
                     &song.album,
-                    Style::default().fg(CONFIG.colors.album),
+                    Style::default().fg(CONFIG.data.colors.album),
                 )),
             ]
         } else {
@@ -307,11 +307,13 @@ impl Queue {
                 Row::new(vec![
                     Cell::from(""),
                     Cell::from(song.number.to_string())
-                        .style(Style::default().fg(CONFIG.colors.number)),
-                    Cell::from(song.name.as_str()).style(Style::default().fg(CONFIG.colors.name)),
-                    Cell::from(song.album.as_str()).style(Style::default().fg(CONFIG.colors.album)),
+                        .style(Style::default().fg(CONFIG.data.colors.number)),
+                    Cell::from(song.name.as_str())
+                        .style(Style::default().fg(CONFIG.data.colors.name)),
+                    Cell::from(song.album.as_str())
+                        .style(Style::default().fg(CONFIG.data.colors.album)),
                     Cell::from(song.artist.as_str())
-                        .style(Style::default().fg(CONFIG.colors.artist)),
+                        .style(Style::default().fg(CONFIG.data.colors.artist)),
                 ])
             })
             .collect();
@@ -333,10 +335,10 @@ impl Queue {
                                 .fg(Color::White)
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
-                        Cell::from(song.number.to_string()).style(style(CONFIG.colors.number)),
-                        Cell::from(song.name.as_str()).style(style(CONFIG.colors.name)),
-                        Cell::from(song.album.as_str()).style(style(CONFIG.colors.album)),
-                        Cell::from(song.artist.as_str()).style(style(CONFIG.colors.artist)),
+                        Cell::from(song.number.to_string()).style(style(CONFIG.data.colors.number)),
+                        Cell::from(song.name.as_str()).style(style(CONFIG.data.colors.name)),
+                        Cell::from(song.album.as_str()).style(style(CONFIG.data.colors.album)),
+                        Cell::from(song.artist.as_str()).style(style(CONFIG.data.colors.artist)),
                     ]);
 
                     items.remove(playing_index);
@@ -347,13 +349,13 @@ impl Queue {
                             let ui_row = Row::new(vec![
                                 Cell::from(""),
                                 Cell::from(song.number.to_string())
-                                    .style(Style::default().bg(CONFIG.colors.number)),
+                                    .style(Style::default().bg(CONFIG.data.colors.number)),
                                 Cell::from(song.name.as_str())
-                                    .style(Style::default().bg(CONFIG.colors.name)),
+                                    .style(Style::default().bg(CONFIG.data.colors.name)),
                                 Cell::from(song.album.as_str())
-                                    .style(Style::default().bg(CONFIG.colors.album)),
+                                    .style(Style::default().bg(CONFIG.data.colors.album)),
                                 Cell::from(song.artist.as_str())
-                                    .style(Style::default().bg(CONFIG.colors.artist)),
+                                    .style(Style::default().bg(CONFIG.data.colors.artist)),
                             ])
                             .style(Style::default().fg(Color::Black));
                             items.remove(ui_index);

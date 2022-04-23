@@ -1,16 +1,12 @@
-use std::fmt::Display;
-
-use gonk_core::ServerConfig;
 use gonk_core::{Index, Song};
 use serde::{Deserialize, Serialize};
-use static_init::dynamic;
-pub use {client::Client, server::Server};
+use std::fmt::Display;
+
+pub use client::Client;
+pub use server::run;
 
 mod client;
 mod server;
-
-#[dynamic]
-static CONFIG: ServerConfig = ServerConfig::new();
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum State {

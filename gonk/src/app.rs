@@ -1,11 +1,9 @@
-use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind,
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crossterm::execute;
-use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-};
-use gonk_core::{Bind, ClientConfig, Key, Modifier};
+use gonk_core::{Bind, Client as C, Config, Key, Modifier, CLIENT_CONFIG};
 use gonk_server::Client;
 use static_init::dynamic;
 use std::cell::RefCell;
@@ -29,7 +27,7 @@ pub enum Mode {
 }
 
 #[dynamic]
-static CONFIG: ClientConfig = ClientConfig::new();
+static CONFIG: Config<C> = Config::new(CLIENT_CONFIG.as_path());
 
 const TICK_RATE: Duration = Duration::from_millis(10);
 const POLL_RATE: Duration = Duration::from_millis(4);
@@ -72,6 +70,8 @@ impl App {
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
 
+        let hotkey = &CONFIG.data.hotkey;
+
         loop {
             if last_tick.elapsed() >= TICK_RATE {
                 self.queue.update();
@@ -93,7 +93,7 @@ impl App {
                             modifiers: Modifier::from_u32(event.modifiers),
                         };
 
-                        if CONFIG.hotkey.quit.contains(&bind) {
+                        if hotkey.quit.contains(&bind) {
                             break;
                         };
 
@@ -126,45 +126,41 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint('3', event.modifiers);
                             }
-                            _ if CONFIG.hotkey.up.contains(&bind) => self.up(),
-                            _ if CONFIG.hotkey.down.contains(&bind) => self.down(),
-                            _ if CONFIG.hotkey.left.contains(&bind) => self.browser.prev(),
-                            _ if CONFIG.hotkey.right.contains(&bind) => self.browser.next(),
-                            _ if CONFIG.hotkey.play_pause.contains(&bind) => {
+                            _ if hotkey.up.contains(&bind) => self.up(),
+                            _ if hotkey.down.contains(&bind) => self.down(),
+                            _ if hotkey.left.contains(&bind) => self.browser.prev(),
+                            _ if hotkey.right.contains(&bind) => self.browser.next(),
+                            _ if hotkey.play_pause.contains(&bind) => {
                                 self.client.borrow_mut().toggle_playback()
                             }
-                            _ if CONFIG.hotkey.clear.contains(&bind) => self.queue.clear(),
-                            _ if CONFIG.hotkey.refresh_database.contains(&bind) => {
+                            _ if hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if hotkey.refresh.contains(&bind) => {
                                 todo!();
                             }
-                            _ if CONFIG.hotkey.seek_backward.contains(&bind) => {
+                            _ if hotkey.seek_backward.contains(&bind) => {
                                 self.client.borrow_mut().seek_by(-SEEK_TIME)
                             }
-                            _ if CONFIG.hotkey.seek_forward.contains(&bind) => {
+                            _ if hotkey.seek_forward.contains(&bind) => {
                                 self.client.borrow_mut().seek_by(SEEK_TIME)
                             }
-                            _ if CONFIG.hotkey.previous.contains(&bind) => {
-                                self.client.borrow_mut().prev()
-                            }
-                            _ if CONFIG.hotkey.next.contains(&bind) => {
-                                self.client.borrow_mut().next()
-                            }
-                            _ if CONFIG.hotkey.volume_up.contains(&bind) => {
+                            _ if hotkey.previous.contains(&bind) => self.client.borrow_mut().prev(),
+                            _ if hotkey.next.contains(&bind) => self.client.borrow_mut().next(),
+                            _ if hotkey.volume_up.contains(&bind) => {
                                 self.client.borrow_mut().volume_up()
                             }
-                            _ if CONFIG.hotkey.volume_down.contains(&bind) => {
+                            _ if hotkey.volume_down.contains(&bind) => {
                                 self.client.borrow_mut().volume_down();
                             }
-                            _ if CONFIG.hotkey.search.contains(&bind) => (),
-                            _ if CONFIG.hotkey.options.contains(&bind) => (),
-                            _ if CONFIG.hotkey.delete.contains(&bind) => {
+                            _ if hotkey.search.contains(&bind) => (),
+                            _ if hotkey.options.contains(&bind) => (),
+                            _ if hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
                                         self.client.borrow_mut().delete_song(i);
                                     }
                                 }
                             }
-                            _ if CONFIG.hotkey.random.contains(&bind) => {
+                            _ if hotkey.random.contains(&bind) => {
                                 self.client.borrow_mut().randomize()
                             }
                             _ => (),

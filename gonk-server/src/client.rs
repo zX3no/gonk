@@ -1,5 +1,5 @@
-use crate::{MinSong, Request, Response, State, CONFIG};
-use gonk_core::Index;
+use crate::{MinSong, Request, Response, State};
+use gonk_core::{Client as C, Config, Index, CLIENT_CONFIG};
 use std::{
     io::{Read, Write},
     net::TcpStream,
@@ -20,7 +20,9 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Self {
-        let stream = TcpStream::connect(CONFIG.ip()).expect("Could not connect to server.");
+        let config: Config<C> = Config::new(CLIENT_CONFIG.as_path());
+        let stream =
+            TcpStream::connect(config.data.server_ip).expect("Could not connect to server.");
         stream.set_nonblocking(true).unwrap();
 
         Self {
