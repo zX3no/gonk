@@ -40,12 +40,14 @@ impl ServerConfig {
         //https://doc.rust-lang.org/nightly/std/net/struct.SocketAddrV4.html
         format!("{}:{}", self.ip, self.port)
     }
-    pub fn add_path(&mut self, path: String) {
+    pub fn add_path(&mut self, path: String) -> bool {
         if !self.paths.contains(&path) {
             self.paths.push(path);
             self.write();
+            true
         } else {
             println!("Path already added.");
+            false
         }
     }
 }

@@ -58,8 +58,8 @@ impl Server {
         println!("{}: Response::{}", stream.peer_addr().unwrap(), response);
     }
     fn player_loop(request_r: Receiver<(TcpStream, Request)>, response_s: Sender<Response>) {
-        let mut player = Player::new(0);
-        let db = Database::new().unwrap();
+        let mut player = Player::new(10);
+        let mut db = Database::new().unwrap();
         //sync the datbase
         db.sync_database(&CONFIG.paths);
 
@@ -83,7 +83,7 @@ impl Server {
             })
         };
 
-        let artist = |artist: String| -> Artist {
+        let artist = |artist: String, db: &Database| -> Artist {
             let albums = db.get_all_albums_by_artist(&artist);
 
             let album = albums.first().unwrap();
@@ -127,15 +127,27 @@ impl Server {
                 response_s.send(Response::Elapsed(elapsed)).unwrap();
             }
 
+            if db.needs_update() {
+                let artists = db.get_all_artists();
+                if let Some(a) = db.get_all_artists().first() {
+                    let first_artist = artist(a.clone(), &db);
+                    let browser = Browser {
+                        artists,
+                        first_artist,
+                    };
+                    response_s.send(Response::Browser(browser)).unwrap();
+                }
+                db.stop_sending_update();
+            }
+
             //if this isn't semi-blocking it will waste cpu cycles
             //16ms is probablby super over kill could change to 200ms.
             if let Ok((stream, request)) = request_r.recv_timeout(Duration::from_millis(16)) {
                 match request {
                     Request::ShutDown => break,
                     Request::AddPath(path) => {
-                        if Path::new(&path).exists() {
+                        if Path::new(&path).exists() && config.add_path(path.clone()) {
                             println!("Adding path: {path}");
-                            config.add_path(path.clone());
                             db.add_paths(&[path]);
                         }
                     }
@@ -205,7 +217,7 @@ impl Server {
                     Request::GetBrowser => {
                         let artists = db.get_all_artists();
                         if let Some(a) = db.get_all_artists().first() {
-                            let first_artist = artist(a.clone());
+                            let first_artist = artist(a.clone(), &db);
                             let browser = Browser {
                                 artists,
                                 first_artist,
@@ -215,7 +227,7 @@ impl Server {
                         }
                     }
                     Request::GetArtist(a) => {
-                        let artist = artist(a);
+                        let artist = artist(a, &db);
                         Server::write(&stream, Response::Artist(artist));
                     }
                     Request::GetAlbum(album, artist) => {

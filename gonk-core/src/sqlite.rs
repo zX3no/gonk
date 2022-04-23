@@ -18,7 +18,6 @@ fn fix(item: &str) -> String {
 
 pub struct Database {
     conn: Mutex<Connection>,
-    is_busy: Arc<AtomicBool>,
     needs_update: Arc<AtomicBool>,
 }
 
@@ -50,7 +49,6 @@ impl Database {
         Ok(Self {
             conn: Mutex::new(Connection::open(DB_DIR.as_path()).unwrap()),
             needs_update: Arc::new(AtomicBool::new(false)),
-            is_busy: Arc::new(AtomicBool::new(false)),
         })
     }
     fn conn(&self) -> MutexGuard<Connection> {
@@ -59,11 +57,8 @@ impl Database {
     pub fn needs_update(&self) -> bool {
         self.needs_update.load(Ordering::Relaxed)
     }
-    pub fn stop(&mut self) {
+    pub fn stop_sending_update(&mut self) {
         self.needs_update.store(false, Ordering::SeqCst)
-    }
-    pub fn is_busy(&self) -> bool {
-        self.is_busy.load(Ordering::SeqCst)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
         let conn = self.conn();
@@ -101,14 +96,8 @@ impl Database {
         }
     }
     pub fn add_paths(&self, paths: &[String]) {
-        if self.is_busy() {
-            return;
-        }
-
-        let busy = self.is_busy.clone();
         let update = self.needs_update.clone();
         let dirs = paths.to_owned();
-        busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
             for dir in dirs {
@@ -149,7 +138,6 @@ impl Database {
                 conn.execute_batch(&stmt).unwrap();
             }
 
-            busy.store(false, Ordering::SeqCst);
             update.store(true, Ordering::SeqCst);
         });
     }
