@@ -40,8 +40,6 @@ pub struct Browser {
 
 impl Browser {
     pub fn new(client: Rc<RefCell<Client>>) -> Self {
-        optick::event!("new browser");
-
         Self {
             mode: Mode::Artist,
             client,
@@ -132,8 +130,6 @@ impl Browser {
         }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
-        optick::event!("draw Browser");
-
         let area = f.size();
 
         let chunks = Layout::default()

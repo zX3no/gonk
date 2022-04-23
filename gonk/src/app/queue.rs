@@ -73,7 +73,6 @@ pub struct Queue {
 
 impl Queue {
     pub fn new(client: Rc<RefCell<Client>>) -> Self {
-        optick::event!("new queue");
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
@@ -175,7 +174,6 @@ impl Queue {
         }
     }
     pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
-        optick::event!("draw Queue");
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([

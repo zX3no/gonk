@@ -12,8 +12,6 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     pub fn new() -> Self {
-        optick::event!("new toml");
-
         if SERVER_CONFIG.exists() {
             let file = fs::read_to_string(SERVER_CONFIG.as_path()).unwrap();
             match toml::from_str(&file) {

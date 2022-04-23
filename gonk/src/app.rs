@@ -45,7 +45,6 @@ pub struct App {
 
 impl App {
     pub fn new(client: Client) -> Self {
-        optick::event!("new app");
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
@@ -74,8 +73,6 @@ impl App {
         let mut last_tick = Instant::now();
 
         loop {
-            optick::event!("loop");
-
             if last_tick.elapsed() >= TICK_RATE {
                 self.queue.update();
                 last_tick = Instant::now();
@@ -91,7 +88,6 @@ impl App {
             if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {
                     Event::Key(event) => {
-                        optick::event!("key event");
                         let bind = Bind {
                             key: Key::from(event.code),
                             modifiers: Modifier::from_u32(event.modifiers),

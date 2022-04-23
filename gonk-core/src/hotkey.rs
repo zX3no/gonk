@@ -14,8 +14,6 @@ pub struct HotkeyConfig {
 
 impl HotkeyConfig {
     pub fn new() -> Self {
-        optick::event!("new toml");
-
         if HOTKEY_CONFIG.exists() {
             let file = fs::read_to_string(HOTKEY_CONFIG.as_path()).unwrap();
             match toml::from_str(&file) {

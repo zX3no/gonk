@@ -10,7 +10,7 @@ pub use crate::{
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use static_init::dynamic;
-use std::path::PathBuf;
+use std::{env, fs, path::PathBuf};
 
 #[cfg(windows)]
 use win_hotkey::{keys, modifiers};
@@ -23,10 +23,27 @@ mod song;
 mod sqlite;
 
 #[dynamic]
-static CONFIG_DIR: PathBuf = dirs::config_dir().unwrap();
-
-#[dynamic]
-pub static GONK_DIR: PathBuf = CONFIG_DIR.join("gonk");
+static GONK_DIR: PathBuf = {
+    let config = {
+        if let Ok(home) = env::var("HOME") {
+            PathBuf::from(home)
+        } else if let Ok(home) = env::var("APPDATA") {
+            PathBuf::from(home)
+        } else if let Ok(home) = env::var("XDG_HOME") {
+            PathBuf::from(home)
+        } else {
+            panic!("HOME, XDG_HOME and APPDATA enviroment variables are all empty?");
+        }
+    };
+    let gonk = config.join("gonk");
+    if !config.exists() {
+        fs::create_dir(&config).unwrap();
+    }
+    if !gonk.exists() {
+        fs::create_dir(&gonk).unwrap();
+    }
+    gonk
+};
 
 #[dynamic]
 pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
@@ -35,10 +52,10 @@ pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 pub static CLIENT_CONFIG: PathBuf = GONK_DIR.join("gonk.toml");
 
 #[dynamic]
-pub static SERVER_CONFIG: PathBuf = GONK_DIR.join("gonk-server.toml");
+pub static SERVER_CONFIG: PathBuf = GONK_DIR.join("server.toml");
 
 #[dynamic]
-pub static HOTKEY_CONFIG: PathBuf = GONK_DIR.join("gonk-hotkeys.toml");
+pub static HOTKEY_CONFIG: PathBuf = GONK_DIR.join("hotkeys.toml");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Modifier {

@@ -13,5 +13,4 @@ rodio = { path = "../rodio" }
 strsim = "0.10.0"
 static_init = "1.0.2"
 unicode-width = "0.1.9"
-optick = "1.3.4"
 gonk-server = {path = "../gonk-server"}

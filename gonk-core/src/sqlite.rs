@@ -1,9 +1,9 @@
-use crate::{Song, CONFIG_DIR, DB_DIR, GONK_DIR};
+use crate::{Song, DB_DIR};
 use dpc_pariter::IteratorExt;
 use jwalk::WalkDir;
 use rusqlite::{params, Connection, Params, Row};
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, MutexGuard,
@@ -24,16 +24,7 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> rusqlite::Result<Self> {
-        optick::event!("new database");
-        if !Path::new(CONFIG_DIR.as_path()).exists() {
-            std::fs::create_dir(CONFIG_DIR.as_path()).unwrap();
-        }
-
-        if !Path::new(GONK_DIR.as_path()).exists() {
-            std::fs::create_dir(GONK_DIR.as_path()).unwrap();
-        }
-
-        if !Path::new(DB_DIR.as_path()).exists() {
+        if !DB_DIR.exists() {
             let conn = Connection::open(DB_DIR.as_path()).unwrap();
             conn.busy_timeout(Duration::from_millis(0))?;
             conn.pragma_update(None, "journal_mode", "WAL")?;
@@ -75,7 +66,6 @@ impl Database {
         self.is_busy.load(Ordering::SeqCst)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
-        optick::event!("sync database");
         let conn = self.conn();
         let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
         let paths: Vec<String> = stmt
@@ -111,7 +101,6 @@ impl Database {
         }
     }
     pub fn add_paths(&self, paths: &[String]) {
-        optick::event!("add_dirs() Database");
         if self.is_busy() {
             return;
         }
@@ -122,8 +111,6 @@ impl Database {
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
-            optick::register_thread("Database");
-            optick::event!("Adding files");
             for dir in dirs {
                 let songs: Vec<Song> = WalkDir::new(&dir)
                     .into_iter()
@@ -135,15 +122,13 @@ impl Database {
                             false
                         }
                     })
-                    .parallel_map(|dir| {
-                        optick::register_thread("Song");
-                        Song::from(&dir)
-                    })
+                    .parallel_map(|dir| Song::from(&dir))
                     .collect();
 
                 if songs.is_empty() {
                     return;
                 }
+
                 let mut stmt = String::from("BEGIN;\n");
                 stmt.push_str(&songs.iter()
                 .map(|song| {
@@ -160,11 +145,8 @@ impl Database {
 
                 stmt.push_str("COMMIT;\n");
 
-                {
-                    optick::event!("execute_batch() Database");
-                    let conn = Connection::open(DB_DIR.as_path()).unwrap();
-                    conn.execute_batch(&stmt).unwrap();
-                }
+                let conn = Connection::open(DB_DIR.as_path()).unwrap();
+                conn.execute_batch(&stmt).unwrap();
             }
 
             busy.store(false, Ordering::SeqCst);

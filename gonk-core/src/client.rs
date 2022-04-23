@@ -42,8 +42,6 @@ pub struct ClientConfig {
 
 impl ClientConfig {
     pub fn new() -> Self {
-        optick::event!("new toml");
-
         if CLIENT_CONFIG.exists() {
             let file = fs::read_to_string(CLIENT_CONFIG.as_path()).unwrap();
             match toml::from_str(&file) {
