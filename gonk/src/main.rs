@@ -26,7 +26,6 @@ fn main() -> Result<()> {
                 println!("Options");
                 println!("   add <path>  Add music to the library");
                 println!("   config      Locates the config directory");
-                println!("   reset       Reset the database");
                 println!();
                 return Ok(());
             }

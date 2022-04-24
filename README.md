@@ -20,6 +20,28 @@
 
 > I recommend using a font with ligatures for the best experience.
 
+### crates.io
+
+```
+cargo install gonk
+```
+
+#### From source
+
+Install the dependencies.
+
+```
+git clone https://github.com/zX3no/gonk
+cd gonk
+cargo install --path gonk
+```
+
+Add some music:
+
+```
+gonk add D:/Music
+```
+
 #### Dependencies
 
 Debian:
@@ -39,20 +61,6 @@ Alpine:
 
 ```
 apk add pkgconf alsa-lib-dev alpine-sdk
-```
-
-#### From source
-
-```
-git clone https://github.com/zX3no/gonk
-cd gonk
-cargo install --path gonk
-```
-
-Then add some music:
-
-```
-gonk add D:/Music
 ```
 
 ## ⌨️ Key Bindings
