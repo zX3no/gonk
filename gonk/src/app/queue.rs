@@ -1,3 +1,4 @@
+use super::TOML;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::Index;
@@ -9,65 +10,10 @@ use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::{backend::Backend, Frame};
 
-use super::TOML;
-
-#[derive(Default)]
-pub struct ScrollText {
-    string: String,
-    scroll_string: String,
-    first: usize,
-    max: usize,
-}
-
-#[allow(unused)]
-impl ScrollText {
-    pub fn new(string: &str, max: usize) -> Self {
-        let mut s = Self {
-            string: string.to_string(),
-            scroll_string: String::new(),
-            first: 0,
-            max,
-        };
-        s.next();
-        s
-    }
-    pub fn current(&self) -> String {
-        self.scroll_string.clone()
-    }
-    pub fn next(&mut self) {
-        let string = self.string.clone();
-
-        let last = self.first + self.max;
-        let mut new_string = String::new();
-
-        for i in self.first..last {
-            if i >= string.len() {
-                if let Some(char) = string.chars().nth(i - string.len()) {
-                    new_string.push(char);
-                }
-            } else {
-                new_string.push(string.chars().nth(i).unwrap());
-            }
-        }
-
-        if string.chars().nth(self.first).is_none() {
-            self.first = 0;
-        }
-
-        self.first += 1;
-
-        self.scroll_string = new_string;
-    }
-    pub fn is_empty(&self) -> bool {
-        self.string.is_empty()
-    }
-}
-
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
-    pub scroll_text: ScrollText,
     pub player: Player,
 }
 
@@ -78,7 +24,6 @@ impl Queue {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
-            scroll_text: ScrollText::default(),
             player: Player::new(start_vol),
         }
     }
@@ -86,25 +31,7 @@ impl Queue {
         if self.ui.is_none() && !self.player.songs.is_empty() {
             self.ui.select(Some(0));
         }
-        self.scroll_text.next();
         self.player.update();
-    }
-    #[allow(unused)]
-    fn update_text(&mut self) {
-        if let Some(song) = self.player.songs.selected() {
-            let mut name = format!("{} - {}", &song.artist, &song.name);
-
-            //TODO: this is broken
-            //pad the string
-            for _ in 0..3 {
-                name.push(' ');
-                name.insert(0, ' ');
-            }
-
-            self.scroll_text = ScrollText::new(&name, 25);
-        } else {
-            self.scroll_text = ScrollText::default();
-        }
     }
     pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
         //1 is 48, '1' - 49 = 0
@@ -227,7 +154,7 @@ impl Queue {
 
         //Center
         if !self.player.songs.is_empty() {
-            self.draw_scrolling_text_old(f, chunk);
+            self.draw_title(f, chunk);
         }
 
         //Right
@@ -235,7 +162,7 @@ impl Queue {
         let right = Paragraph::new(text).alignment(Alignment::Right);
         f.render_widget(right, chunk);
     }
-    fn draw_scrolling_text_old<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.player.songs.selected() {
             //I wish that paragraphs had clipping
             //I think constraints do
@@ -243,18 +170,18 @@ impl Queue {
             //outside of the constraint which might work better?
 
             //clip the name so it doesn't overflow
-            const MAX_WIDTH: u16 = 60;
             let mut artist = song.artist.clone();
+            let mut name = song.name.clone();
+            let width = chunk.width.saturating_sub(45) as usize;
+            let mut i = 0;
 
-            //TODO: this while loop is dangerous
-            //might want a few safe guards or swap to for loop.
-            while (artist.len() + song.name.len() + "─| - |─".len())
-                > (chunk.width - MAX_WIDTH) as usize
-            {
-                if artist.is_empty() {
-                    break;
+            while artist.len() + name.len() + "-| - |-".len() > width {
+                if i % 2 == 0 {
+                    artist.pop();
+                } else {
+                    name.pop();
                 }
-                artist.pop();
+                i += 1;
             }
 
             vec![
@@ -280,18 +207,6 @@ impl Queue {
         //TODO: scroll the text to the left
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
-    }
-    #[allow(unused)]
-    fn draw_scrolling_text<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        if self.scroll_text.is_empty() {
-            self.update_text();
-        }
-
-        //TODO: The text is not centered
-        let p = Paragraph::new(Spans::from(format!("─| {} |─", self.scroll_text.current())))
-            .alignment(Alignment::Center);
-
-        f.render_widget(p, chunk);
     }
     fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
         if self.player.songs.is_empty() {
@@ -415,6 +330,7 @@ impl Queue {
         let mut state = TableState::new(ui_index);
         f.render_stateful_widget(t, chunk, &mut state);
     }
+    //TODO: try a new seeker design
     fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
         if self.player.songs.is_empty() {
             return f.render_widget(
@@ -428,7 +344,6 @@ impl Queue {
         let area = f.size();
         let width = area.width;
         let percent = self.player.seeker();
-        //TOOD: casting to usize could fail
         let pos = (f64::from(width) * percent) as usize;
 
         let mut string: String = (0..width - 6)
