@@ -268,7 +268,7 @@ impl App {
 
     #[cfg(windows)]
     fn register_hotkeys(toml: Toml) -> Receiver<HotkeyEvent> {
-        use win_hotkey::{keys, modifiers, Listener};
+        use global_hotkeys::{keys, modifiers, Listener};
         let (rx, tx) = unbounded();
         std::thread::spawn(move || {
             let mut hk = Listener::<HotkeyEvent>::new();
