@@ -195,7 +195,7 @@ impl Queue {
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }
-    fn draw_songs<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_songs<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
@@ -265,19 +265,23 @@ impl Queue {
 
                     //Current selection
                     if ui_index != playing_index {
-                        let song = songs.get(ui_index).unwrap();
-                        let row = Row::new(vec![
-                            Cell::from(""),
-                            Cell::from(song.number.to_string())
-                                .style(Style::default().bg(COLORS.track)),
-                            Cell::from(song.name.clone()).style(Style::default().bg(COLORS.title)),
-                            Cell::from(song.album.clone()).style(Style::default().bg(COLORS.album)),
-                            Cell::from(song.artist.clone())
-                                .style(Style::default().bg(COLORS.artist)),
-                        ])
-                        .style(Style::default().fg(Color::Black));
-                        items.remove(ui_index);
-                        items.insert(ui_index, row);
+                        
+                        if let Some(song) = songs.get(ui_index) {
+                            let row = Row::new(vec![
+                                Cell::from(""),
+                                Cell::from(song.number.to_string())
+                                    .style(Style::default().bg(COLORS.track)),
+                                Cell::from(song.name.clone())
+                                    .style(Style::default().bg(COLORS.title)),
+                                Cell::from(song.album.clone())
+                                    .style(Style::default().bg(COLORS.album)),
+                                Cell::from(song.artist.clone())
+                                    .style(Style::default().bg(COLORS.artist)),
+                            ])
+                            .style(Style::default().fg(Color::Black));
+                            items.remove(ui_index);
+                            items.insert(ui_index, row);
+                        }
                     }
                 }
             }

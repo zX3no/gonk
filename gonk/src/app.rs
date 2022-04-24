@@ -223,6 +223,11 @@ impl App {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
                                         self.queue.player.delete_song(i);
+                                        //make sure the ui index is in sync
+                                        let len = self.queue.player.songs.len().saturating_sub(1);
+                                        if i > len {
+                                            self.queue.ui.select(Some(len));
+                                        }
                                     }
                                 }
                             }
