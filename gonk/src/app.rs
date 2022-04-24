@@ -1,25 +1,16 @@
-use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind,
+use crossbeam_channel::{unbounded, Receiver};
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crossterm::execute;
-use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-};
-use gonk_core::{Bind, Database, Key, Modifier, Toml};
+use gonk_core::{Bind, Colors, Database, Key, Modifier, Toml};
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;
-use std::{
-    sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
-    time::Instant,
-};
+use std::time::Instant;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
-
-use crate::MUT_TOML;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 mod browser;
@@ -45,10 +36,10 @@ pub enum Mode {
 }
 
 #[dynamic]
-static TOML: Toml = Toml::new();
+static DB: Database = Database::default();
 
 #[dynamic]
-static DB: Database = Database::default();
+static COLORS: Colors = Toml::new().colors;
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(4);
@@ -65,7 +56,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(toml: &mut Toml) -> Self {
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
@@ -83,9 +74,9 @@ impl App {
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(TOML.volume()),
+            queue: Queue::new(toml.volume()),
             browser: Browser::new(),
-            options: Options::new(),
+            options: Options::new(toml),
             search: Search::new(),
             db: Database::default(),
         }
@@ -104,12 +95,13 @@ impl App {
 
         self.queue.update();
     }
-    pub fn run(&mut self) -> std::io::Result<()> {
+    pub fn run(&mut self, mut toml: Toml) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        self.db.sync_database(TOML.paths());
+
+        self.db.sync_database(toml.paths());
 
         #[cfg(windows)]
-        let tx = App::register_hotkeys();
+        let tx = App::register_hotkeys(toml.clone());
 
         loop {
             if last_tick.elapsed() >= TICK_RATE {
@@ -117,15 +109,29 @@ impl App {
                 last_tick = Instant::now();
             }
 
-            #[cfg(windows)]
-            self.handle_global_hotkeys(&tx);
-
             self.terminal.draw(|f| match self.mode {
                 Mode::Browser => self.browser.draw(f, self.db.is_busy()),
                 Mode::Queue => self.queue.draw(f),
-                Mode::Options => self.options.draw(f),
+                Mode::Options => self.options.draw(f, &toml),
                 Mode::Search => self.search.draw(f),
             })?;
+
+            #[cfg(windows)]
+            if let Ok(recv) = tx.try_recv() {
+                match recv {
+                    HotkeyEvent::VolUp => {
+                        let vol = self.queue.player.volume_up();
+                        toml.set_volume(vol);
+                    }
+                    HotkeyEvent::VolDown => {
+                        let vol = self.queue.player.volume_down();
+                        toml.set_volume(vol);
+                    }
+                    HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
+                    HotkeyEvent::Prev => self.queue.player.prev_song(),
+                    HotkeyEvent::Next => self.queue.player.next_song(),
+                }
+            }
 
             if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {
@@ -135,7 +141,7 @@ impl App {
                             modifiers: Modifier::from_u32(event.modifiers),
                         };
 
-                        if TOML.hotkey.quit.contains(&bind) {
+                        if toml.hotkey.quit.contains(&bind) {
                             break;
                         };
 
@@ -163,7 +169,9 @@ impl App {
                                     }
                                 }
                                 Mode::Search => self.search.on_enter(&mut self.queue.player),
-                                Mode::Options => self.options.on_enter(&mut self.queue.player),
+                                Mode::Options => {
+                                    self.options.on_enter(&mut self.queue.player, &mut toml)
+                                }
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -179,46 +187,46 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint('3', event.modifiers);
                             }
-                            _ if TOML.hotkey.up.contains(&bind) => self.up(),
-                            _ if TOML.hotkey.down.contains(&bind) => self.down(),
-                            _ if TOML.hotkey.left.contains(&bind) => self.browser.prev(),
-                            _ if TOML.hotkey.right.contains(&bind) => self.browser.next(),
-                            _ if TOML.hotkey.play_pause.contains(&bind) => {
+                            _ if toml.hotkey.up.contains(&bind) => self.up(),
+                            _ if toml.hotkey.down.contains(&bind) => self.down(),
+                            _ if toml.hotkey.left.contains(&bind) => self.browser.prev(),
+                            _ if toml.hotkey.right.contains(&bind) => self.browser.next(),
+                            _ if toml.hotkey.play_pause.contains(&bind) => {
                                 self.queue.player.toggle_playback()
                             }
-                            _ if TOML.hotkey.clear.contains(&bind) => self.queue.clear(),
-                            _ if TOML.hotkey.refresh_database.contains(&bind) => {
-                                self.db.add_dirs(TOML.paths());
-                                self.db.sync_database(TOML.paths());
+                            _ if toml.hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if toml.hotkey.refresh_database.contains(&bind) => {
+                                self.db.add_dirs(toml.paths());
+                                self.db.sync_database(toml.paths());
                             }
-                            _ if TOML.hotkey.seek_backward.contains(&bind) => {
+                            _ if toml.hotkey.seek_backward.contains(&bind) => {
                                 self.queue.player.seek_by(-SEEK_TIME)
                             }
-                            _ if TOML.hotkey.seek_forward.contains(&bind) => {
+                            _ if toml.hotkey.seek_forward.contains(&bind) => {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
-                            _ if TOML.hotkey.previous.contains(&bind) => {
+                            _ if toml.hotkey.previous.contains(&bind) => {
                                 self.queue.player.prev_song()
                             }
-                            _ if TOML.hotkey.next.contains(&bind) => self.queue.player.next_song(),
-                            _ if TOML.hotkey.volume_up.contains(&bind) => {
+                            _ if toml.hotkey.next.contains(&bind) => self.queue.player.next_song(),
+                            _ if toml.hotkey.volume_up.contains(&bind) => {
                                 let vol = self.queue.player.volume_up();
-                                MUT_TOML.fast_write().unwrap().set_volume(vol);
+                                toml.set_volume(vol);
                             }
-                            _ if TOML.hotkey.volume_down.contains(&bind) => {
+                            _ if toml.hotkey.volume_down.contains(&bind) => {
                                 let vol = self.queue.player.volume_down();
-                                MUT_TOML.fast_write().unwrap().set_volume(vol);
+                                toml.set_volume(vol);
                             }
-                            _ if TOML.hotkey.search.contains(&bind) => self.mode = Mode::Search,
-                            _ if TOML.hotkey.options.contains(&bind) => self.mode = Mode::Options,
-                            _ if TOML.hotkey.delete.contains(&bind) => {
+                            _ if toml.hotkey.search.contains(&bind) => self.mode = Mode::Search,
+                            _ if toml.hotkey.options.contains(&bind) => self.mode = Mode::Options,
+                            _ if toml.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.index {
                                         self.queue.player.delete_song(i);
                                     }
                                 }
                             }
-                            _ if TOML.hotkey.random.contains(&bind) => {
+                            _ if toml.hotkey.random.contains(&bind) => {
                                 self.queue.player.randomize()
                             }
                             _ => (),
@@ -258,53 +266,34 @@ impl App {
         }
     }
 
-    fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>) {
-        if let Ok(recv) = tx.try_recv() {
-            match recv {
-                HotkeyEvent::VolUp => {
-                    let vol = self.queue.player.volume_up();
-                    MUT_TOML.fast_write().unwrap().set_volume(vol);
-                }
-                HotkeyEvent::VolDown => {
-                    let vol = self.queue.player.volume_down();
-                    MUT_TOML.fast_write().unwrap().set_volume(vol);
-                }
-                HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
-                HotkeyEvent::Prev => self.queue.player.prev_song(),
-                HotkeyEvent::Next => self.queue.player.next_song(),
-            }
-        }
-    }
-
     #[cfg(windows)]
-    fn register_hotkeys() -> Receiver<HotkeyEvent> {
+    fn register_hotkeys(toml: Toml) -> Receiver<HotkeyEvent> {
         use win_hotkey::{keys, modifiers, Listener};
-
-        let (rx, tx) = mpsc::sync_channel(1);
-        let rx = Arc::new(rx);
+        let (rx, tx) = unbounded();
         std::thread::spawn(move || {
             let mut hk = Listener::<HotkeyEvent>::new();
             hk.register_hotkey(
-                TOML.global_hotkey.volume_up.modifiers(),
-                TOML.global_hotkey.volume_up.key(),
+                toml.global_hotkey.volume_up.modifiers(),
+                toml.global_hotkey.volume_up.key(),
                 HotkeyEvent::VolUp,
             );
             hk.register_hotkey(
-                TOML.global_hotkey.volume_down.modifiers(),
-                TOML.global_hotkey.volume_down.key(),
+                toml.global_hotkey.volume_down.modifiers(),
+                toml.global_hotkey.volume_down.key(),
                 HotkeyEvent::VolDown,
             );
             hk.register_hotkey(
-                TOML.global_hotkey.previous.modifiers(),
-                TOML.global_hotkey.previous.key(),
+                toml.global_hotkey.previous.modifiers(),
+                toml.global_hotkey.previous.key(),
                 HotkeyEvent::Prev,
             );
             hk.register_hotkey(
-                TOML.global_hotkey.next.modifiers(),
-                TOML.global_hotkey.next.key(),
+                toml.global_hotkey.next.modifiers(),
+                toml.global_hotkey.next.key(),
                 HotkeyEvent::Next,
             );
             hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
+            drop(toml);
             loop {
                 if let Some(event) = hk.listen() {
                     rx.send(event.clone()).unwrap();

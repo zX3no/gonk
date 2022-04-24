@@ -1,9 +1,5 @@
-use crate::{
-    app::TOML,
-    widget::{List, ListItem, ListState},
-    MUT_TOML,
-};
-use gonk_core::Index;
+use crate::widget::{List, ListItem, ListState};
+use gonk_core::{Index, Toml};
 use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
     backend::Backend,
@@ -17,8 +13,9 @@ pub struct Options {
 }
 
 impl Options {
-    fn get_current_device(devices: &Index<Device>) -> String {
-        let config_device = TOML.output_device();
+    pub fn new(toml: &mut Toml) -> Self {
+        let devices = Index::new(Player::output_devices(), Some(0));
+        let config_device = toml.output_device();
         let default_device = Player::default_device().name().unwrap();
 
         let mut data: Vec<_> = devices
@@ -29,20 +26,13 @@ impl Options {
 
         data.retain(|name| name == config_device);
 
-        if data.is_empty() {
+        let device = if data.is_empty() {
             default_device
         } else {
             config_device.to_string()
-        }
-    }
-    pub fn new() -> Self {
-        let devices = Index::new(Player::output_devices(), Some(0));
-        let current_device = Self::get_current_device(&devices);
+        };
 
-        MUT_TOML
-            .fast_write()
-            .unwrap()
-            .set_output_device(current_device);
+        toml.set_output_device(device);
 
         Self { devices }
     }
@@ -52,19 +42,15 @@ impl Options {
     pub fn down(&mut self) {
         self.devices.down();
     }
-    pub fn on_enter(&mut self, player: &mut Player) {
+    pub fn on_enter(&mut self, player: &mut Player, toml: &mut Toml) {
         if let Some(device) = self.devices.selected() {
             //don't update the device if there is an error
             if player.change_output_device(device) {
-                MUT_TOML
-                    .fast_write()
-                    .unwrap()
-                    .set_output_device(device.name().expect("Device has no name!"));
+                toml.set_output_device(device.name().expect("Device has no name!"));
             }
         }
     }
-    pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
-        let toml = MUT_TOML.fast_read().unwrap();
+    pub fn draw<B: Backend>(&self, f: &mut Frame<B>, toml: &Toml) {
         let default_device = toml.output_device();
 
         let items: Vec<_> = self

@@ -1,4 +1,5 @@
-use super::{Mode as AppMode, DB, TOML};
+use super::COLORS;
+use super::{Mode as AppMode, DB};
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::Index;
@@ -360,56 +361,26 @@ impl Search {
                 Item::Song(song) => {
                     let song = &DB.get_songs_from_id(&[song.id])[0];
                     Row::new(vec![
-                        Cell::from(song.name.clone()).style(
-                            Style::default()
-                                .fg(TOML.colors.title)
-                                .add_modifier(modifier),
-                        ),
-                        Cell::from(song.album.clone()).style(
-                            Style::default()
-                                .fg(TOML.colors.album)
-                                .add_modifier(modifier),
-                        ),
-                        Cell::from(song.artist.clone()).style(
-                            Style::default()
-                                .fg(TOML.colors.artist)
-                                .add_modifier(modifier),
-                        ),
+                        Cell::from(song.name.clone())
+                            .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
+                        Cell::from(song.album.clone())
+                            .style(Style::default().fg(COLORS.album).add_modifier(modifier)),
+                        Cell::from(song.artist.clone())
+                            .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                     ])
                 }
                 Item::Album(album) => Row::new(vec![
-                    Cell::from(format!("{} - Album", album.name)).style(
-                        Style::default()
-                            .fg(TOML.colors.title)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from("").style(
-                        Style::default()
-                            .fg(TOML.colors.album)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from(album.artist.clone()).style(
-                        Style::default()
-                            .fg(TOML.colors.artist)
-                            .add_modifier(modifier),
-                    ),
+                    Cell::from(format!("{} - Album", album.name))
+                        .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(COLORS.album).add_modifier(modifier)),
+                    Cell::from(album.artist.clone())
+                        .style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
-                    Cell::from(format!("{} - Artist", artist.name)).style(
-                        Style::default()
-                            .fg(TOML.colors.title)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from("").style(
-                        Style::default()
-                            .fg(TOML.colors.album)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from("").style(
-                        Style::default()
-                            .fg(TOML.colors.artist)
-                            .add_modifier(modifier),
-                    ),
+                    Cell::from(format!("{} - Artist", artist.name))
+                        .style(Style::default().fg(COLORS.title).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(COLORS.album).add_modifier(modifier)),
+                    Cell::from("").style(Style::default().fg(COLORS.artist).add_modifier(modifier)),
                 ]),
             }
         };
