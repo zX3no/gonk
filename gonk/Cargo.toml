@@ -2,8 +2,9 @@
 name = "gonk"
 version = "0.0.1"
 edition = "2021"
-default-run = "gonk"
+
 authors = ["Bay"]
+description = "A simple terminal music player"
 repository = "https://github.com/zX3no/gonk"
 readme = "README.md"
 license = "MIT"
@@ -11,8 +12,8 @@ license = "MIT"
 [dependencies]
 crossterm = "0.23.2"
 tui = { version = "0.17.0", features = ["serde"] }
-gonk-core = { version = "*", path = "../gonk-core" }
-gonk-player = { version = "*", path = "../gonk-player" }
+gonk-core = {version = "*", path = "../gonk-core"}
+gonk-player = {version = "*", path = "../gonk-player"}
 strsim = "0.10.0"
 static_init = "1.0.2"
 crossbeam-channel = "0.5.4"

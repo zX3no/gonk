@@ -6,7 +6,7 @@ use tui::style::Color;
 
 //TODO: test on linux
 #[cfg(windows)]
-use win_hotkey::{keys, modifiers};
+use global_hotkeys::{keys, modifiers};
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

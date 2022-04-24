@@ -1,7 +1,13 @@
 [package]
 name = "gonk-core"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+
+authors = ["Bay"]
+description = ""
+repository = "https://github.com/zX3no/gonk"
+readme = "README.md"
+license = "MIT"
 
 [dependencies]
 rusqlite = { version = "0.27.0", features = ["bundled"] }
@@ -13,7 +19,7 @@ toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
 tui = { version = "0.17.0", features = ["serde"] }
 crossterm = "0.23.2"
-symphonia = { git="https://github.com/pdeljanov/Symphonia"}
+symphonia-core = "0.5.0"
 
 [target.'cfg(windows)'.dependencies]
-win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }
+global_hotkeys = "*"

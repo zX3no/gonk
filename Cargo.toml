@@ -1,5 +1,2 @@
 [workspace]
-members = ["gonk", "gonk-core"]
-
-[profile.release]
-debug = true
+members = ["gonk", "gonk-core", "gonk-player"]

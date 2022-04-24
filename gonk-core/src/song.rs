@@ -3,11 +3,11 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use symphonia::core::{
+use symphonia_core::{
     formats::FormatOptions,
     io::{MediaSourceStream, MediaSourceStreamOptions},
     meta::{MetadataOptions, MetadataRevision, StandardTagKey},
-    probe::Hint,
+    probe::{Hint, Probe},
 };
 
 fn db_to_amplitude(db: f64) -> f64 {
@@ -30,7 +30,7 @@ impl Song {
     pub fn from(path: &Path) -> Song {
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
-        let mut probe = symphonia::default::get_probe()
+        let mut probe = Probe::default()
             .format(
                 &Hint::new(),
                 mss,
