@@ -3,7 +3,10 @@ name = "gonk"
 version = "0.0.1"
 edition = "2021"
 default-run = "gonk"
-authors = ["Bay <example@email.com>"]
+authors = ["Bay"]
+repository = "https://github.com/zX3no/gonk"
+readme = "README.md"
+license = "MIT"
 
 [dependencies]
 crossterm = "0.23.2"

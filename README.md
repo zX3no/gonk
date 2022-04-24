@@ -84,8 +84,6 @@ For custom bindings just type `gonk config` and edit the config file
 
 ## ⚒️ Troubleshooting
 
-If somethings goes wrong with the database, you can always delete it using `gonk reset`.
-
 If your music player has broken lines, increase your zoom level or font size.
 
 ![](media/broken.png)
