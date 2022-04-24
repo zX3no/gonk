@@ -162,24 +162,16 @@ impl Queue {
     }
     fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.player.songs.selected() {
-            //I wish that paragraphs had clipping
-            //I think constraints do
-            //I could render the -| |- on a seperate layer
-            //outside of the constraint which might work better?
-
-            //clip the name so it doesn't overflow
             let mut artist = song.artist.clone();
             let mut name = song.name.clone();
             let width = chunk.width.saturating_sub(45) as usize;
-            let mut i = 0;
 
             while artist.len() + name.len() + "-| - |-".len() > width {
-                if i % 2 == 0 {
+                if artist.len() > name.len() {
                     artist.pop();
                 } else {
                     name.pop();
                 }
-                i += 1;
             }
 
             vec![
