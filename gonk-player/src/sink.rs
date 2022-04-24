@@ -33,7 +33,6 @@ impl Sink {
     /// Builds a new `Sink`, beginning playback on a stream.
     #[inline]
     pub fn try_new(stream: &OutputStreamHandle) -> Result<Sink, PlayError> {
-        optick::event!("try_new sink");
         let (sink, queue_rx) = Sink::new_idle();
         stream.play_raw(queue_rx)?;
         Ok(sink)

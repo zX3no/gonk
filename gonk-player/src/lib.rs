@@ -40,7 +40,6 @@ pub struct Player {
 
 impl Player {
     pub fn new(volume: u16) -> Self {
-        optick::event!("new player");
         let (stream, handle) =
             OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
@@ -200,7 +199,6 @@ impl Player {
         }
     }
     pub fn output_devices() -> Vec<Device> {
-        optick::event!("output_devices");
         let host_id = cpal::default_host().id();
         let host = cpal::host_from_id(host_id).unwrap();
 

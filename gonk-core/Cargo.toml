@@ -19,7 +19,7 @@ toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
 tui = { version = "0.17.0", features = ["serde"] }
 crossterm = "0.23.2"
-symphonia-core = "0.5.0"
+symphonia = "0.5.0"
 
 [target.'cfg(windows)'.dependencies]
 global_hotkeys = "0.0.1"

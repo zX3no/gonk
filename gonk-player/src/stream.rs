@@ -26,7 +26,6 @@ impl OutputStream {
     pub fn try_from_device(
         device: &cpal::Device,
     ) -> Result<(Self, OutputStreamHandle), StreamError> {
-        optick::event!("try_from_device() OutputStream");
         let (mixer, _stream) = device.try_new_output_stream()?;
         _stream.play()?;
         let out = Self { mixer, _stream };
@@ -40,7 +39,6 @@ impl OutputStream {
     ///
     /// On failure will fallback to trying any non-default output devices.
     pub fn try_default() -> Result<(Self, OutputStreamHandle), StreamError> {
-        optick::event!("try_deafult() OutputStream");
         let default_device = cpal::default_host()
             .default_output_device()
             .ok_or(StreamError::NoDevice)?;

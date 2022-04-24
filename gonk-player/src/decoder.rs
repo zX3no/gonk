@@ -52,7 +52,10 @@ impl Decoder {
         let mut probed = get_probe().format(
             &Hint::default(),
             mss,
-            &FormatOptions::default(),
+            &FormatOptions {
+                prebuild_seek_index: true,
+                ..Default::default()
+            },
             &MetadataOptions::default(),
         )?;
 
