@@ -5,7 +5,7 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use gonk_database::{Bind, Database, Key, Modifier, Toml};
+use gonk_core::{Bind, Database, Key, Modifier, Toml};
 use static_init::dynamic;
 use std::io::{stdout, Stdout};
 use std::time::Duration;

@@ -1,6 +1,6 @@
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_types::Index;
+use gonk_core::Index;
 use rodio::Player;
 use std::time::Duration;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};

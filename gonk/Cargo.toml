@@ -8,8 +8,7 @@ authors = ["Bay <example@email.com>"]
 [dependencies]
 crossterm = "0.23.2"
 tui = { version = "0.17.0", features = ["serde"] }
-gonk-database = { path = "../gonk-database" }
-gonk-types = { path = "../gonk-types" }
+gonk-core = { path = "../gonk-core" }
 rodio = { path = "../rodio" }
 strsim = "0.10.0"
 static_init = "1.0.2"

@@ -1,5 +1,5 @@
 use app::App;
-use gonk_database::{Database, Toml, GONK_DIR};
+use gonk_core::{Database, Toml, GONK_DIR};
 use std::io::Result;
 mod app;
 mod widget;

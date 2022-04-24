@@ -1,6 +1,6 @@
 use super::DB;
 use crate::widget::{List, ListItem, ListState};
-use gonk_types::{Index, Song};
+use gonk_core::{Index, Song};
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout},

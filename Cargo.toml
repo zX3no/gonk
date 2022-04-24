@@ -1,5 +1,5 @@
 [workspace]
-members = ["gonk", "gonk-database", "gonk-types", "gonk-tcp"]
+members = ["gonk", "gonk-core"]
 
 [profile.release]
 debug = true

@@ -1,7 +1,7 @@
 use super::{Mode as AppMode, DB, TOML};
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_types::Index;
+use gonk_core::Index;
 use rodio::Player;
 use tui::{
     backend::Backend,

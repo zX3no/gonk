@@ -2,8 +2,8 @@ use crate::{
     app::TOML,
     widget::{List, ListItem, ListState},
 };
-use gonk_database::Toml;
-use gonk_types::Index;
+use gonk_core::Index;
+use gonk_core::Toml;
 use rodio::{Device, DeviceTrait, Player};
 use tui::{
     backend::Backend,
