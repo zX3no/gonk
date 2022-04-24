@@ -54,7 +54,8 @@ impl Decoder {
             mss,
             &FormatOptions {
                 prebuild_seek_index: true,
-                ..Default::default()
+                seek_index_fill_rate: 10,
+                enable_gapless: false,
             },
             &MetadataOptions::default(),
         )?;
