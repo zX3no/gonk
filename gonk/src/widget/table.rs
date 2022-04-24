@@ -5,7 +5,6 @@ use tui::{
     text::Text,
     widgets::{Block, StatefulWidget, Widget},
 };
-use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Cell<'a> {
@@ -138,8 +137,7 @@ impl<'a> Table<'a> {
     fn get_columns_widths(&self, max_width: u16, has_selection: bool) -> Vec<u16> {
         let mut constraints = Vec::with_capacity(self.widths.len() * 2 + 1);
         if has_selection {
-            let highlight_symbol_width =
-                self.highlight_symbol.map(|s| s.width() as u16).unwrap_or(0);
+            let highlight_symbol_width = self.highlight_symbol.map(|s| s.len() as u16).unwrap_or(0);
             constraints.push(Constraint::Length(highlight_symbol_width));
         }
         for constraint in self.widths {
@@ -232,7 +230,7 @@ impl<'a> StatefulWidget for Table<'a> {
         let has_selection = state.selected.is_some();
         let columns_widths = self.get_columns_widths(table_area.width, has_selection);
         let highlight_symbol = self.highlight_symbol.unwrap_or("");
-        let blank_symbol = " ".repeat(highlight_symbol.width());
+        let blank_symbol = " ".repeat(highlight_symbol.len());
         let mut current_height = 0;
         let mut rows_height = table_area.height;
 
@@ -250,7 +248,7 @@ impl<'a> StatefulWidget for Table<'a> {
             );
             let mut col = table_area.left();
             if has_selection {
-                col += (highlight_symbol.width() as u16).min(table_area.width);
+                col += (highlight_symbol.len() as u16).min(table_area.width);
             }
             for (width, cell) in columns_widths.iter().zip(header.cells.iter()) {
                 render_cell(

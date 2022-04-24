@@ -28,7 +28,6 @@ pub struct Song {
 
 impl Song {
     pub fn from(path: &Path) -> Song {
-        optick::event!("from() Song");
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
         let mut probe = symphonia::default::get_probe()

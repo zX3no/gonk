@@ -207,7 +207,6 @@ pub struct Toml {
 
 impl Toml {
     pub fn new() -> Self {
-        optick::event!("new toml");
         let path = TOML_DIR.as_path();
 
         let file = if path.exists() {

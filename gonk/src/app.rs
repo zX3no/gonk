@@ -65,7 +65,6 @@ pub struct App {
 
 impl App {
     pub fn new(toml: Toml) -> Self {
-        optick::event!("new app");
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
@@ -92,7 +91,6 @@ impl App {
         }
     }
     fn on_update(&mut self) {
-        optick::event!("on update");
         if self.db.needs_update() {
             self.browser.refresh();
             self.search.update_engine();
@@ -114,8 +112,6 @@ impl App {
         let tx = App::register_hotkeys();
 
         loop {
-            optick::event!("loop");
-
             if last_tick.elapsed() >= TICK_RATE {
                 self.on_update();
                 last_tick = Instant::now();
@@ -134,7 +130,6 @@ impl App {
             if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {
                     Event::Key(event) => {
-                        optick::event!("key event");
                         let bind = Bind {
                             key: Key::from(event.code),
                             modifiers: Modifier::from_u32(event.modifiers),
@@ -264,7 +259,6 @@ impl App {
     }
 
     fn handle_global_hotkeys(&mut self, tx: &Receiver<HotkeyEvent>) {
-        optick::event!("handle hotkeys");
         if let Ok(recv) = tx.try_recv() {
             match recv {
                 HotkeyEvent::VolUp => {
@@ -285,8 +279,6 @@ impl App {
     #[cfg(windows)]
     fn register_hotkeys() -> Receiver<HotkeyEvent> {
         use win_hotkey::{keys, modifiers, Listener};
-
-        optick::event!("register hotkeys");
 
         let (rx, tx) = mpsc::sync_channel(1);
         let rx = Arc::new(rx);
@@ -323,9 +315,7 @@ impl App {
     }
 
     #[cfg(unix)]
-    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {
-        todo!();
-    }
+    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {}
 }
 
 impl Drop for App {

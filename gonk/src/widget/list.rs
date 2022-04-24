@@ -5,7 +5,6 @@ use tui::{
     text::Text,
     widgets::{Block, StatefulWidget, Widget},
 };
-use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug, Clone, Default)]
 pub struct ListState {
@@ -174,7 +173,7 @@ impl<'a> StatefulWidget for List<'a> {
         let (start, end) = self.get_items_bounds(state.selection, list_height);
 
         let highlight_symbol = self.highlight_symbol.unwrap_or("");
-        let blank_symbol = " ".repeat(highlight_symbol.width());
+        let blank_symbol = " ".repeat(highlight_symbol.len());
         let mut current_height = 0;
 
         for (i, item) in self

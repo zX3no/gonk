@@ -19,7 +19,6 @@ pub struct Options {
 
 impl Options {
     fn get_current_device(devices: &Index<Device>) -> String {
-        optick::event!("get devices");
         let config_device = TOML.output_device();
         let default_device = Player::default_device().name().unwrap();
 
@@ -38,8 +37,6 @@ impl Options {
         }
     }
     pub fn new() -> Self {
-        optick::event!("new options");
-
         let devices = Index::new(Player::output_devices(), Some(0));
         let current_device = Self::get_current_device(&devices);
 
@@ -64,7 +61,6 @@ impl Options {
         }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
-        optick::event!("draw Options");
         let default_device = self.toml.output_device();
 
         let items: Vec<_> = self

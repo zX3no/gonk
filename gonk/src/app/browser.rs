@@ -43,7 +43,6 @@ pub struct Browser {
 
 impl Browser {
     pub fn new() -> Self {
-        optick::event!("new browser");
         let artists = Index::new(DB.get_all_artists(), Some(0));
 
         let (albums, songs) = if let Some(first_artist) = artists.selected() {
@@ -145,7 +144,6 @@ impl Browser {
 
 impl Browser {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>, busy: bool) {
-        optick::event!("draw Browser");
         self.draw_browser(f);
         if busy {
             Browser::draw_popup(f);

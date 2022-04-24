@@ -5,10 +5,6 @@ mod app;
 mod widget;
 
 fn main() -> Result<()> {
-    #[cfg(debug_assertions)]
-    optick::start_capture();
-    optick::event!("main");
-
     let args: Vec<_> = std::env::args().skip(1).collect();
     let mut toml = Toml::new();
 
@@ -49,9 +45,6 @@ fn main() -> Result<()> {
     }
 
     App::new(toml).run()?;
-
-    // #[cfg(debug_assertions)]
-    // optick::stop_capture("gonk");
 
     Ok(())
 }
