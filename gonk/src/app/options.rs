@@ -4,7 +4,7 @@ use crate::{
 };
 use gonk_core::Index;
 use gonk_core::Toml;
-use rodio::{Device, DeviceTrait, Player};
+use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
     backend::Backend,
     style::{Color, Modifier, Style},
@@ -26,7 +26,7 @@ impl Options {
         let mut data: Vec<_> = devices
             .data
             .iter()
-            .flat_map(rodio::DeviceTrait::name)
+            .flat_map(gonk_player::DeviceTrait::name)
             .collect();
 
         data.retain(|name| name == config_device);

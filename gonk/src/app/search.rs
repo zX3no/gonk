@@ -2,7 +2,7 @@ use super::{Mode as AppMode, DB, TOML};
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::Index;
-use rodio::Player;
+use gonk_player::Player;
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
