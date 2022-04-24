@@ -386,10 +386,6 @@ impl Toml {
         self.config.output_device = device;
         self.write();
     }
-    pub fn reset(&mut self) {
-        self.config.paths = Vec::new();
-        self.write();
-    }
     pub fn write(&self) {
         let toml = toml::to_string(&self).expect("Failed to write toml file.");
         fs::write(TOML_DIR.as_path(), toml).expect("Could not write toml flie.");

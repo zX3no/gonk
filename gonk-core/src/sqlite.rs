@@ -24,8 +24,9 @@ pub struct Database {
 
 impl Default for Database {
     fn default() -> Self {
+        let exists = DB_DIR.exists();
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
-        if !DB_DIR.exists() {
+        if !exists {
             conn.busy_timeout(Duration::from_millis(0)).unwrap();
             conn.pragma_update(None, "journal_mode", "WAL").unwrap();
             conn.pragma_update(None, "synchronous", "0").unwrap();
@@ -262,11 +263,6 @@ impl Database {
             duration: Duration::from_secs_f64(dur),
             path: PathBuf::from(path),
             track_gain: row.get(7).unwrap(),
-        }
-    }
-    pub fn delete() {
-        if DB_DIR.exists() {
-            std::fs::remove_file(DB_DIR.as_path()).unwrap();
         }
     }
 }

@@ -1,5 +1,5 @@
 use app::App;
-use gonk_core::{Database, Toml, GONK_DIR};
+use gonk_core::{Toml, GONK_DIR};
 use std::io::Result;
 mod app;
 mod widget;
@@ -17,12 +17,6 @@ fn main() -> Result<()> {
             }
             "config" => {
                 println!("Gonk directory:  {}", GONK_DIR.to_string_lossy());
-                return Ok(());
-            }
-            "reset" | "rm" => {
-                toml.reset();
-                Database::delete();
-                println!("Database reset!");
                 return Ok(());
             }
             "help" => {
