@@ -302,9 +302,6 @@ impl App {
         });
         tx
     }
-
-    #[cfg(unix)]
-    fn register_hotkeys(&self) -> Receiver<HotkeyEvent> {}
 }
 
 impl Drop for App {

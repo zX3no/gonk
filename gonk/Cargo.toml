@@ -11,11 +11,11 @@ license = "MIT"
 [dependencies]
 crossterm = "0.23.2"
 tui = { version = "0.17.0", features = ["serde"] }
-gonk-core = { path = "../gonk-core" }
-gonk-player = { path = "../gonk-player" }
+gonk-core = { version = "*", path = "../gonk-core" }
+gonk-player = { version = "*", path = "../gonk-player" }
 strsim = "0.10.0"
 static_init = "1.0.2"
 crossbeam-channel = "0.5.4"
 
 [target.'cfg(windows)'.dependencies]
-win-hotkey = { git = "https://github.com/zX3no/win-hotkey", rev = "1d6cb22ba202a445f73bf51a7e785655440639b3" }
+win-hotkey = { version = "*", git = "https://github.com/zX3no/win-hotkey" }
