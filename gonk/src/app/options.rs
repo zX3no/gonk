@@ -1,9 +1,9 @@
 use crate::{
     app::TOML,
     widget::{List, ListItem, ListState},
+    MUT_TOML,
 };
 use gonk_core::Index;
-use gonk_core::Toml;
 use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
     backend::Backend,
@@ -14,7 +14,6 @@ use tui::{
 
 pub struct Options {
     pub devices: Index<Device>,
-    toml: Toml,
 }
 
 impl Options {
@@ -40,10 +39,12 @@ impl Options {
         let devices = Index::new(Player::output_devices(), Some(0));
         let current_device = Self::get_current_device(&devices);
 
-        let mut toml = Toml::new();
-        toml.set_output_device(current_device);
+        MUT_TOML
+            .fast_write()
+            .unwrap()
+            .set_output_device(current_device);
 
-        Self { devices, toml }
+        Self { devices }
     }
     pub fn up(&mut self) {
         self.devices.up();
@@ -53,15 +54,18 @@ impl Options {
     }
     pub fn on_enter(&mut self, player: &mut Player) {
         if let Some(device) = self.devices.selected() {
-            //don't set update the device if there is an error
+            //don't update the device if there is an error
             if player.change_output_device(device) {
-                self.toml
+                MUT_TOML
+                    .fast_write()
+                    .unwrap()
                     .set_output_device(device.name().expect("Device has no name!"));
             }
         }
     }
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
-        let default_device = self.toml.output_device();
+        let toml = MUT_TOML.fast_read().unwrap();
+        let default_device = toml.output_device();
 
         let items: Vec<_> = self
             .devices

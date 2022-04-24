@@ -1,19 +1,21 @@
 use app::App;
 use gonk_core::{Database, Toml, GONK_DIR};
+use static_init::dynamic;
 use std::io::Result;
 mod app;
 mod widget;
 
+#[dynamic]
+static mut MUT_TOML: Toml = Toml::new();
+
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    let mut toml = Toml::new();
-
     if let Some(first) = args.first() {
         match first as &str {
             "add" => {
                 if let Some(dir) = args.get(1..) {
                     let dir = dir.join(" ");
-                    toml.add_path(dir);
+                    MUT_TOML.fast_write().unwrap().add_path(dir);
                 }
             }
             "config" => {
@@ -21,7 +23,7 @@ fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" | "rm" => {
-                toml.reset();
+                MUT_TOML.fast_write().unwrap().reset();
                 Database::delete();
                 println!("Database reset!");
                 return Ok(());
@@ -44,7 +46,7 @@ fn main() -> Result<()> {
         }
     }
 
-    App::new(toml).run()?;
+    App::new().run()?;
 
     Ok(())
 }

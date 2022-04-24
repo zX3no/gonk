@@ -13,10 +13,13 @@ mod sqlite;
 mod toml;
 
 #[dynamic]
-static CONFIG_DIR: PathBuf = dirs::config_dir().unwrap();
-
-#[dynamic]
-pub static GONK_DIR: PathBuf = CONFIG_DIR.join("gonk");
+pub static GONK_DIR: PathBuf = {
+    let gonk = dirs::config_dir().unwrap().join("gonk");
+    if !gonk.exists() {
+        std::fs::create_dir_all(GONK_DIR.as_path()).unwrap();
+    }
+    gonk
+};
 
 #[dynamic]
 pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");

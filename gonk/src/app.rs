@@ -18,6 +18,8 @@ use std::{
 };
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
+
+use crate::MUT_TOML;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
 
 mod browser;
@@ -46,7 +48,7 @@ pub enum Mode {
 static TOML: Toml = Toml::new();
 
 #[dynamic]
-static DB: Database = Database::new().unwrap();
+static DB: Database = Database::default();
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(4);
@@ -60,11 +62,10 @@ pub struct App {
     options: Options,
     search: Search,
     db: Database,
-    toml: Toml,
 }
 
 impl App {
-    pub fn new(toml: Toml) -> Self {
+    pub fn new() -> Self {
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
@@ -82,12 +83,11 @@ impl App {
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(toml.volume()),
+            queue: Queue::new(TOML.volume()),
             browser: Browser::new(),
             options: Options::new(),
             search: Search::new(),
-            db: Database::new().unwrap(),
-            toml,
+            db: Database::default(),
         }
     }
     fn on_update(&mut self) {
@@ -106,7 +106,7 @@ impl App {
     }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
-        self.db.sync_database(self.toml.paths());
+        self.db.sync_database(TOML.paths());
 
         #[cfg(windows)]
         let tx = App::register_hotkeys();
@@ -188,8 +188,8 @@ impl App {
                             }
                             _ if TOML.hotkey.clear.contains(&bind) => self.queue.clear(),
                             _ if TOML.hotkey.refresh_database.contains(&bind) => {
-                                self.db.add_dirs(self.toml.paths());
-                                self.db.sync_database(self.toml.paths());
+                                self.db.add_dirs(TOML.paths());
+                                self.db.sync_database(TOML.paths());
                             }
                             _ if TOML.hotkey.seek_backward.contains(&bind) => {
                                 self.queue.player.seek_by(-SEEK_TIME)
@@ -203,11 +203,11 @@ impl App {
                             _ if TOML.hotkey.next.contains(&bind) => self.queue.player.next_song(),
                             _ if TOML.hotkey.volume_up.contains(&bind) => {
                                 let vol = self.queue.player.volume_up();
-                                self.toml.set_volume(vol);
+                                MUT_TOML.fast_write().unwrap().set_volume(vol);
                             }
                             _ if TOML.hotkey.volume_down.contains(&bind) => {
                                 let vol = self.queue.player.volume_down();
-                                self.toml.set_volume(vol);
+                                MUT_TOML.fast_write().unwrap().set_volume(vol);
                             }
                             _ if TOML.hotkey.search.contains(&bind) => self.mode = Mode::Search,
                             _ if TOML.hotkey.options.contains(&bind) => self.mode = Mode::Options,
@@ -263,11 +263,11 @@ impl App {
             match recv {
                 HotkeyEvent::VolUp => {
                     let vol = self.queue.player.volume_up();
-                    self.toml.set_volume(vol);
+                    MUT_TOML.fast_write().unwrap().set_volume(vol);
                 }
                 HotkeyEvent::VolDown => {
                     let vol = self.queue.player.volume_down();
-                    self.toml.set_volume(vol);
+                    MUT_TOML.fast_write().unwrap().set_volume(vol);
                 }
                 HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
                 HotkeyEvent::Prev => self.queue.player.prev_song(),

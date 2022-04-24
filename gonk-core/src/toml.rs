@@ -182,11 +182,11 @@ pub struct GlobalHotkey {
     pub previous: Bind,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
-    paths: Vec<String>,
-    output_device: String,
-    volume: u16,
+    pub paths: Vec<String>,
+    pub output_device: String,
+    pub volume: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -197,7 +197,7 @@ pub struct Colors {
     pub artist: Color,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Toml {
     pub config: Config,
     pub colors: Colors,
@@ -207,10 +207,8 @@ pub struct Toml {
 
 impl Toml {
     pub fn new() -> Self {
-        let path = TOML_DIR.as_path();
-
-        let file = if path.exists() {
-            fs::read_to_string(path).unwrap()
+        let file = if TOML_DIR.exists() {
+            fs::read_to_string(TOML_DIR.as_path()).unwrap()
         } else {
             let toml = Toml {
                 config: Config {

@@ -218,9 +218,12 @@ impl Player {
     pub fn change_output_device(&mut self, device: &Device) -> bool {
         //temp fix so that changing to an input doesn't crash
         if let Ok((stream, handle)) = OutputStream::try_from_device(device) {
+            let pos = self.elapsed();
             self.stop();
             self.stream = stream;
             self.handle = handle;
+            self.play_selected();
+            self.seek_to(pos);
             true
         } else {
             false

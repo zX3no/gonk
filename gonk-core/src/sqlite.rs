@@ -1,9 +1,9 @@
-use crate::{Song, CONFIG_DIR, DB_DIR, GONK_DIR};
+use crate::{Song, DB_DIR};
 use dpc_pariter::IteratorExt;
 use jwalk::WalkDir;
 use rusqlite::{params, Connection, Params, Row};
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, MutexGuard,
@@ -22,22 +22,14 @@ pub struct Database {
     needs_update: Arc<AtomicBool>,
 }
 
-impl Database {
-    pub fn new() -> rusqlite::Result<Self> {
-        if !Path::new(CONFIG_DIR.as_path()).exists() {
-            std::fs::create_dir(CONFIG_DIR.as_path()).unwrap();
-        }
-
-        if !Path::new(GONK_DIR.as_path()).exists() {
-            std::fs::create_dir(GONK_DIR.as_path()).unwrap();
-        }
-
-        if !Path::new(DB_DIR.as_path()).exists() {
-            let conn = Connection::open(DB_DIR.as_path()).unwrap();
-            conn.busy_timeout(Duration::from_millis(0))?;
-            conn.pragma_update(None, "journal_mode", "WAL")?;
-            conn.pragma_update(None, "synchronous", "0")?;
-            conn.pragma_update(None, "temp_store", "MEMORY")?;
+impl Default for Database {
+    fn default() -> Self {
+        let conn = Connection::open(DB_DIR.as_path()).unwrap();
+        if !DB_DIR.exists() {
+            conn.busy_timeout(Duration::from_millis(0)).unwrap();
+            conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+            conn.pragma_update(None, "synchronous", "0").unwrap();
+            conn.pragma_update(None, "temp_store", "MEMORY").unwrap();
 
             conn.execute(
                 "CREATE TABLE song (
@@ -52,15 +44,19 @@ impl Database {
                     parent   TEXT NOT NULL
                 )",
                 [],
-            )?;
+            )
+            .unwrap();
         }
 
-        Ok(Self {
-            conn: Mutex::new(Connection::open(DB_DIR.as_path()).unwrap()),
+        Self {
+            conn: Mutex::new(conn),
             needs_update: Arc::new(AtomicBool::new(false)),
             is_busy: Arc::new(AtomicBool::new(false)),
-        })
+        }
     }
+}
+
+impl Database {
     fn conn(&self) -> MutexGuard<Connection> {
         self.conn.lock().unwrap()
     }
@@ -269,7 +265,7 @@ impl Database {
         }
     }
     pub fn delete() {
-        if DB_DIR.as_path().exists() {
+        if DB_DIR.exists() {
             std::fs::remove_file(DB_DIR.as_path()).unwrap();
         }
     }
