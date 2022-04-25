@@ -143,15 +143,6 @@ impl Search {
             }
         }
     }
-    pub fn on_tab(&mut self) {
-        match self.mode {
-            Mode::Search => {
-                self.results.select(None);
-                self.query.clear();
-            }
-            Mode::Select => (),
-        }
-    }
     pub fn up(&mut self) {
         self.results.up();
     }
@@ -358,61 +349,37 @@ impl Search {
         f.render_widget(artist_table, area);
     }
     fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
-        let get_cell = |item: &Item, modifier: Modifier| -> Row {
+        let get_cell = |item: &Item, selected: bool| -> Row {
+            let selected_cell = if selected {
+                Cell::from(">")
+            } else {
+                Cell::default()
+            };
             match item {
                 Item::Song(song) => {
                     let song = &sqlite::get_songs_from_id(&[song.id])[0];
                     Row::new(vec![
-                        Cell::from(song.name.clone()).style(
-                            Style::default()
-                                .fg(self.colors.title)
-                                .add_modifier(modifier),
-                        ),
-                        Cell::from(song.album.clone()).style(
-                            Style::default()
-                                .fg(self.colors.album)
-                                .add_modifier(modifier),
-                        ),
-                        Cell::from(song.artist.clone()).style(
-                            Style::default()
-                                .fg(self.colors.artist)
-                                .add_modifier(modifier),
-                        ),
+                        selected_cell,
+                        Cell::from(song.name.clone()).style(Style::default().fg(self.colors.title)),
+                        Cell::from(song.album.clone())
+                            .style(Style::default().fg(self.colors.album)),
+                        Cell::from(song.artist.clone())
+                            .style(Style::default().fg(self.colors.artist)),
                     ])
                 }
                 Item::Album(album) => Row::new(vec![
-                    Cell::from(format!("{} - Album", album.name)).style(
-                        Style::default()
-                            .fg(self.colors.title)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from("").style(
-                        Style::default()
-                            .fg(self.colors.album)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from(album.artist.clone()).style(
-                        Style::default()
-                            .fg(self.colors.artist)
-                            .add_modifier(modifier),
-                    ),
+                    selected_cell,
+                    Cell::from(format!("{} - Album", album.name))
+                        .style(Style::default().fg(self.colors.title)),
+                    Cell::from("").style(Style::default().fg(self.colors.album)),
+                    Cell::from(album.artist.clone()).style(Style::default().fg(self.colors.artist)),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
-                    Cell::from(format!("{} - Artist", artist.name)).style(
-                        Style::default()
-                            .fg(self.colors.title)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from("").style(
-                        Style::default()
-                            .fg(self.colors.album)
-                            .add_modifier(modifier),
-                    ),
-                    Cell::from("").style(
-                        Style::default()
-                            .fg(self.colors.artist)
-                            .add_modifier(modifier),
-                    ),
+                    selected_cell,
+                    Cell::from(format!("{} - Artist", artist.name))
+                        .style(Style::default().fg(self.colors.title)),
+                    Cell::from("").style(Style::default().fg(self.colors.album)),
+                    Cell::from("").style(Style::default().fg(self.colors.artist)),
                 ]),
             }
         };
@@ -426,12 +393,12 @@ impl Search {
             .map(|(i, item)| {
                 if let Some(s) = selected {
                     if s == &i {
-                        return get_cell(item, Modifier::ITALIC);
+                        return get_cell(item, true);
                     }
                 } else if i == 0 {
-                    return get_cell(item, Modifier::ITALIC);
+                    return get_cell(item, false);
                 }
-                get_cell(item, Modifier::empty())
+                get_cell(item, false)
             })
             .collect();
 
@@ -439,6 +406,7 @@ impl Search {
         let t = Table::new(rows)
             .header(
                 Row::new(vec![
+                    Cell::default(),
                     Cell::from("Name").style(italic),
                     Cell::from("Album").style(italic),
                     Cell::from("Artist").style(italic),
@@ -451,11 +419,11 @@ impl Search {
                     .border_type(BorderType::Rounded),
             )
             .widths(&[
+                Constraint::Length(1),
                 Constraint::Percentage(40),
                 Constraint::Percentage(40),
                 Constraint::Percentage(20),
-            ])
-            .highlight_symbol("> ");
+            ]);
 
         let mut state = TableState::new(self.results.index);
         f.render_stateful_widget(t, area, &mut state);

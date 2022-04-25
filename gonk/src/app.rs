@@ -144,10 +144,7 @@ impl App {
                                 self.mode = match self.mode {
                                     Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,
-                                    Mode::Search => {
-                                        self.search.on_tab();
-                                        Mode::Queue
-                                    }
+                                    Mode::Search => Mode::Queue,
                                 };
                             }
                             KeyCode::Backspace => self.search.on_backspace(event.modifiers),
