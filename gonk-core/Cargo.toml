@@ -15,7 +15,7 @@ dirs = "4.0.0"
 static_init = "1.0.2"
 jwalk = "0.6.0"
 dpc-pariter = "0.5.1"
-toml = "0.5.8"
+toml = "0.5.9"
 serde = { version = "1.0.136", features = ["derive"] }
 tui = { version = "0.18.0", features = ["serde"] }
 crossterm = "0.23.2"
