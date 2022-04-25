@@ -1,9 +1,7 @@
-use std::rc::Rc;
-
 use super::Mode as AppMode;
 use crate::widget::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_core::{Colors, Database, Index};
+use gonk_core::{sqlite, Colors, Index};
 use gonk_player::Player;
 use tui::{
     backend::Backend,
@@ -74,19 +72,17 @@ pub struct Search {
     mode: Mode,
     results: Index<Item>,
     cache: Vec<Item>,
-    db: Rc<Database>,
     colors: Colors,
 }
 
 impl Search {
-    pub fn new(db: Rc<Database>, colors: Colors) -> Self {
+    pub fn new(colors: Colors) -> Self {
         let mut s = Self {
             cache: Vec::new(),
             query: String::new(),
             prev_query: String::new(),
             mode: Mode::Search,
             results: Index::default(),
-            db,
             colors,
         };
         //TODO: this is dumb
@@ -94,9 +90,9 @@ impl Search {
         s
     }
     pub fn update_engine(&mut self) {
-        let songs = self.db.get_all_songs();
-        let artists = self.db.get_all_artists();
-        let albums = self.db.get_all_albums();
+        let songs = sqlite::get_all_songs();
+        let artists = sqlite::get_all_artists();
+        let albums = sqlite::get_all_albums();
         self.cache = Vec::new();
 
         for (id, song) in songs {
@@ -210,11 +206,11 @@ impl Search {
             Mode::Select => {
                 if let Some(item) = self.results.selected() {
                     let songs = match item {
-                        Item::Song(song) => self.db.get_songs_from_id(&[song.id]),
+                        Item::Song(song) => sqlite::get_songs_from_id(&[song.id]),
                         Item::Album(album) => {
-                            self.db.get_songs_from_album(&album.name, &album.artist)
+                            sqlite::get_songs_from_album(&album.name, &album.artist)
                         }
-                        Item::Artist(artist) => self.db.get_songs_by_artist(&artist.name),
+                        Item::Artist(artist) => sqlite::get_songs_by_artist(&artist.name),
                     };
 
                     player.add_songs(songs);
@@ -264,7 +260,7 @@ impl Search {
                     self.artist(f, &album.artist, h[1]);
                 }
                 Item::Artist(artist) => {
-                    let albums = self.db.get_all_albums_by_artist(&artist.name);
+                    let albums = sqlite::get_all_albums_by_artist(&artist.name);
 
                     self.artist(f, &artist.name, h[0]);
 
@@ -313,9 +309,7 @@ impl Search {
         f.render_widget(song_table, area);
     }
     fn album<B: Backend>(&self, f: &mut Frame<B>, album: &str, artist: &str, area: Rect) {
-        let cells: Vec<_> = self
-            .db
-            .get_songs_from_album(album, artist)
+        let cells: Vec<_> = sqlite::get_songs_from_album(album, artist)
             .iter()
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
             .collect();
@@ -339,7 +333,7 @@ impl Search {
         f.render_widget(album_table, area);
     }
     fn artist<B: Backend>(&self, f: &mut Frame<B>, artist: &str, area: Rect) {
-        let albums = self.db.get_all_albums_by_artist(artist);
+        let albums = sqlite::get_all_albums_by_artist(artist);
         let cells: Vec<_> = albums
             .iter()
             .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -367,7 +361,7 @@ impl Search {
         let get_cell = |item: &Item, modifier: Modifier| -> Row {
             match item {
                 Item::Song(song) => {
-                    let song = &self.db.get_songs_from_id(&[song.id])[0];
+                    let song = &sqlite::get_songs_from_id(&[song.id])[0];
                     Row::new(vec![
                         Cell::from(song.name.clone()).style(
                             Style::default()

@@ -9,20 +9,21 @@ use std::path::PathBuf;
 
 mod index;
 mod song;
-mod sqlite;
 mod toml;
 
+pub mod sqlite;
+
 #[dynamic]
-pub static GONK_DIR: PathBuf = dirs::config_dir().unwrap().join("gonk");
+pub static GONK_DIR: PathBuf = {
+    let gonk = dirs::config_dir().unwrap().join("gonk");
+    if !gonk.exists() {
+        std::fs::create_dir_all(&gonk).unwrap();
+    }
+    gonk
+};
 
 #[dynamic]
 pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 #[dynamic]
 pub static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
-
-pub fn create_config() {
-    if !GONK_DIR.exists() {
-        std::fs::create_dir_all(GONK_DIR.as_path()).unwrap();
-    }
-}

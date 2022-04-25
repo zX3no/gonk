@@ -5,12 +5,9 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use gonk_core::{Bind, Database, Key, Modifier, Toml};
+use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::time::Instant;
-use std::{
-    io::{stdout, Stdout},
-    rc::Rc,
-};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
@@ -67,15 +64,13 @@ impl App {
         enable_raw_mode().unwrap();
         terminal.clear().unwrap();
 
-        let db = Rc::new(Database::default());
-
         Self {
             terminal,
             mode: Mode::Browser,
             queue: Queue::new(toml.volume(), toml.colors.clone()),
-            browser: Browser::new(db.clone()),
+            browser: Browser::new(),
             options: Options::new(toml),
-            search: Search::new(db, toml.colors.clone()),
+            search: Search::new(toml.colors.clone()),
             db: Database::default(),
         }
     }
