@@ -1,7 +1,6 @@
-use super::COLORS;
 use crate::widget::{Cell, Gauge, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
-use gonk_core::Index;
+use gonk_core::{Colors, Index};
 use gonk_player::Player;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -14,15 +13,17 @@ pub struct Queue {
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
     pub player: Player,
+    pub colors: Colors,
 }
 
 impl Queue {
-    pub fn new(vol: u16) -> Self {
+    pub fn new(vol: u16, colors: Colors) -> Self {
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             player: Player::new(vol),
+            colors,
         }
     }
     pub fn update(&mut self) {
@@ -142,13 +143,16 @@ impl Queue {
                     Span::raw("─| "),
                     Span::styled(
                         artist.trim_end().to_string(),
-                        Style::default().fg(COLORS.artist),
+                        Style::default().fg(self.colors.artist),
                     ),
                     Span::raw(" - "),
-                    Span::styled(&song.name, Style::default().fg(COLORS.title)),
+                    Span::styled(&song.name, Style::default().fg(self.colors.title)),
                     Span::raw(" |─"),
                 ]),
-                Spans::from(Span::styled(&song.album, Style::default().fg(COLORS.album))),
+                Spans::from(Span::styled(
+                    &song.album,
+                    Style::default().fg(self.colors.album),
+                )),
             ]
         } else {
             vec![Spans::default(), Spans::default()]
@@ -180,10 +184,11 @@ impl Queue {
             .map(|song| {
                 Row::new(vec![
                     Cell::from(""),
-                    Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.track)),
-                    Cell::from(song.name.clone()).style(Style::default().fg(COLORS.title)),
-                    Cell::from(song.album.clone()).style(Style::default().fg(COLORS.album)),
-                    Cell::from(song.artist.clone()).style(Style::default().fg(COLORS.artist)),
+                    Cell::from(song.number.to_string())
+                        .style(Style::default().fg(self.colors.track)),
+                    Cell::from(song.name.clone()).style(Style::default().fg(self.colors.title)),
+                    Cell::from(song.album.clone()).style(Style::default().fg(self.colors.album)),
+                    Cell::from(song.artist.clone()).style(Style::default().fg(self.colors.artist)),
                 ])
             })
             .collect();
@@ -200,13 +205,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(COLORS.track).fg(Color::Black)),
+                                .style(Style::default().bg(self.colors.track).fg(Color::Black)),
                             Cell::from(song.name.clone())
-                                .style(Style::default().bg(COLORS.title).fg(Color::Black)),
+                                .style(Style::default().bg(self.colors.title).fg(Color::Black)),
                             Cell::from(song.album.clone())
-                                .style(Style::default().bg(COLORS.album).fg(Color::Black)),
+                                .style(Style::default().bg(self.colors.album).fg(Color::Black)),
                             Cell::from(song.artist.clone())
-                                .style(Style::default().bg(COLORS.artist).fg(Color::Black)),
+                                .style(Style::default().bg(self.colors.artist).fg(Color::Black)),
                         ])
                     } else {
                         Row::new(vec![
@@ -216,11 +221,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(COLORS.track)),
-                            Cell::from(song.name.clone()).style(Style::default().fg(COLORS.title)),
-                            Cell::from(song.album.clone()).style(Style::default().fg(COLORS.album)),
+                                .style(Style::default().fg(self.colors.track)),
+                            Cell::from(song.name.clone())
+                                .style(Style::default().fg(self.colors.title)),
+                            Cell::from(song.album.clone())
+                                .style(Style::default().fg(self.colors.album)),
                             Cell::from(song.artist.clone())
-                                .style(Style::default().fg(COLORS.artist)),
+                                .style(Style::default().fg(self.colors.artist)),
                         ])
                     };
 
@@ -233,13 +240,13 @@ impl Queue {
                             let row = Row::new(vec![
                                 Cell::from(""),
                                 Cell::from(song.number.to_string())
-                                    .style(Style::default().bg(COLORS.track)),
+                                    .style(Style::default().bg(self.colors.track)),
                                 Cell::from(song.name.clone())
-                                    .style(Style::default().bg(COLORS.title)),
+                                    .style(Style::default().bg(self.colors.title)),
                                 Cell::from(song.album.clone())
-                                    .style(Style::default().bg(COLORS.album)),
+                                    .style(Style::default().bg(self.colors.album)),
                                 Cell::from(song.artist.clone())
-                                    .style(Style::default().bg(COLORS.artist)),
+                                    .style(Style::default().bg(self.colors.artist)),
                             ])
                             .style(Style::default().fg(Color::Black));
                             items.remove(ui_index);

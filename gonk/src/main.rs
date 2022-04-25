@@ -5,6 +5,9 @@ mod app;
 mod widget;
 
 fn main() -> Result<()> {
+    //a backup in case the first call fails?
+    gonk_core::create_config();
+
     let args: Vec<_> = std::env::args().skip(1).collect();
     let mut toml = Toml::new();
     if let Some(first) = args.first() {

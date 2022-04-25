@@ -1,6 +1,7 @@
-use super::DB;
+use std::rc::Rc;
+
 use crate::widget::{List, ListItem, ListState};
-use gonk_core::{Index, Song};
+use gonk_core::{Database, Index, Song};
 use tui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -39,17 +40,18 @@ pub struct Browser {
     //TODO: change to just a string?
     songs: Index<(u64, String)>,
     pub mode: Mode,
+    db: Rc<Database>,
 }
 
 impl Browser {
-    pub fn new() -> Self {
-        let artists = Index::new(DB.get_all_artists(), Some(0));
+    pub fn new(db: Rc<Database>) -> Self {
+        let artists = Index::new(db.get_all_artists(), Some(0));
 
         let (albums, songs) = if let Some(first_artist) = artists.selected() {
-            let albums = Index::new(DB.get_all_albums_by_artist(first_artist), Some(0));
+            let albums = Index::new(db.get_all_albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = DB
+                let songs = db
                     .get_songs_from_album(first_album, first_artist)
                     .iter()
                     .map(|song| (song.number, song.name.clone()))
@@ -67,6 +69,7 @@ impl Browser {
             albums,
             songs,
             mode: Mode::Artist,
+            db,
         }
     }
     pub fn up(&mut self) {
@@ -95,14 +98,15 @@ impl Browser {
     pub fn update_albums(&mut self) {
         //Update the album based on artist selection
         if let Some(artist) = self.artists.selected() {
-            self.albums = Index::new(DB.get_all_albums_by_artist(artist), Some(0));
+            self.albums = Index::new(self.db.get_all_albums_by_artist(artist), Some(0));
             self.update_songs();
         }
     }
     pub fn update_songs(&mut self) {
         if let Some(artist) = self.artists.selected() {
             if let Some(album) = self.albums.selected() {
-                let songs = DB
+                let songs = self
+                    .db
                     .get_songs_from_album(album, artist)
                     .iter()
                     .map(|song| (song.number, song.name.clone()))
@@ -122,9 +126,9 @@ impl Browser {
             if let Some(album) = self.albums.selected() {
                 if let Some(song) = self.songs.selected() {
                     return match self.mode {
-                        Mode::Artist => DB.get_songs_by_artist(artist),
-                        Mode::Album => DB.get_songs_from_album(album, artist),
-                        Mode::Song => DB.get_song(song, album, artist),
+                        Mode::Artist => self.db.get_songs_by_artist(artist),
+                        Mode::Album => self.db.get_songs_from_album(album, artist),
+                        Mode::Song => self.db.get_song(song, album, artist),
                     };
                 }
             }
@@ -134,7 +138,7 @@ impl Browser {
     pub fn refresh(&mut self) {
         self.mode = Mode::Artist;
 
-        self.artists = Index::new(DB.get_all_artists(), Some(0));
+        self.artists = Index::new(self.db.get_all_artists(), Some(0));
         self.albums = Index::default();
         self.songs = Index::default();
 

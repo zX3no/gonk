@@ -2,11 +2,12 @@ use crate::{Song, DB_DIR};
 use dpc_pariter::IteratorExt;
 use jwalk::WalkDir;
 use rusqlite::{params, Connection, Params, Row};
+use static_init::dynamic;
 use std::{
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
+        Arc, Mutex,
     },
     thread,
     time::Duration,
@@ -16,14 +17,45 @@ fn fix(item: &str) -> String {
     item.replace('\'', r"''")
 }
 
+// #[dynamic]
+// static CONN: Mutex<Connection> = {
+//     crate::create_config();
+//     let exists = DB_DIR.exists();
+//     let conn = Connection::open(DB_DIR.as_path()).unwrap();
+//     if !exists {
+//         conn.busy_timeout(Duration::from_millis(0)).unwrap();
+//         conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+//         conn.pragma_update(None, "synchronous", "0").unwrap();
+//         conn.pragma_update(None, "temp_store", "MEMORY").unwrap();
+
+//         conn.execute(
+//             "CREATE TABLE song (
+//                     number   INTEGER NOT NULL,
+//                     disc     INTEGER NOT NULL,
+//                     name     TEXT NOT NULL,
+//                     album    TEXT NOT NULL,
+//                     artist   TEXT NOT NULL,
+//                     path     TEXT NOT NULL UNIQUE,
+//                     duration DOUBLE NOT NULL,
+//                     track_gain DOUBLE NOT NULL,
+//                     parent   TEXT NOT NULL
+//                 )",
+//             [],
+//         )
+//         .unwrap();
+//     }
+//     Mutex::new(conn)
+// };
+
 pub struct Database {
-    conn: Mutex<Connection>,
+    conn: Connection,
     is_busy: Arc<AtomicBool>,
     needs_update: Arc<AtomicBool>,
 }
 
 impl Default for Database {
     fn default() -> Self {
+        crate::create_config();
         let exists = DB_DIR.exists();
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
         if !exists {
@@ -50,7 +82,7 @@ impl Default for Database {
         }
 
         Self {
-            conn: Mutex::new(conn),
+            conn,
             needs_update: Arc::new(AtomicBool::new(false)),
             is_busy: Arc::new(AtomicBool::new(false)),
         }
@@ -58,9 +90,6 @@ impl Default for Database {
 }
 
 impl Database {
-    fn conn(&self) -> MutexGuard<Connection> {
-        self.conn.lock().unwrap()
-    }
     pub fn needs_update(&self) -> bool {
         self.needs_update.load(Ordering::Relaxed)
     }
@@ -71,8 +100,10 @@ impl Database {
         self.is_busy.load(Ordering::SeqCst)
     }
     pub fn sync_database(&self, toml_paths: &[String]) {
-        let conn = self.conn();
-        let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT parent FROM song")
+            .unwrap();
 
         let paths: Vec<_> = stmt
             .query_map([], |row| row.get(0))
@@ -83,7 +114,7 @@ impl Database {
         //delete paths that aren't in the toml file but are in the database
         paths.iter().for_each(|path| {
             if !toml_paths.contains(path) {
-                self.conn()
+                self.conn
                     .execute("DELETE FROM song WHERE parent = ?", [path])
                     .unwrap();
             }
@@ -167,8 +198,7 @@ impl Database {
             .collect()
     }
     pub fn get_all_songs(&self) -> Vec<(usize, Song)> {
-        let conn = self.conn();
-        let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
+        let mut stmt = self.conn.prepare("SELECT *, rowid FROM song").unwrap();
 
         stmt.query_map([], |row| {
             let id = row.get(9).unwrap();
@@ -180,8 +210,8 @@ impl Database {
         .collect()
     }
     pub fn get_all_artists(&self) -> Vec<String> {
-        let conn = self.conn();
-        let mut stmt = conn
+        let mut stmt = self
+            .conn
             .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
@@ -194,8 +224,8 @@ impl Database {
         .collect()
     }
     pub fn get_all_albums(&self) -> Vec<(String, String)> {
-        let conn = self.conn();
-        let mut stmt = conn
+        let mut stmt = self
+            .conn
             .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
             .unwrap();
 
@@ -209,8 +239,8 @@ impl Database {
         .collect()
     }
     pub fn get_all_albums_by_artist(&self, artist: &str) -> Vec<String> {
-        let conn = self.conn();
-        let mut stmt = conn
+        let mut stmt = self
+            .conn
             .prepare(
                 "SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE",
             )
@@ -243,8 +273,7 @@ impl Database {
     where
         P: Params,
     {
-        let conn = self.conn();
-        let mut stmt = conn.prepare(query).unwrap();
+        let mut stmt = self.conn.prepare(query).unwrap();
 
         stmt.query_map(params, |row| Ok(Database::song(row)))
             .unwrap()

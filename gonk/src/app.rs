@@ -4,11 +4,13 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gonk_core::{Bind, Colors, Database, Key, Modifier, Toml};
-use static_init::dynamic;
-use std::io::{stdout, Stdout};
+use gonk_core::{Bind, Database, Key, Modifier, Toml};
 use std::time::Duration;
 use std::time::Instant;
+use std::{
+    io::{stdout, Stdout},
+    rc::Rc,
+};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use {browser::Browser, options::Options, queue::Queue, search::Search};
@@ -34,12 +36,6 @@ pub enum Mode {
     Search,
     Options,
 }
-
-#[dynamic]
-static DB: Database = Database::default();
-
-#[dynamic]
-static COLORS: Colors = Toml::new().colors;
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(4);
@@ -71,13 +67,15 @@ impl App {
         enable_raw_mode().unwrap();
         terminal.clear().unwrap();
 
+        let db = Rc::new(Database::default());
+
         Self {
             terminal,
             mode: Mode::Browser,
-            queue: Queue::new(toml.volume()),
-            browser: Browser::new(),
+            queue: Queue::new(toml.volume(), toml.colors.clone()),
+            browser: Browser::new(db.clone()),
             options: Options::new(toml),
-            search: Search::new(),
+            search: Search::new(db, toml.colors.clone()),
             db: Database::default(),
         }
     }
