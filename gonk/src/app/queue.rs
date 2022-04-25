@@ -126,11 +126,12 @@ impl Queue {
     }
     fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.player.songs.selected() {
-            let mut artist = song.artist.clone();
             let mut name = song.name.clone();
-            let width = chunk.width.saturating_sub(45) as usize;
-
-            while artist.len() + name.len() + "-| - |-".len() > width {
+            let mut album = song.album.clone();
+            let mut artist = song.artist.clone();
+            let width = chunk.width.saturating_sub(28) as usize;
+            //7 is "-| - |-".len()
+            while artist.len() + name.len() + 7 > width {
                 if artist.len() > name.len() {
                     artist.pop();
                 } else {
@@ -138,21 +139,63 @@ impl Queue {
                 }
             }
 
+            while album.len() > width {
+                album.pop();
+            }
+
+            let mut pad_front = String::new();
+            let mut pad_back = String::new();
+            let len = album.len().saturating_sub(name.len() + artist.len());
+            let mut album_front = "";
+            let mut album_back = "";
+            if album.len() > name.len() + artist.len() {
+                //this padding doesn't work for unicode characters
+
+                // let mut i = 0;
+                // while pad_front.len() + pad_back.len() + 7 + name.len() + artist.len()
+                //     != album.len() + 2
+                // {
+                //     if i % 2 == 0 {
+                //         pad_front.push(' ');
+                //     } else {
+                //         pad_back.push(' ');
+                //     }
+                //     i += 1;
+                // }
+                for _ in 0..len.saturating_div(2).saturating_sub(2) {
+                    pad_front.push(' ');
+                    pad_back.push(' ');
+                }
+                if album.len() % 2 != 0 {
+                    pad_front.push(' ');
+                }
+                album_front = "│ ";
+                album_back = " │";
+            }
+
+            //TODO: maybe draw two paragraphs over each other that way the lines are consistent
             vec![
                 Spans::from(vec![
-                    Span::raw("─| "),
+                    Span::raw(format!("─│ {}", pad_front)),
                     Span::styled(
                         artist.trim_end().to_string(),
                         Style::default().fg(self.colors.artist),
                     ),
                     Span::raw(" - "),
-                    Span::styled(&song.name, Style::default().fg(self.colors.title)),
-                    Span::raw(" |─"),
+                    Span::styled(
+                        name.trim_end().to_string(),
+                        Style::default().fg(self.colors.title),
+                    ),
+                    Span::raw(format!("{} │─", pad_back)),
                 ]),
-                Spans::from(Span::styled(
-                    &song.album,
-                    Style::default().fg(self.colors.album),
-                )),
+                Spans::from(vec![
+                    Span::raw(album_front),
+                    Span::styled(
+                        album.trim_end().to_string(),
+                        Style::default().fg(self.colors.album),
+                    ),
+                    Span::raw(album_back),
+                ]),
             ]
         } else {
             vec![Spans::default(), Spans::default()]
