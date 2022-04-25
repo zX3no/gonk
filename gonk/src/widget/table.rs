@@ -162,9 +162,12 @@ impl<'a> Table<'a> {
         chunks.iter().step_by(2).map(|c| c.width).collect()
     }
 
-    fn get_row_bounds(&self, selected: Option<usize>, terminal_height: u16) -> (usize, usize) {
+    pub fn get_row_bounds(&self, selected: Option<usize>, terminal_height: u16) -> (usize, usize) {
         let mut real_end = 0;
         let mut height: usize = 0;
+        let len = self.rows.len();
+        let selection = selected.unwrap_or(0).min(len.saturating_sub(1));
+
         for item in self.rows.iter() {
             if height + item.height as usize > terminal_height as usize {
                 break;
@@ -173,10 +176,8 @@ impl<'a> Table<'a> {
             real_end += 1;
         }
 
-        let selection = selected.unwrap_or(0).min(self.rows.len() - 1);
-
-        if self.rows.len() <= height {
-            (self.rows.len() - height, self.rows.len())
+        if len <= height {
+            (len - height, len)
         } else if height > 0 {
             let half = (height - 1) / 2;
 
@@ -188,14 +189,27 @@ impl<'a> Table<'a> {
                 (selection - half, (selection + 1) + half)
             };
 
-            if end > self.rows.len() {
-                (self.rows.len() - height, self.rows.len())
+            if end > len {
+                (len - height, len)
             } else {
                 (start, end)
             }
         } else {
             (0, 0)
         }
+    }
+
+    pub fn get_row_height(&self, area: Rect) -> u16 {
+        let table_area = match &self.block {
+            Some(b) => b.inner(area),
+            None => area,
+        };
+        let mut rows_height = table_area.height;
+        if let Some(ref header) = self.header {
+            let max_header_height = table_area.height.min(header.total_height());
+            rows_height = rows_height.saturating_sub(max_header_height);
+        }
+        rows_height
     }
 }
 

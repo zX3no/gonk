@@ -189,12 +189,6 @@ impl Player {
     pub fn seek_to(&self, time: f64) {
         self.sink.seek(Duration::from_secs_f64(time));
     }
-    pub fn seeker(&self) -> f64 {
-        if self.duration == 0.0 {
-            return 0.0;
-        }
-        self.elapsed() / self.duration
-    }
     pub fn update(&mut self) {
         if self.elapsed() > self.duration {
             self.next_song();

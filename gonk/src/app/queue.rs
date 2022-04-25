@@ -68,56 +68,20 @@ impl Queue {
 }
 
 impl Queue {
-    fn handle_mouse<B: Backend>(&mut self, f: &mut Frame<B>) {
-        //Songs
-        if let Some((_, row)) = self.clicked_pos {
-            let size = f.size();
-            let height = size.height as usize;
-            let len = self.player.songs.len();
-            if height > 7 {
-                if height - 7 < len {
-                    //TODO: I have no idea how to figure out what index i clicked on
-                } else {
-                    let start_row = 5;
-                    if row >= start_row {
-                        let index = (row - start_row) as usize;
-                        if index < len {
-                            self.ui.select(Some(index));
-                        }
-                    }
-                }
-            }
-        }
-
-        //Seeker
-        if let Some((column, row)) = self.clicked_pos {
-            let size = f.size();
-            if size.height - 3 == row
-                || size.height - 2 == row
-                || size.height - 1 == row && column >= 3 && column < size.width - 2
-            {
-                let ratio = f64::from(column - 3) / f64::from(size.width);
-                let duration = self.player.duration;
-                let new_time = duration * ratio;
-                self.player.seek_to(new_time);
-            }
-            self.clicked_pos = None;
-        }
-    }
     pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),
-                Constraint::Min(0),
-                Constraint::Length(2),
+                Constraint::Min(10),
+                Constraint::Length(3),
             ])
             .split(f.size());
 
-        self.handle_mouse(f);
         self.draw_header(f, chunks[0]);
-        self.draw_songs(f, chunks[1]);
-        self.draw_seeker(f, chunks[2]);
+        self.draw_body(f, chunks[1]);
+        //TODO: if allow for old and new seeker
+        self.draw_new_seeker(f, chunks[2]);
     }
     fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         //Render the borders first
@@ -194,11 +158,12 @@ impl Queue {
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }
-    fn draw_songs<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+        let border = Borders::LEFT | Borders::BOTTOM | Borders::RIGHT;
         if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
-                    .borders(Borders::LEFT | Borders::RIGHT)
+                    .borders(border)
                     .border_type(BorderType::Rounded),
                 chunk,
             );
@@ -305,18 +270,32 @@ impl Queue {
             )
             .block(
                 Block::default()
-                    .borders(Borders::LEFT | Borders::RIGHT)
+                    .borders(border)
                     .border_type(BorderType::Rounded),
             )
             .widths(&con);
+
+        // handle mouse
+        if let Some((_, height)) = self.clicked_pos {
+            let (start, _) = t.get_row_bounds(ui_index, t.get_row_height(chunk));
+            //the header is 5 units long
+            if height >= 5 {
+                let index = (height - 5) as usize + start;
+                //don't select out of bounds
+                if index < self.player.songs.len() {
+                    self.ui.select(Some(index));
+                    self.clicked_pos = None;
+                }
+            }
+        }
 
         //required to scroll songs
         let mut state = TableState::new(ui_index);
         f.render_stateful_widget(t, chunk, &mut state);
     }
-    fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_new_seeker<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let block = Block::default()
-            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+            .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
 
         let elapsed = self.player.elapsed();
@@ -330,48 +309,62 @@ impl Queue {
             duration.trunc() as u32 % 60,
         );
 
+        let ratio = self.player.elapsed() / self.player.duration;
+        let ratio = if ratio.is_nan() {
+            0.0
+        } else {
+            ratio.clamp(0.0, 1.0)
+        };
+
         let g = Gauge::default()
             .block(block)
             .gauge_style(Style::default().fg(Color::White))
-            .ratio(self.player.seeker())
+            .ratio(ratio)
             .label(seeker);
 
         f.render_widget(g, chunk);
+
+        //mouse
+        if let Some((width, height)) = self.clicked_pos {
+            let size = f.size();
+            if size.height - 3 == height || size.height - 2 == height || size.height - 1 == height {
+                let ratio = f64::from(width) / f64::from(size.width);
+                let duration = self.player.duration;
+                let new_time = duration * ratio;
+                self.player.seek_to(new_time);
+                self.clicked_pos = None;
+            }
+        }
     }
-    // fn draw_seeker_old<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-    //     if self.player.songs.is_empty() {
-    //         return f.render_widget(
-    //             Block::default()
-    //                 .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-    //                 .border_type(BorderType::Rounded),
-    //             chunk,
-    //         );
-    //     }
+    #[allow(unused)]
+    fn draw_old_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+        let block = Block::default()
+            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+            .border_type(BorderType::Rounded);
 
-    //     let area = f.size();
-    //     let width = area.width;
-    //     let percent = self.player.seeker();
-    //     let pos = (f64::from(width) * percent) as usize;
+        if self.player.songs.is_empty() {
+            return f.render_widget(block, chunk);
+        }
 
-    //     let mut string: String = (0..width - 6)
-    //         .map(|i| if (i as usize) < pos { '=' } else { '-' })
-    //         .collect();
+        let width = f.size().width;
+        let ratio = self.player.elapsed() / self.player.duration;
+        let pos = (f64::from(width) * ratio) as usize;
+        let mut string: String = (0..width.saturating_sub(6))
+            .map(|i| if (i as usize) < pos { '=' } else { '-' })
+            .collect();
 
-    //     //Place the seeker location
-    //     if pos < string.len() - 1 {
-    //         string.remove(pos);
-    //         string.insert(pos, '>');
-    //     } else {
-    //         string.pop();
-    //         string.push('>');
-    //     }
+        if pos < string.len().saturating_sub(1) {
+            string.remove(pos);
+            string.insert(pos, '>');
+        } else {
+            string.pop();
+            string.push('>');
+        }
 
-    //     let p = Paragraph::new(string).alignment(Alignment::Center).block(
-    //         Block::default()
-    //             .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-    //             .border_type(BorderType::Rounded),
-    //     );
+        let p = Paragraph::new(string)
+            .alignment(Alignment::Center)
+            .block(block);
 
-    //     f.render_widget(p, chunk);
-    // }
+        f.render_widget(p, chunk);
+    }
 }
