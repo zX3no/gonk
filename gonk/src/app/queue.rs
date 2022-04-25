@@ -1,9 +1,8 @@
 use super::COLORS;
-use crate::widget::{Cell, Row, Table, TableState};
+use crate::widget::{Cell, Gauge, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::Index;
 use gonk_player::Player;
-use std::time::Duration;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
@@ -100,7 +99,7 @@ impl Queue {
                 let ratio = f64::from(column - 3) / f64::from(size.width);
                 let duration = self.player.duration;
                 let new_time = duration * ratio;
-                self.player.seek_to(Duration::from_secs_f64(new_time));
+                self.player.seek_to(new_time);
             }
             self.clicked_pos = None;
         }
@@ -132,7 +131,7 @@ impl Queue {
             String::from("╭─Stopped")
         } else if !self.player.is_paused() {
             let duration = self.player.duration;
-            let elapsed = self.player.elapsed().as_secs_f64();
+            let elapsed = self.player.elapsed();
 
             let mins = elapsed / 60.0;
             let rem = elapsed % 60.0;
@@ -265,7 +264,6 @@ impl Queue {
 
                     //Current selection
                     if ui_index != playing_index {
-                        
                         if let Some(song) = songs.get(ui_index) {
                             let row = Row::new(vec![
                                 Cell::from(""),
@@ -316,41 +314,64 @@ impl Queue {
         let mut state = TableState::new(ui_index);
         f.render_stateful_widget(t, chunk, &mut state);
     }
-    //TODO: try a new seeker design
     fn draw_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        if self.player.songs.is_empty() {
-            return f.render_widget(
-                Block::default()
-                    .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-                    .border_type(BorderType::Rounded),
-                chunk,
-            );
-        }
+        let block = Block::default()
+            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+            .border_type(BorderType::Rounded);
 
-        let area = f.size();
-        let width = area.width;
-        let percent = self.player.seeker();
-        let pos = (f64::from(width) * percent) as usize;
+        let elapsed = self.player.elapsed();
+        let duration = self.player.duration;
 
-        let mut string: String = (0..width - 6)
-            .map(|i| if (i as usize) < pos { '=' } else { '-' })
-            .collect();
-
-        //Place the seeker location
-        if pos < string.len() - 1 {
-            string.remove(pos);
-            string.insert(pos, '>');
-        } else {
-            string.pop();
-            string.push('>');
-        }
-
-        let p = Paragraph::new(string).alignment(Alignment::Center).block(
-            Block::default()
-                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-                .border_type(BorderType::Rounded),
+        let seeker = format!(
+            "{:02}:{:02}/{:02}:{:02}",
+            (elapsed / 60.0).floor(),
+            elapsed.trunc() as u32 % 60,
+            (duration / 60.0).floor(),
+            duration.trunc() as u32 % 60,
         );
 
-        f.render_widget(p, chunk);
+        let g = Gauge::default()
+            .block(block)
+            .gauge_style(Style::default().fg(Color::White))
+            .ratio(self.player.seeker())
+            .label(seeker);
+
+        f.render_widget(g, chunk);
     }
+    // fn draw_seeker_old<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
+    //     if self.player.songs.is_empty() {
+    //         return f.render_widget(
+    //             Block::default()
+    //                 .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+    //                 .border_type(BorderType::Rounded),
+    //             chunk,
+    //         );
+    //     }
+
+    //     let area = f.size();
+    //     let width = area.width;
+    //     let percent = self.player.seeker();
+    //     let pos = (f64::from(width) * percent) as usize;
+
+    //     let mut string: String = (0..width - 6)
+    //         .map(|i| if (i as usize) < pos { '=' } else { '-' })
+    //         .collect();
+
+    //     //Place the seeker location
+    //     if pos < string.len() - 1 {
+    //         string.remove(pos);
+    //         string.insert(pos, '>');
+    //     } else {
+    //         string.pop();
+    //         string.push('>');
+    //     }
+
+    //     let p = Paragraph::new(string).alignment(Alignment::Center).block(
+    //         Block::default()
+    //             .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+    //             .border_type(BorderType::Rounded),
+    //     );
+
+    //     f.render_widget(p, chunk);
+    // }
 }

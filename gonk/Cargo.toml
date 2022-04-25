@@ -11,9 +11,9 @@ license = "MIT"
 
 [dependencies]
 crossterm = "0.23.2"
-tui = { version = "0.17.0", features = ["serde"] }
-gonk-core = {version = "0.0.2", path = "../gonk-core"}
-gonk-player = {version = "0.0.2", path = "../gonk-player"}
+tui = { version = "0.18.0", features = ["serde"] }
+gonk-core = {version = "0.0.3", path = "../gonk-core"}
+gonk-player = {version = "0.0.3", path = "../gonk-player"}
 strsim = "0.10.0"
 static_init = "1.0.2"
 crossbeam-channel = "0.5.4"

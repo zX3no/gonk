@@ -168,8 +168,8 @@ impl Player {
         self.sink = Sink::try_new(&self.handle).expect("Could not create new sink.");
         self.sink.set_volume(f32::from(self.volume) / 1000.0);
     }
-    pub fn elapsed(&self) -> Duration {
-        self.sink.elapsed()
+    pub fn elapsed(&self) -> f64 {
+        self.sink.elapsed().as_secs_f64()
     }
     pub fn toggle_playback(&self) {
         self.sink.toggle_playback();
@@ -178,7 +178,7 @@ impl Player {
         self.sink.is_paused()
     }
     pub fn seek_by(&mut self, amount: f64) {
-        let mut seek = self.elapsed().as_secs_f64() + amount;
+        let mut seek = self.elapsed() + amount;
         if seek > self.duration {
             return self.next_song();
         } else if seek < 0.0 {
@@ -186,15 +186,17 @@ impl Player {
         }
         self.sink.seek(Duration::from_secs_f64(seek));
     }
-    pub fn seek_to(&self, time: Duration) {
-        self.sink.seek(time);
+    pub fn seek_to(&self, time: f64) {
+        self.sink.seek(Duration::from_secs_f64(time));
     }
     pub fn seeker(&self) -> f64 {
-        let elapsed = self.elapsed();
-        elapsed.as_secs_f64() / self.duration
+        if self.duration == 0.0 {
+            return 0.0;
+        }
+        self.elapsed() / self.duration
     }
     pub fn update(&mut self) {
-        if self.elapsed().as_secs_f64() > self.duration {
+        if self.elapsed() > self.duration {
             self.next_song();
         }
     }

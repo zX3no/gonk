@@ -1,6 +1,6 @@
 [package]
 name = "gonk-core"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 
 authors = ["Bay"]
@@ -17,7 +17,7 @@ jwalk = "0.6.0"
 dpc-pariter = "0.5.1"
 toml = "0.5.8"
 serde = { version = "1.0.136", features = ["derive"] }
-tui = { version = "0.17.0", features = ["serde"] }
+tui = { version = "0.18.0", features = ["serde"] }
 crossterm = "0.23.2"
 symphonia = "0.5.0"
 
