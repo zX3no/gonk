@@ -27,38 +27,15 @@ pub struct Song {
     pub artist: String,
 }
 
-impl Song {
-    pub fn new(id: usize, name: String, album: String, artist: String) -> Self {
-        Self {
-            id,
-            name,
-            album,
-            artist,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct Album {
     pub name: String,
     pub artist: String,
 }
 
-impl Album {
-    pub fn new(name: String, artist: String) -> Self {
-        Self { name, artist }
-    }
-}
-
 #[derive(Clone)]
 pub struct Artist {
     pub name: String,
-}
-
-impl Artist {
-    pub fn new(name: String) -> Self {
-        Self { name }
-    }
 }
 
 pub enum Mode {
@@ -87,6 +64,7 @@ impl Search {
         };
         //TODO: this is dumb
         s.update_engine();
+        s.update_search();
         s
     }
     pub fn update_engine(&mut self) {
@@ -96,20 +74,23 @@ impl Search {
         self.cache = Vec::new();
 
         for (id, song) in songs {
-            self.cache.push(Item::Song(Song::new(
+            self.cache.push(Item::Song(Song {
+                name: song.name,
+                album: song.album,
+                artist: song.artist,
                 id,
-                song.name,
-                song.album,
-                song.artist,
-            )));
+            }));
         }
 
         for (album, artist) in albums {
-            self.cache.push(Item::Album(Album::new(album, artist)));
+            self.cache.push(Item::Album(Album {
+                name: album,
+                artist,
+            }));
         }
 
         for artist in artists {
-            self.cache.push(Item::Artist(Artist::new(artist)));
+            self.cache.push(Item::Artist(Artist { name: artist }));
         }
     }
     pub fn update_search(&mut self) {
@@ -122,6 +103,10 @@ impl Search {
                 Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
                 Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
             };
+
+            if query.is_empty() && results.len() < 40 {
+                results.push((item, acc));
+            }
 
             if acc > 0.75 {
                 results.push((item, acc));

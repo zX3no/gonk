@@ -1,2 +1,2 @@
 [workspace]
-members = ["gonk", "gonk-core", "gonk-player", "gonk-tantivy"]
+members = ["gonk", "gonk-core", "gonk-player"]
