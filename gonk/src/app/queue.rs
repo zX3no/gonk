@@ -191,12 +191,11 @@ impl Queue {
         f.render_widget(center, chunk);
     }
     fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        let border = Borders::LEFT | Borders::BOTTOM | Borders::RIGHT;
         if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
-                    .borders(border)
-                    .border_type(BorderType::Rounded),
+                    .border_type(BorderType::Rounded)
+                    .borders(Borders::LEFT | Borders::RIGHT),
                 chunk,
             );
         }
@@ -305,7 +304,7 @@ impl Queue {
             )
             .block(
                 Block::default()
-                    .borders(border)
+                    .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
                     .border_type(BorderType::Rounded),
             )
             .widths(&con);
@@ -329,6 +328,15 @@ impl Queue {
         f.render_stateful_widget(t, chunk, &mut state);
     }
     fn draw_new_seeker<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+        if self.player.songs.is_empty() {
+            return f.render_widget(
+                Block::default()
+                    .border_type(BorderType::Rounded)
+                    .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT),
+                chunk,
+            );
+        }
+
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
