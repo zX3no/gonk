@@ -7,6 +7,7 @@ use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::{backend::Backend, Frame};
+use unicode_width::UnicodeWidthStr;
 
 pub struct Queue {
     pub ui: Index<()>,
@@ -126,82 +127,66 @@ impl Queue {
     }
     fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.player.songs.selected() {
-            let mut name = song.name.clone();
-            let mut album = song.album.clone();
-            let mut artist = song.artist.clone();
-            let width = chunk.width.saturating_sub(28) as usize;
-            //7 is "-| - |-".len()
-            while artist.len() + name.len() + 7 > width {
-                if artist.len() > name.len() {
+            let mut name = song.name.trim_end().to_string();
+            let mut album = song.album.trim_end().to_string();
+            let mut artist = song.artist.trim_end().to_string();
+            let width = chunk.width.saturating_sub(30) as usize;
+
+            while artist.width() + name.width() + "-| - |-".width() > width {
+                if artist.width() > name.width() {
                     artist.pop();
                 } else {
                     name.pop();
                 }
             }
 
-            while album.len() > width {
+            while album.width() > width {
                 album.pop();
             }
 
+            let title = format!("{} - {}", artist, name);
+
+            //The code did this:
+            // |          Artist - Track Name          |
+            // | A very very very very long album name |
+
+            // let (album_front, album_back) = if album.width() > title.width() {
+            //     ("│ ", " │")
+            // } else {
+            //     ("", "")
+            // };
+
             let mut pad_front = String::new();
             let mut pad_back = String::new();
-            let len = album.len().saturating_sub(name.len() + artist.len());
-            let mut album_front = "";
-            let mut album_back = "";
-            if album.len() > name.len() + artist.len() {
-                //this padding doesn't work for unicode characters
+            let mut i = 0;
 
-                // let mut i = 0;
-                // while pad_front.len() + pad_back.len() + 7 + name.len() + artist.len()
-                //     != album.len() + 2
-                // {
-                //     if i % 2 == 0 {
-                //         pad_front.push(' ');
-                //     } else {
-                //         pad_back.push(' ');
-                //     }
-                //     i += 1;
-                // }
-                for _ in 0..len.saturating_div(2).saturating_sub(2) {
+            while title.width() + pad_front.width() + pad_back.width() < album.width() {
+                if i % 2 == 0 {
                     pad_front.push(' ');
+                } else {
                     pad_back.push(' ');
                 }
-                if album.len() % 2 != 0 {
-                    pad_front.push(' ');
-                }
-                album_front = "│ ";
-                album_back = " │";
+                i += 1;
             }
 
-            //TODO: maybe draw two paragraphs over each other that way the lines are consistent
             vec![
                 Spans::from(vec![
                     Span::raw(format!("─│ {}", pad_front)),
-                    Span::styled(
-                        artist.trim_end().to_string(),
-                        Style::default().fg(self.colors.artist),
-                    ),
+                    Span::styled(artist, Style::default().fg(self.colors.artist)),
                     Span::raw(" - "),
-                    Span::styled(
-                        name.trim_end().to_string(),
-                        Style::default().fg(self.colors.title),
-                    ),
+                    Span::styled(name, Style::default().fg(self.colors.title)),
                     Span::raw(format!("{} │─", pad_back)),
                 ]),
                 Spans::from(vec![
-                    Span::raw(album_front),
-                    Span::styled(
-                        album.trim_end().to_string(),
-                        Style::default().fg(self.colors.album),
-                    ),
-                    Span::raw(album_back),
+                    // Span::raw(album_front),
+                    Span::styled(album, Style::default().fg(self.colors.album)),
+                    // Span::raw(album_back),
                 ]),
             ]
         } else {
             vec![Spans::default(), Spans::default()]
         };
 
-        //TODO: scroll the text to the left
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }

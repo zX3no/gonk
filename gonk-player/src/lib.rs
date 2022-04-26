@@ -188,6 +188,9 @@ impl Player {
     }
     pub fn seek_to(&self, time: f64) {
         self.sink.seek(Duration::from_secs_f64(time));
+        if self.is_paused() {
+            self.toggle_playback();
+        }
     }
     pub fn update(&mut self) {
         if self.elapsed() > self.duration {
