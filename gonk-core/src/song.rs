@@ -30,17 +30,22 @@ pub struct Song {
 }
 
 impl Song {
-    pub fn from(path: &Path) -> Song {
+    pub fn from(path: &Path) -> Option<Song> {
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
-        let mut probe = get_probe()
-            .format(
-                &Hint::new(),
-                mss,
-                &FormatOptions::default(),
-                &MetadataOptions::default(),
-            )
-            .unwrap();
+        let mut probe = match get_probe().format(
+            &Hint::new(),
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        ) {
+            Ok(probe) => probe,
+            Err(e) => {
+                eprintln!("{}", e);
+                eprintln!("{:?}", path);
+                return None;
+            }
+        };
 
         let mut song = Song {
             path: path.to_path_buf(),
@@ -128,7 +133,7 @@ impl Song {
             song.duration = Duration::from_secs(0);
         }
 
-        song
+        Some(song)
     }
 }
 

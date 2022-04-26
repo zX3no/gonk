@@ -1,0 +1,12 @@
+[package]
+name = "gonk-tantivy"
+version = "0.0.5"
+edition = "2021"
+
+[dependencies]
+gonk-core = {version = "0.0.5", path = "../gonk-core"}
+jwalk = "0.6.0"
+rayon = "1.5.2"
+serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.79"
+tantivy = "0.17.0"

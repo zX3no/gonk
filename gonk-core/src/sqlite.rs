@@ -216,19 +216,19 @@ impl Database {
                 let songs: Vec<Song> = WalkDir::new(&dir)
                     .into_iter()
                     .map(|dir| dir.unwrap().path())
-                    .filter(|dir| {
-                        if let Some(ex) = dir.extension() {
+                    .filter(|dir| match dir.extension() {
+                        Some(ex) => {
                             matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
-                        } else {
-                            false
                         }
+                        None => false,
                     })
-                    .parallel_map(|dir| Song::from(&dir))
+                    .parallel_map(|dir| Song::from(&dir).unwrap())
                     .collect();
 
                 if songs.is_empty() {
                     return;
                 }
+
                 let mut stmt = String::from("BEGIN;\n");
                 stmt.push_str(&songs.iter()
                 .map(|song| {
