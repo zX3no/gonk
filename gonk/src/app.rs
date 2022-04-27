@@ -186,6 +186,7 @@ impl App {
                             }
                             _ if toml.hotkey.clear.contains(&bind) => self.queue.clear(),
                             _ if toml.hotkey.refresh_database.contains(&bind) => {
+                                self.db.reset();
                                 self.db.add_dirs(toml.paths());
                                 self.db.sync_database(toml.paths());
                             }

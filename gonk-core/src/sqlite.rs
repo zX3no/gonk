@@ -48,36 +48,6 @@ static CONN: Pool<SqliteConnectionManager> = {
 fn conn() -> PooledConnection<SqliteConnectionManager> {
     CONN.get().unwrap()
 }
-fn fix(item: &str) -> String {
-    item.replace('\'', r"''")
-}
-fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
-where
-    P: Params,
-{
-    let conn = conn();
-    let mut stmt = conn.prepare(query).unwrap();
-
-    stmt.query_map(params, |row| Ok(song(row)))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-fn song(row: &Row) -> Song {
-    let path: String = row.get(5).unwrap();
-    let dur: f64 = row.get(6).unwrap();
-    Song {
-        number: row.get(0).unwrap(),
-        disc: row.get(1).unwrap(),
-        name: row.get(2).unwrap(),
-        album: row.get(3).unwrap(),
-        artist: row.get(4).unwrap(),
-        duration: Duration::from_secs_f64(dur),
-        path: PathBuf::from(path),
-        track_gain: row.get(7).unwrap(),
-    }
-}
-
 pub fn get_all_songs() -> Vec<(usize, Song)> {
     let conn = conn();
     let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
@@ -149,7 +119,6 @@ pub fn get_song(song: &(u64, String), album: &str, artist: &str) -> Vec<Song> {
         params![song.1, song.0, artist, album],
     )
 }
-
 pub fn get_songs_from_id(ids: &[usize]) -> Vec<Song> {
     ids.iter()
         .filter_map(|id| {
@@ -159,6 +128,35 @@ pub fn get_songs_from_id(ids: &[usize]) -> Vec<Song> {
         })
         .collect()
 }
+fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
+where
+    P: Params,
+{
+    let conn = conn();
+    let mut stmt = conn.prepare(query).unwrap();
+
+    stmt.query_map(params, |row| Ok(song(row)))
+        .unwrap()
+        .flatten()
+        .collect()
+}
+fn fix(item: &str) -> String {
+    item.replace('\'', r"''")
+}
+fn song(row: &Row) -> Song {
+    let path: String = row.get(5).unwrap();
+    let dur: f64 = row.get(6).unwrap();
+    Song {
+        number: row.get(0).unwrap(),
+        disc: row.get(1).unwrap(),
+        name: row.get(2).unwrap(),
+        album: row.get(3).unwrap(),
+        artist: row.get(4).unwrap(),
+        duration: Duration::from_secs_f64(dur),
+        path: PathBuf::from(path),
+        track_gain: row.get(7).unwrap(),
+    }
+}
 
 #[derive(Default)]
 pub struct Database {
@@ -167,6 +165,10 @@ pub struct Database {
 }
 
 impl Database {
+    pub fn reset(&self) {
+        let conn = conn();
+        conn.execute("DELETE FROM song", []).unwrap();
+    }
     pub fn sync_database(&self, toml_paths: &[String]) {
         let conn = conn();
         let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
