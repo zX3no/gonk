@@ -33,6 +33,7 @@ impl Song {
     pub fn from(path: &Path) -> Option<Song> {
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+
         let mut probe = match get_probe().format(
             &Hint::new(),
             mss,

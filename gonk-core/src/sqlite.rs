@@ -217,8 +217,9 @@ impl Database {
             for dir in dirs {
                 let songs: Vec<Song> = WalkDir::new(&dir)
                     .into_iter()
-                    .map(|dir| dir.unwrap().path())
-                    .filter(|dir| match dir.extension() {
+                    .flatten()
+                    .map(|dir| dir.path())
+                    .filter(|path| match path.extension() {
                         Some(ex) => {
                             matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
                         }
