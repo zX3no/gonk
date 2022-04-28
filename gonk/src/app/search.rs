@@ -202,19 +202,16 @@ impl Search {
 
         let v = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Length(3),
-                    Constraint::Percentage(40),
-                    Constraint::Percentage(60),
-                ]
-                .as_ref(),
-            )
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Percentage(30),
+                Constraint::Percentage(60),
+            ])
             .split(area);
 
         let h = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
+            .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
             .split(v[1]);
 
         self.draw_textbox(f, v[0]);
@@ -242,9 +239,7 @@ impl Search {
 
                     let h_split = Layout::default()
                         .direction(Direction::Horizontal)
-                        .constraints(
-                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
-                        )
+                        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                         .split(h[1]);
 
                     //draw the first two albums

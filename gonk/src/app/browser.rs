@@ -149,16 +149,14 @@ impl Browser {
     pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();
 
+        let size = area.width / 3;
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(
-                [
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(33),
-                ]
-                .as_ref(),
-            )
+            .constraints([
+                Constraint::Length(size),
+                Constraint::Length(size),
+                Constraint::Length(size),
+            ])
             .split(area);
 
         let a: Vec<_> = self
