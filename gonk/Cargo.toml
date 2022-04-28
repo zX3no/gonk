@@ -1,6 +1,6 @@
 [package]
 name = "gonk"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2021"
 
 authors = ["Bay"]
@@ -12,8 +12,8 @@ license = "MIT"
 [dependencies]
 crossterm = "0.23.2"
 tui = { version = "0.18.0", features = ["serde"] }
-gonk-core = {version = "0.0.5", path = "../gonk-core"}
-gonk-player = {version = "0.0.5", path = "../gonk-player"}
+gonk-core = {version = "0.0.6", path = "../gonk-core"}
+gonk-player = {version = "0.0.6", path = "../gonk-player"}
 strsim = "0.10.0"
 crossbeam-channel = "0.5.4"
 unicode-width = "0.1.9"

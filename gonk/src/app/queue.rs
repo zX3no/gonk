@@ -316,7 +316,8 @@ impl Queue {
             if height >= 5 {
                 let index = (height - 5) as usize + start;
                 //don't select out of bounds
-                if index < self.player.songs.len() {
+                //TODO: f.size().height could be done better
+                if index < self.player.songs.len() && height < f.size().height.saturating_sub(4) {
                     self.ui.select(Some(index));
                     self.clicked_pos = None;
                 }
