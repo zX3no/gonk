@@ -361,7 +361,7 @@ impl Queue {
 
         let g = Gauge::default()
             .block(block)
-            .gauge_style(Style::default().fg(Color::White))
+            .gauge_style(Style::default().fg(self.colors.seeker))
             .ratio(ratio)
             .label(seeker);
 

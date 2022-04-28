@@ -195,6 +195,8 @@ pub struct Colors {
     pub title: Color,
     pub album: Color,
     pub artist: Color,
+
+    pub seeker: Color,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -221,6 +223,7 @@ impl Toml {
                     title: Color::Cyan,
                     album: Color::Magenta,
                     artist: Color::Blue,
+                    seeker: Color::White,
                 },
                 global_hotkey: GlobalHotkey {
                     play_pause: Bind {
