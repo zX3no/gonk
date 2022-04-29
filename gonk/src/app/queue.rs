@@ -62,10 +62,9 @@ impl Queue {
     pub fn down(&mut self) {
         self.ui.down_with_len(self.player.songs.len());
     }
-
     pub fn clear(&mut self) {
         self.player.clear_songs();
-        self.ui = Index::default();
+        self.ui.select(Some(0));
     }
 }
 
@@ -192,6 +191,7 @@ impl Queue {
     }
     fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.player.songs.is_empty() {
+            self.handle_mouse(f.size(), &Table::default(), None, chunk);
             return f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
@@ -309,24 +309,39 @@ impl Queue {
             )
             .widths(&con);
 
-        // handle mouse
-        if let Some((_, height)) = self.clicked_pos {
-            let (start, _) = t.get_row_bounds(ui_index, t.get_row_height(chunk));
-            //the header is 5 units long
-            if height >= 5 {
-                let index = (height - 5) as usize + start;
-                //don't select out of bounds
-                //TODO: f.size().height could be done better
-                if index < self.player.songs.len() && height < f.size().height.saturating_sub(4) {
-                    self.ui.select(Some(index));
-                    self.clicked_pos = None;
-                }
-            }
-        }
+        self.handle_mouse(f.size(), &t, ui_index, chunk);
 
         //required to scroll songs
         let mut state = TableState::new(ui_index);
         f.render_stateful_widget(t, chunk, &mut state);
+    }
+    fn seeker(&mut self, size: Rect) {
+        if let Some((width, height)) = self.clicked_pos {
+            if size.height - 3 == height || size.height - 2 == height || size.height - 1 == height {
+                let ratio = f64::from(width) / f64::from(size.width);
+                let duration = self.player.duration;
+                let new_time = duration * ratio;
+                self.player.seek_to(new_time);
+                self.clicked_pos = None;
+            }
+        }
+    }
+    //TODO: handle very small window sizes
+    fn handle_mouse(&mut self, size: Rect, table: &Table, ui_index: Option<usize>, chunk: Rect) {
+        self.seeker(size);
+
+        if let Some((_, height)) = self.clicked_pos {
+            let (start, _) = table.get_row_bounds(ui_index, table.get_row_height(chunk));
+            //the header is 5 units long
+            if height >= 5 {
+                let index = (height - 5) as usize + start;
+                //don't select out of bounds
+                if index < self.player.songs.len() && height < size.height.saturating_sub(4) {
+                    self.ui.select(Some(index));
+                }
+            }
+            self.clicked_pos = None;
+        }
     }
     fn draw_new_seeker<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.player.songs.is_empty() {
@@ -368,47 +383,6 @@ impl Queue {
 
         f.render_widget(g, chunk);
 
-        //mouse
-        if let Some((width, height)) = self.clicked_pos {
-            let size = f.size();
-            if size.height - 3 == height || size.height - 2 == height || size.height - 1 == height {
-                let ratio = f64::from(width) / f64::from(size.width);
-                let duration = self.player.duration;
-                let new_time = duration * ratio;
-                self.player.seek_to(new_time);
-                self.clicked_pos = None;
-            }
-        }
-    }
-    #[allow(unused)]
-    fn draw_old_seeker<B: Backend>(&self, f: &mut Frame<B>, chunk: Rect) {
-        let block = Block::default()
-            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-            .border_type(BorderType::Rounded);
-
-        if self.player.songs.is_empty() {
-            return f.render_widget(block, chunk);
-        }
-
-        let width = f.size().width;
-        let ratio = self.player.elapsed() / self.player.duration;
-        let pos = (f64::from(width) * ratio) as usize;
-        let mut string: String = (0..width.saturating_sub(6))
-            .map(|i| if (i as usize) < pos { '=' } else { '-' })
-            .collect();
-
-        if pos < string.len().saturating_sub(1) {
-            string.remove(pos);
-            string.insert(pos, '>');
-        } else {
-            string.pop();
-            string.push('>');
-        }
-
-        let p = Paragraph::new(string)
-            .alignment(Alignment::Center)
-            .block(block);
-
-        f.render_widget(p, chunk);
+        self.seeker(f.size());
     }
 }
