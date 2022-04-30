@@ -1,5 +1,5 @@
 use app::App;
-use gonk_core::{Toml, GONK_DIR};
+use gonk_core::Toml;
 use std::io::Result;
 mod app;
 mod widget;
@@ -15,17 +15,12 @@ fn main() -> Result<()> {
                     toml.add_path(dir);
                 }
             }
-            "config" => {
-                println!("Gonk directory:  {}", GONK_DIR.to_string_lossy());
-                return Ok(());
-            }
             "help" => {
                 println!("Usage");
                 println!("   gonk [<command> <args>]");
                 println!();
                 println!("Options");
                 println!("   add <path>  Add music to the library");
-                println!("   config      Locates the config directory");
                 println!();
                 return Ok(());
             }

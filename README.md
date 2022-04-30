@@ -26,7 +26,7 @@
 cargo install gonk
 ```
 
-#### From source
+### From source
 
 Install the dependencies.
 
@@ -65,7 +65,9 @@ apk add pkgconf alsa-lib-dev alpine-sdk
 
 ## ⌨️ Key Bindings
 
-For custom bindings just type `gonk config` and edit the config file
+Windows: `%appdata%/gonk/gonk.toml`
+
+Linux: `~/.config/gonk/gonk.toml`
 
 | Command     | Key         |
 |-------------|-------------|

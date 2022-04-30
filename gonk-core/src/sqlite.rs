@@ -3,7 +3,7 @@ use dpc_pariter::IteratorExt;
 use jwalk::WalkDir;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::{params, Connection, Params, Row};
+use rusqlite::{params, Params, Row};
 use static_init::dynamic;
 use std::{
     path::PathBuf,
@@ -157,6 +157,10 @@ fn song(row: &Row) -> Song {
         track_gain: row.get(7).unwrap(),
     }
 }
+pub fn reset() {
+    let conn = conn();
+    conn.execute("DELETE FROM song", []).unwrap();
+}
 
 #[derive(Default)]
 pub struct Database {
@@ -165,10 +169,6 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn reset(&self) {
-        let conn = conn();
-        conn.execute("DELETE FROM song", []).unwrap();
-    }
     pub fn sync_database(&self, toml_paths: &[String]) {
         let conn = conn();
         let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
@@ -248,7 +248,7 @@ impl Database {
 
                 stmt.push_str("COMMIT;\n");
 
-                let conn = Connection::open(DB_DIR.as_path()).unwrap();
+                let conn = conn();
                 conn.execute_batch(&stmt).unwrap();
             }
 
