@@ -19,7 +19,7 @@ pub enum Item {
     Artist(Artist),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Song {
     pub id: usize,
     pub name: String,
@@ -27,13 +27,13 @@ pub struct Song {
     pub artist: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Album {
     pub name: String,
     pub artist: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Artist {
     pub name: String,
 }
@@ -364,7 +364,7 @@ impl Search {
             }
         };
 
-        let selected = &self.results.index;
+        let selected = &self.results.selection();
         let rows: Vec<_> = self
             .results
             .data
@@ -405,7 +405,7 @@ impl Search {
                 Constraint::Percentage(20),
             ]);
 
-        let mut state = TableState::new(self.results.index);
+        let mut state = TableState::new(self.results.selection());
         f.render_stateful_widget(t, area, &mut state);
     }
     fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {

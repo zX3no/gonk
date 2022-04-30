@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct Index<T> {
     pub data: Vec<T>,
-    pub index: Option<usize>,
+    index: Option<usize>,
 }
 
 impl<T> Index<T> {
@@ -60,11 +60,13 @@ impl<T> Index<T> {
         }
         None
     }
+    pub fn selection(&self) -> Option<usize> {
+        self.index
+    }
     pub fn len(&self) -> usize {
         self.data.len()
     }
     pub fn select(&mut self, i: Option<usize>) {
-        //TODO: this will crash
         self.index = i;
     }
     pub fn is_none(&self) -> bool {
@@ -78,8 +80,8 @@ impl<T> Index<T> {
 impl<T> Default for Index<T> {
     fn default() -> Self {
         Self {
-            data: Vec::default(),
-            index: Option::default(),
+            data: Vec::new(),
+            index: None,
         }
     }
 }

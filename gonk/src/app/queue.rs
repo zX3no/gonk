@@ -200,10 +200,10 @@ impl Queue {
             );
         }
 
-        let (songs, now_playing, ui_index) = (
+        let (songs, player_index, ui_index) = (
             &self.player.songs.data,
-            self.player.songs.index,
-            self.ui.index,
+            self.player.songs.selection(),
+            self.ui.selection(),
         );
 
         let mut items: Vec<Row> = songs
@@ -220,11 +220,11 @@ impl Queue {
             })
             .collect();
 
-        if let Some(playing_index) = now_playing {
-            if let Some(song) = songs.get(playing_index) {
+        if let Some(player_index) = player_index {
+            if let Some(song) = songs.get(player_index) {
                 if let Some(ui_index) = ui_index {
                     //Currently playing song
-                    let row = if ui_index == playing_index {
+                    let row = if ui_index == player_index {
                         Row::new(vec![
                             Cell::from(">>").style(
                                 Style::default()
@@ -258,11 +258,11 @@ impl Queue {
                         ])
                     };
 
-                    items.remove(playing_index);
-                    items.insert(playing_index, row);
+                    items.remove(player_index);
+                    items.insert(player_index, row);
 
                     //Current selection
-                    if ui_index != playing_index {
+                    if ui_index != player_index {
                         if let Some(song) = songs.get(ui_index) {
                             let row = Row::new(vec![
                                 Cell::from(""),

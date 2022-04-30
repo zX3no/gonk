@@ -124,29 +124,24 @@ impl Player {
         //delete the song from the queue
         self.songs.data.remove(selected);
 
-        if let Some(current_song) = self.songs.index {
+        if let Some(playing) = self.songs.selection() {
             let len = self.songs.len();
 
             if len == 0 {
                 self.clear_songs();
                 return;
-            } else if current_song == selected && selected == 0 {
+            }
+
+            if selected == playing && selected == 0 {
                 self.songs.select(Some(0));
-            } else if current_song == selected && len == selected {
+            } else if selected == playing && selected == len {
                 self.songs.select(Some(len - 1));
-            } else if selected < current_song {
-                self.songs.select(Some(current_song - 1));
+            } else if selected < playing {
+                self.songs.select(Some(playing - 1));
             }
 
-            let end = len.saturating_sub(1);
-
-            if selected > end {
-                self.songs.select(Some(end));
-            }
-
-            //if the playing song was deleted
-            //play the next track
-            if selected == current_song {
+            //play next song if current was deleted
+            if selected == playing {
                 self.play_selected();
             }
         };

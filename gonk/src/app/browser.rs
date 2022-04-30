@@ -191,7 +191,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut artist_state = ListState::new(self.artists.index);
+        let mut artist_state = ListState::new(self.artists.selection());
 
         let albums = List::new(b)
             .block(
@@ -204,7 +204,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut album_state = ListState::new(self.albums.index);
+        let mut album_state = ListState::new(self.albums.selection());
 
         let songs = List::new(c)
             .block(
@@ -217,7 +217,7 @@ impl Browser {
             .highlight_style(Style::default())
             .highlight_symbol(">");
 
-        let mut song_state = ListState::new(self.songs.index);
+        let mut song_state = ListState::new(self.songs.selection());
 
         //TODO: better way of doing this?
         match self.mode {
