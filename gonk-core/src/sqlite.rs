@@ -6,7 +6,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Params, Row};
 use static_init::dynamic;
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -215,6 +215,9 @@ impl Database {
 
         thread::spawn(move || {
             for dir in dirs {
+                if !Path::new(&dir).exists() {
+                    break;
+                }
                 let songs: Vec<Song> = WalkDir::new(&dir)
                     .into_iter()
                     .flatten()
