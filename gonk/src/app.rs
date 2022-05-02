@@ -131,7 +131,7 @@ impl App {
                     Event::Key(event) => {
                         let bind = Bind {
                             key: Key::from(event.code),
-                            modifiers: Modifier::from_u32(event.modifiers),
+                            modifiers: Modifier::from_bitflags(event.modifiers),
                         };
 
                         if toml.hotkey.quit.contains(&bind) {
@@ -185,6 +185,9 @@ impl App {
                                 self.queue.player.toggle_playback()
                             }
                             _ if toml.hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if toml.hotkey.clear_except_playing.contains(&bind) => {
+                                self.queue.clear_except_playing();
+                            }
                             _ if toml.hotkey.refresh_database.contains(&bind) => {
                                 sqlite::reset();
                                 self.db.add_dirs(toml.paths());

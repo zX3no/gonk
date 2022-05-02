@@ -25,7 +25,7 @@ impl Modifier {
             Modifier::ALT => modifiers::ALT,
         }
     }
-    pub fn from_u32(m: KeyModifiers) -> Option<Vec<Self>> {
+    pub fn from_bitflags(m: KeyModifiers) -> Option<Vec<Self>> {
         //TODO: this doesn't support triple modfifier combos
         //plus this is stupid, surely there is a better way
         match m.bits() {
@@ -164,6 +164,7 @@ pub struct Hotkey {
     pub seek_forward: Vec<Bind>,
     pub seek_backward: Vec<Bind>,
     pub clear: Vec<Bind>,
+    pub clear_except_playing: Vec<Bind>,
     pub delete: Vec<Bind>,
     pub search: Vec<Bind>,
     pub options: Vec<Bind>,
@@ -319,6 +320,10 @@ impl Toml {
                     clear: vec![Bind {
                         key: Key::from("C"),
                         modifiers: None,
+                    }],
+                    clear_except_playing: vec![Bind {
+                        key: Key::from("C"),
+                        modifiers: Some(vec![Modifier::SHIFT]),
                     }],
                     delete: vec![Bind {
                         key: Key::from("X"),

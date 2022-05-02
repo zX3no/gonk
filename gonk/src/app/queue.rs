@@ -63,7 +63,11 @@ impl Queue {
         self.ui.down_with_len(self.player.songs.len());
     }
     pub fn clear(&mut self) {
-        self.player.clear_songs();
+        self.player.clear();
+        self.ui.select(Some(0));
+    }
+    pub fn clear_except_playing(&mut self) {
+        self.player.clear_except_playing();
         self.ui.select(Some(0));
     }
 }

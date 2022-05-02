@@ -1,4 +1,3 @@
-#![cfg_attr(test, deny(missing_docs))]
 use cpal::traits::HostTrait;
 pub use cpal::{
     self, traits::DeviceTrait, Device, Devices, DevicesError, InputDevices, OutputDevices,
@@ -67,9 +66,22 @@ impl Player {
             self.play_selected();
         };
     }
-    pub fn clear_songs(&mut self) {
+    pub fn clear(&mut self) {
         self.songs = Index::default();
         self.stop();
+    }
+    //TODO: might remove this?
+    pub fn clear_except_playing(&mut self) {
+        let selected = self.songs.selected().cloned();
+        let mut i = 0;
+        while i < self.songs.len() {
+            if Some(&self.songs.data[i]) != selected.as_ref() {
+                self.songs.data.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        self.songs.select(Some(0));
     }
     pub fn prev_song(&mut self) {
         self.songs.up();
@@ -128,7 +140,7 @@ impl Player {
             let len = self.songs.len();
 
             if len == 0 {
-                self.clear_songs();
+                self.clear();
                 return;
             }
 

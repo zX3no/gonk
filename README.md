@@ -69,26 +69,27 @@ Windows: `%appdata%/gonk/gonk.toml`
 
 Linux: `~/.config/gonk/gonk.toml`
 
-| Command     | Key         |
-|-------------|-------------|
-| Move Up     | `K / UP`    |
-| Move Down   | `J / Down`  |
-| Move Left   | `H / Left`  |
-| Move Right  | `L / Right` |
-| Volume Up   | `W`         |
-| Volume Up   | `S`         |
-| Play/Pause  | `Space`     |
-| Previous    | `A`         |
-| Next        | `D`         |
-| Seek -10s   | `Q`         |
-| Seek 10s    | `E`         |
-| Delete Song | `X`         |
-| Clear Queue | `C`         |
-| Change Mode | `Tab`       |
-| Search      | `/`         |
-| Quit        | `Ctrl+C`    |
-| ?           | `Escape`    |
-| ?           | `Backspace` |
+| Command              | Key         |
+|----------------------|-------------|
+| Move Up              | `K / UP`    |
+| Move Down            | `J / Down`  |
+| Move Left            | `H / Left`  |
+| Move Right           | `L / Right` |
+| Volume Up            | `W`         |
+| Volume Up            | `S`         |
+| Play/Pause           | `Space`     |
+| Previous             | `A`         |
+| Next                 | `D`         |
+| Seek -10s            | `Q`         |
+| Seek 10s             | `E`         |
+| Delete Song          | `X`         |
+| Clear Queue          | `C`         |
+| Clear Except Playing | `Shift + C` |
+| Change Mode          | `Tab`       |
+| Search               | `/`         |
+| Quit                 | `Ctrl + C`  |
+| ?                    | `Escape`    |
+| ?                    | `Backspace` |
 
 `1, 2, 3` moves the queue margins forward. `Shift + 1, 2, 3` moves them backwards.
 
