@@ -99,18 +99,7 @@ impl Queue {
         let time = if self.player.songs.is_empty() {
             String::from("╭─Stopped")
         } else if !self.player.is_paused() {
-            let duration = self.player.duration;
-            let elapsed = self.player.elapsed();
-
-            let mins = elapsed / 60.0;
-            let rem = elapsed % 60.0;
-            let e = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
-
-            let mins = duration / 60.0;
-            let rem = duration % 60.0;
-            let d = format!("{:02}:{:02}", mins.trunc(), rem.trunc());
-
-            format!("╭─{}/{}", e, d)
+            String::from("╭─Playing")
         } else {
             String::from("╭─Paused")
         };
