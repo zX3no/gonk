@@ -180,31 +180,26 @@ impl Database {
             .collect();
 
         //delete paths that aren't in the toml file but are in the database
-        paths.iter().for_each(|path| {
-            if !toml_paths.contains(path) {
+        paths
+            .iter()
+            .filter(|path| !toml_paths.contains(path))
+            .for_each(|path| {
                 conn.execute("DELETE FROM song WHERE parent = ?", [path])
                     .unwrap();
-            }
-        });
+                self.needs_update.store(true, Ordering::SeqCst);
+            });
 
         //find the paths that are missing from the database
         let paths_to_add: Vec<_> = toml_paths
             .iter()
-            .filter_map(|path| {
-                if !paths.contains(path) {
-                    Some(path.clone())
-                } else {
-                    None
-                }
-            })
+            .filter(|path| !paths.contains(path))
+            .cloned()
             .collect();
 
-        if !paths_to_add.is_empty() {
-            self.add_dirs(&paths_to_add);
-        }
+        self.add_dirs(&paths_to_add);
     }
     pub fn add_dirs(&self, dirs: &[String]) {
-        if self.is_busy() {
+        if self.is_busy() || dirs.is_empty() {
             return;
         }
 
