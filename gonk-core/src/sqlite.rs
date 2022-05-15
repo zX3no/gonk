@@ -15,39 +15,6 @@ use std::{
     time::Duration,
 };
 
-#[dynamic]
-static CONN: Pool<SqliteConnectionManager> = {
-    let exists = DB_DIR.exists();
-    let manager = SqliteConnectionManager::file(DB_DIR.as_path()).with_init(|c| {
-        c.execute_batch("PRAGMA journal_mode=WAL;PRAGMA synchronous=0;PRAGMA temp_store=MEMORY")
-    });
-
-    let pool = r2d2::Pool::new(manager).unwrap();
-
-    if !exists {
-        let conn = pool.get().unwrap();
-        conn.execute(
-            "CREATE TABLE song (
-                    number   INTEGER NOT NULL,
-                    disc     INTEGER NOT NULL,
-                    name     TEXT NOT NULL,
-                    album    TEXT NOT NULL,
-                    artist   TEXT NOT NULL,
-                    path     TEXT NOT NULL UNIQUE,
-                    duration DOUBLE NOT NULL,
-                    track_gain DOUBLE NOT NULL,
-                    parent   TEXT NOT NULL
-                )",
-            [],
-        )
-        .unwrap();
-    }
-    pool
-};
-
-fn conn() -> PooledConnection<SqliteConnectionManager> {
-    CONN.get().unwrap()
-}
 pub fn get_all_songs() -> Vec<(usize, Song)> {
     let conn = conn();
     let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
@@ -128,6 +95,13 @@ pub fn get_songs_from_id(ids: &[usize]) -> Vec<Song> {
         })
         .collect()
 }
+pub fn reset() {
+    let conn = conn();
+    conn.execute("DELETE FROM song", []).unwrap();
+}
+fn fix(item: &str) -> String {
+    item.replace('\'', r"''")
+}
 fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
@@ -139,9 +113,6 @@ where
         .unwrap()
         .flatten()
         .collect()
-}
-fn fix(item: &str) -> String {
-    item.replace('\'', r"''")
 }
 fn song(row: &Row) -> Song {
     let path: String = row.get(5).unwrap();
@@ -157,10 +128,39 @@ fn song(row: &Row) -> Song {
         track_gain: row.get(7).unwrap(),
     }
 }
-pub fn reset() {
-    let conn = conn();
-    conn.execute("DELETE FROM song", []).unwrap();
+fn conn() -> PooledConnection<SqliteConnectionManager> {
+    CONN.get().unwrap()
 }
+
+#[dynamic]
+static CONN: Pool<SqliteConnectionManager> = {
+    let exists = DB_DIR.exists();
+    let manager = SqliteConnectionManager::file(DB_DIR.as_path()).with_init(|c| {
+        c.execute_batch("PRAGMA journal_mode=WAL;PRAGMA synchronous=0;PRAGMA temp_store=MEMORY")
+    });
+
+    let pool = r2d2::Pool::new(manager).unwrap();
+
+    if !exists {
+        let conn = pool.get().unwrap();
+        conn.execute(
+            "CREATE TABLE song (
+                    number   INTEGER NOT NULL,
+                    disc     INTEGER NOT NULL,
+                    name     TEXT NOT NULL,
+                    album    TEXT NOT NULL,
+                    artist   TEXT NOT NULL,
+                    path     TEXT NOT NULL UNIQUE,
+                    duration DOUBLE NOT NULL,
+                    track_gain DOUBLE NOT NULL,
+                    parent   TEXT NOT NULL
+                )",
+            [],
+        )
+        .unwrap();
+    }
+    pool
+};
 
 #[derive(Default)]
 pub struct Database {

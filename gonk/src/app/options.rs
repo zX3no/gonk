@@ -1,4 +1,4 @@
-use crate::widget::{List, ListItem, ListState};
+use crate::widgets::{List, ListItem, ListState};
 use gonk_core::{Index, Toml};
 use gonk_player::{Device, DeviceTrait, Player};
 use tui::{

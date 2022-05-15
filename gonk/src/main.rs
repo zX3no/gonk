@@ -2,7 +2,7 @@ use app::App;
 use gonk_core::Toml;
 use std::io::Result;
 mod app;
-mod widget;
+mod widgets;
 
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();

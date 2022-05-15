@@ -1,4 +1,4 @@
-use crate::widget::{List, ListItem, ListState};
+use crate::widgets::{List, ListItem, ListState};
 use gonk_core::{sqlite, Index, Song};
 use tui::{
     backend::Backend,
@@ -49,8 +49,8 @@ impl Browser {
 
             if let Some(first_album) = albums.selected() {
                 let songs = sqlite::get_songs_from_album(first_album, first_artist)
-                    .iter()
-                    .map(|song| (song.number, song.name.clone()))
+                    .into_iter()
+                    .map(|song| (song.number, song.name))
                     .collect();
                 (albums, Index::new(songs, Some(0)))
             } else {
@@ -101,8 +101,8 @@ impl Browser {
         if let Some(artist) = self.artists.selected() {
             if let Some(album) = self.albums.selected() {
                 let songs = sqlite::get_songs_from_album(album, artist)
-                    .iter()
-                    .map(|song| (song.number, song.name.clone()))
+                    .into_iter()
+                    .map(|song| (song.number, song.name))
                     .collect();
                 self.songs = Index::new(songs, Some(0));
             }

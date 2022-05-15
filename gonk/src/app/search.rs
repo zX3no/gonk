@@ -1,5 +1,5 @@
 use super::Mode as AppMode;
-use crate::widget::{Cell, Row, Table, TableState};
+use crate::widgets::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::{sqlite, Colors, Index};
 use gonk_player::Player;
@@ -94,6 +94,12 @@ impl Search {
         }
     }
     pub fn update_search(&mut self) {
+        if self.query == self.prev_query {
+            return;
+        } else {
+            self.prev_query = self.query.clone();
+        }
+
         let query = &self.query.to_lowercase();
         let mut results = Vec::new();
 
@@ -147,14 +153,6 @@ impl Search {
                 self.results.select(None);
                 self.mode = Mode::Search;
             }
-        }
-    }
-    pub fn has_query_changed(&mut self) -> bool {
-        if self.query == self.prev_query {
-            false
-        } else {
-            self.prev_query = self.query.clone();
-            true
         }
     }
     pub fn on_escape(&mut self, mode: &mut AppMode) {
@@ -335,16 +333,15 @@ impl Search {
             } else {
                 Cell::default()
             };
+
             match item {
                 Item::Song(song) => {
-                    let song = &sqlite::get_songs_from_id(&[song.id])[0];
+                    let song = sqlite::get_songs_from_id(&[song.id])[0].clone();
                     Row::new(vec![
                         selected_cell,
-                        Cell::from(song.name.clone()).style(Style::default().fg(self.colors.title)),
-                        Cell::from(song.album.clone())
-                            .style(Style::default().fg(self.colors.album)),
-                        Cell::from(song.artist.clone())
-                            .style(Style::default().fg(self.colors.artist)),
+                        Cell::from(song.name).style(Style::default().fg(self.colors.title)),
+                        Cell::from(song.album).style(Style::default().fg(self.colors.album)),
+                        Cell::from(song.artist).style(Style::default().fg(self.colors.artist)),
                     ])
                 }
                 Item::Album(album) => Row::new(vec![
@@ -409,7 +406,7 @@ impl Search {
         f.render_stateful_widget(t, area, &mut state);
     }
     fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
-        let p = Paragraph::new(self.query.clone())
+        let p = Paragraph::new(self.query.as_ref())
             .block(
                 Block::default()
                     .borders(Borders::ALL)

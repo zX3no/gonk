@@ -1,4 +1,4 @@
-use crate::widget::{Cell, Gauge, Row, Table, TableState};
+use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::{Colors, Index};
 use gonk_player::Player;
@@ -84,9 +84,39 @@ impl Queue {
             .split(f.size());
 
         self.draw_header(f, chunks[0]);
-        self.draw_body(f, chunks[1]);
+
+        let row_bounds = self.draw_body(f, chunks[1]);
+
+        //Handle mouse input
+        if let Some((width, height)) = self.clicked_pos {
+            let size = f.size();
+
+            //Mouse support for the seek bar.
+            if size.height - 3 == height || size.height - 2 == height || size.height - 1 == height {
+                let ratio = f64::from(width) / f64::from(size.width);
+                let duration = self.player.duration;
+                let new_time = duration * ratio;
+                self.player.seek_to(new_time);
+                self.clicked_pos = None;
+            }
+
+            //Mouse support for the queue.
+            //TODO: handle very small window sizes
+            if let Some((start, _)) = row_bounds {
+                //the header is 5 units long
+                if height >= 5 {
+                    let index = (height - 5) as usize + start;
+                    //don't select out of bounds
+                    if index < self.player.songs.len() && height < size.height.saturating_sub(4) {
+                        self.ui.select(Some(index));
+                    }
+                }
+                self.clicked_pos = None;
+            }
+        }
+
         //TODO: if allow for old and new seeker
-        self.draw_new_seeker(f, chunks[2]);
+        self.draw_seeker(f, chunks[2]);
     }
     fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         //Render the borders first
@@ -182,15 +212,19 @@ impl Queue {
         let center = Paragraph::new(center).alignment(Alignment::Center);
         f.render_widget(center, chunk);
     }
-    fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) -> Option<(usize, usize)> {
         if self.player.songs.is_empty() {
-            self.handle_mouse(f.size(), &Table::default(), None, chunk);
-            return f.render_widget(
+            if self.clicked_pos.is_some() {
+                self.clicked_pos = None;
+            }
+
+            f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
                     .borders(Borders::LEFT | Borders::RIGHT),
                 chunk,
             );
+            return None;
         }
 
         let (songs, player_index, ui_index) = (
@@ -206,9 +240,9 @@ impl Queue {
                     Cell::from(""),
                     Cell::from(song.number.to_string())
                         .style(Style::default().fg(self.colors.track)),
-                    Cell::from(song.name.clone()).style(Style::default().fg(self.colors.title)),
-                    Cell::from(song.album.clone()).style(Style::default().fg(self.colors.album)),
-                    Cell::from(song.artist.clone()).style(Style::default().fg(self.colors.artist)),
+                    Cell::from(song.name.as_str()).style(Style::default().fg(self.colors.title)),
+                    Cell::from(song.album.as_str()).style(Style::default().fg(self.colors.album)),
+                    Cell::from(song.artist.as_str()).style(Style::default().fg(self.colors.artist)),
                 ])
             })
             .collect();
@@ -226,11 +260,11 @@ impl Queue {
                             ),
                             Cell::from(song.number.to_string())
                                 .style(Style::default().bg(self.colors.track).fg(Color::Black)),
-                            Cell::from(song.name.clone())
+                            Cell::from(song.name.as_str())
                                 .style(Style::default().bg(self.colors.title).fg(Color::Black)),
-                            Cell::from(song.album.clone())
+                            Cell::from(song.album.as_str())
                                 .style(Style::default().bg(self.colors.album).fg(Color::Black)),
-                            Cell::from(song.artist.clone())
+                            Cell::from(song.artist.as_str())
                                 .style(Style::default().bg(self.colors.artist).fg(Color::Black)),
                         ])
                     } else {
@@ -242,11 +276,11 @@ impl Queue {
                             ),
                             Cell::from(song.number.to_string())
                                 .style(Style::default().fg(self.colors.track)),
-                            Cell::from(song.name.clone())
+                            Cell::from(song.name.as_str())
                                 .style(Style::default().fg(self.colors.title)),
-                            Cell::from(song.album.clone())
+                            Cell::from(song.album.as_str())
                                 .style(Style::default().fg(self.colors.album)),
-                            Cell::from(song.artist.clone())
+                            Cell::from(song.artist.as_str())
                                 .style(Style::default().fg(self.colors.artist)),
                         ])
                     };
@@ -261,11 +295,11 @@ impl Queue {
                                 Cell::from(""),
                                 Cell::from(song.number.to_string())
                                     .style(Style::default().bg(self.colors.track)),
-                                Cell::from(song.name.clone())
+                                Cell::from(song.name.as_str())
                                     .style(Style::default().bg(self.colors.title)),
-                                Cell::from(song.album.clone())
+                                Cell::from(song.album.as_str())
                                     .style(Style::default().bg(self.colors.album)),
-                                Cell::from(song.artist.clone())
+                                Cell::from(song.artist.as_str())
                                     .style(Style::default().bg(self.colors.artist)),
                             ])
                             .style(Style::default().fg(Color::Black));
@@ -302,41 +336,15 @@ impl Queue {
             )
             .widths(&con);
 
-        self.handle_mouse(f.size(), &t, ui_index, chunk);
+        let row_bounds = t.get_row_bounds(ui_index, t.get_row_height(chunk));
 
         //required to scroll songs
         let mut state = TableState::new(ui_index);
         f.render_stateful_widget(t, chunk, &mut state);
-    }
-    fn seeker(&mut self, size: Rect) {
-        if let Some((width, height)) = self.clicked_pos {
-            if size.height - 3 == height || size.height - 2 == height || size.height - 1 == height {
-                let ratio = f64::from(width) / f64::from(size.width);
-                let duration = self.player.duration;
-                let new_time = duration * ratio;
-                self.player.seek_to(new_time);
-                self.clicked_pos = None;
-            }
-        }
-    }
-    //TODO: handle very small window sizes
-    fn handle_mouse(&mut self, size: Rect, table: &Table, ui_index: Option<usize>, chunk: Rect) {
-        self.seeker(size);
 
-        if let Some((_, height)) = self.clicked_pos {
-            let (start, _) = table.get_row_bounds(ui_index, table.get_row_height(chunk));
-            //the header is 5 units long
-            if height >= 5 {
-                let index = (height - 5) as usize + start;
-                //don't select out of bounds
-                if index < self.player.songs.len() && height < size.height.saturating_sub(4) {
-                    self.ui.select(Some(index));
-                }
-            }
-            self.clicked_pos = None;
-        }
+        Some(row_bounds)
     }
-    fn draw_new_seeker<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_seeker<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
@@ -375,7 +383,5 @@ impl Queue {
             .label(seeker);
 
         f.render_widget(g, chunk);
-
-        self.seeker(f.size());
     }
 }

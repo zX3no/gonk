@@ -82,9 +82,7 @@ impl App {
             self.db.stop();
         }
 
-        if self.search.has_query_changed() {
-            self.search.update_search();
-        }
+        self.search.update_search();
 
         self.queue.update();
     }
