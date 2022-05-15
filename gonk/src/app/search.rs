@@ -68,10 +68,11 @@ impl Search {
         s
     }
     pub fn update_engine(&mut self) {
+        self.cache = Vec::new();
+
         let songs = sqlite::get_all_songs();
         let artists = sqlite::get_all_artists();
         let albums = sqlite::get_all_albums();
-        self.cache = Vec::new();
 
         for (id, song) in songs {
             self.cache.push(Item::Song(Song {
@@ -118,6 +119,7 @@ impl Search {
                 results.push((item, acc));
             }
         }
+
         //TODO: sort self-titled albums bellow artists
         results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
         self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();

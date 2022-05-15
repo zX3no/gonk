@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gonk_core::{sqlite, Bind, Database, Key, Modifier, Toml};
+use gonk_core::{Bind, Database, Key, Modifier, Toml};
 use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::time::Instant;
@@ -186,10 +186,11 @@ impl App {
                             _ if toml.hotkey.clear_except_playing.contains(&bind) => {
                                 self.queue.clear_except_playing();
                             }
-                            _ if toml.hotkey.refresh_database.contains(&bind) => {
-                                sqlite::reset();
-                                self.db.add_dirs(toml.paths());
-                                self.db.sync_database(toml.paths());
+                            _ if toml.hotkey.refresh_database.contains(&bind)
+                                && self.mode == Mode::Browser =>
+                            {
+                                let paths = toml.paths();
+                                self.db.refresh(paths);
                             }
                             _ if toml.hotkey.seek_backward.contains(&bind) => {
                                 self.queue.player.seek_by(-SEEK_TIME)

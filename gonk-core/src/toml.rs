@@ -361,8 +361,7 @@ impl Toml {
     pub fn volume(&self) -> u16 {
         self.config.volume
     }
-    //TODO: paths are not updated in real time
-    pub fn paths(&self) -> &Vec<String> {
+    pub fn paths(&self) -> &[String] {
         &self.config.paths
     }
     pub fn output_device(&self) -> &String {

@@ -95,10 +95,6 @@ pub fn get_songs_from_id(ids: &[usize]) -> Vec<Song> {
         })
         .collect()
 }
-pub fn reset() {
-    let conn = conn();
-    conn.execute("DELETE FROM song", []).unwrap();
-}
 fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
@@ -194,6 +190,11 @@ impl Database {
             .collect();
 
         self.add_dirs(&paths_to_add);
+    }
+    pub fn refresh(&mut self, paths: &[String]) {
+        let conn = conn();
+        conn.execute("DELETE FROM song", []).unwrap();
+        self.add_dirs(paths);
     }
     pub fn add_dirs(&self, dirs: &[String]) {
         if self.is_busy() || dirs.is_empty() {
