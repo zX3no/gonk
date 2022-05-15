@@ -68,16 +68,16 @@ pub fn get_all_albums_by_artist(artist: &str) -> Vec<String> {
         .flatten()
         .collect()
 }
+pub fn get_all_songs_from_album(album: &str, artist: &str) -> Vec<Song> {
+    collect_songs(
+        "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
+        params![artist, album],
+    )
+}
 pub fn get_songs_by_artist(artist: &str) -> Vec<Song> {
     collect_songs(
         "SELECT * FROM song WHERE artist = ? ORDER BY album, disc, number",
         params![artist],
-    )
-}
-pub fn get_songs_from_album(album: &str, artist: &str) -> Vec<Song> {
-    collect_songs(
-        "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
-        params![artist, album],
     )
 }
 pub fn get_song(song: &(u64, String), album: &str, artist: &str) -> Vec<Song> {
@@ -98,9 +98,6 @@ pub fn get_songs_from_id(ids: &[usize]) -> Vec<Song> {
 pub fn reset() {
     let conn = conn();
     conn.execute("DELETE FROM song", []).unwrap();
-}
-fn fix(item: &str) -> String {
-    item.replace('\'', r"''")
 }
 fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
@@ -128,6 +125,9 @@ fn song(row: &Row) -> Song {
         track_gain: row.get(7).unwrap(),
     }
 }
+fn fix(item: &str) -> String {
+    item.replace('\'', r"''")
+}
 fn conn() -> PooledConnection<SqliteConnectionManager> {
     CONN.get().unwrap()
 }
@@ -135,10 +135,7 @@ fn conn() -> PooledConnection<SqliteConnectionManager> {
 #[dynamic]
 static CONN: Pool<SqliteConnectionManager> = {
     let exists = DB_DIR.exists();
-    let manager = SqliteConnectionManager::file(DB_DIR.as_path()).with_init(|c| {
-        c.execute_batch("PRAGMA journal_mode=WAL;PRAGMA synchronous=0;PRAGMA temp_store=MEMORY")
-    });
-
+    let manager = SqliteConnectionManager::file(DB_DIR.as_path());
     let pool = r2d2::Pool::new(manager).unwrap();
 
     if !exists {
@@ -205,7 +202,8 @@ impl Database {
 
         let busy = self.is_busy.clone();
         let update = self.needs_update.clone();
-        let dirs = dirs.to_owned();
+        let dirs = dirs.to_vec();
+
         busy.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
@@ -223,7 +221,8 @@ impl Database {
                         }
                         None => false,
                     })
-                    .parallel_map(|dir| Song::from(&dir).unwrap())
+                    .parallel_map(|dir| Song::from(&dir))
+                    .flatten()
                     .collect();
 
                 if songs.is_empty() {

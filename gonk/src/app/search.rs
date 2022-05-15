@@ -182,7 +182,7 @@ impl Search {
                     let songs = match item {
                         Item::Song(song) => sqlite::get_songs_from_id(&[song.id]),
                         Item::Album(album) => {
-                            sqlite::get_songs_from_album(&album.name, &album.artist)
+                            sqlite::get_all_songs_from_album(&album.name, &album.artist)
                         }
                         Item::Artist(artist) => sqlite::get_songs_by_artist(&artist.name),
                     };
@@ -278,7 +278,7 @@ impl Search {
         f.render_widget(song_table, area);
     }
     fn album<B: Backend>(&self, f: &mut Frame<B>, album: &str, artist: &str, area: Rect) {
-        let cells: Vec<_> = sqlite::get_songs_from_album(album, artist)
+        let cells: Vec<_> = sqlite::get_all_songs_from_album(album, artist)
             .iter()
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
             .collect();

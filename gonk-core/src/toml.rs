@@ -138,18 +138,6 @@ impl Bind {
     }
 }
 
-#[cfg(windows)]
-#[test]
-fn test() {
-    let b = Bind {
-        key: Key::from("A"),
-        modifiers: Some(vec![Modifier::ALT, Modifier::SHIFT]),
-    };
-    assert_eq!(Bind::new("A").key(), 'A' as u32);
-    assert_eq!(Bind::new("TAB").key(), keys::TAB);
-    assert_eq!(b.modifiers(), modifiers::ALT | modifiers::SHIFT);
-}
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Hotkey {
     pub up: Vec<Bind>,

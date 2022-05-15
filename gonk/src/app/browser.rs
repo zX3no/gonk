@@ -48,7 +48,7 @@ impl Browser {
             let albums = Index::new(sqlite::get_all_albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = sqlite::get_songs_from_album(first_album, first_artist)
+                let songs = sqlite::get_all_songs_from_album(first_album, first_artist)
                     .into_iter()
                     .map(|song| (song.number, song.name))
                     .collect();
@@ -100,7 +100,7 @@ impl Browser {
     pub fn update_songs(&mut self) {
         if let Some(artist) = self.artists.selected() {
             if let Some(album) = self.albums.selected() {
-                let songs = sqlite::get_songs_from_album(album, artist)
+                let songs = sqlite::get_all_songs_from_album(album, artist)
                     .into_iter()
                     .map(|song| (song.number, song.name))
                     .collect();
@@ -120,7 +120,7 @@ impl Browser {
                 if let Some(song) = self.songs.selected() {
                     return match self.mode {
                         Mode::Artist => sqlite::get_songs_by_artist(artist),
-                        Mode::Album => sqlite::get_songs_from_album(album, artist),
+                        Mode::Album => sqlite::get_all_songs_from_album(album, artist),
                         Mode::Song => sqlite::get_song(song, album, artist),
                     };
                 }

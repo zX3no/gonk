@@ -1,15 +1,3 @@
-//! A simple source of samples coming from a buffer.
-//!
-//! The `SamplesBuffer` struct can be used to treat a list of values as a `Source`.
-//!
-//! # Example
-//!
-//! ```
-//! use rodio::buffer::SamplesBuffer;
-//! let _ = SamplesBuffer::new(1, 44100, vec![1i16, 2, 3, 4, 5, 6]);
-//! ```
-//!
-
 use std::time::Duration;
 use std::vec::IntoIter as VecIntoIter;
 
