@@ -92,7 +92,7 @@ impl Queue {
             let size = f.size();
 
             //Mouse support for the seek bar.
-            if size.height - 3 == height || size.height - 2 == height || size.height - 1 == height {
+            if (size.height - 2 == height || size.height - 1 == height) && size.height > 15 {
                 let ratio = f64::from(width) / f64::from(size.width);
                 let duration = self.player.duration;
                 let new_time = duration * ratio;
@@ -101,13 +101,13 @@ impl Queue {
             }
 
             //Mouse support for the queue.
-            //TODO: handle very small window sizes
             if let Some((start, _)) = row_bounds {
                 //the header is 5 units long
                 if height >= 5 {
                     let index = (height - 5) as usize + start;
+
                     //don't select out of bounds
-                    if index < self.player.songs.len() && height < size.height.saturating_sub(4) {
+                    if index < self.player.songs.len() && height < size.height.saturating_sub(3) {
                         self.ui.select(Some(index));
                     }
                 }
