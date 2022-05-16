@@ -1,5 +1,5 @@
 use app::App;
-use gonk_core::Toml;
+use gonk_core::{sqlite, Toml};
 use std::io::Result;
 mod app;
 mod widgets;
@@ -15,12 +15,19 @@ fn main() -> Result<()> {
                     toml.add_path(dir);
                 }
             }
-            "help" => {
+            "reset" => {
+                sqlite::reset();
+                toml.reset();
+                println!("Reset database!");
+                return Ok(());
+            }
+            "help" | "--help" => {
                 println!("Usage");
                 println!("   gonk [<command> <args>]");
                 println!();
                 println!("Options");
-                println!("   add <path>  Add music to the library");
+                println!("   add   <path>  Add music to the library");
+                println!("   reset         Reset the database");
                 println!();
                 return Ok(());
             }
@@ -29,6 +36,11 @@ fn main() -> Result<()> {
                 return Ok(());
             }
         }
+    }
+
+    //Initialize database.
+    unsafe {
+        sqlite::CONN = sqlite::open_database();
     }
 
     App::new(&mut toml).run(toml)?;

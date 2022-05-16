@@ -6,14 +6,15 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex, MutexGuard,
     },
     thread,
     time::Duration,
 };
 
 pub fn get_all_songs() -> Vec<(usize, Song)> {
-    let mut stmt = conn().prepare("SELECT *, rowid FROM song").unwrap();
+    let conn = conn();
+    let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
 
     stmt.query_map([], |row| {
         let id = row.get(9).unwrap();
@@ -25,7 +26,8 @@ pub fn get_all_songs() -> Vec<(usize, Song)> {
     .collect()
 }
 pub fn get_all_artists() -> Vec<String> {
-    let mut stmt = conn()
+    let conn = conn();
+    let mut stmt = conn
         .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
@@ -38,7 +40,8 @@ pub fn get_all_artists() -> Vec<String> {
     .collect()
 }
 pub fn get_all_albums() -> Vec<(String, String)> {
-    let mut stmt = conn()
+    let conn = conn();
+    let mut stmt = conn
         .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
@@ -52,7 +55,8 @@ pub fn get_all_albums() -> Vec<(String, String)> {
     .collect()
 }
 pub fn get_all_albums_by_artist(artist: &str) -> Vec<String> {
-    let mut stmt = conn()
+    let conn = conn();
+    let mut stmt = conn
         .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
         .unwrap();
 
@@ -92,7 +96,8 @@ fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
 {
-    let mut stmt = conn().prepare(query).unwrap();
+    let conn = conn();
+    let mut stmt = conn.prepare(query).unwrap();
 
     stmt.query_map(params, |row| Ok(song(row)))
         .unwrap()
@@ -117,10 +122,10 @@ pub fn fix(item: &str) -> String {
     item.replace('\'', r"''")
 }
 
-pub static mut CONN: Option<rusqlite::Connection> = None;
+pub static mut CONN: Option<Mutex<rusqlite::Connection>> = None;
 
-pub fn conn() -> &'static Connection {
-    unsafe { CONN.as_ref().unwrap() }
+pub fn conn() -> MutexGuard<'static, Connection> {
+    unsafe { CONN.as_ref().unwrap().lock().unwrap() }
 }
 
 #[allow(unused)]
@@ -131,7 +136,7 @@ pub fn reset() {
     std::fs::remove_file(DB_DIR.as_path());
 }
 
-pub fn open_database() -> Option<rusqlite::Connection> {
+pub fn open_database() -> Option<Mutex<rusqlite::Connection>> {
     let exists = DB_DIR.exists();
     if let Ok(conn) = Connection::open(DB_DIR.as_path()) {
         if !exists {
@@ -151,7 +156,7 @@ pub fn open_database() -> Option<rusqlite::Connection> {
             )
             .unwrap();
         }
-        Some(conn)
+        Some(Mutex::new(conn))
     } else {
         None
     }
