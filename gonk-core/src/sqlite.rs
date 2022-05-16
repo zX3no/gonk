@@ -1,10 +1,7 @@
 use crate::{Song, DB_DIR};
-use dpc_pariter::IteratorExt;
 use jwalk::WalkDir;
-use r2d2::{Pool, PooledConnection};
-use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::{params, Params, Row};
-use static_init::dynamic;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rusqlite::{params, Connection, Params, Row};
 use std::{
     path::{Path, PathBuf},
     sync::{
@@ -16,8 +13,7 @@ use std::{
 };
 
 pub fn get_all_songs() -> Vec<(usize, Song)> {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
+    let mut stmt = conn().prepare("SELECT *, rowid FROM song").unwrap();
 
     stmt.query_map([], |row| {
         let id = row.get(9).unwrap();
@@ -29,8 +25,7 @@ pub fn get_all_songs() -> Vec<(usize, Song)> {
     .collect()
 }
 pub fn get_all_artists() -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn
+    let mut stmt = conn()
         .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
@@ -43,8 +38,7 @@ pub fn get_all_artists() -> Vec<String> {
     .collect()
 }
 pub fn get_all_albums() -> Vec<(String, String)> {
-    let conn = conn();
-    let mut stmt = conn
+    let mut stmt = conn()
         .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
@@ -58,8 +52,7 @@ pub fn get_all_albums() -> Vec<(String, String)> {
     .collect()
 }
 pub fn get_all_albums_by_artist(artist: &str) -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn
+    let mut stmt = conn()
         .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
         .unwrap();
 
@@ -99,8 +92,7 @@ fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
 {
-    let conn = conn();
-    let mut stmt = conn.prepare(query).unwrap();
+    let mut stmt = conn().prepare(query).unwrap();
 
     stmt.query_map(params, |row| Ok(song(row)))
         .unwrap()
@@ -121,39 +113,49 @@ fn song(row: &Row) -> Song {
         track_gain: row.get(7).unwrap(),
     }
 }
-fn fix(item: &str) -> String {
+pub fn fix(item: &str) -> String {
     item.replace('\'', r"''")
 }
-fn conn() -> PooledConnection<SqliteConnectionManager> {
-    CONN.get().unwrap()
+
+pub static mut CONN: Option<rusqlite::Connection> = None;
+
+pub fn conn() -> &'static Connection {
+    unsafe { CONN.as_ref().unwrap() }
 }
 
-#[dynamic]
-static CONN: Pool<SqliteConnectionManager> = {
-    let exists = DB_DIR.exists();
-    let manager = SqliteConnectionManager::file(DB_DIR.as_path());
-    let pool = r2d2::Pool::new(manager).unwrap();
-
-    if !exists {
-        let conn = pool.get().unwrap();
-        conn.execute(
-            "CREATE TABLE song (
-                    number   INTEGER NOT NULL,
-                    disc     INTEGER NOT NULL,
-                    name     TEXT NOT NULL,
-                    album    TEXT NOT NULL,
-                    artist   TEXT NOT NULL,
-                    path     TEXT NOT NULL UNIQUE,
-                    duration DOUBLE NOT NULL,
-                    track_gain DOUBLE NOT NULL,
-                    parent   TEXT NOT NULL
-                )",
-            [],
-        )
-        .unwrap();
+#[allow(unused)]
+pub fn reset() {
+    unsafe {
+        CONN = None;
     }
-    pool
-};
+    std::fs::remove_file(DB_DIR.as_path());
+}
+
+pub fn open_database() -> Option<rusqlite::Connection> {
+    let exists = DB_DIR.exists();
+    if let Ok(conn) = Connection::open(DB_DIR.as_path()) {
+        if !exists {
+            conn.execute(
+                "CREATE TABLE song (
+                    number     INTEGER NOT NULL,
+                    disc       INTEGER NOT NULL,
+                    name       TEXT NOT NULL,
+                    album      TEXT NOT NULL,
+                    artist     TEXT NOT NULL,
+                    path       TEXT NOT NULL UNIQUE,
+                    duration   DOUBLE NOT NULL,
+                    track_gain DOUBLE NOT NULL,
+                    parent     TEXT NOT NULL
+                )",
+                [],
+            )
+            .unwrap();
+        }
+        Some(conn)
+    } else {
+        None
+    }
+}
 
 #[derive(Default)]
 pub struct Database {
@@ -192,8 +194,7 @@ impl Database {
         self.add_dirs(&paths_to_add);
     }
     pub fn refresh(&mut self, paths: &[String]) {
-        let conn = conn();
-        conn.execute("DELETE FROM song", []).unwrap();
+        conn().execute("DELETE FROM song", []).unwrap();
         self.add_dirs(paths);
     }
     pub fn add_dirs(&self, dirs: &[String]) {
@@ -212,7 +213,8 @@ impl Database {
                 if !Path::new(&dir).exists() {
                     break;
                 }
-                let songs: Vec<Song> = WalkDir::new(&dir)
+
+                let paths: Vec<PathBuf> = WalkDir::new("D:\\Music")
                     .into_iter()
                     .flatten()
                     .map(|dir| dir.path())
@@ -222,7 +224,11 @@ impl Database {
                         }
                         None => false,
                     })
-                    .parallel_map(|dir| Song::from(&dir))
+                    .collect();
+
+                let songs: Vec<Song> = paths
+                    .into_par_iter()
+                    .map(|dir| Song::from(&dir))
                     .flatten()
                     .collect();
 
@@ -246,8 +252,7 @@ impl Database {
 
                 stmt.push_str("COMMIT;\n");
 
-                let conn = conn();
-                conn.execute_batch(&stmt).unwrap();
+                conn().execute_batch(&stmt).unwrap();
             }
 
             busy.store(false, Ordering::SeqCst);
