@@ -26,20 +26,20 @@
 cargo install gonk
 ```
 
+Add your music using:
+
+```
+gonk add D:/Music
+```
+
 ### From source
 
-Install the dependencies.
+Install the dependencies then run:
 
 ```
 git clone https://github.com/zX3no/gonk
 cd gonk
 cargo install --path gonk
-```
-
-Add some music:
-
-```
-gonk add D:/Music
 ```
 
 #### Dependencies
