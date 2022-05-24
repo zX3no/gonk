@@ -8,8 +8,8 @@ use tui::{
 
 #[derive(Debug, Clone, Default)]
 pub struct ListState {
-    pub selection: usize,
-    pub selected: bool,
+    selection: usize,
+    selected: bool,
 }
 
 impl ListState {

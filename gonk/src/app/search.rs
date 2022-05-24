@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::Mode as AppMode;
 use crate::widgets::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
@@ -17,6 +19,16 @@ pub enum Item {
     Song(Song),
     Album(Album),
     Artist(Artist),
+}
+
+impl Item {
+    pub fn name(&self) -> &str {
+        match self {
+            Item::Song(song) => song.name.as_str(),
+            Item::Album(album) => album.name.as_str(),
+            Item::Artist(artist) => artist.name.as_str(),
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -54,20 +66,21 @@ pub struct Search {
 
 impl Search {
     pub fn new(colors: Colors) -> Self {
-        let mut s = Self {
+        Self {
             cache: Vec::new(),
             query: String::new(),
             prev_query: String::new(),
             mode: Mode::Search,
             results: Index::default(),
             colors,
-        };
-        //TODO: this is dumb
-        s.update_engine();
-        s.update_search();
-        s
+        }
     }
-    pub fn update_engine(&mut self) {
+    pub fn init(mut self) -> Self {
+        self.update_cache();
+        self.update_search();
+        self
+    }
+    pub fn update_cache(&mut self) {
         self.cache = Vec::new();
 
         let songs = sqlite::get_all_songs();
@@ -120,8 +133,22 @@ impl Search {
             }
         }
 
-        //TODO: sort self-titled albums bellow artists
+        //Sort results by score.
         results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+        //Sort artists above self-titled albums.
+        results.sort_by(|(a, _), (b, _)| {
+            if a.name() == b.name() {
+                if let Item::Album(_) = a {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                }
+            } else {
+                Ordering::Equal
+            }
+        });
+
         self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
     }
     pub fn on_key(&mut self, c: char) {
@@ -424,7 +451,6 @@ impl Search {
             if self.results.is_none() && self.query.is_empty() {
                 f.set_cursor(1, 1);
             } else {
-                //TODO: casting to u16 could fail
                 let mut len = self.query.len() as u16;
                 if len > area.width {
                     len = area.width;

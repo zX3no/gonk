@@ -70,14 +70,14 @@ impl App {
             queue: Queue::new(toml.volume(), toml.colors.clone()),
             browser: Browser::new(),
             options: Options::new(toml),
-            search: Search::new(toml.colors.clone()),
+            search: Search::new(toml.colors.clone()).init(),
             db: Database::default(),
         }
     }
     fn on_update(&mut self) {
         if self.db.needs_update() {
             self.browser.refresh();
-            self.search.update_engine();
+            self.search.update_cache();
 
             self.db.stop();
         }
