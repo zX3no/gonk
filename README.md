@@ -1,4 +1,5 @@
 <h1 align="center" style="font-size: 55px">Gonk</h1>
+
 <h3 align="center">A terminal music player.</h3>
 
 <div align="center" style="display:inline">
