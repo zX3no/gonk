@@ -167,13 +167,13 @@ impl App {
                                 _ => (),
                             },
                             KeyCode::Char('1' | '!') => {
-                                self.queue.move_constraint('1', event.modifiers);
+                                self.queue.move_constraint(0, event.modifiers);
                             }
                             KeyCode::Char('2' | '@') => {
-                                self.queue.move_constraint('2', event.modifiers);
+                                self.queue.move_constraint(1, event.modifiers);
                             }
                             KeyCode::Char('3' | '#') => {
-                                self.queue.move_constraint('3', event.modifiers);
+                                self.queue.move_constraint(2, event.modifiers);
                             }
                             _ if toml.hotkey.up.contains(&bind) => self.up(),
                             _ if toml.hotkey.down.contains(&bind) => self.down(),

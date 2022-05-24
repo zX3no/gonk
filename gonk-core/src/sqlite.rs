@@ -242,6 +242,7 @@ impl Database {
                 }
 
                 let mut stmt = String::from("BEGIN;\n");
+
                 stmt.push_str(&songs.iter()
                 .map(|song| {
                     let artist = fix(&song.artist);

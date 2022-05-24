@@ -50,6 +50,9 @@ impl Options {
             }
         }
     }
+}
+
+impl Options {
     pub fn draw<B: Backend>(&self, f: &mut Frame<B>, toml: &Toml) {
         let default_device = toml.output_device();
 

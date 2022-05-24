@@ -33,24 +33,18 @@ impl Queue {
         }
         self.player.update();
     }
-    pub fn move_constraint(&mut self, arg: char, modifier: KeyModifiers) {
-        //1 is 48, '1' - 49 = 0
-        let i = (arg as usize) - 49;
-        if modifier == KeyModifiers::SHIFT && self.constraint[i] != 0 {
-            self.constraint[i] = self.constraint[i].saturating_sub(1);
-            self.constraint[i + 1] += 1;
-        } else if self.constraint[i + 1] != 0 {
-            self.constraint[i] += 1;
-            self.constraint[i + 1] = self.constraint[i + 1].saturating_sub(1);
+    pub fn move_constraint(&mut self, row: usize, modifier: KeyModifiers) {
+        if modifier == KeyModifiers::SHIFT && self.constraint[row] != 0 {
+            //Move row back.
+            self.constraint[row + 1] += 1;
+            self.constraint[row] = self.constraint[row].saturating_sub(1);
+        } else if self.constraint[row + 1] != 0 {
+            //Move row forward.
+            self.constraint[row] += 1;
+            self.constraint[row + 1] = self.constraint[row + 1].saturating_sub(1);
         }
 
-        for n in &mut self.constraint {
-            if *n > 100 {
-                *n = 100;
-            }
-        }
-
-        assert!(
+        debug_assert!(
             self.constraint.iter().sum::<u16>() == 100,
             "Constraint went out of bounds: {:?}",
             self.constraint
@@ -87,7 +81,7 @@ impl Queue {
 
         let row_bounds = self.draw_body(f, chunks[1]);
 
-        //Handle mouse input
+        //Handle mouse input.
         if let Some((width, height)) = self.clicked_pos {
             let size = f.size();
 
@@ -115,7 +109,6 @@ impl Queue {
             }
         }
 
-        //TODO: if allow for old and new seeker
         self.draw_seeker(f, chunks[2]);
     }
     fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
@@ -152,9 +145,9 @@ impl Queue {
             let mut name = song.name.trim_end().to_string();
             let mut album = song.album.trim_end().to_string();
             let mut artist = song.artist.trim_end().to_string();
-            let width = chunk.width.saturating_sub(30) as usize;
+            let max_width = chunk.width.saturating_sub(30) as usize;
 
-            while artist.width() + name.width() + "-| - |-".width() > width {
+            while artist.width() + name.width() + "-| - |-".width() > max_width {
                 if artist.width() > name.width() {
                     artist.pop();
                 } else {
@@ -162,34 +155,16 @@ impl Queue {
                 }
             }
 
-            while album.width() > width {
+            while album.width() > max_width {
                 album.pop();
             }
 
-            let title = format!("{} - {}", artist, name);
-
-            //The code did this:
-            // |          Artist - Track Name          |
-            // | A very very very very long album name |
-
-            // let (album_front, album_back) = if album.width() > title.width() {
-            //     ("│ ", " │")
-            // } else {
-            //     ("", "")
-            // };
-
-            let mut pad_front = String::new();
-            let mut pad_back = String::new();
-            let mut i = 0;
-
-            while title.width() + pad_front.width() + pad_back.width() < album.width() {
-                if i % 2 == 0 {
-                    pad_front.push(' ');
-                } else {
-                    pad_back.push(' ');
-                }
-                i += 1;
-            }
+            let n = album
+                .width()
+                .saturating_sub(artist.width() + name.width() + 3);
+            let rem = n % 2;
+            let pad_front = " ".repeat(n / 2);
+            let pad_back = " ".repeat(n / 2 + rem);
 
             vec![
                 Spans::from(vec![
@@ -199,11 +174,7 @@ impl Queue {
                     Span::styled(name, Style::default().fg(self.colors.title)),
                     Span::raw(format!("{} │─", pad_back)),
                 ]),
-                Spans::from(vec![
-                    // Span::raw(album_front),
-                    Span::styled(album, Style::default().fg(self.colors.album)),
-                    // Span::raw(album_back),
-                ]),
+                Spans::from(Span::styled(album, Style::default().fg(self.colors.album))),
             ]
         } else {
             vec![Spans::default(), Spans::default()]
@@ -292,7 +263,7 @@ impl Queue {
                     if ui_index != player_index {
                         if let Some(song) = songs.get(ui_index) {
                             let row = Row::new(vec![
-                                Cell::from(""),
+                                Cell::default(),
                                 Cell::from(song.number.to_string())
                                     .style(Style::default().bg(self.colors.track)),
                                 Cell::from(song.name.as_str())

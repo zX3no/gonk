@@ -8,12 +8,12 @@ use tui::{
 
 #[derive(Debug, Clone, Default)]
 pub struct ListState {
-    selection: usize,
-    selected: bool,
+    pub selection: usize,
+    pub selected: bool,
 }
 
 impl ListState {
-    pub fn new(index: Option<usize>) -> Self {
+    pub const fn new(index: Option<usize>) -> Self {
         if let Some(i) = index {
             Self {
                 selection: i,

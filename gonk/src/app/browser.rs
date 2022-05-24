@@ -9,6 +9,8 @@ use tui::{
     Frame,
 };
 
+const EMPTY_LIST: ListState = ListState::new(None);
+
 pub enum Mode {
     Artist,
     Album,
@@ -35,7 +37,6 @@ impl Mode {
 pub struct Browser {
     artists: Index<String>,
     albums: Index<String>,
-    //TODO: change to just a string?
     songs: Index<(u64, String)>,
     pub mode: Mode,
 }
@@ -146,101 +147,83 @@ impl Browser {
             Browser::draw_popup(f);
         }
     }
+    fn list<'a>(title: &'static str, content: &'a [ListItem]) -> List<'a> {
+        List::new(content)
+            .block(
+                Block::default()
+                    .title(title)
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .style(Style::default().fg(Color::White))
+            .highlight_style(Style::default())
+            .highlight_symbol(">")
+    }
     pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();
 
         let size = area.width / 3;
+        let rem = area.width % 3;
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(size),
                 Constraint::Length(size),
-                Constraint::Length(size),
+                Constraint::Length(size + rem),
             ])
             .split(area);
 
-        let a: Vec<_> = self
+        let a: Vec<ListItem> = self
             .artists
             .data
             .iter()
             .map(|name| ListItem::new(name.as_str()))
             .collect();
 
-        let b: Vec<_> = self
+        let b: Vec<ListItem> = self
             .albums
             .data
             .iter()
             .map(|name| ListItem::new(name.as_str()))
             .collect();
 
-        let c: Vec<_> = self
+        let c: Vec<ListItem> = self
             .songs
             .data
             .iter()
             .map(|song| ListItem::new(format!("{}. {}", song.0, song.1)))
             .collect();
 
-        let artists = List::new(a)
-            .block(
-                Block::default()
-                    .title("─Aritst")
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .style(Style::default().fg(Color::White))
-            .highlight_style(Style::default())
-            .highlight_symbol(">");
+        let artists = Browser::list("─Aritst", &a);
+        let albums = Browser::list("─Album", &b);
+        let songs = Browser::list("─Song", &c);
 
-        let mut artist_state = ListState::new(self.artists.selection());
+        let (mut artist, mut album, mut song) = match self.mode {
+            Mode::Artist => (
+                ListState::new(self.artists.selection()),
+                EMPTY_LIST,
+                EMPTY_LIST,
+            ),
+            Mode::Album => (
+                EMPTY_LIST,
+                ListState::new(self.albums.selection()),
+                EMPTY_LIST,
+            ),
+            Mode::Song => (
+                EMPTY_LIST,
+                EMPTY_LIST,
+                ListState::new(self.songs.selection()),
+            ),
+        };
 
-        let albums = List::new(b)
-            .block(
-                Block::default()
-                    .title("─Album")
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .style(Style::default().fg(Color::White))
-            .highlight_style(Style::default())
-            .highlight_symbol(">");
-
-        let mut album_state = ListState::new(self.albums.selection());
-
-        let songs = List::new(c)
-            .block(
-                Block::default()
-                    .title("─Song")
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .style(Style::default().fg(Color::White))
-            .highlight_style(Style::default())
-            .highlight_symbol(">");
-
-        let mut song_state = ListState::new(self.songs.selection());
-
-        //TODO: better way of doing this?
-        match self.mode {
-            Mode::Artist => {
-                album_state.select(None);
-                song_state.select(None);
-            }
-            Mode::Album => {
-                artist_state.select(None);
-                song_state.select(None);
-            }
-            Mode::Song => {
-                artist_state.select(None);
-                album_state.select(None);
-            }
-        }
-
-        f.render_stateful_widget(artists, chunks[0], &mut artist_state);
-        f.render_stateful_widget(albums, chunks[1], &mut album_state);
-        f.render_stateful_widget(songs, chunks[2], &mut song_state);
+        f.render_stateful_widget(artists, chunks[0], &mut artist);
+        f.render_stateful_widget(albums, chunks[1], &mut album);
+        f.render_stateful_widget(songs, chunks[2], &mut song);
     }
 
     //TODO: change to small text in bottom right
+    //This bar should show in all pages but the queue.
+    //It will show what the current song is, how much is left and the volume.
     pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
         let mut area = f.size();
 
