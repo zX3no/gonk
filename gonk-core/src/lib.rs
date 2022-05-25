@@ -1,7 +1,7 @@
 pub use crate::{
     index::Index,
     song::Song,
-    sqlite::Database,
+    sqlite::{Database, State},
     toml::{Bind, Colors, GlobalHotkey, Hotkey, Key, Modifier, Toml},
 };
 use static_init::dynamic;
@@ -30,19 +30,6 @@ pub static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
 
 #[cfg(test)]
 mod tests {
-
-    #[test]
-    fn add_songs() {
-        let mut db = crate::Database::default();
-        db.add_dirs(&[String::from("D:\\Music")]);
-
-        loop {
-            if db.needs_update() {
-                break;
-            }
-        }
-    }
-
     /*
         cargo test --release --lib -- tests::bench_adding --exact
         hyperfine 'cargo test --release --lib -- tests::bench_adding --exact' -w 5 -r 50
@@ -51,7 +38,7 @@ mod tests {
     #[test]
     fn bench_adding() {
         use crate::sqlite;
-        use crate::sqlite::{conn, fix};
+        use crate::sqlite::conn;
         use crate::Song;
         use jwalk::WalkDir;
         use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -86,12 +73,11 @@ mod tests {
         let mut stmt = String::from("BEGIN;\n");
         stmt.push_str(&songs.iter()
                 .map(|song| {
-                    let artist = fix(&song.artist);
-                    let album = fix(&song.album);
-                    let name = fix(&song.name);
-                    let path = fix(song.path.to_str().unwrap());
-                    let parent = fix("D:\\");
-                    //TODO: would be nice to have batch params, don't think it's implemented.
+                    let artist = song.artist.replace('\'', r"''");
+                    let album = song.album.replace('\'', r"''");
+                    let name = song.name.replace('\'', r"''");
+                    let path = song.path.to_string_lossy().replace('\'', r"''");
+                    let parent = "D:\\Music";
                     format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                                 song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), song.track_gain, parent)
                 })

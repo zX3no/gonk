@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gonk_core::{Bind, Database, Key, Modifier, Toml};
+use gonk_core::{sqlite, Bind, Database, Key, Modifier, State, Toml};
 use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::time::Instant;
@@ -45,11 +45,49 @@ pub struct App {
     browser: Browser,
     options: Options,
     search: Search,
+    toml: Toml,
     db: Database,
+    busy: bool,
 }
 
 impl App {
-    pub fn new(toml: &mut Toml) -> Self {
+    pub fn new() -> Option<Self> {
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        let mut toml = Toml::new();
+        let mut db = Database::default();
+
+        if let Some(first) = args.first() {
+            match first as &str {
+                "add" => {
+                    if let Some(dir) = args.get(1..) {
+                        let dir = dir.join(" ");
+                        toml.add_path(dir.clone());
+                        db.add_paths(&[dir]);
+                    }
+                }
+                "reset" => {
+                    sqlite::reset();
+                    toml.reset();
+                    println!("Reset database!");
+                    return None;
+                }
+                "help" | "--help" => {
+                    println!("Usage");
+                    println!("   gonk [<command> <args>]");
+                    println!();
+                    println!("Options");
+                    println!("   add   <path>  Add music to the library");
+                    println!("   reset         Reset the database");
+                    println!();
+                    return None;
+                }
+                _ => {
+                    println!("Invalid command.");
+                    return None;
+                }
+            }
+        }
+
         //make sure the terminal recovers after a panic
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
@@ -59,40 +97,48 @@ impl App {
             std::process::exit(1);
         }));
 
+        //Initialize the terminal and clear the screen
         let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
-        execute!(stdout(), EnterAlternateScreen, EnableMouseCapture).unwrap();
+        execute!(
+            terminal.backend_mut(),
+            EnterAlternateScreen,
+            EnableMouseCapture
+        )
+        .unwrap();
         enable_raw_mode().unwrap();
         terminal.clear().unwrap();
 
-        Self {
+        Some(Self {
             terminal,
             mode: Mode::Browser,
             queue: Queue::new(toml.volume(), toml.colors.clone()),
             browser: Browser::new(),
-            options: Options::new(toml),
+            options: Options::new(&mut toml),
             search: Search::new(toml.colors.clone()).init(),
-            db: Database::default(),
-        }
+            busy: false,
+            db,
+            toml,
+        })
     }
     fn on_update(&mut self) {
-        if self.db.needs_update() {
-            self.browser.refresh();
-            self.search.update_cache();
-
-            // self.db.stop();
+        match self.db.state() {
+            State::Busy => self.busy = true,
+            State::Idle => self.busy = false,
+            State::NeedsUpdate => {
+                self.browser.refresh();
+                self.search.update_cache();
+            }
         }
 
         self.search.update_search();
 
         self.queue.update();
     }
-    pub fn run(&mut self, mut toml: Toml) -> std::io::Result<()> {
+    pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
 
-        self.db.sync_database(toml.paths());
-
         #[cfg(windows)]
-        let tx = App::register_hotkeys(toml.clone());
+        let tx = App::register_hotkeys(self.toml.clone());
 
         loop {
             if last_tick.elapsed() >= TICK_RATE {
@@ -101,9 +147,9 @@ impl App {
             }
 
             self.terminal.draw(|f| match self.mode {
-                Mode::Browser => self.browser.draw(f, self.db.is_busy()),
+                Mode::Browser => self.browser.draw(f, self.busy),
                 Mode::Queue => self.queue.draw(f),
-                Mode::Options => self.options.draw(f, &toml),
+                Mode::Options => self.options.draw(f, &self.toml),
                 Mode::Search => self.search.draw(f),
             })?;
 
@@ -112,11 +158,11 @@ impl App {
                 match recv {
                     HotkeyEvent::VolUp => {
                         self.queue.player.volume_up();
-                        toml.set_volume(self.queue.player.volume);
+                        self.toml.set_volume(self.queue.player.volume);
                     }
                     HotkeyEvent::VolDown => {
                         self.queue.player.volume_down();
-                        toml.set_volume(self.queue.player.volume);
+                        self.toml.set_volume(self.queue.player.volume);
                     }
                     HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
                     HotkeyEvent::Prev => self.queue.player.prev_song(),
@@ -132,7 +178,7 @@ impl App {
                             modifiers: Modifier::from_bitflags(event.modifiers),
                         };
 
-                        if toml.hotkey.quit.contains(&bind) {
+                        if self.toml.hotkey.quit.contains(&bind) {
                             break;
                         };
 
@@ -157,9 +203,9 @@ impl App {
                                     }
                                 }
                                 Mode::Search => self.search.on_enter(&mut self.queue.player),
-                                Mode::Options => {
-                                    self.options.on_enter(&mut self.queue.player, &mut toml)
-                                }
+                                Mode::Options => self
+                                    .options
+                                    .on_enter(&mut self.queue.player, &mut self.toml),
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -175,44 +221,50 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint(2, event.modifiers);
                             }
-                            _ if toml.hotkey.up.contains(&bind) => self.up(),
-                            _ if toml.hotkey.down.contains(&bind) => self.down(),
-                            _ if toml.hotkey.left.contains(&bind) => self.browser.prev(),
-                            _ if toml.hotkey.right.contains(&bind) => self.browser.next(),
-                            _ if toml.hotkey.play_pause.contains(&bind) => {
+                            _ if self.toml.hotkey.up.contains(&bind) => self.up(),
+                            _ if self.toml.hotkey.down.contains(&bind) => self.down(),
+                            _ if self.toml.hotkey.left.contains(&bind) => self.browser.prev(),
+                            _ if self.toml.hotkey.right.contains(&bind) => self.browser.next(),
+                            _ if self.toml.hotkey.play_pause.contains(&bind) => {
                                 self.queue.player.toggle_playback()
                             }
-                            _ if toml.hotkey.clear.contains(&bind) => self.queue.clear(),
-                            _ if toml.hotkey.clear_except_playing.contains(&bind) => {
+                            _ if self.toml.hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if self.toml.hotkey.clear_except_playing.contains(&bind) => {
                                 self.queue.clear_except_playing();
                             }
-                            _ if toml.hotkey.refresh_database.contains(&bind)
+                            _ if self.toml.hotkey.refresh_database.contains(&bind)
                                 && self.mode == Mode::Browser =>
                             {
-                                let paths = toml.paths();
-                                self.db.refresh(paths);
+                                let paths = self.toml.paths();
+                                self.db.add_paths(paths);
                             }
-                            _ if toml.hotkey.seek_backward.contains(&bind) => {
+                            _ if self.toml.hotkey.seek_backward.contains(&bind) => {
                                 self.queue.player.seek_by(-SEEK_TIME)
                             }
-                            _ if toml.hotkey.seek_forward.contains(&bind) => {
+                            _ if self.toml.hotkey.seek_forward.contains(&bind) => {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
-                            _ if toml.hotkey.previous.contains(&bind) => {
+                            _ if self.toml.hotkey.previous.contains(&bind) => {
                                 self.queue.player.prev_song()
                             }
-                            _ if toml.hotkey.next.contains(&bind) => self.queue.player.next_song(),
-                            _ if toml.hotkey.volume_up.contains(&bind) => {
+                            _ if self.toml.hotkey.next.contains(&bind) => {
+                                self.queue.player.next_song()
+                            }
+                            _ if self.toml.hotkey.volume_up.contains(&bind) => {
                                 self.queue.player.volume_up();
-                                toml.set_volume(self.queue.player.volume);
+                                self.toml.set_volume(self.queue.player.volume);
                             }
-                            _ if toml.hotkey.volume_down.contains(&bind) => {
+                            _ if self.toml.hotkey.volume_down.contains(&bind) => {
                                 self.queue.player.volume_down();
-                                toml.set_volume(self.queue.player.volume);
+                                self.toml.set_volume(self.queue.player.volume);
                             }
-                            _ if toml.hotkey.search.contains(&bind) => self.mode = Mode::Search,
-                            _ if toml.hotkey.options.contains(&bind) => self.mode = Mode::Options,
-                            _ if toml.hotkey.delete.contains(&bind) => {
+                            _ if self.toml.hotkey.search.contains(&bind) => {
+                                self.mode = Mode::Search
+                            }
+                            _ if self.toml.hotkey.options.contains(&bind) => {
+                                self.mode = Mode::Options
+                            }
+                            _ if self.toml.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
                                     if let Some(i) = self.queue.ui.selection() {
                                         self.queue.player.delete_song(i);
@@ -224,7 +276,7 @@ impl App {
                                     }
                                 }
                             }
-                            _ if toml.hotkey.random.contains(&bind) => {
+                            _ if self.toml.hotkey.random.contains(&bind) => {
                                 self.queue.player.randomize()
                             }
                             _ => (),

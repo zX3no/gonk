@@ -1,9 +1,9 @@
 use crate::{Song, DB_DIR};
 use jwalk::WalkDir;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Params, Row};
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Mutex, MutexGuard},
     thread::{self, JoinHandle},
     time::Duration,
@@ -115,9 +115,6 @@ fn song(row: &Row) -> Song {
         track_gain: row.get(7).unwrap(),
     }
 }
-pub fn fix(item: &str) -> String {
-    item.replace('\'', r"''")
-}
 
 pub static mut CONN: Option<Mutex<rusqlite::Connection>> = None;
 
@@ -159,120 +156,88 @@ pub fn open_database() -> Option<Mutex<rusqlite::Connection>> {
     }
 }
 
+pub enum State {
+    Busy,
+    Idle,
+    NeedsUpdate,
+}
+
 #[derive(Default)]
 pub struct Database {
     handle: Option<JoinHandle<()>>,
 }
 
 impl Database {
-    pub fn sync_database(&mut self, toml_paths: &[String]) {
-        let conn = conn();
-        let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
-
-        let paths: Vec<_> = stmt
-            .query_map([], |row| row.get(0))
-            .unwrap()
-            .flatten()
-            .collect();
-
-        //delete paths that aren't in the toml file but are in the database
-        paths
-            .iter()
-            .filter(|path| !toml_paths.contains(path))
-            .for_each(|path| {
-                conn.execute("DELETE FROM song WHERE parent = ?", [path])
-                    .unwrap();
-                self.handle = Some(thread::spawn(|| {}));
-            });
-
-        //find the paths that are missing from the database
-        let paths_to_add: Vec<_> = toml_paths
-            .iter()
-            .filter(|path| !paths.contains(path))
-            .cloned()
-            .collect();
-
-        self.add_dirs(&paths_to_add);
-    }
-    pub fn refresh(&mut self, paths: &[String]) {
-        conn().execute("DELETE FROM song", []).unwrap();
-        self.add_dirs(paths);
-    }
-    pub fn add_dirs(&mut self, dirs: &[String]) {
-        if self.handle.is_some() {
-            return;
+    pub fn add_paths(&mut self, paths: &[String]) {
+        if let Some(handle) = &self.handle {
+            if !handle.is_finished() {
+                return;
+            }
         }
 
-        let dirs = dirs.to_vec();
+        let paths = paths.to_vec();
 
         let handle = thread::spawn(move || {
-            for dir in dirs {
-                if !Path::new(&dir).exists() {
-                    break;
-                }
+            let queries: Vec<String> = paths
+                .iter()
+                .map(|path| {
+                    let paths: Vec<PathBuf> = WalkDir::new(path)
+                        .into_iter()
+                        .flatten()
+                        .map(|dir| dir.path())
+                        .filter(|path| match path.extension() {
+                            Some(ex) => {
+                                matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
+                            }
+                            None => false,
+                        })
+                        .collect();
 
-                let paths: Vec<PathBuf> = WalkDir::new("D:\\Music")
-                    .into_iter()
-                    .flatten()
-                    .map(|dir| dir.path())
-                    .filter(|path| match path.extension() {
-                        Some(ex) => {
-                            matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
-                        }
-                        None => false,
-                    })
-                    .collect();
+                    let songs: Vec<Song> = paths
+                        .par_iter()
+                        .map(|dir| Song::from(dir))
+                        .flatten()
+                        .collect();
 
-                let songs: Vec<Song> = paths
-                    .into_par_iter()
-                    .map(|dir| Song::from(&dir))
-                    .flatten()
-                    .collect();
+                    if songs.is_empty() {
+                        String::new()
+                    } else {
+                        songs
+                            .iter()
+                            .map(|song| {
+                                let artist = song.artist.replace('\'', r"''");
+                                let album = song.album.replace('\'', r"''");
+                                let name = song.name.replace('\'', r"''");
+                                let song_path= song.path.to_string_lossy().replace('\'', r"''");
+                                let parent = path.replace('\'', r"''");
 
-                if songs.is_empty() {
-                    return;
-                }
-
-                let mut stmt = String::from("BEGIN;\n");
-
-                stmt.push_str(&songs.iter()
-                .map(|song| {
-                    let artist = fix(&song.artist);
-                    let album = fix(&song.album);
-                    let name = fix(&song.name);
-                    let path = fix(song.path.to_str().unwrap());
-                    let parent = fix(&dir);
-                    //TODO: would be nice to have batch params, don't think it's implemented.
-                    format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                                song.number, song.disc, name, album, artist,path, song.duration.as_secs_f64(), song.track_gain, parent)
+                                format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                                            song.number, song.disc, name, album, artist, song_path, song.duration.as_secs_f64(), song.track_gain, parent)
+                            })
+                            .collect::<Vec<String>>()
+                            .join("\n")
+                    }
                 })
-                .collect::<Vec<_>>().join("\n"));
+                .collect();
 
-                stmt.push_str("COMMIT;\n");
-
-                conn().execute_batch(&stmt).unwrap();
-            }
+            let stmt = format!("BEGIN;\nDELETE FROM song;\n{}COMMIT;\n", queries.join("\n"));
+            conn().execute_batch(&stmt).unwrap();
         });
 
         self.handle = Some(handle);
     }
-    pub fn needs_update(&mut self) -> bool {
+    pub fn state(&mut self) -> State {
         match self.handle {
             Some(ref handle) => {
                 let finished = handle.is_finished();
                 if finished {
                     self.handle = None;
+                    State::NeedsUpdate
+                } else {
+                    State::Busy
                 }
-                finished
             }
-            None => false,
-        }
-    }
-    pub fn is_busy(&self) -> bool {
-        if let Some(handle) = &self.handle {
-            !handle.is_finished()
-        } else {
-            false
+            None => State::Idle,
         }
     }
 }
