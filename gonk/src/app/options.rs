@@ -16,7 +16,7 @@ impl Options {
     pub fn new(toml: &mut Toml) -> Self {
         let devices = Index::new(Player::output_devices(), Some(0));
         let config_device = toml.output_device();
-        let default_device = Player::default_device().name().unwrap();
+        let default_device = Player::default_device().unwrap().name().unwrap();
 
         let mut data: Vec<_> = devices
             .data

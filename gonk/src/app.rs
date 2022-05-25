@@ -111,12 +111,12 @@ impl App {
             if let Ok(recv) = tx.try_recv() {
                 match recv {
                     HotkeyEvent::VolUp => {
-                        let vol = self.queue.player.volume_up();
-                        toml.set_volume(vol);
+                        self.queue.player.volume_up();
+                        toml.set_volume(self.queue.player.volume);
                     }
                     HotkeyEvent::VolDown => {
-                        let vol = self.queue.player.volume_down();
-                        toml.set_volume(vol);
+                        self.queue.player.volume_down();
+                        toml.set_volume(self.queue.player.volume);
                     }
                     HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
                     HotkeyEvent::Prev => self.queue.player.prev_song(),
@@ -203,12 +203,12 @@ impl App {
                             }
                             _ if toml.hotkey.next.contains(&bind) => self.queue.player.next_song(),
                             _ if toml.hotkey.volume_up.contains(&bind) => {
-                                let vol = self.queue.player.volume_up();
-                                toml.set_volume(vol);
+                                self.queue.player.volume_up();
+                                toml.set_volume(self.queue.player.volume);
                             }
                             _ if toml.hotkey.volume_down.contains(&bind) => {
-                                let vol = self.queue.player.volume_down();
-                                toml.set_volume(vol);
+                                self.queue.player.volume_down();
+                                toml.set_volume(self.queue.player.volume);
                             }
                             _ if toml.hotkey.search.contains(&bind) => self.mode = Mode::Search,
                             _ if toml.hotkey.options.contains(&bind) => self.mode = Mode::Options,

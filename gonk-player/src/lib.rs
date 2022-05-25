@@ -26,7 +26,8 @@ pub use crate::stream::{OutputStream, OutputStreamHandle, PlayError, StreamError
 use std::fs::File;
 use std::time::Duration;
 
-static VOLUME_STEP: u16 = 5;
+const VOLUME_STEP: u16 = 5;
+const VOLUME_REDUCTION: f32 = 600.0;
 
 pub struct Player {
     stream: OutputStream,
@@ -42,7 +43,7 @@ impl Player {
         let (stream, handle) =
             OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
-        sink.set_volume(f32::from(volume) / 1000.0);
+        sink.set_volume(f32::from(volume) / VOLUME_REDUCTION);
 
         Self {
             stream,
@@ -91,7 +92,7 @@ impl Player {
         self.songs.down();
         self.play_selected();
     }
-    pub fn volume_up(&mut self) -> u16 {
+    pub fn volume_up(&mut self) {
         self.volume += VOLUME_STEP;
 
         if self.volume > 100 {
@@ -99,21 +100,19 @@ impl Player {
         }
 
         self.update_volume();
-        self.volume
     }
-    pub fn volume_down(&mut self) -> u16 {
+    pub fn volume_down(&mut self) {
         if self.volume != 0 {
             self.volume -= VOLUME_STEP;
         }
 
         self.update_volume();
-        self.volume
     }
     fn update_volume(&self) {
         if let Some(song) = self.songs.selected() {
-            let volume = self.volume as f32 / 1000.0;
-            let gain = song.track_gain / 1000.0;
-            self.sink.set_volume(volume + gain as f32);
+            let volume = self.volume as f32 / VOLUME_REDUCTION;
+            let gain = song.track_gain as f32 / VOLUME_REDUCTION;
+            self.sink.set_volume(volume + gain);
         }
     }
     pub fn play_selected(&mut self) {
@@ -122,18 +121,13 @@ impl Player {
             let file = File::open(&song.path).expect("Could not open song.");
             let decoder = Decoder::new(file).unwrap();
 
-            //TODO: wtf is this?
-            self.duration = decoder
-                .total_duration()
-                .expect("could not get duration")
-                .as_secs_f64()
-                - 0.29;
+            //FIXME: The duration is slightly off for some reason.
+            self.duration = decoder.total_duration().unwrap().as_secs_f64() - 0.29;
             self.sink.append(decoder);
             self.update_volume();
         }
     }
     pub fn delete_song(&mut self, selected: usize) {
-        //delete the song from the queue
         self.songs.data.remove(selected);
 
         if let Some(playing) = self.songs.selection() {
@@ -152,7 +146,6 @@ impl Player {
                 self.songs.select(Some(playing - 1));
             }
 
-            //play next song if current was deleted
             if selected == playing {
                 self.play_selected();
             }
@@ -173,7 +166,8 @@ impl Player {
     }
     pub fn stop(&mut self) {
         self.sink = Sink::try_new(&self.handle).expect("Could not create new sink.");
-        self.sink.set_volume(f32::from(self.volume) / 1000.0);
+        self.sink
+            .set_volume(f32::from(self.volume) / VOLUME_REDUCTION);
     }
     pub fn elapsed(&self) -> f64 {
         self.sink.elapsed().as_secs_f64()
@@ -208,17 +202,17 @@ impl Player {
         let host_id = cpal::default_host().id();
         let host = cpal::host_from_id(host_id).unwrap();
 
-        //TODO: this contains inputs aswell as outputs
-        //getting just the outputs was too slow 150+ ms
+        //FIXME: Getting just the output devies was too slow(150ms).
+        //Instead collect every device available.
+        //If this was done lazily the user probably wouldn't notice
+        //since the settings menu gets the least amount of use.
         host.devices().unwrap().collect()
-        // devices.sort_by_key(|a| a.name().unwrap().to_lowercase());
-        // devices
     }
-    pub fn default_device() -> Device {
-        cpal::default_host()
-            .default_output_device()
-            .expect("Could not get default device.")
+    pub fn default_device() -> Option<Device> {
+        cpal::default_host().default_output_device()
     }
+    //FIXME: This function returns a bool so updating
+    //the config can be skipped when selecting an input.
     pub fn change_output_device(&mut self, device: &Device) -> bool {
         //temp fix so that changing to an input doesn't crash
         if let Ok((stream, handle)) = OutputStream::try_from_device(device) {

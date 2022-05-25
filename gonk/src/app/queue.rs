@@ -112,14 +112,14 @@ impl Queue {
         self.draw_seeker(f, chunks[2]);
     }
     fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        //Render the borders first
-        let b = Block::default()
-            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-            .border_type(BorderType::Rounded);
-        f.render_widget(b, chunk);
+        f.render_widget(
+            Block::default()
+                .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+                .border_type(BorderType::Rounded),
+            chunk,
+        );
 
-        //Left
-        let time = if self.player.songs.is_empty() {
+        let state = if self.player.songs.is_empty() {
             String::from("╭─Stopped")
         } else if !self.player.is_paused() {
             String::from("╭─Playing")
@@ -127,18 +127,14 @@ impl Queue {
             String::from("╭─Paused")
         };
 
-        let left = Paragraph::new(time).alignment(Alignment::Left);
-        f.render_widget(left, chunk);
+        f.render_widget(Paragraph::new(state).alignment(Alignment::Left), chunk);
 
-        //Center
         if !self.player.songs.is_empty() {
             self.draw_title(f, chunk);
         }
 
-        //Right
-        let text = Spans::from(format!("Vol: {}%─╮", self.player.volume));
-        let right = Paragraph::new(text).alignment(Alignment::Right);
-        f.render_widget(right, chunk);
+        let volume = Spans::from(format!("Vol: {}%─╮", self.player.volume));
+        f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), chunk);
     }
     fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
         let center = if let Some(song) = self.player.songs.selected() {
@@ -170,7 +166,7 @@ impl Queue {
                 Spans::from(vec![
                     Span::raw(format!("─│ {}", pad_front)),
                     Span::styled(artist, Style::default().fg(self.colors.artist)),
-                    Span::raw(" - "),
+                    Span::raw(" ─ "),
                     Span::styled(name, Style::default().fg(self.colors.title)),
                     Span::raw(format!("{} │─", pad_back)),
                 ]),
@@ -308,9 +304,8 @@ impl Queue {
             .widths(&con);
 
         let row_bounds = t.get_row_bounds(ui_index, t.get_row_height(chunk));
-
-        //required to scroll songs
         let mut state = TableState::new(ui_index);
+
         f.render_stateful_widget(t, chunk, &mut state);
 
         Some(row_bounds)
