@@ -88,6 +88,7 @@ Linux: `~/.config/gonk/gonk.toml`
 | Clear Except Playing | `Shift + C` |
 | Change Mode          | `Tab`       |
 | Search               | `/`         |
+| Update Database      | `U`         |
 | Quit                 | `Ctrl + C`  |
 | ?                    | `Escape`    |
 | ?                    | `Backspace` |
