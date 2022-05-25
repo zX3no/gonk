@@ -21,16 +21,6 @@ pub enum Item {
     Artist(Artist),
 }
 
-impl Item {
-    pub fn name(&self) -> &str {
-        match self {
-            Item::Song(song) => song.name.as_str(),
-            Item::Album(album) => album.name.as_str(),
-            Item::Artist(artist) => artist.name.as_str(),
-        }
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct Song {
     pub id: usize,
@@ -83,11 +73,7 @@ impl Search {
     pub fn update_cache(&mut self) {
         self.cache = Vec::new();
 
-        let songs = sqlite::get_all_songs();
-        let artists = sqlite::get_all_artists();
-        let albums = sqlite::get_all_albums();
-
-        for (id, song) in songs {
+        for (id, song) in sqlite::get_all_songs() {
             self.cache.push(Item::Song(Song {
                 name: song.name,
                 album: song.album,
@@ -96,15 +82,12 @@ impl Search {
             }));
         }
 
-        for (album, artist) in albums {
-            self.cache.push(Item::Album(Album {
-                name: album,
-                artist,
-            }));
+        for (name, artist) in sqlite::get_all_albums() {
+            self.cache.push(Item::Album(Album { name, artist }));
         }
 
-        for artist in artists {
-            self.cache.push(Item::Artist(Artist { name: artist }));
+        for name in sqlite::get_all_artists() {
+            self.cache.push(Item::Artist(Artist { name }));
         }
     }
     pub fn update_search(&mut self) {
@@ -114,20 +97,24 @@ impl Search {
             self.prev_query = self.query.clone();
         }
 
-        let query = &self.query.to_lowercase();
         let mut results = Vec::new();
+        let query = &self.query.to_lowercase();
 
         for item in &self.cache {
+            //I don't know if 'to_lowercase' has any overhead.
             let acc = match item {
                 Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
                 Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
                 Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
             };
 
+            //If there user has not asked to search for anything
+            //populate the list with 40 results.
             if query.is_empty() && results.len() < 40 {
                 results.push((item, acc));
             }
 
+            //Filter out results that are poor matches. 0.75 is an arbitrary value.
             if acc > 0.75 {
                 results.push((item, acc));
             }
@@ -137,14 +124,19 @@ impl Search {
         results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
         //Sort artists above self-titled albums.
-        results.sort_by(|(a, _), (b, _)| {
-            if a.name() == b.name() {
-                if let Item::Album(_) = a {
+        results.sort_by(|(item, a), (_, b)| {
+            //If the score is the same
+            if a == b {
+                //And the item is an album
+                if let Item::Album(_) = item {
+                    //Move item lower in the list.
                     Ordering::Greater
                 } else {
+                    //Move item higher in the list.
                     Ordering::Less
                 }
             } else {
+                //Keep the same order.
                 Ordering::Equal
             }
         });
