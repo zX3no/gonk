@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn add_songs() {
-        let db = crate::Database::default();
+        let mut db = crate::Database::default();
         db.add_dirs(&[String::from("D:\\Music")]);
 
         loop {

@@ -4,11 +4,8 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rusqlite::{params, Connection, Params, Row};
 use std::{
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
-    },
-    thread,
+    sync::{Mutex, MutexGuard},
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -164,12 +161,11 @@ pub fn open_database() -> Option<Mutex<rusqlite::Connection>> {
 
 #[derive(Default)]
 pub struct Database {
-    is_busy: Arc<AtomicBool>,
-    needs_update: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
 }
 
 impl Database {
-    pub fn sync_database(&self, toml_paths: &[String]) {
+    pub fn sync_database(&mut self, toml_paths: &[String]) {
         let conn = conn();
         let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
 
@@ -186,7 +182,7 @@ impl Database {
             .for_each(|path| {
                 conn.execute("DELETE FROM song WHERE parent = ?", [path])
                     .unwrap();
-                self.needs_update.store(true, Ordering::SeqCst);
+                self.handle = Some(thread::spawn(|| {}));
             });
 
         //find the paths that are missing from the database
@@ -202,18 +198,14 @@ impl Database {
         conn().execute("DELETE FROM song", []).unwrap();
         self.add_dirs(paths);
     }
-    pub fn add_dirs(&self, dirs: &[String]) {
-        if self.is_busy() || dirs.is_empty() {
+    pub fn add_dirs(&mut self, dirs: &[String]) {
+        if self.handle.is_some() {
             return;
         }
 
-        let busy = self.is_busy.clone();
-        let update = self.needs_update.clone();
         let dirs = dirs.to_vec();
 
-        busy.store(true, Ordering::SeqCst);
-
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             for dir in dirs {
                 if !Path::new(&dir).exists() {
                     break;
@@ -260,18 +252,27 @@ impl Database {
 
                 conn().execute_batch(&stmt).unwrap();
             }
-
-            busy.store(false, Ordering::SeqCst);
-            update.store(true, Ordering::SeqCst);
         });
+
+        self.handle = Some(handle);
     }
-    pub fn needs_update(&self) -> bool {
-        self.needs_update.load(Ordering::Relaxed)
+    pub fn needs_update(&mut self) -> bool {
+        match self.handle {
+            Some(ref handle) => {
+                let finished = handle.is_finished();
+                if finished {
+                    self.handle = None;
+                }
+                finished
+            }
+            None => false,
+        }
     }
     pub fn is_busy(&self) -> bool {
-        self.is_busy.load(Ordering::SeqCst)
-    }
-    pub fn stop(&mut self) {
-        self.needs_update.store(false, Ordering::SeqCst)
+        if let Some(handle) = &self.handle {
+            !handle.is_finished()
+        } else {
+            false
+        }
     }
 }

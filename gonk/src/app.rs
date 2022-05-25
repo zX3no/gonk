@@ -79,7 +79,7 @@ impl App {
             self.browser.refresh();
             self.search.update_cache();
 
-            self.db.stop();
+            // self.db.stop();
         }
 
         self.search.update_search();
