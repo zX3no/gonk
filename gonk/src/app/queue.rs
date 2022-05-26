@@ -9,6 +9,8 @@ use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::{backend::Backend, Frame};
 use unicode_width::UnicodeWidthStr;
 
+const HEADER_HEIGHT: u16 = 5;
+
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
@@ -82,12 +84,13 @@ impl Queue {
         let row_bounds = self.draw_body(f, chunks[1]);
 
         //Handle mouse input.
-        if let Some((width, height)) = self.clicked_pos {
+        if let Some((x, y)) = self.clicked_pos {
             let size = f.size();
 
             //Mouse support for the seek bar.
-            if (size.height - 2 == height || size.height - 1 == height) && size.height > 15 {
-                let ratio = f64::from(width) / f64::from(size.width);
+            if (size.height - 2 == y || size.height - 1 == y) && size.height > 15 {
+                dbg!("seek bar");
+                let ratio = f64::from(x) / f64::from(size.width);
                 let duration = self.player.duration;
                 let new_time = duration * ratio;
                 self.player.seek_to(new_time);
@@ -96,12 +99,16 @@ impl Queue {
 
             //Mouse support for the queue.
             if let Some((start, _)) = row_bounds {
-                //the header is 5 units long
-                if height >= 5 {
-                    let index = (height - 5) as usize + start;
+                //Check if you clicked on the header.
+                if y >= HEADER_HEIGHT {
+                    let index = (y - HEADER_HEIGHT) as usize + start;
 
-                    //don't select out of bounds
-                    if index < self.player.songs.len() && height < size.height.saturating_sub(3) {
+                    //Make sure you didn't click on the seek bar
+                    //and that the song index exists.
+                    if index < self.player.songs.len()
+                        && ((size.height < 15 && y < size.height.saturating_sub(1))
+                            || y < size.height.saturating_sub(3))
+                    {
                         self.ui.select(Some(index));
                     }
                 }
