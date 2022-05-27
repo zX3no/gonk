@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use super::Mode as AppMode;
+use super::{queue::Queue, Mode as AppMode};
 use crate::widgets::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk_core::{sqlite, Colors, Index};
@@ -143,7 +143,7 @@ impl Search {
 
         self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
     }
-    pub fn on_key(&mut self, c: char) {
+    pub fn on_key(&mut self, c: char, queue: &mut Queue) {
         if let Mode::Search = &self.mode {
             self.prev_query = self.query.clone();
             self.query.push(c);
@@ -151,6 +151,7 @@ impl Search {
             match c {
                 'k' => self.results.up(),
                 'j' => self.results.down(),
+                'c' => queue.clear(),
                 _ => (),
             }
         }

@@ -26,7 +26,7 @@ enum HotkeyEvent {
     VolDown,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Mode {
     Browser,
     Queue,
@@ -183,7 +183,9 @@ impl App {
                         };
 
                         match event.code {
-                            KeyCode::Char(c) if self.mode == Mode::Search => self.search.on_key(c),
+                            KeyCode::Char(c) if self.mode == Mode::Search => {
+                                self.search.on_key(c, &mut self.queue)
+                            }
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
                                     Mode::Browser | Mode::Options => Mode::Queue,
