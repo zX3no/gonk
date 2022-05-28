@@ -9,8 +9,6 @@ use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::{backend::Backend, Frame};
 use unicode_width::UnicodeWidthStr;
 
-const HEADER_HEIGHT: u16 = 5;
-
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
@@ -85,6 +83,8 @@ impl Queue {
 
         //Handle mouse input.
         if let Some((x, y)) = self.clicked_pos {
+            const HEADER_HEIGHT: u16 = 5;
+
             let size = f.size();
 
             //Mouse support for the seek bar.
@@ -143,7 +143,7 @@ impl Queue {
         f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), chunk);
     }
     fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
-        let center = if let Some(song) = self.player.songs.selected() {
+        let title = if let Some(song) = self.player.songs.selected() {
             let mut name = song.name.trim_end().to_string();
             let mut album = song.album.trim_end().to_string();
             let mut artist = song.artist.trim_end().to_string();
@@ -179,11 +179,10 @@ impl Queue {
                 Spans::from(Span::styled(album, Style::default().fg(self.colors.album))),
             ]
         } else {
-            vec![Spans::default(), Spans::default()]
+            Vec::new()
         };
 
-        let center = Paragraph::new(center).alignment(Alignment::Center);
-        f.render_widget(center, chunk);
+        f.render_widget(Paragraph::new(title).alignment(Alignment::Center), chunk);
     }
     fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) -> Option<(usize, usize)> {
         if self.player.songs.is_empty() {
@@ -326,10 +325,6 @@ impl Queue {
             );
         }
 
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded);
-
         let elapsed = self.player.elapsed();
         let duration = self.player.duration;
 
@@ -348,12 +343,17 @@ impl Queue {
             ratio.clamp(0.0, 1.0)
         };
 
-        let g = Gauge::default()
-            .block(block)
-            .gauge_style(Style::default().fg(self.colors.seeker))
-            .ratio(ratio)
-            .label(seeker);
-
-        f.render_widget(g, chunk);
+        f.render_widget(
+            Gauge::default()
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                )
+                .gauge_style(Style::default().fg(self.colors.seeker))
+                .ratio(ratio)
+                .label(seeker),
+            chunk,
+        );
     }
 }

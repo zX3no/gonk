@@ -9,8 +9,6 @@ use tui::{
     Frame,
 };
 
-const EMPTY_LIST: ListState = ListState::new(None);
-
 pub enum Mode {
     Artist,
     Album,
@@ -160,10 +158,12 @@ impl Browser {
             .highlight_symbol(">")
     }
     pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
-        let area = f.size();
+        const EMPTY_LIST: ListState = ListState::new(None);
 
+        let area = f.size();
         let size = area.width / 3;
         let rem = area.width % 3;
+
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([

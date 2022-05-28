@@ -66,7 +66,7 @@ impl Search {
     }
     pub fn init(mut self) -> Self {
         self.update_cache();
-        self.update_search();
+        self.update();
         self
     }
     pub fn update_cache(&mut self) {
@@ -89,7 +89,8 @@ impl Search {
             self.cache.push(Item::Artist(Artist { name }));
         }
     }
-    pub fn update_search(&mut self) {
+    //FIXME: This can get super laggy with really long strings
+    pub fn update(&mut self) {
         if self.query == self.prev_query {
             return;
         } else {
@@ -427,13 +428,19 @@ impl Search {
         f.render_stateful_widget(t, area, &mut state);
     }
     fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
-        let p = Paragraph::new(self.query.as_ref())
+        let len = self.query.len() as u16;
+        //Search box is a little smaller than the max width
+        let width = area.width.saturating_sub(1);
+        let offset_x = if len < width { 0 } else { len - width + 1 };
+
+        let p = Paragraph::new(self.query.as_str())
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded),
             )
-            .alignment(Alignment::Left);
+            .alignment(Alignment::Left)
+            .scroll((0, offset_x));
         f.render_widget(p, area);
     }
     fn update_cursor<B: Backend>(&self, f: &mut Frame<B>) {
@@ -443,11 +450,13 @@ impl Search {
             if self.results.is_none() && self.query.is_empty() {
                 f.set_cursor(1, 1);
             } else {
-                let mut len = self.query.len() as u16;
-                if len > area.width {
-                    len = area.width;
+                let len = self.query.len() as u16;
+                let max_width = area.width.saturating_sub(2);
+                if len >= max_width {
+                    f.set_cursor(max_width, 1);
+                } else {
+                    f.set_cursor(len + 1, 1);
                 }
-                f.set_cursor(len + 1, 1);
             }
         }
     }

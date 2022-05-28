@@ -102,7 +102,7 @@ impl App {
         execute!(
             terminal.backend_mut(),
             EnterAlternateScreen,
-            EnableMouseCapture
+            EnableMouseCapture,
         )
         .unwrap();
         enable_raw_mode().unwrap();
@@ -130,8 +130,7 @@ impl App {
             }
         }
 
-        self.search.update_search();
-
+        self.search.update();
         self.queue.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
