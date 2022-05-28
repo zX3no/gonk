@@ -2,7 +2,7 @@ use crate::widgets::{List, ListItem, ListState};
 use gonk_core::{sqlite, Index, Song};
 use tui::{
     backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Margin},
     style::{Color, Style},
     text::Spans,
     widgets::{Block, BorderType, Borders, Paragraph},
@@ -225,31 +225,34 @@ impl Browser {
     //This bar should show in all pages but the queue.
     //It will show what the current song is, how much is left and the volume.
     pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
-        let mut area = f.size();
+        const POPUP_WIDTH: u16 = 14;
+        const POPUP_HEIGHT: u16 = 3;
 
-        if (area.width / 2) < 14 || (area.height / 2) < 3 {
+        let area = f.size();
+        let width = area.width / 2;
+        let height = area.height / 2;
+
+        if width < POPUP_WIDTH || height < POPUP_HEIGHT {
             return;
         }
 
-        area.x = (area.width / 2) - 7;
-        if (area.width / 2) % 2 == 0 {
-            area.y = (area.height / 2) - 3;
-        } else {
-            area.y = (area.height / 2) - 2;
-        }
-        area.width = 14;
-        area.height = 3;
+        let mut rect = area.inner(&Margin {
+            vertical: height - (POPUP_HEIGHT / 2),
+            horizontal: width - (POPUP_WIDTH / 2),
+        });
 
-        let text = vec![Spans::from("Scanning...")];
+        rect.width = POPUP_WIDTH;
+        rect.height = POPUP_HEIGHT;
 
-        let p = Paragraph::new(text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .alignment(Alignment::Center);
-
-        f.render_widget(p, area);
+        f.render_widget(
+            Paragraph::new(Spans::from("Scanning..."))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                )
+                .alignment(Alignment::Center),
+            rect,
+        );
     }
 }
