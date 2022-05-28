@@ -9,7 +9,7 @@ use tui::style::Color;
 use global_hotkeys::{keys, modifiers};
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
 pub enum Modifier {
     CONTROL,
     SHIFT,
@@ -50,7 +50,7 @@ impl From<&Modifier> for KeyModifiers {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
 pub struct Key(pub String);
 
 impl From<&str> for Key {
@@ -85,7 +85,7 @@ impl From<KeyCode> for Key {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
 pub struct Bind {
     pub key: Key,
     pub modifiers: Option<Vec<Modifier>>,
