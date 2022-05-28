@@ -70,30 +70,30 @@ Windows: `%appdata%/gonk/gonk.toml`
 
 Linux: `~/.config/gonk/gonk.toml`
 
-| Command              | Key         |
-|----------------------|-------------|
-| Move Up              | `K / UP`    |
-| Move Down            | `J / Down`  |
-| Move Left            | `H / Left`  |
-| Move Right           | `L / Right` |
-| Volume Up            | `W`         |
-| Volume Up            | `S`         |
-| Play/Pause           | `Space`     |
-| Previous             | `A`         |
-| Next                 | `D`         |
-| Seek -10s            | `Q`         |
-| Seek 10s             | `E`         |
-| Delete Song          | `X`         |
-| Clear Queue          | `C`         |
-| Clear Except Playing | `Shift + C` |
-| Change Mode          | `Tab`       |
-| Search               | `/`         |
-| Update Database      | `U`         |
-| Quit                 | `Ctrl + C`  |
-| ?                    | `Escape`    |
-| ?                    | `Backspace` |
-
-`1, 2, 3` moves the queue margins forward. `Shift + 1, 2, 3` moves them backwards.
+| Command              | Key             |
+|----------------------|-----------------|
+| Move Up              | `K / UP`        |
+| Move Down            | `J / Down`      |
+| Move Left            | `H / Left`      |
+| Move Right           | `L / Right`     |
+| Volume Up            | `W`             |
+| Volume Up            | `S`             |
+| Play/Pause           | `Space`         |
+| Previous             | `A`             |
+| Next                 | `D`             |
+| Seek -10s            | `Q`             |
+| Seek 10s             | `E`             |
+| Delete Song          | `X`             |
+| Clear Queue          | `C`             |
+| Clear Except Playing | `Shift + C`     |
+| Randomize Queue      | `R`             |
+| Change Mode          | `Tab`           |
+| Search               | `/`             |
+| Update Database      | `U`             |
+| Quit                 | `Ctrl + C`      |
+| Move Song            | `1 / Shift + 1` |
+| Move Album           | `2 / Shift + 2` |
+| Move Artist          | `3 / Shift + 3` |
 
 ## ⚒️ Troubleshooting
 
