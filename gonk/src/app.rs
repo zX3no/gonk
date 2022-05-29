@@ -51,20 +51,20 @@ const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(4);
 const SEEK_TIME: f64 = 10.0;
 
-pub struct App<'a> {
+pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     pub mode: Mode,
     queue: Queue,
     browser: Browser,
     options: Options,
     search: Search,
-    playlist: Playlist<'a>,
+    playlist: Playlist,
     toml: Toml,
     db: Database,
     busy: bool,
 }
 
-impl App<'_> {
+impl App {
     pub fn new() -> Option<Self> {
         let args: Vec<String> = std::env::args().skip(1).collect();
         let mut toml = Toml::new();
@@ -217,7 +217,7 @@ impl App<'_> {
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
-                                    self.queue.player.add_songs(songs);
+                                    self.queue.player.add_songs(&songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index() {
@@ -228,7 +228,7 @@ impl App<'_> {
                                 Mode::Options => self
                                     .options
                                     .on_enter(&mut self.queue.player, &mut self.toml),
-                                Mode::Playlist => self.playlist.on_enter(),
+                                Mode::Playlist => self.playlist.on_enter(&mut self.queue.player),
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -299,18 +299,11 @@ impl App<'_> {
                             _ if self.toml.hotkey.options.contains(&bind) => {
                                 self.mode = Mode::Options
                             }
-                            _ if self.toml.hotkey.delete.contains(&bind) => {
-                                if let Mode::Queue = self.mode {
-                                    if let Some(i) = self.queue.ui.index() {
-                                        self.queue.player.delete_song(i);
-                                        //make sure the ui index is in sync
-                                        let len = self.queue.player.songs.len().saturating_sub(1);
-                                        if i > len {
-                                            self.queue.ui.select(Some(len));
-                                        }
-                                    }
-                                }
-                            }
+                            _ if self.toml.hotkey.delete.contains(&bind) => match self.mode {
+                                Mode::Queue => self.queue.delete(),
+                                Mode::Playlist => self.playlist.delete(),
+                                _ => (),
+                            },
                             _ if self.toml.hotkey.random.contains(&bind) => {
                                 self.queue.player.randomize()
                             }
@@ -391,7 +384,7 @@ impl App<'_> {
     }
 }
 
-impl Drop for App<'_> {
+impl Drop for App {
     fn drop(&mut self) {
         disable_raw_mode().unwrap();
         execute!(

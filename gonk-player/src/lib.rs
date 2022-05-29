@@ -54,8 +54,8 @@ impl Player {
             songs: Index::default(),
         }
     }
-    pub fn add_songs(&mut self, song: Vec<Song>) {
-        self.songs.data.extend(song);
+    pub fn add_songs(&mut self, song: &[Song]) {
+        self.songs.data.extend(song.to_vec());
         if self.songs.is_none() && !self.songs.is_empty() {
             self.songs.select(Some(0));
             self.play_selected();

@@ -130,6 +130,59 @@ pub fn reset() {
     std::fs::remove_file(DB_DIR.as_path());
 }
 
+pub fn add_playlist(name: &str, songs: &[usize]) {
+    let conn = conn();
+    for song in songs {
+        conn.execute(
+            "INSERT OR IGNORE INTO playlist VALUES (?1, ?2)",
+            params![song, name],
+        )
+        .unwrap();
+    }
+}
+
+pub mod playlist {
+    use super::conn;
+
+    pub fn get_names() -> Vec<String> {
+        let conn = conn();
+        let mut stmt = conn.prepare("SELECT DISTINCT name FROM playlist").unwrap();
+
+        stmt.query_map([], |row| row.get(0))
+            .unwrap()
+            .flatten()
+            .collect()
+    }
+
+    pub fn get(playlist_name: &str) -> (Vec<usize>, Vec<usize>) {
+        //TODO: playlist should reference song
+        let conn = conn();
+        let mut stmt = conn
+            .prepare("SELECT rowid, song_id FROM playlist WHERE name = ?")
+            .unwrap();
+
+        let ids: Vec<_> = stmt
+            .query_map([playlist_name], |row| {
+                let row_id: usize = row.get(0).unwrap();
+                let song_id: usize = row.get(1).unwrap();
+                Ok((row_id, song_id))
+            })
+            .unwrap()
+            .flatten()
+            .collect();
+
+        let row_ids: Vec<_> = ids.iter().map(|id| id.0).collect();
+        let song_ids: Vec<_> = ids.iter().map(|id| id.1).collect();
+        (row_ids, song_ids)
+    }
+
+    pub fn remove(id: usize) {
+        conn()
+            .execute("DELETE FROM playlist WHERE rowid = ?", [id])
+            .unwrap();
+    }
+}
+
 pub fn open_database() -> Option<Mutex<rusqlite::Connection>> {
     let exists = DB_DIR.exists();
     if let Ok(conn) = Connection::open(DB_DIR.as_path()) {
@@ -145,6 +198,15 @@ pub fn open_database() -> Option<Mutex<rusqlite::Connection>> {
                     duration   DOUBLE NOT NULL,
                     track_gain DOUBLE NOT NULL,
                     parent     TEXT NOT NULL
+                )",
+                [],
+            )
+            .unwrap();
+
+            conn.execute(
+                "CREATE TABLE playlist (
+                    song_id INTEGER NOT NULL,
+                    name TEXT NOT NULL
                 )",
                 [],
             )

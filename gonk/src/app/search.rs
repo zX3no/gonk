@@ -209,7 +209,7 @@ impl Search {
                         Item::Artist(artist) => sqlite::get_songs_by_artist(&artist.name),
                     };
 
-                    player.add_songs(songs);
+                    player.add_songs(&songs);
                 }
             }
         }

@@ -342,7 +342,6 @@ impl<'a> StatefulWidget for Table<'a> {
             };
             let mut col = table_row_start_col;
             for (width, cell) in columns_widths.iter().zip(table_row.cells.iter()) {
-                dbg!(width);
                 render_cell(
                     buf,
                     cell,

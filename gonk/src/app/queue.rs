@@ -64,6 +64,16 @@ impl Queue {
         self.player.clear_except_playing();
         self.ui.select(Some(0));
     }
+    pub fn delete(&mut self) {
+        if let Some(i) = self.ui.index() {
+            self.player.delete_song(i);
+            //make sure the ui index is in sync
+            let len = self.player.songs.len().saturating_sub(1);
+            if i > len {
+                self.ui.select(Some(len));
+            }
+        }
+    }
 }
 
 impl Queue {

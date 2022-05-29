@@ -1,6 +1,7 @@
 #![allow(unused)]
 use crate::widgets::{Cell, Gauge, List, ListItem, ListState, Row, Table, TableState};
-use gonk_core::Index;
+use gonk_core::{sqlite, Index, Song};
+use gonk_player::Player;
 use std::io::Stdout;
 use tui::{
     backend::CrosstermBackend,
@@ -14,42 +15,80 @@ enum Mode {
     Song,
 }
 
-pub struct Playlist<'a> {
-    mode: Mode,
-    playlist: Index<ListItem<'a>>,
-    songs: Index<Row<'a>>,
+pub struct Item {
+    id: usize,
+    row: usize,
+    song: Song,
 }
 
-impl<'a> Playlist<'a> {
+pub struct Playlist {
+    mode: Mode,
+    playlist: Index<String>,
+    songs: Index<Item>,
+}
+
+impl Playlist {
     pub fn new() -> Self {
+        let playlists = sqlite::playlist::get_names();
+        let songs = Playlist::get_songs(playlists.first());
+
         Self {
             mode: Mode::Playlist,
-            playlist: Index::new(
-                vec![
-                    ListItem::new("Playlist 1"),
-                    ListItem::new("Playlist 2"),
-                    ListItem::new("Playlist 3"),
-                    ListItem::new("Playlist 4"),
-                    ListItem::new("Playlist 5"),
-                ],
-                Some(0),
-            ),
-            songs: Index::new(vec![Row::new(["1", "Title", "Album", "Artist"])], Some(0)),
+            playlist: Index::new(playlists, Some(0)),
+            songs: Index::new(songs, Some(0)),
+        }
+    }
+    fn get_songs(playlist: Option<&String>) -> Vec<Item> {
+        if let Some(playlist) = playlist {
+            let (row_ids, song_ids) = sqlite::playlist::get(playlist);
+            let songs = sqlite::get_songs_from_id(&song_ids);
+            songs
+                .into_iter()
+                .zip(song_ids)
+                .zip(row_ids)
+                .map(|((song, id), row)| Item { id, row, song })
+                .collect()
+        } else {
+            Vec::new()
         }
     }
     pub fn up(&mut self) {
         match self.mode {
-            Mode::Playlist => self.playlist.up(),
+            Mode::Playlist => {
+                self.playlist.up();
+                self.update_songs();
+            }
             Mode::Song => self.songs.up(),
         }
     }
     pub fn down(&mut self) {
         match self.mode {
-            Mode::Playlist => self.playlist.down(),
+            Mode::Playlist => {
+                self.playlist.down();
+                self.update_songs();
+            }
             Mode::Song => self.songs.down(),
         }
     }
-    pub fn on_enter(&mut self) {
+    pub fn update_songs(&mut self) {
+        //Update the list of songs.
+        let songs = Playlist::get_songs(self.playlist.selected());
+        self.songs = if !songs.is_empty() {
+            Index::new(songs, Some(0))
+        } else {
+            self.mode = Mode::Playlist;
+            Index::default()
+        };
+    }
+    pub fn on_enter(&mut self, player: &mut Player) {
+        match self.mode {
+            Mode::Playlist => self.right(),
+            Mode::Song => {
+                if let Some(item) = self.songs.selected() {
+                    player.add_songs(&[item.song.clone()]);
+                }
+            }
+        }
         self.right();
     }
     pub fn on_backspace(&mut self) {
@@ -62,8 +101,27 @@ impl<'a> Playlist<'a> {
     }
     pub fn right(&mut self) {
         if let Mode::Playlist = self.mode {
-            self.mode = Mode::Song;
-            self.songs.select(Some(0));
+            if !self.songs.is_empty() {
+                self.mode = Mode::Song;
+            }
+        }
+    }
+    pub fn add_to_playlist(&mut self, name: &str, songs: &[usize]) {
+        sqlite::add_playlist(name, songs);
+
+        //TODO: I really hate how wasteful these refreshes are.
+        self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
+        self.update_songs();
+    }
+    pub fn delete(&mut self) {
+        match self.mode {
+            Mode::Playlist => (),
+            Mode::Song => {
+                if let Some(song) = self.songs.selected() {
+                    sqlite::playlist::remove(song.row);
+                    self.update_songs();
+                }
+            }
         }
     }
 }
@@ -80,7 +138,7 @@ impl<'a> Playlist<'a> {
 //The should be a bar at the bottom with a list of controls
 //Rename, Delete, Remove from playlist, move song up, move song down
 
-impl<'a> Playlist<'a> {
+impl Playlist {
     pub fn draw(&self, f: &mut Frame<CrosstermBackend<Stdout>>) {
         let vertical = Layout::default()
             .direction(Direction::Vertical)
@@ -92,7 +150,15 @@ impl<'a> Playlist<'a> {
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(vertical[0]);
 
-        let list = List::new(self.playlist.clone())
+        let items: Vec<ListItem> = self
+            .playlist
+            .data
+            .clone()
+            .into_iter()
+            .map(|str| ListItem::new(str))
+            .collect();
+
+        let list = List::new(items)
             .block(
                 Block::default()
                     .title("─Playlist")
@@ -113,13 +179,28 @@ impl<'a> Playlist<'a> {
             &mut ListState::new(self.playlist.index()),
         );
 
-        let table = Table::new(self.songs.clone())
-            .header(Row::new(["Track", "Title", "Album", "Artist"]).bottom_margin(1))
+        let content = self
+            .songs
+            .data
+            .iter()
+            .map(|item| {
+                let song = item.song.clone();
+                Row::new(vec![
+                    song.number.to_string(),
+                    song.name,
+                    song.album,
+                    song.artist,
+                ])
+            })
+            .collect();
+
+        let table = Table::new(content)
+            // .header(Row::new(["Track", "Title", "Album", "Artist"]).bottom_margin(1))
             .widths(&[
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
+                Constraint::Length(8),
+                Constraint::Length(42),
+                Constraint::Length(24),
+                Constraint::Length(26),
             ])
             .block(
                 Block::default()
