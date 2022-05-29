@@ -199,7 +199,7 @@ impl App {
                                     self.queue.player.add_songs(songs);
                                 }
                                 Mode::Queue => {
-                                    if let Some(i) = self.queue.ui.selection() {
+                                    if let Some(i) = self.queue.ui.index() {
                                         self.queue.player.play_song(i);
                                     }
                                 }
@@ -267,7 +267,7 @@ impl App {
                             }
                             _ if self.toml.hotkey.delete.contains(&bind) => {
                                 if let Mode::Queue = self.mode {
-                                    if let Some(i) = self.queue.ui.selection() {
+                                    if let Some(i) = self.queue.ui.index() {
                                         self.queue.player.delete_song(i);
                                         //make sure the ui index is in sync
                                         let len = self.queue.player.songs.len().saturating_sub(1);

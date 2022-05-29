@@ -130,7 +130,7 @@ impl Player {
     pub fn delete_song(&mut self, selected: usize) {
         self.songs.data.remove(selected);
 
-        if let Some(playing) = self.songs.selection() {
+        if let Some(playing) = self.songs.index() {
             let len = self.songs.len();
 
             if len == 0 {

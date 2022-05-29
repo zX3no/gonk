@@ -117,12 +117,12 @@ impl Queue {
 
         self.draw_seeker(f, chunks[2]);
     }
-    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
         f.render_widget(
             Block::default()
                 .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                 .border_type(BorderType::Rounded),
-            chunk,
+            area,
         );
 
         let state = if self.player.songs.is_empty() {
@@ -133,21 +133,21 @@ impl Queue {
             String::from("╭─Paused")
         };
 
-        f.render_widget(Paragraph::new(state).alignment(Alignment::Left), chunk);
+        f.render_widget(Paragraph::new(state).alignment(Alignment::Left), area);
 
         if !self.player.songs.is_empty() {
-            self.draw_title(f, chunk);
+            self.draw_title(f, area);
         }
 
         let volume = Spans::from(format!("Vol: {}%─╮", self.player.volume));
-        f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), chunk);
+        f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
     }
-    fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
         let title = if let Some(song) = self.player.songs.selected() {
             let mut name = song.name.trim_end().to_string();
             let mut album = song.album.trim_end().to_string();
             let mut artist = song.artist.trim_end().to_string();
-            let max_width = chunk.width.saturating_sub(30) as usize;
+            let max_width = area.width.saturating_sub(30) as usize;
 
             while artist.width() + name.width() + "-| - |-".width() > max_width {
                 if artist.width() > name.width() {
@@ -182,9 +182,9 @@ impl Queue {
             Vec::new()
         };
 
-        f.render_widget(Paragraph::new(title).alignment(Alignment::Center), chunk);
+        f.render_widget(Paragraph::new(title).alignment(Alignment::Center), area);
     }
-    fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) -> Option<(usize, usize)> {
+    fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) -> Option<(usize, usize)> {
         if self.player.songs.is_empty() {
             if self.clicked_pos.is_some() {
                 self.clicked_pos = None;
@@ -194,15 +194,15 @@ impl Queue {
                 Block::default()
                     .border_type(BorderType::Rounded)
                     .borders(Borders::LEFT | Borders::RIGHT),
-                chunk,
+                area,
             );
             return None;
         }
 
         let (songs, player_index, ui_index) = (
             &self.player.songs.data,
-            self.player.songs.selection(),
-            self.ui.selection(),
+            self.player.songs.index(),
+            self.ui.index(),
         );
 
         let mut items: Vec<Row> = songs
@@ -308,20 +308,19 @@ impl Queue {
             )
             .widths(&con);
 
-        let row_bounds = t.get_row_bounds(ui_index, t.get_row_height(chunk));
-        let mut state = TableState::new(ui_index);
+        let row_bounds = t.get_row_bounds(ui_index, t.get_row_height(area));
 
-        f.render_stateful_widget(t, chunk, &mut state);
+        f.render_stateful_widget(t, area, &mut TableState::new(ui_index));
 
         Some(row_bounds)
     }
-    fn draw_seeker<B: Backend>(&mut self, f: &mut Frame<B>, chunk: Rect) {
+    fn draw_seeker<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
         if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
                     .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT),
-                chunk,
+                area,
             );
         }
 
@@ -353,7 +352,7 @@ impl Queue {
                 .gauge_style(Style::default().fg(self.colors.seeker))
                 .ratio(ratio)
                 .label(seeker),
-            chunk,
+            area,
         );
     }
 }

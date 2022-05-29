@@ -305,7 +305,7 @@ impl Search {
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
             .collect();
 
-        let album_table = Table::new(cells)
+        let table = Table::new(cells)
             .header(
                 Row::new(vec![Cell::from(Span::styled(
                     format!("{} ", album),
@@ -321,7 +321,7 @@ impl Search {
             )
             .widths(&[Constraint::Percentage(100)]);
 
-        f.render_widget(album_table, area);
+        f.render_widget(table, area);
     }
     fn artist<B: Backend>(&self, f: &mut Frame<B>, artist: &str, area: Rect) {
         let albums = sqlite::get_all_albums_by_artist(artist);
@@ -330,7 +330,7 @@ impl Search {
             .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
             .collect();
 
-        let artist_table = Table::new(cells)
+        let table = Table::new(cells)
             .header(
                 Row::new(vec![Cell::from(Span::styled(
                     format!("{} ", artist),
@@ -346,7 +346,7 @@ impl Search {
             )
             .widths(&[Constraint::Percentage(100)]);
 
-        f.render_widget(artist_table, area);
+        f.render_widget(table, area);
     }
     fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
         let get_cell = |item: &Item, selected: bool| -> Row {
@@ -383,15 +383,14 @@ impl Search {
             }
         };
 
-        let selected = &self.results.selection();
         let rows: Vec<_> = self
             .results
             .data
             .iter()
             .enumerate()
             .map(|(i, item)| {
-                if let Some(s) = selected {
-                    if s == &i {
+                if let Some(s) = self.results.index() {
+                    if s == i {
                         return get_cell(item, true);
                     }
                 } else if i == 0 {
@@ -402,7 +401,7 @@ impl Search {
             .collect();
 
         let italic = Style::default().add_modifier(Modifier::ITALIC);
-        let t = Table::new(rows)
+        let table = Table::new(rows)
             .header(
                 Row::new(vec![
                     Cell::default(),
@@ -424,8 +423,7 @@ impl Search {
                 Constraint::Percentage(20),
             ]);
 
-        let mut state = TableState::new(self.results.selection());
-        f.render_stateful_widget(t, area, &mut state);
+        f.render_stateful_widget(table, area, &mut TableState::new(self.results.index()));
     }
     fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
         let len = self.query.len() as u16;
@@ -433,15 +431,17 @@ impl Search {
         let width = area.width.saturating_sub(1);
         let offset_x = if len < width { 0 } else { len - width + 1 };
 
-        let p = Paragraph::new(self.query.as_str())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
-            .alignment(Alignment::Left)
-            .scroll((0, offset_x));
-        f.render_widget(p, area);
+        f.render_widget(
+            Paragraph::new(self.query.as_str())
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                )
+                .alignment(Alignment::Left)
+                .scroll((0, offset_x)),
+            area,
+        );
     }
     fn update_cursor<B: Backend>(&self, f: &mut Frame<B>) {
         let area = f.size();

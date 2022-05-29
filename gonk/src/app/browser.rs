@@ -199,21 +199,9 @@ impl Browser {
         let songs = Browser::list("─Song", &c);
 
         let (mut artist, mut album, mut song) = match self.mode {
-            Mode::Artist => (
-                ListState::new(self.artists.selection()),
-                EMPTY_LIST,
-                EMPTY_LIST,
-            ),
-            Mode::Album => (
-                EMPTY_LIST,
-                ListState::new(self.albums.selection()),
-                EMPTY_LIST,
-            ),
-            Mode::Song => (
-                EMPTY_LIST,
-                EMPTY_LIST,
-                ListState::new(self.songs.selection()),
-            ),
+            Mode::Artist => (ListState::new(self.artists.index()), EMPTY_LIST, EMPTY_LIST),
+            Mode::Album => (EMPTY_LIST, ListState::new(self.albums.index()), EMPTY_LIST),
+            Mode::Song => (EMPTY_LIST, EMPTY_LIST, ListState::new(self.songs.index())),
         };
 
         f.render_stateful_widget(artists, chunks[0], &mut artist);

@@ -60,7 +60,7 @@ impl<T> Index<T> {
         }
         None
     }
-    pub fn selection(&self) -> Option<usize> {
+    pub fn index(&self) -> Option<usize> {
         self.index
     }
     pub fn len(&self) -> usize {

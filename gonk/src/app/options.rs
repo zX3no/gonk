@@ -82,7 +82,7 @@ impl Options {
             .highlight_symbol("> ");
 
         let mut state = ListState::default();
-        state.select(self.devices.selection());
+        state.select(self.devices.index());
 
         f.render_stateful_widget(list, f.size(), &mut state);
     }
