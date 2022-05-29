@@ -9,6 +9,7 @@ use tui::{
     Frame,
 };
 
+#[derive(PartialEq, Eq)]
 pub enum Mode {
     Artist,
     Album,
@@ -16,14 +17,14 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn next(&mut self) {
+    pub fn right(&mut self) {
         match self {
             Mode::Artist => *self = Mode::Album,
             Mode::Album => *self = Mode::Song,
             Mode::Song => (),
         }
     }
-    pub fn prev(&mut self) {
+    pub fn left(&mut self) {
         match self {
             Mode::Artist => (),
             Mode::Album => *self = Mode::Artist,
@@ -107,11 +108,11 @@ impl Browser {
             }
         }
     }
-    pub fn next(&mut self) {
-        self.mode.next();
+    pub fn right(&mut self) {
+        self.mode.right();
     }
-    pub fn prev(&mut self) {
-        self.mode.prev();
+    pub fn left(&mut self) {
+        self.mode.left();
     }
     pub fn on_enter(&self) -> Vec<Song> {
         if let Some(artist) = self.artists.selected() {
@@ -145,21 +146,23 @@ impl Browser {
             Browser::draw_popup(f);
         }
     }
-    fn list<'a>(title: &'static str, content: &'a [ListItem]) -> List<'a> {
-        List::new(content)
+    fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
+        let list = List::new(content.to_vec())
             .block(
                 Block::default()
                     .title(title)
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded),
             )
-            .style(Style::default().fg(Color::White))
-            .highlight_style(Style::default())
-            .highlight_symbol(">")
+            .style(Style::default().fg(Color::White));
+
+        if use_symbol {
+            list.highlight_symbol(">")
+        } else {
+            list.highlight_symbol("")
+        }
     }
     pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
-        const EMPTY_LIST: ListState = ListState::new(None);
-
         let area = f.size();
         let size = area.width / 3;
         let rem = area.width % 3;
@@ -194,19 +197,17 @@ impl Browser {
             .map(|song| ListItem::new(format!("{}. {}", song.0, song.1)))
             .collect();
 
-        let artists = Browser::list("─Aritst", &a);
-        let albums = Browser::list("─Album", &b);
-        let songs = Browser::list("─Song", &c);
+        let artists = Browser::list("─Aritst", &a, self.mode == Mode::Artist);
+        let albums = Browser::list("─Album", &b, self.mode == Mode::Album);
+        let songs = Browser::list("─Song", &c, self.mode == Mode::Song);
 
-        let (mut artist, mut album, mut song) = match self.mode {
-            Mode::Artist => (ListState::new(self.artists.index()), EMPTY_LIST, EMPTY_LIST),
-            Mode::Album => (EMPTY_LIST, ListState::new(self.albums.index()), EMPTY_LIST),
-            Mode::Song => (EMPTY_LIST, EMPTY_LIST, ListState::new(self.songs.index())),
-        };
-
-        f.render_stateful_widget(artists, chunks[0], &mut artist);
-        f.render_stateful_widget(albums, chunks[1], &mut album);
-        f.render_stateful_widget(songs, chunks[2], &mut song);
+        f.render_stateful_widget(
+            artists,
+            chunks[0],
+            &mut ListState::new(self.artists.index()),
+        );
+        f.render_stateful_widget(albums, chunks[1], &mut ListState::new(self.albums.index()));
+        f.render_stateful_widget(songs, chunks[2], &mut ListState::new(self.songs.index()));
     }
 
     //TODO: change to small text in bottom right

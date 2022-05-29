@@ -10,10 +10,12 @@ use std::time::Duration;
 use std::time::Instant;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
-use {browser::Browser, options::Options, queue::Queue, search::Search};
+
+use {browser::Browser, options::Options, playlist::Playlist, queue::Queue, search::Search};
 
 mod browser;
 mod options;
+mod playlist;
 mod queue;
 mod search;
 
@@ -26,31 +28,33 @@ enum HotkeyEvent {
     VolDown,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Mode {
     Browser,
     Queue,
     Search,
     Options,
+    Playlist,
 }
 
 const TICK_RATE: Duration = Duration::from_millis(100);
 const POLL_RATE: Duration = Duration::from_millis(4);
 const SEEK_TIME: f64 = 10.0;
 
-pub struct App {
+pub struct App<'a> {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     pub mode: Mode,
     queue: Queue,
     browser: Browser,
     options: Options,
     search: Search,
+    playlist: Playlist<'a>,
     toml: Toml,
     db: Database,
     busy: bool,
 }
 
-impl App {
+impl App<'_> {
     pub fn new() -> Option<Self> {
         let args: Vec<String> = std::env::args().skip(1).collect();
         let mut toml = Toml::new();
@@ -115,6 +119,7 @@ impl App {
             browser: Browser::new(),
             options: Options::new(&mut toml),
             search: Search::new(toml.colors.clone()).init(),
+            playlist: Playlist::new(),
             busy: false,
             db,
             toml,
@@ -150,6 +155,7 @@ impl App {
                 Mode::Queue => self.queue.draw(f),
                 Mode::Options => self.options.draw(f, &self.toml),
                 Mode::Search => self.search.draw(f),
+                Mode::Playlist => self.playlist.draw(f),
             })?;
 
             #[cfg(windows)]
@@ -190,9 +196,14 @@ impl App {
                                     Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,
                                     Mode::Search => Mode::Queue,
+                                    Mode::Playlist => Mode::Queue,
                                 };
                             }
-                            KeyCode::Backspace => self.search.on_backspace(event.modifiers),
+                            KeyCode::Backspace => match self.mode {
+                                Mode::Search => self.search.on_backspace(event.modifiers),
+                                Mode::Playlist => self.playlist.on_backspace(),
+                                _ => (),
+                            },
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
@@ -207,6 +218,7 @@ impl App {
                                 Mode::Options => self
                                     .options
                                     .on_enter(&mut self.queue.player, &mut self.toml),
+                                Mode::Playlist => self.playlist.on_enter(),
                             },
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
@@ -222,10 +234,21 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint(2, event.modifiers);
                             }
+                            KeyCode::Char(',') => {
+                                self.mode = Mode::Playlist;
+                            }
                             _ if self.toml.hotkey.up.contains(&bind) => self.up(),
                             _ if self.toml.hotkey.down.contains(&bind) => self.down(),
-                            _ if self.toml.hotkey.left.contains(&bind) => self.browser.prev(),
-                            _ if self.toml.hotkey.right.contains(&bind) => self.browser.next(),
+                            _ if self.toml.hotkey.left.contains(&bind) => match self.mode {
+                                Mode::Browser => self.browser.left(),
+                                Mode::Playlist => self.playlist.left(),
+                                _ => (),
+                            },
+                            _ if self.toml.hotkey.right.contains(&bind) => match self.mode {
+                                Mode::Browser => self.browser.right(),
+                                Mode::Playlist => self.playlist.right(),
+                                _ => (),
+                            },
                             _ if self.toml.hotkey.play_pause.contains(&bind) => {
                                 self.queue.player.toggle_playback()
                             }
@@ -305,6 +328,7 @@ impl App {
             Mode::Queue => self.queue.up(),
             Mode::Search => self.search.up(),
             Mode::Options => self.options.up(),
+            Mode::Playlist => self.playlist.up(),
         }
     }
 
@@ -314,6 +338,7 @@ impl App {
             Mode::Queue => self.queue.down(),
             Mode::Search => self.search.down(),
             Mode::Options => self.options.down(),
+            Mode::Playlist => self.playlist.down(),
         }
     }
 
@@ -355,7 +380,7 @@ impl App {
     }
 }
 
-impl Drop for App {
+impl Drop for App<'_> {
     fn drop(&mut self) {
         disable_raw_mode().unwrap();
         execute!(

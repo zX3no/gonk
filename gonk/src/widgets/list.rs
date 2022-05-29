@@ -79,14 +79,11 @@ pub struct List<'a> {
 }
 
 impl<'a> List<'a> {
-    pub fn new<T>(items: T) -> List<'a>
-    where
-        T: Into<Vec<ListItem<'a>>>,
-    {
+    pub fn new(items: Vec<ListItem<'a>>) -> List<'a> {
         List {
             block: None,
             style: Style::default(),
-            items: items.into(),
+            items: items.to_vec(),
             start_corner: Corner::TopLeft,
             highlight_style: Style::default(),
             highlight_symbol: None,

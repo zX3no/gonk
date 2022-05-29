@@ -1,8 +1,12 @@
 use app::App;
 use gonk_core::sqlite;
-use std::io::Result;
+use std::io::{Result, Stdout};
+use tui::backend::CrosstermBackend;
+
 mod app;
 mod widgets;
+
+pub type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
 fn main() -> Result<()> {
     //Initialize database.

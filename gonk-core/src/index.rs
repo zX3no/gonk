@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Index<T> {
     pub data: Vec<T>,
     index: Option<usize>,
@@ -74,6 +74,15 @@ impl<T> Index<T> {
     }
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
+    }
+    pub fn as_slice(&self) -> &[T] {
+        &self.data
+    }
+}
+
+impl<T: Clone> Index<T> {
+    pub fn clone(&self) -> Vec<T> {
+        self.data.to_owned()
     }
 }
 

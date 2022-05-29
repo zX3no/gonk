@@ -90,10 +90,7 @@ pub struct Table<'a> {
 }
 
 impl<'a> Table<'a> {
-    pub fn new<T>(rows: T) -> Self
-    where
-        T: IntoIterator<Item = Row<'a>>,
-    {
+    pub fn new(rows: Vec<Row<'a>>) -> Self {
         Self {
             block: None,
             style: Style::default(),
@@ -102,7 +99,7 @@ impl<'a> Table<'a> {
             highlight_style: Style::default(),
             highlight_symbol: None,
             header: None,
-            rows: rows.into_iter().collect(),
+            rows,
         }
     }
 
@@ -287,6 +284,7 @@ impl<'a> StatefulWidget for Table<'a> {
         }
         let (start, end) = self.get_row_bounds(state.selected, rows_height);
 
+        //TODO: Fix the table moving to the left when selected.
         for (i, table_row) in self
             .rows
             .iter_mut()

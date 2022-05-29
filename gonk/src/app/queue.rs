@@ -293,7 +293,7 @@ impl Queue {
 
         let t = Table::new(items)
             .header(
-                Row::new(vec!["", "Track", "Title", "Album", "Artist"])
+                Row::new(["", "Track", "Title", "Album", "Artist"])
                     .style(
                         Style::default()
                             .fg(Color::White)
