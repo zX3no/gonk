@@ -87,6 +87,8 @@ pub struct Table<'a> {
     header: Option<Row<'a>>,
     /// Data to display in each row
     rows: Vec<Row<'a>>,
+    /// Underline the header
+    separator: bool,
 }
 
 impl<'a> Table<'a> {
@@ -100,6 +102,7 @@ impl<'a> Table<'a> {
             highlight_symbol: None,
             header: None,
             rows,
+            separator: false,
         }
     }
 
@@ -128,6 +131,12 @@ impl<'a> Table<'a> {
 
     pub fn highlight_symbol(mut self, highlight_symbol: &'a str) -> Self {
         self.highlight_symbol = Some(highlight_symbol);
+        self
+    }
+
+    //TODO: Add an underline to the header
+    pub fn separator(mut self) -> Self {
+        self.separator = true;
         self
     }
 
@@ -245,6 +254,7 @@ impl<'a> StatefulWidget for Table<'a> {
         let mut current_height = 0;
         let mut rows_height = table_area.height;
 
+        //TODO: Add an underline
         // Draw header
         if let Some(ref header) = self.header {
             let max_header_height = table_area.height.min(header.total_height());
@@ -272,7 +282,23 @@ impl<'a> StatefulWidget for Table<'a> {
                         height: max_header_height,
                     },
                 );
+
                 col += *width + self.column_spacing;
+            }
+            if self.separator {
+                let max: u16 = columns_widths.iter().sum();
+                for i in table_area.left() + 3..max + table_area.left() + 4 {
+                    render_cell(
+                        buf,
+                        &Cell::from("─"),
+                        Rect {
+                            x: i,
+                            y: table_area.top() + 1,
+                            width: 1,
+                            height: 1,
+                        },
+                    );
+                }
             }
             current_height += max_header_height;
             rows_height = rows_height.saturating_sub(max_header_height);
@@ -316,6 +342,7 @@ impl<'a> StatefulWidget for Table<'a> {
             };
             let mut col = table_row_start_col;
             for (width, cell) in columns_widths.iter().zip(table_row.cells.iter()) {
+                dbg!(width);
                 render_cell(
                     buf,
                     cell,

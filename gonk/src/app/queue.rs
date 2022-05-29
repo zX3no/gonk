@@ -306,6 +306,7 @@ impl Queue {
                     .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
                     .border_type(BorderType::Rounded),
             )
+            // .separator()
             .widths(&con);
 
         let row_bounds = t.get_row_bounds(ui_index, t.get_row_height(area));

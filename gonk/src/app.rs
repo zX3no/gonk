@@ -10,7 +10,6 @@ use std::time::Duration;
 use std::time::Instant;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
-
 use {browser::Browser, options::Options, playlist::Playlist, queue::Queue, search::Search};
 
 mod browser;
@@ -18,6 +17,17 @@ mod options;
 mod playlist;
 mod queue;
 mod search;
+
+//TODO: Might be nice.
+trait Widget {
+    fn on_enter() {}
+    fn on_backspace() {}
+    fn on_escape() {}
+    fn up() {}
+    fn down() {}
+    fn left() {}
+    fn right() {}
+}
 
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
@@ -196,7 +206,7 @@ impl App<'_> {
                                     Mode::Browser | Mode::Options => Mode::Queue,
                                     Mode::Queue => Mode::Browser,
                                     Mode::Search => Mode::Queue,
-                                    Mode::Playlist => Mode::Queue,
+                                    Mode::Playlist => Mode::Browser,
                                 };
                             }
                             KeyCode::Backspace => match self.mode {
@@ -223,6 +233,7 @@ impl App<'_> {
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
                                 Mode::Options => self.mode = Mode::Queue,
+                                Mode::Playlist => self.mode = Mode::Browser,
                                 _ => (),
                             },
                             KeyCode::Char('1' | '!') => {
