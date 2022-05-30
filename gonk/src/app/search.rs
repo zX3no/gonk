@@ -4,6 +4,7 @@ use crossterm::event::KeyModifiers;
 use gonk::Frame;
 use gonk_core::{sqlite, Colors, Index};
 use gonk_player::Player;
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -89,33 +90,43 @@ impl Search {
             self.cache.push(Item::Artist(Artist { name }));
         }
     }
-    //FIXME: This can get super laggy with really long strings
     fn update_search(&mut self) {
         if self.query_changed {
-            let mut results = Vec::new();
             let query = &self.query.to_lowercase();
 
-            for item in &self.cache {
-                //I don't know if 'to_lowercase' has any overhead.
-                let acc = match item {
-                    Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-                    Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
-                    Item::Artist(artist) => {
-                        strsim::jaro_winkler(query, &artist.name.to_lowercase())
+            //If there user has not asked to search for anything
+            //populate the list with 40 results.
+            let len = if query.is_empty() {
+                40
+            } else {
+                self.cache.len()
+            };
+
+            let mut results: Vec<_> = self
+                .cache
+                .par_iter()
+                .take(len)
+                .map(|item| {
+                    //I don't know if 'to_lowercase' has any overhead.
+                    let acc = match item {
+                        Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+                        Item::Album(album) => {
+                            strsim::jaro_winkler(query, &album.name.to_lowercase())
+                        }
+                        Item::Artist(artist) => {
+                            strsim::jaro_winkler(query, &artist.name.to_lowercase())
+                        }
+                    };
+
+                    if acc > 0.75 {
+                        //Filter out results that are poor matches. 0.75 is an arbitrary value.
+                        Some((item, acc))
+                    } else {
+                        None
                     }
-                };
-
-                //If there user has not asked to search for anything
-                //populate the list with 40 results.
-                if query.is_empty() && results.len() < 40 {
-                    results.push((item, acc));
-                }
-
-                //Filter out results that are poor matches. 0.75 is an arbitrary value.
-                if acc > 0.75 {
-                    results.push((item, acc));
-                }
-            }
+                })
+                .flatten()
+                .collect();
 
             //Sort results by score.
             results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());

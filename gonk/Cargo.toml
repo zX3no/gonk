@@ -17,6 +17,7 @@ gonk-player = {version = "0.0.10", path = "../gonk-player"}
 strsim = "0.10.0"
 crossbeam-channel = "0.5.4"
 unicode-width = "0.1.9"
+rayon = "1.5.3"
 
 [target.'cfg(windows)'.dependencies]
 global_hotkeys = "0.0.1"
