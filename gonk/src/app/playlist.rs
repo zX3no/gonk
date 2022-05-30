@@ -30,8 +30,8 @@ pub struct Playlist {
     songs: Index<Item>,
     songs_to_add: Vec<Song>,
     search: String,
+    search_result: String,
     changed: bool,
-    search_results: Index<String>,
 }
 
 impl Playlist {
@@ -46,7 +46,7 @@ impl Playlist {
             songs_to_add: Vec::new(),
             changed: false,
             search: String::new(),
-            search_results: Index::default(),
+            search_result: String::from("Enter a playlist name..."),
         }
     }
     fn get_songs(playlist: Option<&String>) -> Vec<Item> {
@@ -112,12 +112,7 @@ impl Playlist {
             }
             Mode::Popup if !self.songs_to_add.is_empty() => {
                 //Select an existing playlist or create a new one.
-                let name = if let Some(name) = self.search_results.data.first() {
-                    name
-                } else {
-                    &self.search
-                }
-                .trim();
+                let name = self.search.trim();
 
                 let ids: Vec<usize> = self
                     .songs_to_add
@@ -151,6 +146,7 @@ impl Playlist {
     pub fn on_backspace(&mut self, modifiers: KeyModifiers) {
         match self.mode {
             Mode::Popup => {
+                self.changed = true;
                 if modifiers == KeyModifiers::CONTROL {
                     self.search.clear();
                 } else {
@@ -191,6 +187,7 @@ impl Playlist {
 
                     let index = self.playlist.index().unwrap();
                     self.playlist.remove(index);
+                    self.update_songs();
                 }
             }
             Mode::Song => {
@@ -219,12 +216,17 @@ impl Playlist {
 }
 
 impl Playlist {
-    pub fn draw_popup(&mut self, f: &mut Frame) {
-        //TODO: Draw a search box that searches
-        //all of the avaliable playlist names
-        //if none is found it will make a new one
+    //TODO: I think I want a different popup.
+    //It should be a small side bar in the browser.
+    //There should be a list of existing playlists.
+    //The first playlist will be the one you just added to
+    //so it's fast to keep adding things
+    //The last item will be add a new playlist.
+    //If there are no playlists it will prompt you to create on.
+    //This should be similar to foobar on android.
 
-        if let Some(area) = centered_rect(45, 23, f.size()) {
+    pub fn draw_popup(&mut self, f: &mut Frame) {
+        if let Some(area) = centered_rect(45, 6, f.size()) {
             let v = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(3), Constraint::Percentage(50)])
@@ -234,19 +236,14 @@ impl Playlist {
             f.render_widget(Clear, area);
             f.render_widget(
                 Block::default()
-                    .title("─Select a playlist")
+                    .title("─Add to playlist")
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded),
                 area,
             );
 
-            let text = if self.search.is_empty() {
-                "Enter playlist name.."
-            } else {
-                self.search.as_str()
-            };
             f.render_widget(
-                Paragraph::new(text).block(
+                Paragraph::new(self.search.as_str()).block(
                     Block::default()
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
@@ -254,34 +251,31 @@ impl Playlist {
                 v[0],
             );
 
-            if self.changed {
-                self.changed = false;
-                self.search_results.data = self
-                    .playlist
-                    .data
-                    .iter()
-                    .filter(|str| self.search.is_empty() || str.contains(&self.search))
-                    .map(|str| str.to_string())
-                    .collect();
-            }
-
             let mut items: Vec<ListItem> = self
-                .search_results
+                .playlist
                 .data
                 .iter()
                 .map(|str| ListItem::new(str.as_str()))
                 .collect();
 
-            if items.is_empty() && !self.search.is_empty() {
-                items.push(ListItem::new(format!(
-                    "Add to new playlist: {}",
-                    self.search
-                )))
+            if self.changed {
+                self.changed = false;
+                let eq = self
+                    .playlist
+                    .data
+                    .iter()
+                    .any(|e| e.to_ascii_lowercase() == self.search.to_ascii_lowercase());
+                self.search_result = if eq {
+                    format!("Add to existing playlist: {}", self.search)
+                } else if self.search.is_empty() {
+                    String::from("Enter a playlist name...")
+                } else {
+                    format!("Add to new playlist: {}", self.search)
+                }
             }
 
-            let list = List::new(items);
             f.render_widget(
-                list,
+                Paragraph::new(self.search_result.as_str()),
                 v[1].inner(&Margin {
                     horizontal: 1,
                     vertical: 0,
