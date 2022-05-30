@@ -32,10 +32,15 @@ impl Mode {
     }
 }
 
+pub struct BrowserSong {
+    name: String,
+    id: usize,
+}
+
 pub struct Browser {
     artists: Index<String>,
     albums: Index<String>,
-    songs: Index<(u64, String)>,
+    songs: Index<BrowserSong>,
     pub mode: Mode,
 }
 
@@ -49,7 +54,10 @@ impl Browser {
             if let Some(first_album) = albums.selected() {
                 let songs = sqlite::get_all_songs_from_album(first_album, first_artist)
                     .into_iter()
-                    .map(|song| (song.number, song.name))
+                    .map(|song| BrowserSong {
+                        name: format!("{}. {}", song.number, song.name),
+                        id: song.id.unwrap(),
+                    })
                     .collect();
                 (albums, Index::new(songs, Some(0)))
             } else {
@@ -101,7 +109,10 @@ impl Browser {
             if let Some(album) = self.albums.selected() {
                 let songs = sqlite::get_all_songs_from_album(album, artist)
                     .into_iter()
-                    .map(|song| (song.number, song.name))
+                    .map(|song| BrowserSong {
+                        name: format!("{}. {}", song.number, song.name),
+                        id: song.id.unwrap(),
+                    })
                     .collect();
                 self.songs = Index::new(songs, Some(0));
             }
@@ -120,7 +131,7 @@ impl Browser {
                     return match self.mode {
                         Mode::Artist => sqlite::get_songs_by_artist(artist),
                         Mode::Album => sqlite::get_all_songs_from_album(album, artist),
-                        Mode::Song => sqlite::get_song(song, album, artist),
+                        Mode::Song => sqlite::get_songs(&[song.id]),
                     };
                 }
             }
@@ -193,7 +204,7 @@ impl Browser {
             .songs
             .data
             .iter()
-            .map(|song| ListItem::new(format!("{}. {}", song.0, song.1)))
+            .map(|song| ListItem::new(song.name.as_str()))
             .collect();
 
         let artists = Browser::list("─Aritst", &a, self.mode == Mode::Artist);

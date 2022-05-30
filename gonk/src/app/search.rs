@@ -72,12 +72,12 @@ impl Search {
     pub fn update_cache(&mut self) {
         self.cache = Vec::new();
 
-        for (id, song) in sqlite::get_all_songs() {
+        for song in sqlite::get_all_songs() {
             self.cache.push(Item::Song(Song {
                 name: song.name,
                 album: song.album,
                 artist: song.artist,
-                id,
+                id: song.id.unwrap(),
             }));
         }
 
@@ -191,7 +191,7 @@ impl Search {
             Mode::Select => {
                 if let Some(item) = self.results.selected() {
                     let songs = match item {
-                        Item::Song(song) => sqlite::get_songs_from_id(&[song.id]),
+                        Item::Song(song) => sqlite::get_songs(&[song.id]),
                         Item::Album(album) => {
                             sqlite::get_all_songs_from_album(&album.name, &album.artist)
                         }
@@ -352,7 +352,7 @@ impl Search {
 
             match item {
                 Item::Song(song) => {
-                    let song = sqlite::get_songs_from_id(&[song.id])[0].clone();
+                    let song = sqlite::get_songs(&[song.id])[0].clone();
                     Row::new(vec![
                         selected_cell,
                         Cell::from(song.name).style(Style::default().fg(self.colors.title)),

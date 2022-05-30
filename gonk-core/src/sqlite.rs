@@ -9,18 +9,8 @@ use std::{
     time::Duration,
 };
 
-pub fn get_all_songs() -> Vec<(usize, Song)> {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT *, rowid FROM song").unwrap();
-
-    stmt.query_map([], |row| {
-        let id = row.get(9).unwrap();
-        let song = song(row);
-        Ok((id, song))
-    })
-    .unwrap()
-    .flatten()
-    .collect()
+pub fn get_all_songs() -> Vec<Song> {
+    collect_songs("SELECT *, rowid FROM song", params![])
 }
 pub fn get_all_artists() -> Vec<String> {
     let conn = conn();
@@ -64,37 +54,38 @@ pub fn get_all_albums_by_artist(artist: &str) -> Vec<String> {
 }
 pub fn get_all_songs_from_album(album: &str, artist: &str) -> Vec<Song> {
     collect_songs(
-        "SELECT * FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
+        "SELECT *, rowid FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
         params![artist, album],
     )
 }
 pub fn get_songs_by_artist(artist: &str) -> Vec<Song> {
     collect_songs(
-        "SELECT * FROM song WHERE artist = ? ORDER BY album, disc, number",
+        "SELECT *, rowid FROM song WHERE artist = ? ORDER BY album, disc, number",
         params![artist],
     )
 }
-pub fn get_song(song: &(u64, String), album: &str, artist: &str) -> Vec<Song> {
+
+pub fn get_songs(ids: &[usize]) -> Vec<Song> {
+    let mut rowids = ids
+        .iter()
+        .map(|id| format!("rowid = {} OR", id))
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    rowids.pop();
+    rowids.pop();
+
     collect_songs(
-        "SELECT * FROM song WHERE name=(?1) AND number=(?2) AND artist=(?3) AND album=(?4)",
-        params![song.1, song.0, artist, album],
+        &format!("SELECT *, rowid FROM song WHERE {}", rowids),
+        params![],
     )
-}
-pub fn get_songs_from_id(ids: &[usize]) -> Vec<Song> {
-    ids.iter()
-        .filter_map(|id| {
-            collect_songs("SELECT * FROM song WHERE rowid = ?", params![id])
-                .first()
-                .cloned()
-        })
-        .collect()
 }
 fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
 {
     let conn = conn();
-    let mut stmt = conn.prepare(query).unwrap();
+    let mut stmt = conn.prepare(query).expect(query);
 
     stmt.query_map(params, |row| Ok(song(row)))
         .unwrap()
@@ -104,6 +95,7 @@ where
 fn song(row: &Row) -> Song {
     let path: String = row.get(5).unwrap();
     let dur: f64 = row.get(6).unwrap();
+    let _parent: String = row.get(8).unwrap();
     Song {
         number: row.get(0).unwrap(),
         disc: row.get(1).unwrap(),
@@ -113,6 +105,7 @@ fn song(row: &Row) -> Song {
         duration: Duration::from_secs_f64(dur),
         path: PathBuf::from(path),
         track_gain: row.get(7).unwrap(),
+        id: row.get(9).unwrap(),
     }
 }
 
@@ -130,12 +123,14 @@ pub fn reset() {
     std::fs::remove_file(DB_DIR.as_path());
 }
 
-pub fn add_playlist(name: &str, songs: &[usize]) {
+pub fn add_playlist(name: &str, ids: &[usize]) {
     let conn = conn();
-    for song in songs {
+
+    //TODO: batch this
+    for id in ids {
         conn.execute(
-            "INSERT OR IGNORE INTO playlist VALUES (?1, ?2)",
-            params![song, name],
+            "INSERT INTO playlist (song_id, name) VALUES (?1, ?2)",
+            params![id, name],
         )
         .unwrap();
     }

@@ -27,6 +27,7 @@ pub struct Song {
     pub path: PathBuf,
     pub duration: Duration,
     pub track_gain: f64,
+    pub id: Option<usize>,
 }
 
 impl Song {

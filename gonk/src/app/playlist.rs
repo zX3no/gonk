@@ -52,7 +52,7 @@ impl Playlist {
     fn get_songs(playlist: Option<&String>) -> Vec<Item> {
         if let Some(playlist) = playlist {
             let (row_ids, song_ids) = sqlite::playlist::get(playlist);
-            let songs = sqlite::get_songs_from_id(&song_ids);
+            let songs = sqlite::get_songs(&song_ids);
             songs
                 .into_iter()
                 .zip(song_ids)
@@ -110,22 +110,41 @@ impl Playlist {
                     player.add_songs(&[item.song.clone()]);
                 }
             }
-            Mode::Popup => {
+            Mode::Popup if !self.songs_to_add.is_empty() => {
+                //Select an existing playlist or create a new one.
                 let name = if let Some(name) = self.search_results.data.first() {
-                    name
+                    name.clone()
                 } else {
-                    &self.search
+                    self.search.clone()
                 };
-                //TODO: Get id from Song
-                sqlite::add_playlist(name, &[10]);
 
-                //TODO: I really hate how wasteful these refreshes are.
+                let ids: Vec<usize> = self
+                    .songs_to_add
+                    .iter()
+                    .map(|song| song.id.unwrap())
+                    .collect();
+
+                sqlite::add_playlist(&name, &ids);
+
+                //Update the playlists.
                 self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
+
+                let mut i = Some(0);
+                for (j, playlist) in self.playlist.data.iter().enumerate() {
+                    if playlist == &name {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                //Select the playlist was just modified and update the songs.
+                self.playlist.select(i);
                 self.update_songs();
 
-                //TODO: Select the current playlist
+                //Reset everything.
+                self.search = String::new();
                 self.mode = Mode::Song;
             }
+            _ => (),
         }
     }
     pub fn on_backspace(&mut self, modifiers: KeyModifiers) {
