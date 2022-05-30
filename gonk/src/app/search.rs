@@ -4,7 +4,7 @@ use crossterm::event::KeyModifiers;
 use gonk::Frame;
 use gonk_core::{sqlite, Colors, Index};
 use gonk_player::Player;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -59,7 +59,8 @@ impl Search {
         Self {
             cache: Vec::new(),
             query: String::new(),
-            query_changed: false,
+            //Trigger an update on launch.
+            query_changed: true,
             mode: Mode::Search,
             results: Index::default(),
             colors,
@@ -94,39 +95,55 @@ impl Search {
         if self.query_changed {
             let query = &self.query.to_lowercase();
 
-            //If there user has not asked to search for anything
-            //populate the list with 40 results.
-            let len = if query.is_empty() {
-                40
+            let mut results: Vec<_> = if query.is_empty() {
+                //If there user has not asked to search anything
+                //populate the list with 40 results.
+                self.cache
+                    .iter()
+                    .take(40)
+                    .rev()
+                    .map(|item| {
+                        let acc = match item {
+                            Item::Song(song) => {
+                                strsim::jaro_winkler(query, &song.name.to_lowercase())
+                            }
+                            Item::Album(album) => {
+                                strsim::jaro_winkler(query, &album.name.to_lowercase())
+                            }
+                            Item::Artist(artist) => {
+                                strsim::jaro_winkler(query, &artist.name.to_lowercase())
+                            }
+                        };
+
+                        (item, acc)
+                    })
+                    .collect()
             } else {
-                self.cache.len()
-            };
+                self.cache
+                    .par_iter()
+                    .filter_map(|item| {
+                        //I don't know if 'to_lowercase' has any overhead.
+                        let acc = match item {
+                            Item::Song(song) => {
+                                strsim::jaro_winkler(query, &song.name.to_lowercase())
+                            }
+                            Item::Album(album) => {
+                                strsim::jaro_winkler(query, &album.name.to_lowercase())
+                            }
+                            Item::Artist(artist) => {
+                                strsim::jaro_winkler(query, &artist.name.to_lowercase())
+                            }
+                        };
 
-            let mut results: Vec<_> = self
-                .cache
-                .par_iter()
-                .take(len)
-                .map(|item| {
-                    //I don't know if 'to_lowercase' has any overhead.
-                    let acc = match item {
-                        Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-                        Item::Album(album) => {
-                            strsim::jaro_winkler(query, &album.name.to_lowercase())
-                        }
-                        Item::Artist(artist) => {
-                            strsim::jaro_winkler(query, &artist.name.to_lowercase())
-                        }
-                    };
-
-                    if acc > 0.75 {
                         //Filter out results that are poor matches. 0.75 is an arbitrary value.
-                        Some((item, acc))
-                    } else {
-                        None
-                    }
-                })
-                .flatten()
-                .collect();
+                        if acc > 0.75 {
+                            Some((item, acc))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            };
 
             //Sort results by score.
             results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
