@@ -171,9 +171,14 @@ pub mod playlist {
         (row_ids, song_ids)
     }
 
-    pub fn remove(id: usize) {
+    pub fn remove_id(id: usize) {
         conn()
             .execute("DELETE FROM playlist WHERE rowid = ?", [id])
+            .unwrap();
+    }
+    pub fn remove(name: &str) {
+        conn()
+            .execute("DELETE FROM playlist WHERE name = ?", [name])
             .unwrap();
     }
 }

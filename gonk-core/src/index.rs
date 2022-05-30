@@ -78,6 +78,15 @@ impl<T> Index<T> {
     pub fn as_slice(&self) -> &[T] {
         &self.data
     }
+    pub fn remove(&mut self, index: usize) {
+        self.data.remove(index);
+        let len = self.len();
+        if let Some(selected) = self.index {
+            if index == len && selected == len {
+                self.index = Some(len.saturating_sub(1))
+            }
+        }
+    }
 }
 
 impl<T: Clone> Index<T> {

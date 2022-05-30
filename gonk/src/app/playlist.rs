@@ -113,10 +113,11 @@ impl Playlist {
             Mode::Popup if !self.songs_to_add.is_empty() => {
                 //Select an existing playlist or create a new one.
                 let name = if let Some(name) = self.search_results.data.first() {
-                    name.clone()
+                    name
                 } else {
-                    self.search.clone()
-                };
+                    &self.search
+                }
+                .trim();
 
                 let ids: Vec<usize> = self
                     .songs_to_add
@@ -183,14 +184,23 @@ impl Playlist {
     }
     pub fn delete(&mut self) {
         match self.mode {
-            Mode::Playlist => (),
-            Mode::Song => {
-                if let Some(song) = self.songs.selected() {
-                    sqlite::playlist::remove(song.row);
-                    self.update_songs();
+            Mode::Playlist => {
+                if let Some(playlist) = self.playlist.selected() {
+                    //TODO: Prompt the user with yes or no.
+                    sqlite::playlist::remove(&playlist);
+
+                    let index = self.playlist.index().unwrap();
+                    self.playlist.remove(index);
                 }
             }
-            Mode::Popup => (),
+            Mode::Song => {
+                if let Some(song) = self.songs.selected() {
+                    sqlite::playlist::remove_id(song.row);
+                    let index = self.songs.index().unwrap();
+                    self.songs.remove(index);
+                }
+            }
+            Mode::Popup => return,
         }
     }
     pub fn on_key(&mut self, c: char) {
@@ -199,6 +209,12 @@ impl Playlist {
     }
     pub fn input_mode(&self) -> bool {
         self.mode == Mode::Popup
+    }
+    pub fn on_escape(&mut self, mode: &mut super::Mode) {
+        match self.mode {
+            Mode::Popup => self.mode = Mode::Playlist,
+            _ => *mode = super::Mode::Browser,
+        };
     }
 }
 
@@ -257,7 +273,10 @@ impl Playlist {
                 .collect();
 
             if items.is_empty() && !self.search.is_empty() {
-                items.push(ListItem::new(format!("Add new {}", self.search)))
+                items.push(ListItem::new(format!(
+                    "Add to new playlist: {}",
+                    self.search
+                )))
             }
 
             let list = List::new(items);
@@ -327,10 +346,10 @@ impl Playlist {
         let table = Table::new(content)
             // .header(Row::new(["Track", "Title", "Album", "Artist"]).bottom_margin(1))
             .widths(&[
-                Constraint::Length(8),
-                Constraint::Length(42),
-                Constraint::Length(24),
-                Constraint::Length(26),
+                Constraint::Percentage(8),
+                Constraint::Percentage(42),
+                Constraint::Percentage(24),
+                Constraint::Percentage(26),
             ])
             .block(
                 Block::default()

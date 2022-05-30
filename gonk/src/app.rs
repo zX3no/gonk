@@ -193,7 +193,9 @@ impl App {
                             {
                                 self.search.on_key(c)
                             }
-                            KeyCode::Char(c) if self.playlist.input_mode() => {
+                            KeyCode::Char(c)
+                                if self.playlist.input_mode() && self.mode == Mode::Playlist =>
+                            {
                                 self.playlist.on_key(c)
                             }
                             KeyCode::Tab => {
@@ -233,7 +235,7 @@ impl App {
                             KeyCode::Esc => match self.mode {
                                 Mode::Search => self.search.on_escape(&mut self.mode),
                                 Mode::Options => self.mode = Mode::Queue,
-                                Mode::Playlist => self.mode = Mode::Browser,
+                                Mode::Playlist => self.playlist.on_escape(&mut self.mode),
                                 _ => (),
                             },
                             KeyCode::Char('1' | '!') => {
