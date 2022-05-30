@@ -328,22 +328,15 @@ impl Playlist {
             .iter()
             .map(|item| {
                 let song = item.song.clone();
-                Row::new(vec![
-                    song.number.to_string(),
-                    song.name,
-                    song.album,
-                    song.artist,
-                ])
+                Row::new(vec![song.name, song.album, song.artist])
             })
             .collect();
 
         let table = Table::new(content)
-            // .header(Row::new(["Track", "Title", "Album", "Artist"]).bottom_margin(1))
             .widths(&[
-                Constraint::Percentage(8),
                 Constraint::Percentage(42),
-                Constraint::Percentage(24),
-                Constraint::Percentage(26),
+                Constraint::Percentage(30),
+                Constraint::Percentage(28),
             ])
             .block(
                 Block::default()
