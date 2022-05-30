@@ -1,18 +1,19 @@
 #![allow(unused)]
-use crate::widgets::{Cell, Gauge, List, ListItem, ListState, Row, Table, TableState};
+use crate::widgets::{Cell, List, ListItem, ListState, Row, Table, TableState};
+use gonk::{centered_rect, Frame};
 use gonk_core::{sqlite, Index, Song};
 use gonk_player::Player;
 use std::io::Stdout;
 use tui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    widgets::{Block, BorderType, Borders},
-    Frame,
+    layout::{Constraint, Direction, Layout, Margin, Rect},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
 enum Mode {
     Playlist,
     Song,
+    Popup,
 }
 
 pub struct Item {
@@ -25,6 +26,9 @@ pub struct Playlist {
     mode: Mode,
     playlist: Index<String>,
     songs: Index<Item>,
+    popup: bool,
+    songs_to_add: Vec<Song>,
+    search: String,
 }
 
 impl Playlist {
@@ -36,6 +40,9 @@ impl Playlist {
             mode: Mode::Playlist,
             playlist: Index::new(playlists, Some(0)),
             songs: Index::new(songs, Some(0)),
+            popup: true,
+            songs_to_add: Vec::new(),
+            search: String::new(),
         }
     }
     fn get_songs(playlist: Option<&String>) -> Vec<Item> {
@@ -59,6 +66,7 @@ impl Playlist {
                 self.update_songs();
             }
             Mode::Song => self.songs.up(),
+            Mode::Popup => (),
         }
     }
     pub fn down(&mut self) {
@@ -68,6 +76,7 @@ impl Playlist {
                 self.update_songs();
             }
             Mode::Song => self.songs.down(),
+            Mode::Popup => (),
         }
     }
     pub fn update_songs(&mut self) {
@@ -82,12 +91,22 @@ impl Playlist {
     }
     pub fn on_enter(&mut self, player: &mut Player) {
         match self.mode {
-            Mode::Playlist => self.right(),
+            Mode::Playlist => {
+                let songs: Vec<Song> = self
+                    .songs
+                    .data
+                    .iter()
+                    .map(|item| item.song.clone())
+                    .collect();
+
+                player.add_songs(&songs);
+            }
             Mode::Song => {
                 if let Some(item) = self.songs.selected() {
                     player.add_songs(&[item.song.clone()]);
                 }
             }
+            Mode::Popup => todo!(),
         }
         self.right();
     }
@@ -95,23 +114,31 @@ impl Playlist {
         self.left();
     }
     pub fn left(&mut self) {
-        if let Mode::Song = self.mode {
-            self.mode = Mode::Playlist;
+        match self.mode {
+            Mode::Song => {
+                self.mode = Mode::Playlist;
+            }
+            Mode::Popup => (),
+            _ => (),
         }
     }
     pub fn right(&mut self) {
-        if let Mode::Playlist = self.mode {
-            if !self.songs.is_empty() {
+        match self.mode {
+            Mode::Playlist if !self.songs.is_empty() => {
                 self.mode = Mode::Song;
             }
+            Mode::Popup => (),
+            _ => (),
         }
     }
-    pub fn add_to_playlist(&mut self, name: &str, songs: &[usize]) {
-        sqlite::add_playlist(name, songs);
+    pub fn add_to_playlist(&mut self, songs: &[Song]) {
+        self.songs_to_add = songs.to_vec();
+        self.popup = true;
+        // sqlite::add_playlist(name, songs);
 
         //TODO: I really hate how wasteful these refreshes are.
-        self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
-        self.update_songs();
+        // self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
+        // self.update_songs();
     }
     pub fn delete(&mut self) {
         match self.mode {
@@ -122,24 +149,59 @@ impl Playlist {
                     self.update_songs();
                 }
             }
+            Mode::Popup => (),
         }
     }
 }
 
-//A list of every playlist on the left
-//Then the content on the right
-//| ... |              |
-//|     |              |
-//| ... |              |
-//|     |              |
-//| ... |              |
-//|____________________|
-//|____________________|
-//The should be a bar at the bottom with a list of controls
-//Rename, Delete, Remove from playlist, move song up, move song down
-
 impl Playlist {
-    pub fn draw(&self, f: &mut Frame<CrosstermBackend<Stdout>>) {
+    pub fn draw_popup(&self, f: &mut Frame) {
+        //TODO: Draw a search box that searches
+        //all of the avaliable playlist names
+        //if none is found it will make a new one
+
+        if let Some(area) = centered_rect(45, 23, f.size()) {
+            let v = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Percentage(50)])
+                .margin(1)
+                .split(area);
+
+            f.render_widget(Clear, area);
+            f.render_widget(
+                Block::default()
+                    .title("─Select a playlist")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+                area,
+            );
+            f.render_widget(
+                Paragraph::new("Enter your playlist here...").block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                ),
+                v[0],
+            );
+            let items: Vec<ListItem> = self
+                .playlist
+                .clone()
+                .into_iter()
+                .filter(|str| self.search.is_empty() || str.contains(&self.search))
+                .map(|str| ListItem::new(str))
+                .collect();
+
+            let list = List::new(vec![ListItem::new("hi"), ListItem::new("test")]);
+            f.render_widget(
+                list,
+                v[1].inner(&Margin {
+                    horizontal: 1,
+                    vertical: 0,
+                }),
+            );
+        }
+    }
+    pub fn draw(&self, f: &mut Frame) {
         let vertical = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(2), Constraint::Length(3)])
@@ -152,7 +214,6 @@ impl Playlist {
 
         let items: Vec<ListItem> = self
             .playlist
-            .data
             .clone()
             .into_iter()
             .map(|str| ListItem::new(str))
@@ -221,11 +282,22 @@ impl Playlist {
             &mut TableState::new(self.songs.index()),
         );
 
+        self.draw_footer(f, vertical[1]);
+
+        if self.popup {
+            self.draw_popup(f);
+        }
+    }
+    pub fn draw_footer(&self, f: &mut Frame, area: Rect) {
+        let keys = "[Enter] Add [X] Delete [CTRL + R] Rename [SHIFT + K] Up [SHIFT + J] Down";
+
         f.render_widget(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-            vertical[1],
+            Paragraph::new(keys).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            ),
+            area,
         );
     }
 }

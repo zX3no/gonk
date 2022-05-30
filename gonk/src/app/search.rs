@@ -1,16 +1,15 @@
 use super::{queue::Queue, Mode as AppMode};
 use crate::widgets::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
+use gonk::Frame;
 use gonk_core::{sqlite, Colors, Index};
 use gonk_player::Player;
 use std::cmp::Ordering;
 use tui::{
-    backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Span, Spans},
     widgets::{Block, BorderType, Borders, Paragraph},
-    Frame,
 };
 
 #[derive(Clone)]
@@ -217,7 +216,7 @@ impl Search {
 }
 
 impl Search {
-    pub fn draw<B: Backend>(&self, f: &mut Frame<B>) {
+    pub fn draw(&self, f: &mut Frame) {
         let area = f.size();
 
         let v = Layout::default()
@@ -277,7 +276,7 @@ impl Search {
 
         self.update_cursor(f);
     }
-    fn song<B: Backend>(f: &mut Frame<B>, name: &str, album: &str, artist: &str, area: Rect) {
+    fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
         let song_table = Table::new(vec![
             Row::new(vec![Spans::from(Span::raw(album))]),
             Row::new(vec![Spans::from(Span::raw(artist))]),
@@ -299,7 +298,7 @@ impl Search {
 
         f.render_widget(song_table, area);
     }
-    fn album<B: Backend>(&self, f: &mut Frame<B>, album: &str, artist: &str, area: Rect) {
+    fn album(&self, f: &mut Frame, album: &str, artist: &str, area: Rect) {
         let cells: Vec<_> = sqlite::get_all_songs_from_album(album, artist)
             .iter()
             .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
@@ -323,7 +322,7 @@ impl Search {
 
         f.render_widget(table, area);
     }
-    fn artist<B: Backend>(&self, f: &mut Frame<B>, artist: &str, area: Rect) {
+    fn artist(&self, f: &mut Frame, artist: &str, area: Rect) {
         let albums = sqlite::get_all_albums_by_artist(artist);
         let cells: Vec<_> = albums
             .iter()
@@ -348,7 +347,7 @@ impl Search {
 
         f.render_widget(table, area);
     }
-    fn draw_results<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
+    fn draw_results(&self, f: &mut Frame, area: Rect) {
         let get_cell = |item: &Item, selected: bool| -> Row {
             let selected_cell = if selected {
                 Cell::from(">")
@@ -425,7 +424,7 @@ impl Search {
 
         f.render_stateful_widget(table, area, &mut TableState::new(self.results.index()));
     }
-    fn draw_textbox<B: Backend>(&self, f: &mut Frame<B>, area: Rect) {
+    fn draw_textbox(&self, f: &mut Frame, area: Rect) {
         let len = self.query.len() as u16;
         //Search box is a little smaller than the max width
         let width = area.width.saturating_sub(1);
@@ -443,7 +442,7 @@ impl Search {
             area,
         );
     }
-    fn update_cursor<B: Backend>(&self, f: &mut Frame<B>) {
+    fn update_cursor(&self, f: &mut Frame) {
         let area = f.size();
         //Move the cursor position when typing
         if let Mode::Search = self.mode {

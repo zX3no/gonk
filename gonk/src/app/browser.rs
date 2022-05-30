@@ -1,12 +1,11 @@
 use crate::widgets::{List, ListItem, ListState};
+use gonk::{centered_rect, Frame};
 use gonk_core::{sqlite, Index, Song};
 use tui::{
-    backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout, Margin},
+    layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Style},
     text::Spans,
-    widgets::{Block, BorderType, Borders, Paragraph},
-    Frame,
+    widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
 #[derive(PartialEq, Eq)]
@@ -140,10 +139,10 @@ impl Browser {
 }
 
 impl Browser {
-    pub fn draw<B: Backend>(&self, f: &mut Frame<B>, busy: bool) {
+    pub fn draw(&self, f: &mut Frame, busy: bool) {
         self.draw_browser(f);
         if busy {
-            Browser::draw_popup(f);
+            Browser::draw_database_popup(f);
         }
     }
     fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
@@ -162,7 +161,7 @@ impl Browser {
             list.highlight_symbol("")
         }
     }
-    pub fn draw_browser<B: Backend>(&self, f: &mut Frame<B>) {
+    pub fn draw_browser(&self, f: &mut Frame) {
         let area = f.size();
         let size = area.width / 3;
         let rem = area.width % 3;
@@ -213,35 +212,19 @@ impl Browser {
     //TODO: change to small text in bottom right
     //This bar should show in all pages but the queue.
     //It will show what the current song is, how much is left and the volume.
-    pub fn draw_popup<B: Backend>(f: &mut Frame<B>) {
-        const POPUP_WIDTH: u16 = 14;
-        const POPUP_HEIGHT: u16 = 3;
-
-        let area = f.size();
-        let width = area.width / 2;
-        let height = area.height / 2;
-
-        if width < POPUP_WIDTH || height < POPUP_HEIGHT {
-            return;
+    pub fn draw_database_popup(f: &mut Frame) {
+        if let Some(area) = centered_rect(14, 3, f.size()) {
+            f.render_widget(Clear, area);
+            f.render_widget(
+                Paragraph::new(Spans::from("Scanning..."))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded),
+                    )
+                    .alignment(Alignment::Center),
+                area,
+            );
         }
-
-        let mut rect = area.inner(&Margin {
-            vertical: height - (POPUP_HEIGHT / 2),
-            horizontal: width - (POPUP_WIDTH / 2),
-        });
-
-        rect.width = POPUP_WIDTH;
-        rect.height = POPUP_HEIGHT;
-
-        f.render_widget(
-            Paragraph::new(Spans::from("Scanning..."))
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded),
-                )
-                .alignment(Alignment::Center),
-            rect,
-        );
     }
 }

@@ -1,12 +1,12 @@
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
+use gonk::Frame;
 use gonk_core::{Colors, Index};
 use gonk_player::Player;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
 use tui::widgets::{Block, BorderType, Borders, Paragraph};
-use tui::{backend::Backend, Frame};
 use unicode_width::UnicodeWidthStr;
 
 pub struct Queue {
@@ -77,7 +77,7 @@ impl Queue {
 }
 
 impl Queue {
-    pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
+    pub fn draw(&mut self, f: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -127,7 +127,7 @@ impl Queue {
 
         self.draw_seeker(f, chunks[2]);
     }
-    fn draw_header<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
+    fn draw_header(&mut self, f: &mut Frame, area: Rect) {
         f.render_widget(
             Block::default()
                 .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -152,7 +152,7 @@ impl Queue {
         let volume = Spans::from(format!("Vol: {}%─╮", self.player.volume));
         f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
     }
-    fn draw_title<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
+    fn draw_title(&mut self, f: &mut Frame, area: Rect) {
         let title = if let Some(song) = self.player.songs.selected() {
             let mut name = song.name.trim_end().to_string();
             let mut album = song.album.trim_end().to_string();
@@ -194,7 +194,7 @@ impl Queue {
 
         f.render_widget(Paragraph::new(title).alignment(Alignment::Center), area);
     }
-    fn draw_body<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) -> Option<(usize, usize)> {
+    fn draw_body(&mut self, f: &mut Frame, area: Rect) -> Option<(usize, usize)> {
         if self.player.songs.is_empty() {
             if self.clicked_pos.is_some() {
                 self.clicked_pos = None;
@@ -325,7 +325,7 @@ impl Queue {
 
         Some(row_bounds)
     }
-    fn draw_seeker<B: Backend>(&mut self, f: &mut Frame<B>, area: Rect) {
+    fn draw_seeker(&mut self, f: &mut Frame, area: Rect) {
         if self.player.songs.is_empty() {
             return f.render_widget(
                 Block::default()

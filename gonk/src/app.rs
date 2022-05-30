@@ -1,6 +1,8 @@
 use crossbeam_channel::{unbounded, Receiver};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseEventKind,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -17,17 +19,6 @@ mod options;
 mod playlist;
 mod queue;
 mod search;
-
-//TODO: Might be nice.
-trait Widget {
-    fn on_enter() {}
-    fn on_backspace() {}
-    fn on_escape() {}
-    fn up() {}
-    fn down() {}
-    fn left() {}
-    fn right() {}
-}
 
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
@@ -124,7 +115,7 @@ impl App {
 
         Some(Self {
             terminal,
-            mode: Mode::Browser,
+            mode: Mode::Playlist,
             queue: Queue::new(toml.volume(), toml.colors.clone()),
             browser: Browser::new(),
             options: Options::new(&mut toml),
@@ -217,7 +208,11 @@ impl App {
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
-                                    self.queue.player.add_songs(&songs);
+                                    if event.modifiers == KeyModifiers::SHIFT {
+                                        self.playlist.add_to_playlist(&songs);
+                                    } else {
+                                        self.queue.player.add_songs(&songs);
+                                    }
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index() {

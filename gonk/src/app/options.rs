@@ -1,11 +1,10 @@
 use crate::widgets::{List, ListItem, ListState};
+use gonk::Frame;
 use gonk_core::{Index, Toml};
 use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
-    backend::Backend,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Borders},
-    Frame,
 };
 
 pub struct Options {
@@ -53,7 +52,7 @@ impl Options {
 }
 
 impl Options {
-    pub fn draw<B: Backend>(&self, f: &mut Frame<B>, toml: &Toml) {
+    pub fn draw(&self, f: &mut Frame, toml: &Toml) {
         let default_device = toml.output_device();
 
         let items: Vec<_> = self
