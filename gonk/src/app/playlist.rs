@@ -1,5 +1,6 @@
 #![allow(unused)]
 use crate::widgets::{Cell, List, ListItem, ListState, Row, Table, TableState};
+use crossterm::event::KeyModifiers;
 use gonk::{centered_rect, Frame};
 use gonk_core::{sqlite, Index, Song};
 use gonk_player::Player;
@@ -10,6 +11,7 @@ use tui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
+#[derive(PartialEq, Eq)]
 enum Mode {
     Playlist,
     Song,
@@ -26,9 +28,10 @@ pub struct Playlist {
     mode: Mode,
     playlist: Index<String>,
     songs: Index<Item>,
-    popup: bool,
     songs_to_add: Vec<Song>,
     search: String,
+    changed: bool,
+    search_results: Index<String>,
 }
 
 impl Playlist {
@@ -40,9 +43,10 @@ impl Playlist {
             mode: Mode::Playlist,
             playlist: Index::new(playlists, Some(0)),
             songs: Index::new(songs, Some(0)),
-            popup: true,
             songs_to_add: Vec::new(),
+            changed: false,
             search: String::new(),
+            search_results: Index::default(),
         }
     }
     fn get_songs(playlist: Option<&String>) -> Vec<Item> {
@@ -106,12 +110,35 @@ impl Playlist {
                     player.add_songs(&[item.song.clone()]);
                 }
             }
-            Mode::Popup => todo!(),
+            Mode::Popup => {
+                let name = if let Some(name) = self.search_results.data.first() {
+                    name
+                } else {
+                    &self.search
+                };
+                //TODO: Get id from Song
+                sqlite::add_playlist(name, &[10]);
+
+                //TODO: I really hate how wasteful these refreshes are.
+                self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
+                self.update_songs();
+
+                //TODO: Select the current playlist
+                self.mode = Mode::Song;
+            }
         }
-        self.right();
     }
-    pub fn on_backspace(&mut self) {
-        self.left();
+    pub fn on_backspace(&mut self, modifiers: KeyModifiers) {
+        match self.mode {
+            Mode::Popup => {
+                if modifiers == KeyModifiers::CONTROL {
+                    self.search.clear();
+                } else {
+                    self.search.pop();
+                }
+            }
+            _ => self.left(),
+        }
     }
     pub fn left(&mut self) {
         match self.mode {
@@ -133,12 +160,7 @@ impl Playlist {
     }
     pub fn add_to_playlist(&mut self, songs: &[Song]) {
         self.songs_to_add = songs.to_vec();
-        self.popup = true;
-        // sqlite::add_playlist(name, songs);
-
-        //TODO: I really hate how wasteful these refreshes are.
-        // self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
-        // self.update_songs();
+        self.mode = Mode::Popup;
     }
     pub fn delete(&mut self) {
         match self.mode {
@@ -152,10 +174,17 @@ impl Playlist {
             Mode::Popup => (),
         }
     }
+    pub fn on_key(&mut self, c: char) {
+        self.changed = true;
+        self.search.push(c);
+    }
+    pub fn input_mode(&self) -> bool {
+        self.mode == Mode::Popup
+    }
 }
 
 impl Playlist {
-    pub fn draw_popup(&self, f: &mut Frame) {
+    pub fn draw_popup(&mut self, f: &mut Frame) {
         //TODO: Draw a search box that searches
         //all of the avaliable playlist names
         //if none is found it will make a new one
@@ -175,23 +204,44 @@ impl Playlist {
                     .border_type(BorderType::Rounded),
                 area,
             );
+
+            let text = if self.search.is_empty() {
+                "Enter playlist name.."
+            } else {
+                self.search.as_str()
+            };
             f.render_widget(
-                Paragraph::new("Enter your playlist here...").block(
+                Paragraph::new(text).block(
                     Block::default()
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 ),
                 v[0],
             );
-            let items: Vec<ListItem> = self
-                .playlist
-                .clone()
-                .into_iter()
-                .filter(|str| self.search.is_empty() || str.contains(&self.search))
-                .map(|str| ListItem::new(str))
+
+            if self.changed {
+                self.changed = false;
+                self.search_results.data = self
+                    .playlist
+                    .data
+                    .iter()
+                    .filter(|str| self.search.is_empty() || str.contains(&self.search))
+                    .map(|str| str.to_string())
+                    .collect();
+            }
+
+            let mut items: Vec<ListItem> = self
+                .search_results
+                .data
+                .iter()
+                .map(|str| ListItem::new(str.as_str()))
                 .collect();
 
-            let list = List::new(vec![ListItem::new("hi"), ListItem::new("test")]);
+            if items.is_empty() && !self.search.is_empty() {
+                items.push(ListItem::new(format!("Add new {}", self.search)))
+            }
+
+            let list = List::new(items);
             f.render_widget(
                 list,
                 v[1].inner(&Margin {
@@ -201,7 +251,7 @@ impl Playlist {
             );
         }
     }
-    pub fn draw(&self, f: &mut Frame) {
+    pub fn draw(&mut self, f: &mut Frame) {
         let vertical = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(2), Constraint::Length(3)])
@@ -284,7 +334,7 @@ impl Playlist {
 
         self.draw_footer(f, vertical[1]);
 
-        if self.popup {
+        if let Mode::Popup = self.mode {
             self.draw_popup(f);
         }
     }

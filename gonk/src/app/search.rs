@@ -1,4 +1,4 @@
-use super::{queue::Queue, Mode as AppMode};
+use super::Mode as AppMode;
 use crate::widgets::{Cell, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk::Frame;
@@ -38,6 +38,7 @@ pub struct Artist {
     pub name: String,
 }
 
+#[derive(PartialEq, Eq)]
 pub enum Mode {
     Search,
     Select,
@@ -45,7 +46,7 @@ pub enum Mode {
 
 pub struct Search {
     query: String,
-    prev_query: String,
+    query_changed: bool,
     mode: Mode,
     results: Index<Item>,
     cache: Vec<Item>,
@@ -57,7 +58,7 @@ impl Search {
         Self {
             cache: Vec::new(),
             query: String::new(),
-            prev_query: String::new(),
+            query_changed: false,
             mode: Mode::Search,
             results: Index::default(),
             colors,
@@ -65,7 +66,7 @@ impl Search {
     }
     pub fn init(mut self) -> Self {
         self.update_cache();
-        self.update();
+        self.update_search();
         self
     }
     pub fn update_cache(&mut self) {
@@ -89,71 +90,60 @@ impl Search {
         }
     }
     //FIXME: This can get super laggy with really long strings
-    pub fn update(&mut self) {
-        if self.query == self.prev_query {
-            return;
-        } else {
-            self.prev_query = self.query.clone();
-        }
+    fn update_search(&mut self) {
+        if self.query_changed {
+            let mut results = Vec::new();
+            let query = &self.query.to_lowercase();
 
-        let mut results = Vec::new();
-        let query = &self.query.to_lowercase();
+            for item in &self.cache {
+                //I don't know if 'to_lowercase' has any overhead.
+                let acc = match item {
+                    Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+                    Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
+                    Item::Artist(artist) => {
+                        strsim::jaro_winkler(query, &artist.name.to_lowercase())
+                    }
+                };
 
-        for item in &self.cache {
-            //I don't know if 'to_lowercase' has any overhead.
-            let acc = match item {
-                Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-                Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
-                Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
-            };
-
-            //If there user has not asked to search for anything
-            //populate the list with 40 results.
-            if query.is_empty() && results.len() < 40 {
-                results.push((item, acc));
-            }
-
-            //Filter out results that are poor matches. 0.75 is an arbitrary value.
-            if acc > 0.75 {
-                results.push((item, acc));
-            }
-        }
-
-        //Sort results by score.
-        results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
-
-        //Sort artists above self-titled albums.
-        results.sort_by(|(item, a), (_, b)| {
-            //If the score is the same
-            if a == b {
-                //And the item is an album
-                if let Item::Album(_) = item {
-                    //Move item lower in the list.
-                    Ordering::Greater
-                } else {
-                    //Move item higher in the list.
-                    Ordering::Less
+                //If there user has not asked to search for anything
+                //populate the list with 40 results.
+                if query.is_empty() && results.len() < 40 {
+                    results.push((item, acc));
                 }
-            } else {
-                //Keep the same order.
-                Ordering::Equal
-            }
-        });
 
-        self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
-    }
-    pub fn on_key(&mut self, c: char, queue: &mut Queue) {
-        if let Mode::Search = &self.mode {
-            self.prev_query = self.query.clone();
-            self.query.push(c);
-        } else {
-            match c {
-                'k' => self.results.up(),
-                'j' => self.results.down(),
-                'c' => queue.clear(),
-                _ => (),
+                //Filter out results that are poor matches. 0.75 is an arbitrary value.
+                if acc > 0.75 {
+                    results.push((item, acc));
+                }
             }
+
+            //Sort results by score.
+            results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+            //Sort artists above self-titled albums.
+            results.sort_by(|(item, a), (_, b)| {
+                //If the score is the same
+                if a == b {
+                    //And the item is an album
+                    if let Item::Album(_) = item {
+                        //Move item lower in the list.
+                        Ordering::Greater
+                    } else {
+                        //Move item higher in the list.
+                        Ordering::Less
+                    }
+                } else {
+                    //Keep the same order.
+                    Ordering::Equal
+                }
+            });
+
+            self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
         }
+    }
+    pub fn on_key(&mut self, c: char) {
+        self.query_changed = true;
+        self.query.push(c);
     }
     pub fn up(&mut self) {
         self.results.up();
@@ -213,10 +203,15 @@ impl Search {
             }
         }
     }
+    pub fn input_mode(&self) -> bool {
+        self.mode == Mode::Search
+    }
 }
 
 impl Search {
-    pub fn draw(&self, f: &mut Frame) {
+    pub fn draw(&mut self, f: &mut Frame) {
+        self.update_search();
+
         let area = f.size();
 
         let v = Layout::default()

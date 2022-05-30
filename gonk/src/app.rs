@@ -115,7 +115,7 @@ impl App {
 
         Some(Self {
             terminal,
-            mode: Mode::Playlist,
+            mode: Mode::Browser,
             queue: Queue::new(toml.volume(), toml.colors.clone()),
             browser: Browser::new(),
             options: Options::new(&mut toml),
@@ -136,7 +136,6 @@ impl App {
             }
         }
 
-        self.search.update();
         self.queue.update();
     }
     pub fn run(&mut self) -> std::io::Result<()> {
@@ -189,8 +188,13 @@ impl App {
                         };
 
                         match event.code {
-                            KeyCode::Char(c) if self.mode == Mode::Search => {
-                                self.search.on_key(c, &mut self.queue)
+                            KeyCode::Char(c)
+                                if self.search.input_mode() && self.mode == Mode::Search =>
+                            {
+                                self.search.on_key(c)
+                            }
+                            KeyCode::Char(c) if self.playlist.input_mode() => {
+                                self.playlist.on_key(c)
                             }
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
@@ -202,13 +206,14 @@ impl App {
                             }
                             KeyCode::Backspace => match self.mode {
                                 Mode::Search => self.search.on_backspace(event.modifiers),
-                                Mode::Playlist => self.playlist.on_backspace(),
+                                Mode::Playlist => self.playlist.on_backspace(event.modifiers),
                                 _ => (),
                             },
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
                                     if event.modifiers == KeyModifiers::SHIFT {
+                                        self.mode = Mode::Playlist;
                                         self.playlist.add_to_playlist(&songs);
                                     } else {
                                         self.queue.player.add_songs(&songs);
