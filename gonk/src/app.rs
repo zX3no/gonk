@@ -211,15 +211,26 @@ impl App {
                                 Mode::Playlist => self.playlist.on_backspace(event.modifiers),
                                 _ => (),
                             },
+                            KeyCode::Enter if event.modifiers == KeyModifiers::SHIFT => {
+                                match self.mode {
+                                    Mode::Browser => {
+                                        let songs = self.browser.on_enter();
+                                        self.playlist.add_to_playlist(&songs);
+                                        self.mode = Mode::Playlist;
+                                    }
+                                    Mode::Queue => {
+                                        if let Some(song) = self.queue.selected() {
+                                            self.playlist.add_to_playlist(&[song.clone()]);
+                                            self.mode = Mode::Playlist;
+                                        }
+                                    }
+                                    _ => (),
+                                }
+                            }
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
-                                    if event.modifiers == KeyModifiers::SHIFT {
-                                        self.mode = Mode::Playlist;
-                                        self.playlist.add_to_playlist(&songs);
-                                    } else {
-                                        self.queue.player.add_songs(&songs);
-                                    }
+                                    self.queue.player.add_songs(&songs);
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index() {

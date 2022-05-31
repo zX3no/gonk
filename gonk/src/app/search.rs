@@ -59,8 +59,7 @@ impl Search {
         Self {
             cache: Vec::new(),
             query: String::new(),
-            //Trigger an update on launch.
-            query_changed: true,
+            query_changed: false,
             mode: Mode::Search,
             results: Index::default(),
             colors,
@@ -92,82 +91,76 @@ impl Search {
         }
     }
     fn update_search(&mut self) {
-        if self.query_changed {
-            let query = &self.query.to_lowercase();
+        let query = &self.query.to_lowercase();
 
-            let mut results: Vec<_> = if query.is_empty() {
-                //If there user has not asked to search anything
-                //populate the list with 40 results.
-                self.cache
-                    .iter()
-                    .take(40)
-                    .rev()
-                    .map(|item| {
-                        let acc = match item {
-                            Item::Song(song) => {
-                                strsim::jaro_winkler(query, &song.name.to_lowercase())
-                            }
-                            Item::Album(album) => {
-                                strsim::jaro_winkler(query, &album.name.to_lowercase())
-                            }
-                            Item::Artist(artist) => {
-                                strsim::jaro_winkler(query, &artist.name.to_lowercase())
-                            }
-                        };
-
-                        (item, acc)
-                    })
-                    .collect()
-            } else {
-                self.cache
-                    .par_iter()
-                    .filter_map(|item| {
-                        //I don't know if 'to_lowercase' has any overhead.
-                        let acc = match item {
-                            Item::Song(song) => {
-                                strsim::jaro_winkler(query, &song.name.to_lowercase())
-                            }
-                            Item::Album(album) => {
-                                strsim::jaro_winkler(query, &album.name.to_lowercase())
-                            }
-                            Item::Artist(artist) => {
-                                strsim::jaro_winkler(query, &artist.name.to_lowercase())
-                            }
-                        };
-
-                        //Filter out results that are poor matches. 0.75 is an arbitrary value.
-                        if acc > 0.75 {
-                            Some((item, acc))
-                        } else {
-                            None
+        let mut results: Vec<_> = if query.is_empty() {
+            //If there user has not asked to search anything
+            //populate the list with 40 results.
+            self.cache
+                .iter()
+                .take(40)
+                .rev()
+                .map(|item| {
+                    let acc = match item {
+                        Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+                        Item::Album(album) => {
+                            strsim::jaro_winkler(query, &album.name.to_lowercase())
                         }
-                    })
-                    .collect()
-            };
+                        Item::Artist(artist) => {
+                            strsim::jaro_winkler(query, &artist.name.to_lowercase())
+                        }
+                    };
 
-            //Sort results by score.
-            results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+                    (item, acc)
+                })
+                .collect()
+        } else {
+            self.cache
+                .par_iter()
+                .filter_map(|item| {
+                    //I don't know if 'to_lowercase' has any overhead.
+                    let acc = match item {
+                        Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+                        Item::Album(album) => {
+                            strsim::jaro_winkler(query, &album.name.to_lowercase())
+                        }
+                        Item::Artist(artist) => {
+                            strsim::jaro_winkler(query, &artist.name.to_lowercase())
+                        }
+                    };
 
-            //Sort artists above self-titled albums.
-            results.sort_by(|(item, a), (_, b)| {
-                //If the score is the same
-                if a == b {
-                    //And the item is an album
-                    if let Item::Album(_) = item {
-                        //Move item lower in the list.
-                        Ordering::Greater
+                    //Filter out results that are poor matches. 0.75 is an arbitrary value.
+                    if acc > 0.75 {
+                        Some((item, acc))
                     } else {
-                        //Move item higher in the list.
-                        Ordering::Less
+                        None
                     }
-                } else {
-                    //Keep the same order.
-                    Ordering::Equal
-                }
-            });
+                })
+                .collect()
+        };
 
-            self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
-        }
+        //Sort results by score.
+        results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+        //Sort artists above self-titled albums.
+        results.sort_by(|(item, a), (_, b)| {
+            //If the score is the same
+            if a == b {
+                //And the item is an album
+                if let Item::Album(_) = item {
+                    //Move item lower in the list.
+                    Ordering::Greater
+                } else {
+                    //Move item higher in the list.
+                    Ordering::Less
+                }
+            } else {
+                //Keep the same order.
+                Ordering::Equal
+            }
+        });
+
+        self.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
     }
     pub fn on_key(&mut self, c: char) {
         self.query_changed = true;
@@ -238,7 +231,9 @@ impl Search {
 
 impl Search {
     pub fn draw(&mut self, f: &mut Frame) {
-        self.update_search();
+        if self.query_changed {
+            self.update_search();
+        }
 
         let area = f.size();
 

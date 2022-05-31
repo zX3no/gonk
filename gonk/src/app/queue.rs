@@ -1,7 +1,7 @@
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crossterm::event::KeyModifiers;
 use gonk::Frame;
-use gonk_core::{Colors, Index};
+use gonk_core::{Colors, Index, Song};
 use gonk_player::Player;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -73,6 +73,9 @@ impl Queue {
                 self.ui.select(Some(len));
             }
         }
+    }
+    pub fn selected(&self) -> Option<&Song> {
+        self.player.songs.selected()
     }
 }
 

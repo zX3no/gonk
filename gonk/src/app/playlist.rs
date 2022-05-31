@@ -209,7 +209,11 @@ impl Playlist {
     }
     pub fn on_escape(&mut self, mode: &mut super::Mode) {
         match self.mode {
-            Mode::Popup => self.mode = Mode::Playlist,
+            Mode::Popup => {
+                self.mode = Mode::Playlist;
+                self.search = String::new();
+                self.changed = true;
+            }
             _ => *mode = super::Mode::Browser,
         };
     }
