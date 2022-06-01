@@ -7,9 +7,12 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use gonk_core::{sqlite, Bind, Database, Key, Modifier, State, Toml};
-use std::io::{stdout, Stdout};
 use std::time::Duration;
 use std::time::Instant;
+use std::{
+    io::{stdout, Stdout},
+    path::Path,
+};
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 use {browser::Browser, options::Options, playlist::Playlist, queue::Queue, search::Search};
@@ -56,75 +59,84 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Option<Self> {
-        let args: Vec<String> = std::env::args().skip(1).collect();
-        let mut toml = Toml::new();
-        let mut db = Database::default();
+    pub fn new() -> Result<Self, String> {
+        match Toml::new().check_paths() {
+            Ok(mut toml) => {
+                let args: Vec<String> = std::env::args().skip(1).collect();
+                let mut db = Database::default();
 
-        if let Some(first) = args.first() {
-            match first as &str {
-                "add" => {
-                    if let Some(dir) = args.get(1..) {
-                        let dir = dir.join(" ");
-                        toml.add_path(dir.clone());
-                        db.add_paths(&[dir]);
+                if let Some(first) = args.first() {
+                    match first as &str {
+                        "add" => {
+                            if let Some(dir) = args.get(1..) {
+                                let dir = dir.join(" ");
+                                let path = Path::new(&dir);
+                                if path.exists() {
+                                    toml.add_path(dir.clone());
+                                    db.add_paths(&[dir]);
+                                } else {
+                                    return Err(format!("{} is not a valid path.", dir));
+                                }
+                            }
+                        }
+                        "reset" => {
+                            sqlite::reset();
+                            toml.reset();
+                            println!("Reset database!");
+                            return Err(String::new());
+                        }
+                        "help" | "--help" => {
+                            println!("Usage");
+                            println!("   gonk [<command> <args>]");
+                            println!();
+                            println!("Options");
+                            println!("   add   <path>  Add music to the library");
+                            println!("   reset         Reset the database");
+                            println!();
+                            return Err(String::new());
+                        }
+                        _ => {
+                            println!("Invalid command.");
+                            return Err(String::new());
+                        }
                     }
                 }
-                "reset" => {
-                    sqlite::reset();
-                    toml.reset();
-                    println!("Reset database!");
-                    return None;
-                }
-                "help" | "--help" => {
-                    println!("Usage");
-                    println!("   gonk [<command> <args>]");
-                    println!();
-                    println!("Options");
-                    println!("   add   <path>  Add music to the library");
-                    println!("   reset         Reset the database");
-                    println!();
-                    return None;
-                }
-                _ => {
-                    println!("Invalid command.");
-                    return None;
-                }
+
+                //make sure the terminal recovers after a panic
+                let orig_hook = std::panic::take_hook();
+                std::panic::set_hook(Box::new(move |panic_info| {
+                    disable_raw_mode().unwrap();
+                    execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+                    orig_hook(panic_info);
+                    std::process::exit(1);
+                }));
+
+                //Initialize the terminal and clear the screen
+                let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
+                execute!(
+                    terminal.backend_mut(),
+                    EnterAlternateScreen,
+                    EnableMouseCapture,
+                )
+                .unwrap();
+                enable_raw_mode().unwrap();
+                terminal.clear().unwrap();
+
+                Ok(Self {
+                    terminal,
+                    mode: Mode::Browser,
+                    queue: Queue::new(toml.volume(), toml.colors.clone()),
+                    browser: Browser::new(),
+                    options: Options::new(&mut toml),
+                    search: Search::new(toml.colors.clone()).init(),
+                    playlist: Playlist::new(),
+                    busy: false,
+                    db,
+                    toml,
+                })
             }
+            Err(err) => Err(err),
         }
-
-        //make sure the terminal recovers after a panic
-        let orig_hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |panic_info| {
-            disable_raw_mode().unwrap();
-            execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-            orig_hook(panic_info);
-            std::process::exit(1);
-        }));
-
-        //Initialize the terminal and clear the screen
-        let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
-        execute!(
-            terminal.backend_mut(),
-            EnterAlternateScreen,
-            EnableMouseCapture,
-        )
-        .unwrap();
-        enable_raw_mode().unwrap();
-        terminal.clear().unwrap();
-
-        Some(Self {
-            terminal,
-            mode: Mode::Browser,
-            queue: Queue::new(toml.volume(), toml.colors.clone()),
-            browser: Browser::new(),
-            options: Options::new(&mut toml),
-            search: Search::new(toml.colors.clone()).init(),
-            playlist: Playlist::new(),
-            busy: false,
-            db,
-            toml,
-        })
     }
     fn on_update(&mut self) {
         match self.db.state() {

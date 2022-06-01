@@ -1,7 +1,7 @@
 use crate::TOML_DIR;
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{fs, path::Path};
 use tui::style::Color;
 
 //TODO: test on linux
@@ -357,6 +357,15 @@ impl Toml {
                 panic!("{:#?}", &err);
             }
         }
+    }
+    pub fn check_paths(self) -> Result<Self, String> {
+        for path in &self.config.paths {
+            let path = Path::new(&path);
+            if !path.exists() {
+                return Err(format!("{} is not a valid path.", path.to_string_lossy()));
+            }
+        }
+        Ok(self)
     }
     pub fn volume(&self) -> u16 {
         self.config.volume

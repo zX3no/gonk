@@ -6,14 +6,13 @@ mod app;
 mod widgets;
 
 fn main() -> Result<()> {
-    //Initialize database.
     unsafe {
+        //Initialize database.
         sqlite::CONN = sqlite::open_database();
     }
 
-    if let Some(mut app) = App::new() {
-        app.run()?;
+    match App::new() {
+        Ok(mut app) => app.run(),
+        Err(err) => return Ok(println!("{}", err)),
     }
-
-    Ok(())
 }
