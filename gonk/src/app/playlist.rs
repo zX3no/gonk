@@ -58,6 +58,7 @@ impl Playlist {
                 .zip(song_ids)
                 .zip(row_ids)
                 .map(|((song, id), row)| Item { id, row, song })
+                .rev()
                 .collect()
         } else {
             Vec::new()
@@ -270,11 +271,7 @@ impl Playlist {
 
             if self.changed {
                 self.changed = false;
-                let eq = self
-                    .playlist
-                    .data
-                    .iter()
-                    .any(|e| e.to_ascii_lowercase() == self.search.to_ascii_lowercase());
+                let eq = self.playlist.data.iter().any(|e| e == &self.search);
                 self.search_result = if eq {
                     format!("Add to existing playlist: {}", self.search)
                 } else if self.search.is_empty() {
