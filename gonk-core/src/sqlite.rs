@@ -64,21 +64,15 @@ pub fn get_songs_by_artist(artist: &str) -> Vec<Song> {
         params![artist],
     )
 }
-
 pub fn get_songs(ids: &[usize]) -> Vec<Song> {
-    let mut rowids = ids
-        .iter()
-        .map(|id| format!("rowid = {} OR", id))
-        .collect::<Vec<String>>()
-        .join("\n");
+    let conn = conn();
+    let mut stmt = conn
+        .prepare("SELECT *, rowid FROM song WHERE rowid = ?")
+        .unwrap();
 
-    rowids.pop();
-    rowids.pop();
-
-    collect_songs(
-        &format!("SELECT *, rowid FROM song WHERE {}", rowids),
-        params![],
-    )
+    ids.iter()
+        .map(|id| stmt.query_row([id], |row| Ok(song(row))).unwrap())
+        .collect()
 }
 fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where

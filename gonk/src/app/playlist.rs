@@ -58,7 +58,6 @@ impl Playlist {
                 .zip(song_ids)
                 .zip(row_ids)
                 .map(|((song, id), row)| Item { id, row, song })
-                .rev()
                 .collect()
         } else {
             Vec::new()
@@ -84,7 +83,7 @@ impl Playlist {
             Mode::Popup => (),
         }
     }
-    pub fn update_songs(&mut self) {
+    fn update_songs(&mut self) {
         //Update the list of songs.
         let songs = Playlist::get_songs(self.playlist.selected());
         self.songs = if !songs.is_empty() {
@@ -93,6 +92,9 @@ impl Playlist {
             self.mode = Mode::Playlist;
             Index::default()
         };
+    }
+    fn update_playlists(&mut self) {
+        self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
     }
     pub fn on_enter(&mut self, player: &mut Player) {
         match self.mode {
@@ -113,7 +115,7 @@ impl Playlist {
             }
             Mode::Popup if !self.songs_to_add.is_empty() => {
                 //Select an existing playlist or create a new one.
-                let name = self.search.trim();
+                let name = self.search.trim().to_string();
 
                 let ids: Vec<usize> = self
                     .songs_to_add
@@ -123,8 +125,7 @@ impl Playlist {
 
                 sqlite::add_playlist(&name, &ids);
 
-                //Update the playlists.
-                self.playlist = Index::new(sqlite::playlist::get_names(), self.playlist.index());
+                self.update_playlists();
 
                 let mut i = Some(0);
                 for (j, playlist) in self.playlist.data.iter().enumerate() {
@@ -196,6 +197,9 @@ impl Playlist {
                     sqlite::playlist::remove_id(song.row);
                     let index = self.songs.index().unwrap();
                     self.songs.remove(index);
+                    if self.songs.is_empty() {
+                        self.update_playlists();
+                    }
                 }
             }
             Mode::Popup => return,
