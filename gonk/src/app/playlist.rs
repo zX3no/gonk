@@ -87,7 +87,7 @@ impl Playlist {
         //Update the list of songs.
         let songs = Playlist::get_songs(self.playlist.selected());
         self.songs = if !songs.is_empty() {
-            Index::new(songs, Some(0))
+            Index::new(songs, self.songs.index())
         } else {
             self.mode = Mode::Playlist;
             Index::default()
