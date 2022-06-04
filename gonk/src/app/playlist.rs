@@ -228,7 +228,6 @@ impl Playlist {
     //The last item will be add a new playlist.
     //If there are no playlists it will prompt you to create on.
     //This should be similar to foobar on android.
-
     pub fn draw_popup(&mut self, f: &mut Frame) {
         if let Some(area) = centered_rect(45, 6, f.size()) {
             let v = Layout::default()
@@ -246,12 +245,19 @@ impl Playlist {
                 area,
             );
 
+            //Scroll the playlist name.
+            let len = self.search.len() as u16;
+            let width = v[0].width.saturating_sub(1);
+            let offset_x = if len < width { 0 } else { len - width + 1 };
+
             f.render_widget(
-                Paragraph::new(self.search.as_str()).block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded),
-                ),
+                Paragraph::new(self.search.as_str())
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded),
+                    )
+                    .scroll((0, offset_x)),
                 v[0],
             );
 
@@ -285,6 +291,19 @@ impl Playlist {
                     vertical: 0,
                 }),
             );
+
+            //Draw the cursor.
+            let (x, y) = (v[0].x + 1, v[0].y + 1);
+            if self.search.is_empty() {
+                f.set_cursor(x, y);
+            } else {
+                let width = v[0].width.saturating_sub(3);
+                if len < width {
+                    f.set_cursor(x + len, y)
+                } else {
+                    f.set_cursor(x + width, y)
+                }
+            }
         }
     }
     pub fn draw(&mut self, f: &mut Frame) {
