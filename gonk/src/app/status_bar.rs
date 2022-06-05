@@ -1,10 +1,9 @@
-use std::time::{Duration, Instant};
-
 use super::queue::Queue;
 use gonk::Frame;
 use gonk_core::{sqlite, Colors};
+use std::time::{Duration, Instant};
 use tui::{
-    layout::Rect,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::Style,
     text::{Span, Spans},
     widgets::{Block, BorderType, Borders, Paragraph},
@@ -57,8 +56,8 @@ impl StatusBar {
         }
     }
 
-    //TODO: Add a keybind to hide the status_bar.
-    //Should also be an option in the config file.
+    //TODO: ~ should toggle the status bar.
+    //Also add keybind to config file.
     pub fn is_hidden(&self) -> bool {
         false
     }
@@ -99,15 +98,16 @@ impl StatusBar {
         } else {
             if let Some(song) = queue.selected() {
                 Spans::from(vec![
+                    Span::raw(" "),
                     Span::styled(
                         song.number.to_string(),
                         Style::default().fg(self.colors.number),
                     ),
-                    Span::raw(" - "),
+                    Span::raw(" ｜ "),
                     Span::styled(song.name.as_str(), Style::default().fg(self.colors.name)),
-                    Span::raw(" - "),
+                    Span::raw(" ｜ "),
                     Span::styled(song.album.as_str(), Style::default().fg(self.colors.album)),
-                    Span::raw(" - "),
+                    Span::raw(" ｜ "),
                     Span::styled(
                         song.artist.as_str(),
                         Style::default().fg(self.colors.artist),
@@ -118,13 +118,34 @@ impl StatusBar {
             }
         };
 
+        let area = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(85), Constraint::Percentage(15)])
+            .split(area);
+
         f.render_widget(
-            Paragraph::new(text).block(
+            Paragraph::new(text).alignment(Alignment::Left).block(
                 Block::default()
-                    .borders(Borders::ALL)
+                    .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
                     .border_type(BorderType::Rounded),
             ),
-            area,
+            area[0],
+        );
+
+        //TODO: Draw mini progress bar here.
+        let text = if queue.player.is_paused() {
+            String::from("Paused ")
+        } else {
+            format!("Vol: {}% ", queue.player.volume)
+        };
+
+        f.render_widget(
+            Paragraph::new(text).alignment(Alignment::Right).block(
+                Block::default()
+                    .borders(Borders::TOP | Borders::RIGHT | Borders::BOTTOM)
+                    .border_type(BorderType::Rounded),
+            ),
+            area[1],
         );
     }
 }
