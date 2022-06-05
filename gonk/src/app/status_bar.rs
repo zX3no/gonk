@@ -40,7 +40,7 @@ impl StatusBar {
     //Updates the dots in "Scanning for files .."
     pub fn update(&mut self, db_busy: bool) {
         if db_busy {
-            if self.dots < 4 {
+            if self.dots < 3 {
                 self.dots += 1;
             } else {
                 self.dots = 1;
@@ -73,10 +73,12 @@ impl StatusBar {
             return;
         }
 
-        if busy {
-            self.busy = true;
-            self.scan_timer = Some(Instant::now());
-        } else if self.busy {
+        if !self.busy {
+            if busy {
+                self.busy = true;
+                self.scan_timer = Some(Instant::now());
+            }
+        } else {
             //Stop scan time and start wait timer.
             if let Some(scan_time) = self.scan_timer {
                 self.busy = false;
