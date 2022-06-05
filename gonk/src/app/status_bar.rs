@@ -3,18 +3,14 @@ use gonk::Frame;
 use gonk_core::{sqlite, Colors};
 use std::time::{Duration, Instant};
 use tui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::Style,
     text::{Span, Spans},
     widgets::{Block, BorderType, Borders, Paragraph},
 };
 
-const MESSAGE_TIME: Duration = Duration::from_secs(2);
+const WAIT_TIME: Duration = Duration::from_secs(2);
 
-//TODO:
-//This bar should show in all pages but the queue.
-//It will show what the current song is, how much is left and the volume.
-//It should also show when the database is updating.
 pub struct StatusBar {
     dots: usize,
     colors: Colors,
@@ -22,6 +18,7 @@ pub struct StatusBar {
     scan_message: String,
     wait_timer: Option<Instant>,
     scan_timer: Option<Instant>,
+    hidden: bool,
 }
 
 impl StatusBar {
@@ -33,11 +30,12 @@ impl StatusBar {
             scan_message: String::new(),
             wait_timer: None,
             scan_timer: None,
+            hidden: true,
         }
     }
 
     //Updates the dots in "Scanning for files .."
-    pub fn update(&mut self, db_busy: bool) {
+    pub fn update(&mut self, db_busy: bool, queue: &Queue) {
         if db_busy {
             if self.dots < 3 {
                 self.dots += 1;
@@ -49,31 +47,35 @@ impl StatusBar {
         }
 
         if let Some(timer) = self.wait_timer {
-            if timer.elapsed() >= MESSAGE_TIME {
+            if timer.elapsed() >= WAIT_TIME {
                 self.wait_timer = None;
                 self.busy = false;
+
+                //FIXME: If the queue was not empty
+                //and the status bar was hidden
+                //before triggering an update
+                //the status bar will stay open
+                //without the users permission.
+                if queue.player.is_empty() {
+                    self.hidden = true;
+                }
             }
         }
     }
 
-    //TODO: ~ should toggle the status bar.
-    //Also add keybind to config file.
-    pub fn is_hidden(&self) -> bool {
-        false
+    pub fn toggle_hidden(&mut self) {
+        self.hidden = !self.hidden;
     }
 
-    pub fn is_busy(&self) -> bool {
-        self.wait_timer.is_some() || self.busy
+    pub fn is_hidden(&self) -> bool {
+        self.hidden
     }
 }
 impl StatusBar {
     pub fn draw(&mut self, area: Rect, f: &mut Frame, busy: bool, queue: &Queue) {
-        if self.is_hidden() {
-            return;
-        }
-
         if !self.busy {
             if busy {
+                self.hidden = false;
                 self.busy = true;
                 self.scan_timer = Some(Instant::now());
             }
@@ -89,6 +91,10 @@ impl StatusBar {
                     scan_time.elapsed().as_secs_f32(),
                 );
             }
+        }
+
+        if self.hidden {
+            return;
         }
 
         let text = if busy {
@@ -114,7 +120,7 @@ impl StatusBar {
                     ),
                 ])
             } else {
-                return;
+                Spans::default()
             }
         };
 
@@ -133,6 +139,7 @@ impl StatusBar {
         );
 
         //TODO: Draw mini progress bar here.
+
         let text = if queue.player.is_paused() {
             String::from("Paused ")
         } else {

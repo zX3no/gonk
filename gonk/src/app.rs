@@ -155,7 +155,7 @@ impl App {
         loop {
             //Update every 200ms.
             if last_tick.elapsed() >= TICK_RATE {
-                self.status_bar.update(self.busy);
+                self.status_bar.update(self.busy, &self.queue);
                 last_tick = Instant::now();
             }
 
@@ -176,10 +176,11 @@ impl App {
                     .constraints([Constraint::Min(2), Constraint::Length(3)])
                     .split(f.size());
 
-                let hidden =
-                    !self.busy && !self.status_bar.is_busy() && self.queue.player.is_empty();
-
-                let top = if hidden { f.size() } else { area[0] };
+                let top = if self.status_bar.is_hidden() {
+                    f.size()
+                } else {
+                    area[0]
+                };
 
                 match self.mode {
                     Mode::Browser => self.browser.draw(top, f),
@@ -190,9 +191,7 @@ impl App {
                 };
 
                 if self.mode != Mode::Queue {
-                    if !hidden {
-                        self.status_bar.draw(area[1], f, self.busy, &self.queue);
-                    }
+                    self.status_bar.draw(area[1], f, self.busy, &self.queue);
                 }
             })?;
 
@@ -226,6 +225,8 @@ impl App {
                             break;
                         };
 
+                        let shift = event.modifiers == KeyModifiers::SHIFT;
+
                         match event.code {
                             KeyCode::Char(c)
                                 if self.search.input_mode() && self.mode == Mode::Search =>
@@ -250,22 +251,20 @@ impl App {
                                 Mode::Playlist => self.playlist.on_backspace(event.modifiers),
                                 _ => (),
                             },
-                            KeyCode::Enter if event.modifiers == KeyModifiers::SHIFT => {
-                                match self.mode {
-                                    Mode::Browser => {
-                                        let songs = self.browser.on_enter();
-                                        self.playlist.add_to_playlist(&songs);
+                            KeyCode::Enter if shift => match self.mode {
+                                Mode::Browser => {
+                                    let songs = self.browser.on_enter();
+                                    self.playlist.add_to_playlist(&songs);
+                                    self.mode = Mode::Playlist;
+                                }
+                                Mode::Queue => {
+                                    if let Some(song) = self.queue.selected() {
+                                        self.playlist.add_to_playlist(&[song.clone()]);
                                         self.mode = Mode::Playlist;
                                     }
-                                    Mode::Queue => {
-                                        if let Some(song) = self.queue.selected() {
-                                            self.playlist.add_to_playlist(&[song.clone()]);
-                                            self.mode = Mode::Playlist;
-                                        }
-                                    }
-                                    _ => (),
                                 }
-                            }
+                                _ => (),
+                            },
                             KeyCode::Enter => match self.mode {
                                 Mode::Browser => {
                                     let songs = self.browser.on_enter();
@@ -297,8 +296,13 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint(2, event.modifiers);
                             }
+                            //TODO: Add playlist mode to config file.
                             KeyCode::Char(',') => {
                                 self.mode = Mode::Playlist;
+                            }
+                            //TODO: Add to config file.
+                            KeyCode::Char('`') => {
+                                self.status_bar.toggle_hidden();
                             }
                             _ if hotkey.up.contains(&bind) => self.up(),
                             _ if hotkey.down.contains(&bind) => self.down(),
