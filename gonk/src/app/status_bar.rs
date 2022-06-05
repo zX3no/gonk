@@ -73,14 +73,18 @@ impl StatusBar {
 }
 impl StatusBar {
     pub fn draw(&mut self, area: Rect, f: &mut Frame, busy: bool, queue: &Queue) {
-        if !self.busy {
-            if busy {
-                self.hidden = false;
+        if busy {
+            //If database is busy but status_bar is not
+            //set the status bar to busy
+            if !self.busy {
                 self.busy = true;
+                self.hidden = false;
                 self.scan_timer = Some(Instant::now());
             }
-        } else {
-            //Stop scan time and start wait timer.
+        } else if self.busy {
+            //If database is no-longer busy
+            //but status bar is. Print the duration
+            //and start the wait timer.
             if let Some(scan_time) = self.scan_timer {
                 self.busy = false;
                 self.wait_timer = Some(Instant::now());
