@@ -233,6 +233,16 @@ impl Playlist {
     //The last item will be add a new playlist.
     //If there are no playlists it will prompt you to create on.
     //This should be similar to foobar on android.
+
+    //TODO: Renaming
+    //Move items around in lists
+    //There should be a hotkey to add to most recent playlist
+    //And a message should show up in the bottom bar saying
+    //"[name] has been has been added to [playlist name]"
+    //or
+    //"25 songs have been added to [playlist name]"
+
+    //TODO: Add keybindings to readme
     pub fn draw_popup(&mut self, f: &mut Frame) {
         if let Some(area) = centered_rect(45, 6, f.size()) {
             let v = Layout::default()
@@ -307,16 +317,11 @@ impl Playlist {
             }
         }
     }
-    pub fn draw(&mut self, f: &mut Frame) {
-        let vertical = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(2), Constraint::Length(3)])
-            .split(f.size());
-
+    pub fn draw(&mut self, area: Rect, f: &mut Frame) {
         let horizontal = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
-            .split(vertical[0]);
+            .split(area);
 
         let items: Vec<ListItem> = self
             .playlist
@@ -381,22 +386,8 @@ impl Playlist {
             &mut TableState::new(self.songs.index()),
         );
 
-        self.draw_footer(f, vertical[1]);
-
         if let Mode::Popup = self.mode {
             self.draw_popup(f);
         }
-    }
-    pub fn draw_footer(&self, f: &mut Frame, area: Rect) {
-        let keys = "[Enter] Add [X] Delete [CTRL + R] Rename [SHIFT + K] Up [SHIFT + J] Down";
-
-        f.render_widget(
-            Paragraph::new(keys).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            ),
-            area,
-        );
     }
 }

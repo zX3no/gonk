@@ -178,13 +178,12 @@ pub struct Config {
     pub volume: u16,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Colors {
-    pub track: Color,
-    pub title: Color,
+    pub number: Color,
+    pub name: Color,
     pub album: Color,
     pub artist: Color,
-
     pub seeker: Color,
 }
 
@@ -208,8 +207,8 @@ impl Toml {
                     volume: 15,
                 },
                 colors: Colors {
-                    track: Color::Green,
-                    title: Color::Cyan,
+                    number: Color::Green,
+                    name: Color::Cyan,
                     album: Color::Magenta,
                     artist: Color::Blue,
                     seeker: Color::White,
@@ -373,7 +372,7 @@ impl Toml {
     pub fn paths(&self) -> &[String] {
         &self.config.paths
     }
-    pub fn output_device(&self) -> &String {
+    pub fn output_device(&self) -> &str {
         &self.config.output_device
     }
     pub fn add_path(&mut self, path: String) {

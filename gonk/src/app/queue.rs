@@ -186,7 +186,7 @@ impl Queue {
                     Span::raw(format!("─│ {}", pad_front)),
                     Span::styled(artist, Style::default().fg(self.colors.artist)),
                     Span::raw(" ─ "),
-                    Span::styled(name, Style::default().fg(self.colors.title)),
+                    Span::styled(name, Style::default().fg(self.colors.name)),
                     Span::raw(format!("{} │─", pad_back)),
                 ]),
                 Spans::from(Span::styled(album, Style::default().fg(self.colors.album))),
@@ -224,8 +224,8 @@ impl Queue {
                 Row::new(vec![
                     Cell::from(""),
                     Cell::from(song.number.to_string())
-                        .style(Style::default().fg(self.colors.track)),
-                    Cell::from(song.name.as_str()).style(Style::default().fg(self.colors.title)),
+                        .style(Style::default().fg(self.colors.number)),
+                    Cell::from(song.name.as_str()).style(Style::default().fg(self.colors.name)),
                     Cell::from(song.album.as_str()).style(Style::default().fg(self.colors.album)),
                     Cell::from(song.artist.as_str()).style(Style::default().fg(self.colors.artist)),
                 ])
@@ -244,9 +244,9 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(self.colors.track).fg(Color::Black)),
+                                .style(Style::default().bg(self.colors.number).fg(Color::Black)),
                             Cell::from(song.name.as_str())
-                                .style(Style::default().bg(self.colors.title).fg(Color::Black)),
+                                .style(Style::default().bg(self.colors.name).fg(Color::Black)),
                             Cell::from(song.album.as_str())
                                 .style(Style::default().bg(self.colors.album).fg(Color::Black)),
                             Cell::from(song.artist.as_str())
@@ -260,9 +260,9 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(self.colors.track)),
+                                .style(Style::default().fg(self.colors.number)),
                             Cell::from(song.name.as_str())
-                                .style(Style::default().fg(self.colors.title)),
+                                .style(Style::default().fg(self.colors.name)),
                             Cell::from(song.album.as_str())
                                 .style(Style::default().fg(self.colors.album)),
                             Cell::from(song.artist.as_str())
@@ -279,9 +279,9 @@ impl Queue {
                             let row = Row::new(vec![
                                 Cell::default(),
                                 Cell::from(song.number.to_string())
-                                    .style(Style::default().bg(self.colors.track)),
+                                    .style(Style::default().bg(self.colors.number)),
                                 Cell::from(song.name.as_str())
-                                    .style(Style::default().bg(self.colors.title)),
+                                    .style(Style::default().bg(self.colors.name)),
                                 Cell::from(song.album.as_str())
                                     .style(Style::default().bg(self.colors.album)),
                                 Cell::from(song.artist.as_str())

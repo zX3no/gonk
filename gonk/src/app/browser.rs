@@ -2,9 +2,8 @@ use crate::widgets::{List, ListItem, ListState};
 use gonk::{centered_rect, Frame};
 use gonk_core::{sqlite, Index, Song};
 use tui::{
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    text::Spans,
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
@@ -150,12 +149,6 @@ impl Browser {
 }
 
 impl Browser {
-    pub fn draw(&self, f: &mut Frame, busy: bool) {
-        self.draw_browser(f);
-        if busy {
-            Browser::draw_database_popup(f);
-        }
-    }
     fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
         let list = List::new(content.to_vec())
             .block(
@@ -172,8 +165,10 @@ impl Browser {
             list.highlight_symbol("")
         }
     }
-    pub fn draw_browser(&self, f: &mut Frame) {
-        let area = f.size();
+    pub fn draw(&self, area: Rect, f: &mut Frame, draw_popup: bool) {
+        if draw_popup {
+            self.draw_popup(f)
+        }
         let size = area.width / 3;
         let rem = area.width % 3;
 
@@ -219,15 +214,11 @@ impl Browser {
         f.render_stateful_widget(albums, chunks[1], &mut ListState::new(self.albums.index()));
         f.render_stateful_widget(songs, chunks[2], &mut ListState::new(self.songs.index()));
     }
-
-    //TODO: change to small text in bottom right
-    //This bar should show in all pages but the queue.
-    //It will show what the current song is, how much is left and the volume.
-    pub fn draw_database_popup(f: &mut Frame) {
+    pub fn draw_popup(&self, f: &mut Frame) {
         if let Some(area) = centered_rect(14, 3, f.size()) {
             f.render_widget(Clear, area);
             f.render_widget(
-                Paragraph::new(Spans::from("Scanning..."))
+                Paragraph::new("Scanning...")
                     .block(
                         Block::default()
                             .borders(Borders::ALL)

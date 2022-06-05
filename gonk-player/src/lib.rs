@@ -54,6 +54,9 @@ impl Player {
             songs: Index::default(),
         }
     }
+    pub fn is_empty(&self) -> bool {
+        self.songs.is_empty()
+    }
     pub fn add_songs(&mut self, song: &[Song]) {
         self.songs.data.extend(song.to_vec());
         if self.songs.is_none() && !self.songs.is_empty() {

@@ -13,8 +13,13 @@ use std::{
     io::{stdout, Stdout},
     path::Path,
 };
-use tui::backend::CrosstermBackend;
 use tui::Terminal;
+use tui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+};
+
+use self::status_bar::StatusBar;
 use {browser::Browser, options::Options, playlist::Playlist, queue::Queue, search::Search};
 
 mod browser;
@@ -22,6 +27,7 @@ mod options;
 mod playlist;
 mod queue;
 mod search;
+mod status_bar;
 
 #[derive(Debug, Clone)]
 enum HotkeyEvent {
@@ -41,7 +47,7 @@ pub enum Mode {
     Playlist,
 }
 
-const TICK_RATE: Duration = Duration::from_millis(100);
+const TICK_RATE: Duration = Duration::from_millis(200);
 const POLL_RATE: Duration = Duration::from_millis(4);
 const SEEK_TIME: f64 = 10.0;
 
@@ -53,6 +59,7 @@ pub struct App {
     options: Options,
     search: Search,
     playlist: Playlist,
+    status_bar: StatusBar,
     toml: Toml,
     db: Database,
     busy: bool,
@@ -82,7 +89,7 @@ impl App {
                         "reset" => {
                             sqlite::reset();
                             toml.reset();
-                            println!("Reset database!");
+                            println!("Database reset!");
                             return Err(String::new());
                         }
                         "help" | "--help" => {
@@ -125,11 +132,12 @@ impl App {
                 Ok(Self {
                     terminal,
                     mode: Mode::Browser,
-                    queue: Queue::new(toml.volume(), toml.colors.clone()),
+                    queue: Queue::new(toml.volume(), toml.colors),
                     browser: Browser::new(),
                     options: Options::new(&mut toml),
-                    search: Search::new(toml.colors.clone()).init(),
+                    search: Search::new(toml.colors).init(),
                     playlist: Playlist::new(),
+                    status_bar: StatusBar::new(toml.colors),
                     busy: false,
                     db,
                     toml,
@@ -158,16 +166,41 @@ impl App {
 
         loop {
             if last_tick.elapsed() >= TICK_RATE {
+                self.status_bar.update(self.busy);
                 self.on_update();
                 last_tick = Instant::now();
             }
 
-            self.terminal.draw(|f| match self.mode {
-                Mode::Browser => self.browser.draw(f, self.busy),
-                Mode::Queue => self.queue.draw(f),
-                Mode::Options => self.options.draw(f, &self.toml),
-                Mode::Search => self.search.draw(f),
-                Mode::Playlist => self.playlist.draw(f),
+            self.terminal.draw(|f| {
+                let area = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Min(2), Constraint::Length(3)])
+                    .split(f.size());
+
+                let (top, bottom) = if self.queue.player.is_empty() {
+                    (f.size(), None)
+                } else {
+                    (area[0], Some(area[1]))
+                };
+
+                //TODO: Kinda weird having multiple popups.
+                //Add a message for a second that says
+                //'finished adding 2120 files to database'
+                let show_popup = bottom.is_none() && self.busy;
+
+                match self.mode {
+                    Mode::Browser => self.browser.draw(top, f, show_popup),
+                    Mode::Queue => self.queue.draw(f),
+                    Mode::Options => self.options.draw(top, f, &self.toml),
+                    Mode::Search => self.search.draw(top, f),
+                    Mode::Playlist => self.playlist.draw(top, f),
+                };
+
+                if self.mode != Mode::Queue {
+                    if let Some(bottom) = bottom {
+                        self.status_bar.draw(bottom, f, self.busy, &self.queue);
+                    }
+                }
             })?;
 
             #[cfg(windows)]
@@ -194,8 +227,9 @@ impl App {
                             key: Key::from(event.code),
                             modifiers: Modifier::from_bitflags(event.modifiers),
                         };
+                        let hotkey = &self.toml.hotkey;
 
-                        if self.toml.hotkey.quit.contains(&bind) {
+                        if hotkey.quit.contains(&bind) {
                             break;
                         };
 
@@ -273,65 +307,55 @@ impl App {
                             KeyCode::Char(',') => {
                                 self.mode = Mode::Playlist;
                             }
-                            _ if self.toml.hotkey.up.contains(&bind) => self.up(),
-                            _ if self.toml.hotkey.down.contains(&bind) => self.down(),
-                            _ if self.toml.hotkey.left.contains(&bind) => match self.mode {
+                            _ if hotkey.up.contains(&bind) => self.up(),
+                            _ if hotkey.down.contains(&bind) => self.down(),
+                            _ if hotkey.left.contains(&bind) => match self.mode {
                                 Mode::Browser => self.browser.left(),
                                 Mode::Playlist => self.playlist.left(),
                                 _ => (),
                             },
-                            _ if self.toml.hotkey.right.contains(&bind) => match self.mode {
+                            _ if hotkey.right.contains(&bind) => match self.mode {
                                 Mode::Browser => self.browser.right(),
                                 Mode::Playlist => self.playlist.right(),
                                 _ => (),
                             },
-                            _ if self.toml.hotkey.play_pause.contains(&bind) => {
+                            _ if hotkey.play_pause.contains(&bind) => {
                                 self.queue.player.toggle_playback()
                             }
-                            _ if self.toml.hotkey.clear.contains(&bind) => self.queue.clear(),
-                            _ if self.toml.hotkey.clear_except_playing.contains(&bind) => {
+                            _ if hotkey.clear.contains(&bind) => self.queue.clear(),
+                            _ if hotkey.clear_except_playing.contains(&bind) => {
                                 self.queue.clear_except_playing();
                             }
-                            _ if self.toml.hotkey.refresh_database.contains(&bind)
+                            _ if hotkey.refresh_database.contains(&bind)
                                 && self.mode == Mode::Browser =>
                             {
                                 let paths = self.toml.paths();
                                 self.db.add_paths(paths);
                             }
-                            _ if self.toml.hotkey.seek_backward.contains(&bind) => {
+                            _ if hotkey.seek_backward.contains(&bind) => {
                                 self.queue.player.seek_by(-SEEK_TIME)
                             }
-                            _ if self.toml.hotkey.seek_forward.contains(&bind) => {
+                            _ if hotkey.seek_forward.contains(&bind) => {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
-                            _ if self.toml.hotkey.previous.contains(&bind) => {
-                                self.queue.player.prev_song()
-                            }
-                            _ if self.toml.hotkey.next.contains(&bind) => {
-                                self.queue.player.next_song()
-                            }
-                            _ if self.toml.hotkey.volume_up.contains(&bind) => {
+                            _ if hotkey.previous.contains(&bind) => self.queue.player.prev_song(),
+                            _ if hotkey.next.contains(&bind) => self.queue.player.next_song(),
+                            _ if hotkey.volume_up.contains(&bind) => {
                                 self.queue.player.volume_up();
                                 self.toml.set_volume(self.queue.player.volume);
                             }
-                            _ if self.toml.hotkey.volume_down.contains(&bind) => {
+                            _ if hotkey.volume_down.contains(&bind) => {
                                 self.queue.player.volume_down();
                                 self.toml.set_volume(self.queue.player.volume);
                             }
-                            _ if self.toml.hotkey.search.contains(&bind) => {
-                                self.mode = Mode::Search
-                            }
-                            _ if self.toml.hotkey.options.contains(&bind) => {
-                                self.mode = Mode::Options
-                            }
-                            _ if self.toml.hotkey.delete.contains(&bind) => match self.mode {
+                            _ if hotkey.search.contains(&bind) => self.mode = Mode::Search,
+                            _ if hotkey.options.contains(&bind) => self.mode = Mode::Options,
+                            _ if hotkey.delete.contains(&bind) => match self.mode {
                                 Mode::Queue => self.queue.delete(),
                                 Mode::Playlist => self.playlist.delete(),
                                 _ => (),
                             },
-                            _ if self.toml.hotkey.random.contains(&bind) => {
-                                self.queue.player.randomize()
-                            }
+                            _ if hotkey.random.contains(&bind) => self.queue.player.randomize(),
                             _ => (),
                         }
                     }

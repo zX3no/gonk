@@ -3,6 +3,7 @@ use gonk::Frame;
 use gonk_core::{Index, Toml};
 use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
+    layout::Rect,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Borders},
 };
@@ -52,7 +53,7 @@ impl Options {
 }
 
 impl Options {
-    pub fn draw(&self, f: &mut Frame, toml: &Toml) {
+    pub fn draw(&self, area: Rect, f: &mut Frame, toml: &Toml) {
         let default_device = toml.output_device();
 
         let items: Vec<_> = self
@@ -83,6 +84,6 @@ impl Options {
         let mut state = ListState::default();
         state.select(self.devices.index());
 
-        f.render_stateful_widget(list, f.size(), &mut state);
+        f.render_stateful_widget(list, area, &mut state);
     }
 }

@@ -230,12 +230,10 @@ impl Search {
 }
 
 impl Search {
-    pub fn draw(&mut self, f: &mut Frame) {
+    pub fn draw(&mut self, area: Rect, f: &mut Frame) {
         if self.query_changed {
             self.update_search();
         }
-
-        let area = f.size();
 
         let v = Layout::default()
             .direction(Direction::Vertical)
@@ -378,7 +376,7 @@ impl Search {
                     let song = sqlite::get_songs(&[song.id])[0].clone();
                     Row::new(vec![
                         selected_cell,
-                        Cell::from(song.name).style(Style::default().fg(self.colors.title)),
+                        Cell::from(song.name).style(Style::default().fg(self.colors.name)),
                         Cell::from(song.album).style(Style::default().fg(self.colors.album)),
                         Cell::from(song.artist).style(Style::default().fg(self.colors.artist)),
                     ])
@@ -386,14 +384,14 @@ impl Search {
                 Item::Album(album) => Row::new(vec![
                     selected_cell,
                     Cell::from(format!("{} - Album", album.name))
-                        .style(Style::default().fg(self.colors.title)),
+                        .style(Style::default().fg(self.colors.name)),
                     Cell::from("").style(Style::default().fg(self.colors.album)),
                     Cell::from(album.artist.clone()).style(Style::default().fg(self.colors.artist)),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
                     selected_cell,
                     Cell::from(format!("{} - Artist", artist.name))
-                        .style(Style::default().fg(self.colors.title)),
+                        .style(Style::default().fg(self.colors.name)),
                     Cell::from("").style(Style::default().fg(self.colors.album)),
                     Cell::from("").style(Style::default().fg(self.colors.artist)),
                 ]),
