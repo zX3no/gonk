@@ -1,10 +1,10 @@
 use crate::widgets::{List, ListItem, ListState};
-use gonk::{centered_rect, Frame};
+use gonk::Frame;
 use gonk_core::{sqlite, Index, Song};
 use tui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders},
 };
 
 #[derive(PartialEq, Eq)]
@@ -165,10 +165,7 @@ impl Browser {
             list.highlight_symbol("")
         }
     }
-    pub fn draw(&self, area: Rect, f: &mut Frame, draw_popup: bool) {
-        if draw_popup {
-            self.draw_popup(f)
-        }
+    pub fn draw(&self, area: Rect, f: &mut Frame) {
         let size = area.width / 3;
         let rem = area.width % 3;
 
@@ -213,20 +210,5 @@ impl Browser {
         );
         f.render_stateful_widget(albums, chunks[1], &mut ListState::new(self.albums.index()));
         f.render_stateful_widget(songs, chunks[2], &mut ListState::new(self.songs.index()));
-    }
-    pub fn draw_popup(&self, f: &mut Frame) {
-        if let Some(area) = centered_rect(14, 3, f.size()) {
-            f.render_widget(Clear, area);
-            f.render_widget(
-                Paragraph::new("Scanning...")
-                    .block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_type(BorderType::Rounded),
-                    )
-                    .alignment(Alignment::Center),
-                area,
-            );
-        }
     }
 }

@@ -146,18 +146,6 @@ impl App {
             Err(err) => Err(err),
         }
     }
-    fn on_update(&mut self) {
-        match self.db.state() {
-            State::Busy => self.busy = true,
-            State::Idle => self.busy = false,
-            State::NeedsUpdate => {
-                self.browser.refresh();
-                self.search.update_cache();
-            }
-        }
-
-        self.queue.update();
-    }
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
 
@@ -165,11 +153,22 @@ impl App {
         let tx = App::register_hotkeys(self.toml.clone());
 
         loop {
+            //Update every 200ms.
             if last_tick.elapsed() >= TICK_RATE {
                 self.status_bar.update(self.busy);
-                self.on_update();
                 last_tick = Instant::now();
             }
+
+            match self.db.state() {
+                State::Busy => self.busy = true,
+                State::Idle => self.busy = false,
+                State::NeedsUpdate => {
+                    self.browser.refresh();
+                    self.search.update_cache();
+                }
+            }
+
+            self.queue.update();
 
             self.terminal.draw(|f| {
                 let area = Layout::default()
@@ -177,19 +176,13 @@ impl App {
                     .constraints([Constraint::Min(2), Constraint::Length(3)])
                     .split(f.size());
 
-                let (top, bottom) = if self.queue.player.is_empty() {
-                    (f.size(), None)
-                } else {
-                    (area[0], Some(area[1]))
-                };
+                let hidden =
+                    !self.busy && !self.status_bar.is_busy() && self.queue.player.is_empty();
 
-                //TODO: Kinda weird having multiple popups.
-                //Add a message for a second that says
-                //'finished adding 2120 files to database'
-                let show_popup = bottom.is_none() && self.busy;
+                let top = if hidden { f.size() } else { area[0] };
 
                 match self.mode {
-                    Mode::Browser => self.browser.draw(top, f, show_popup),
+                    Mode::Browser => self.browser.draw(top, f),
                     Mode::Queue => self.queue.draw(f),
                     Mode::Options => self.options.draw(top, f, &self.toml),
                     Mode::Search => self.search.draw(top, f),
@@ -197,8 +190,8 @@ impl App {
                 };
 
                 if self.mode != Mode::Queue {
-                    if let Some(bottom) = bottom {
-                        self.status_bar.draw(bottom, f, self.busy, &self.queue);
+                    if !hidden {
+                        self.status_bar.draw(area[1], f, self.busy, &self.queue);
                     }
                 }
             })?;

@@ -9,6 +9,11 @@ use std::{
     time::Duration,
 };
 
+pub fn total_songs() -> usize {
+    let conn = conn();
+    let mut stmt = conn.prepare("SELECT COUNT(*) FROM song").unwrap();
+    stmt.query_row([], |row| row.get(0)).unwrap()
+}
 pub fn get_all_songs() -> Vec<Song> {
     collect_songs("SELECT *, rowid FROM song", params![])
 }
@@ -234,7 +239,7 @@ impl Database {
 
         let paths = paths.to_vec();
 
-        let handle = thread::spawn(move || {
+        self.handle = Some(thread::spawn(move || {
             let queries: Vec<String> = paths
                 .iter()
                 .map(|path| {
@@ -279,9 +284,7 @@ impl Database {
 
             let stmt = format!("BEGIN;\nDELETE FROM song;\n{}COMMIT;\n", queries.join("\n"));
             conn().execute_batch(&stmt).unwrap();
-        });
-
-        self.handle = Some(handle);
+        }));
     }
     pub fn state(&mut self) -> State {
         match self.handle {
