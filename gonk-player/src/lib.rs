@@ -131,13 +131,24 @@ impl Player {
         }
     }
     pub fn delete_song(&mut self, selected: usize) {
-        self.songs.remove(selected);
+        self.songs.data.remove(selected);
 
         if let Some(playing) = self.songs.index() {
-            if self.songs.len() == 0 {
-                self.clear();
-            } else if selected == playing {
+            let len = self.songs.len();
+
+            if len == 0 {
+                return self.clear();
+            }
+
+            if selected == playing && selected == 0 {
+                if selected == 0 {
+                    self.songs.select(Some(0));
+                }
                 self.play_selected();
+            } else if selected == playing && selected == len {
+                self.songs.select(Some(len - 1));
+            } else if selected < playing {
+                self.songs.select(Some(playing - 1));
             }
         };
     }

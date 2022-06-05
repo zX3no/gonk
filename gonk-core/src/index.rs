@@ -83,7 +83,11 @@ impl<T> Index<T> {
         let len = self.len();
         if let Some(selected) = self.index {
             if index == len && selected == len {
-                self.index = Some(len.saturating_sub(1))
+                self.index = Some(len.saturating_sub(1));
+            } else if index == 0 && selected == 0 {
+                self.index = Some(0);
+            } else if len == 0 {
+                self.index = None;
             }
         }
     }
