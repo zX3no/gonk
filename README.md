@@ -41,7 +41,7 @@ Alpine:
 apk add pkgconf alsa-lib-dev alpine-sdk
 ```
 
-### crates.io
+#### crates.io
 
 ```
 cargo install gonk
