@@ -29,16 +29,16 @@ Debian:
 sudo apt install libasound2-dev pkg-config build-essential
 ```
 
-Fedora:
-
-```
-dnf install alsa-lib-devel pkgconfig
-```
-
 Alpine:
 
 ```
 apk add pkgconf alsa-lib-dev alpine-sdk
+```
+
+Arch:
+
+```
+pacman -S pkgconf alsa-lib base-devel
 ```
 
 #### crates.io
