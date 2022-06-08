@@ -21,6 +21,26 @@
 
 > I recommend using a font with ligatures for the best experience.
 
+#### Dependencies
+
+Debian:
+
+```
+sudo apt install libasound2-dev pkg-config build-essential
+```
+
+Fedora:
+
+```
+dnf install alsa-lib-devel pkgconfig
+```
+
+Alpine:
+
+```
+apk add pkgconf alsa-lib-dev alpine-sdk
+```
+
 ### crates.io
 
 ```
@@ -31,37 +51,6 @@ Add your music:
 
 ```
 gonk add D:/Music
-```
-
-### From source
-
-Install dependencies and then run:
-
-```
-git clone https://github.com/zX3no/gonk
-cd gonk
-cargo install --path gonk
-```
-
-#### Dependencies
-
-Debian:
-
-```
-sudo apt install libasound2-dev pkg-config build-essential
-```
-
-Fedora:
-> Not tested.
-
-```
-dnf install alsa-lib-devel pkgconfig
-```
-
-Alpine:
-
-```
-apk add pkgconf alsa-lib-dev alpine-sdk
 ```
 
 ## ⌨️ Key Bindings
