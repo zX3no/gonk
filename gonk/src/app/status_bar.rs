@@ -1,5 +1,5 @@
 use super::queue::Queue;
-use gonk::Frame;
+use crate::Frame;
 use gonk_core::{sqlite, Colors};
 use std::time::{Duration, Instant};
 use tui::{

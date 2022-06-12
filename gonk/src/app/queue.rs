@@ -1,6 +1,6 @@
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
+use crate::Frame;
 use crossterm::event::KeyModifiers;
-use gonk::Frame;
 use gonk_core::{Colors, Index, Song};
 use gonk_player::Player;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};

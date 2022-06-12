@@ -329,14 +329,22 @@ impl App {
                                 let paths = self.toml.paths();
                                 self.db.add_paths(paths);
                             }
-                            _ if hotkey.seek_backward.contains(&bind) => {
+                            _ if hotkey.seek_backward.contains(&bind)
+                                && self.mode != Mode::Search =>
+                            {
                                 self.queue.player.seek_by(-SEEK_TIME)
                             }
-                            _ if hotkey.seek_forward.contains(&bind) => {
+                            _ if hotkey.seek_forward.contains(&bind)
+                                && self.mode != Mode::Search =>
+                            {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
-                            _ if hotkey.previous.contains(&bind) => self.queue.player.prev_song(),
-                            _ if hotkey.next.contains(&bind) => self.queue.player.next_song(),
+                            _ if hotkey.previous.contains(&bind) && self.mode != Mode::Search => {
+                                self.queue.player.prev_song()
+                            }
+                            _ if hotkey.next.contains(&bind) && self.mode != Mode::Search => {
+                                self.queue.player.next_song()
+                            }
                             _ if hotkey.volume_up.contains(&bind) => {
                                 self.queue.player.volume_up();
                                 self.toml.set_volume(self.queue.player.volume);

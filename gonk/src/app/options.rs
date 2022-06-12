@@ -1,5 +1,5 @@
 use crate::widgets::{List, ListItem, ListState};
-use gonk::Frame;
+use crate::Frame;
 use gonk_core::{Index, Toml};
 use gonk_player::{Device, DeviceTrait, Player};
 use tui::{

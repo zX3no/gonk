@@ -1,7 +1,7 @@
 use super::Mode as AppMode;
 use crate::widgets::{Cell, Row, Table, TableState};
+use crate::Frame;
 use crossterm::event::KeyModifiers;
-use gonk::Frame;
 use gonk_core::{sqlite, Colors, Index};
 use gonk_player::Player;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};

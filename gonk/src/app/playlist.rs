@@ -1,7 +1,7 @@
 #![allow(unused)]
 use crate::widgets::{Cell, List, ListItem, ListState, Row, Table, TableState};
+use crate::{centered_rect, Frame};
 use crossterm::event::KeyModifiers;
-use gonk::{centered_rect, Frame};
 use gonk_core::{sqlite, Index, Song};
 use gonk_player::Player;
 use std::io::Stdout;
