@@ -66,11 +66,14 @@ impl Search {
         }
     }
     pub fn init(mut self) -> Self {
-        self.update_cache();
-        self.update_search();
+        self.update();
         self
     }
-    pub fn update_cache(&mut self) {
+    pub fn update(&mut self) {
+        self.update_cache();
+        self.update_search();
+    }
+    fn update_cache(&mut self) {
         self.cache = Vec::new();
 
         for song in sqlite::get_all_songs() {

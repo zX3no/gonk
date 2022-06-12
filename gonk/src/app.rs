@@ -164,7 +164,7 @@ impl App {
                 State::Idle => self.busy = false,
                 State::NeedsUpdate => {
                     self.browser.refresh();
-                    self.search.update_cache();
+                    self.search.update();
                 }
             }
 
