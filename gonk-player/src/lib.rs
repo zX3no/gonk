@@ -43,7 +43,7 @@ impl Player {
         let (stream, handle) =
             OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
-        sink.set_volume(f32::from(volume) / VOLUME_REDUCTION);
+        sink.set_volume(volume as f32 / VOLUME_REDUCTION);
 
         Self {
             stream,
@@ -114,8 +114,19 @@ impl Player {
     fn update_volume(&self) {
         if let Some(song) = self.songs.selected() {
             let volume = self.volume as f32 / VOLUME_REDUCTION;
-            let gain = song.track_gain as f32 / VOLUME_REDUCTION;
-            self.sink.set_volume(volume + gain);
+
+            //Calculate the volume with gain
+            let volume = if song.track_gain == 0.0 {
+                //Reduce the volume a little to match
+                //songs with replay gain information.
+                volume * 0.75
+            } else {
+                volume * song.track_gain as f32
+            };
+
+            self.sink.set_volume(volume);
+        } else {
+            self.sink.set_volume(self.volume as f32 / VOLUME_REDUCTION);
         }
     }
     pub fn play_selected(&mut self) {
@@ -167,8 +178,7 @@ impl Player {
     }
     pub fn stop(&mut self) {
         self.sink = Sink::try_new(&self.handle).expect("Could not create new sink.");
-        self.sink
-            .set_volume(f32::from(self.volume) / VOLUME_REDUCTION);
+        self.update_volume();
     }
     pub fn elapsed(&self) -> f64 {
         self.sink.elapsed().as_secs_f64()
