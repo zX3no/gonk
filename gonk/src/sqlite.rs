@@ -1,4 +1,4 @@
-use crate::{Song, DB_DIR};
+use gonk_player::Song;
 use jwalk::WalkDir;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Params, Row};
@@ -8,6 +8,8 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
+
+use crate::config::DB_DIR;
 
 pub fn total_songs() -> usize {
     let conn = conn();

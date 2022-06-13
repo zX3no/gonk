@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::time::Duration;
 
-use crate::{Sample, Source};
+use crate::{conversions::Sample, source::Source};
 use cpal::Sample as CpalSample;
 
 /// An iterator that reads from a `Source` and converts the samples to a specific rate and

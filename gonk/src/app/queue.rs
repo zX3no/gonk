@@ -1,8 +1,8 @@
+use crate::config::Colors;
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crate::Frame;
 use crossterm::event::KeyModifiers;
-use gonk_core::{Colors, Index, Song};
-use gonk_player::Player;
+use gonk_player::{Index, Player, Song};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};

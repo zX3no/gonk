@@ -1,4 +1,4 @@
-use crate::{Sample, Source};
+use crate::{conversions::Sample, source::Source};
 use std::time::Duration;
 
 /// Internal function that builds a `Stoppable` object.

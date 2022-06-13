@@ -1,12 +1,29 @@
-use crate::TOML_DIR;
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use static_init::dynamic;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tui::style::Color;
 
-//TODO: test on linux
 #[cfg(windows)]
 use global_hotkeys::{keys, modifiers};
+
+#[dynamic]
+pub static GONK_DIR: PathBuf = {
+    let gonk = dirs::config_dir().unwrap().join("gonk");
+    if !gonk.exists() {
+        std::fs::create_dir_all(&gonk).unwrap();
+    }
+    gonk
+};
+
+#[dynamic]
+pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
+
+#[dynamic]
+pub static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]

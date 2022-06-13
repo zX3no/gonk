@@ -1,6 +1,6 @@
 use super::queue::Queue;
 use crate::Frame;
-use gonk_core::{sqlite, Colors};
+use crate::{config::Colors, sqlite};
 use std::time::{Duration, Instant};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},

@@ -1,3 +1,5 @@
+use crate::sqlite::{Database, State};
+use crate::{config::*, sqlite};
 use crossbeam_channel::{unbounded, Receiver};
 use crossterm::{
     event::{
@@ -6,7 +8,6 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use gonk_core::{sqlite, Bind, Database, Key, Modifier, State, Toml};
 use std::time::Duration;
 use std::time::Instant;
 use std::{

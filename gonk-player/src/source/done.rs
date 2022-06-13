@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{Sample, Source};
+use crate::{conversions::Sample, source::Source};
 
 /// When the inner source is empty this decrements an `AtomicUsize`.
 #[derive(Debug, Clone)]

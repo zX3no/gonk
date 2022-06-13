@@ -1,9 +1,9 @@
 use super::Mode as AppMode;
+use crate::config::Colors;
 use crate::widgets::{Cell, Row, Table, TableState};
-use crate::Frame;
+use crate::{sqlite, Frame};
 use crossterm::event::KeyModifiers;
-use gonk_core::{sqlite, Colors, Index};
-use gonk_player::Player;
+use gonk_player::{Index, Player};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{

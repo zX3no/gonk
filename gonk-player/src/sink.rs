@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use crate::stream::{OutputStreamHandle, PlayError};
-use crate::{queue, source::Done, Sample, Source};
+use crate::{conversions::Sample, queue, source::Done, source::Source};
 
 /// Handle to an device that outputs sounds.
 ///

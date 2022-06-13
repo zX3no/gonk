@@ -1,7 +1,7 @@
+use crate::config::Toml;
 use crate::widgets::{List, ListItem, ListState};
 use crate::Frame;
-use gonk_core::{Index, Toml};
-use gonk_player::{Device, DeviceTrait, Player};
+use gonk_player::{Device, DeviceTrait, Index, Player};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},

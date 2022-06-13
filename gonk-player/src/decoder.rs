@@ -1,4 +1,4 @@
-use crate::Source;
+use crate::source::Source;
 use std::{fmt, fs::File, time::Duration};
 use symphonia::{
     core::{

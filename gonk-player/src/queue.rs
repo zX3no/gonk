@@ -8,8 +8,8 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use crate::conversions::Sample;
 use crate::source::{Empty, Source, Zero};
-use crate::Sample;
 
 /// Builds a new queue. It consists of an input and an output.
 ///

@@ -1,9 +1,8 @@
 #![allow(unused)]
 use crate::widgets::{Cell, List, ListItem, ListState, Row, Table, TableState};
-use crate::{centered_rect, Frame};
+use crate::{centered_rect, sqlite, Frame};
 use crossterm::event::KeyModifiers;
-use gonk_core::{sqlite, Index, Song};
-use gonk_player::Player;
+use gonk_player::{Index, Player, Song};
 use std::io::Stdout;
 use tui::{
     backend::CrosstermBackend,

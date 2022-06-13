@@ -1,30 +1,32 @@
+#![allow(dead_code)]
 use cpal::traits::HostTrait;
 pub use cpal::{
     self, traits::DeviceTrait, Device, Devices, DevicesError, InputDevices, OutputDevices,
     SupportedStreamConfig,
 };
 use decoder::Decoder;
-use gonk_core::{Index, Song};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
-
-mod conversions;
-mod sink;
-mod stream;
-
-pub mod buffer;
-pub mod decoder;
-pub mod dynamic_mixer;
-pub mod queue;
-pub mod source;
-
-pub use crate::conversions::Sample;
-pub use crate::sink::Sink;
-pub use crate::source::Source;
-pub use crate::stream::{OutputStream, OutputStreamHandle, PlayError, StreamError};
-
+use sink::Sink;
+use source::Source;
 use std::fs::File;
 use std::time::Duration;
+use stream::{OutputStream, OutputStreamHandle};
+
+mod buffer;
+mod conversions;
+mod decoder;
+mod dynamic_mixer;
+mod queue;
+mod sink;
+mod source;
+mod stream;
+
+pub mod index;
+pub mod song;
+
+pub use index::Index;
+pub use song::Song;
 
 const VOLUME_STEP: u16 = 5;
 const VOLUME_REDUCTION: f32 = 600.0;

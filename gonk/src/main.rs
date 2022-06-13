@@ -1,5 +1,5 @@
+#![allow(unused)]
 use app::App;
-use gonk_core::sqlite;
 use std::io::{Result, Stdout};
 use tui::{
     backend::CrosstermBackend,
@@ -7,6 +7,9 @@ use tui::{
 };
 
 mod app;
+mod config;
+mod new_config;
+mod sqlite;
 mod widgets;
 
 pub fn centered_rect(width: u16, height: u16, area: Rect) -> Option<Rect> {
@@ -31,6 +34,12 @@ pub fn centered_rect(width: u16, height: u16, area: Rect) -> Option<Rect> {
 pub type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
 fn main() -> Result<()> {
+    // new_config::create_config().unwrap();
+    // let json = new_config::read_config().unwrap();
+    // dbg!(json);
+
+    // return Ok(());
+
     unsafe {
         //Initialize database.
         sqlite::CONN = sqlite::open_database();

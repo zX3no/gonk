@@ -1,7 +1,7 @@
 use std::time::Duration;
 use std::vec::IntoIter as VecIntoIter;
 
-use crate::{Sample, Source};
+use crate::{conversions::Sample, source::Source};
 
 /// A buffer of samples treated as a source.
 pub struct SamplesBuffer<S> {

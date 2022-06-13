@@ -1,6 +1,5 @@
+use crate::{conversions::Sample, source::Source};
 use std::time::Duration;
-
-use crate::{Sample, Source};
 
 /// Internal function that builds a `FadeIn` object.
 pub fn fadein<I>(input: I, duration: Duration) -> FadeIn<I>

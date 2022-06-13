@@ -1,0 +1,14 @@
+{
+  "paths": [
+    "D:/OneDrive/Music"
+  ],
+  "output_device": "",
+  "volume": 15,
+  "color": {
+    "number": "Green",
+    "name": "Cyan",
+    "album": "Magenta",
+    "artist": "Blue",
+    "seeker": "White"
+  }
+}
