@@ -1,5 +1,5 @@
 use super::Mode as AppMode;
-use crate::config::Colors;
+use crate::toml::Colors;
 use crate::widgets::{Cell, Row, Table, TableState};
 use crate::{sqlite, Frame};
 use crossterm::event::KeyModifiers;

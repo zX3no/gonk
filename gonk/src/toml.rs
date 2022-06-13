@@ -1,57 +1,27 @@
+use crate::TOML_DIR;
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
-use static_init::dynamic;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 use tui::style::Color;
 
-#[cfg(windows)]
-use global_hotkeys::{keys, modifiers};
-
-#[dynamic]
-pub static GONK_DIR: PathBuf = {
-    let gonk = dirs::config_dir().unwrap().join("gonk");
-    if !gonk.exists() {
-        std::fs::create_dir_all(&gonk).unwrap();
-    }
-    gonk
-};
-
-#[dynamic]
-pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
-
-#[dynamic]
-pub static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
-
-#[allow(clippy::upper_case_acronyms)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
 pub enum Modifier {
-    CONTROL,
-    SHIFT,
-    ALT,
+    Control,
+    Shift,
+    Alt,
 }
 
 impl Modifier {
-    #[cfg(windows)]
-    pub fn as_u32(&self) -> u32 {
-        match self {
-            Modifier::CONTROL => modifiers::CONTROL,
-            Modifier::SHIFT => modifiers::SHIFT,
-            Modifier::ALT => modifiers::ALT,
-        }
-    }
     pub fn from_bitflags(m: KeyModifiers) -> Option<Vec<Self>> {
         //TODO: this doesn't support triple modfifier combos
         //plus this is stupid, surely there is a better way
         match m.bits() {
-            0b0000_0001 => Some(vec![Modifier::SHIFT]),
-            0b0000_0100 => Some(vec![Modifier::ALT]),
-            0b0000_0010 => Some(vec![Modifier::CONTROL]),
-            3 => Some(vec![Modifier::CONTROL, Modifier::SHIFT]),
-            5 => Some(vec![Modifier::ALT, Modifier::SHIFT]),
-            6 => Some(vec![Modifier::CONTROL, Modifier::ALT]),
+            0b0000_0001 => Some(vec![Modifier::Shift]),
+            0b0000_0100 => Some(vec![Modifier::Alt]),
+            0b0000_0010 => Some(vec![Modifier::Control]),
+            3 => Some(vec![Modifier::Control, Modifier::Shift]),
+            5 => Some(vec![Modifier::Alt, Modifier::Shift]),
+            6 => Some(vec![Modifier::Control, Modifier::Alt]),
             _ => None,
         }
     }
@@ -60,9 +30,9 @@ impl Modifier {
 impl From<&Modifier> for KeyModifiers {
     fn from(m: &Modifier) -> Self {
         match m {
-            Modifier::CONTROL => KeyModifiers::CONTROL,
-            Modifier::SHIFT => KeyModifiers::SHIFT,
-            Modifier::ALT => KeyModifiers::ALT,
+            Modifier::Control => KeyModifiers::CONTROL,
+            Modifier::Shift => KeyModifiers::SHIFT,
+            Modifier::Alt => KeyModifiers::ALT,
         }
     }
 }
@@ -108,53 +78,6 @@ pub struct Bind {
     pub modifiers: Option<Vec<Modifier>>,
 }
 
-impl Bind {
-    pub fn new(key: &str) -> Self {
-        Self {
-            key: Key::from(key),
-            modifiers: None,
-        }
-    }
-
-    #[cfg(windows)]
-    pub fn modifiers(&self) -> u32 {
-        if let Some(m) = &self.modifiers {
-            m.iter().map(Modifier::as_u32).sum()
-        } else {
-            0
-        }
-    }
-
-    #[cfg(windows)]
-    pub fn key(&self) -> u32 {
-        match self.key.0.as_str() {
-            "SPACE" => keys::SPACEBAR,
-            "BACKSPACE" => keys::BACKSPACE,
-            "ENTER" => keys::ENTER,
-            "UP" => keys::ARROW_UP,
-            "DOWN" => keys::ARROW_DOWN,
-            "LEFT" => keys::ARROW_LEFT,
-            "RIGHT" => keys::ARROW_RIGHT,
-            "HOME" => keys::HOME,
-            "END" => keys::END,
-            "PAGEUP" => keys::PAGE_UP,
-            "PAGEDOWN" => keys::PAGE_DOWN,
-            "TAB" => keys::TAB,
-            "DELETE" => keys::DELETE,
-            "INSERT" => keys::INSERT,
-            "ESCAPE" => keys::ESCAPE,
-            "CAPSLOCK" => keys::CAPS_LOCK,
-            key => {
-                if let Some(char) = key.chars().next() {
-                    char as u32
-                } else {
-                    0
-                }
-            }
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Hotkey {
     pub up: Vec<Bind>,
@@ -180,15 +103,6 @@ pub struct Hotkey {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct GlobalHotkey {
-    pub play_pause: Bind,
-    pub volume_up: Bind,
-    pub volume_down: Bind,
-    pub next: Bind,
-    pub previous: Bind,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
     pub paths: Vec<String>,
     pub output_device: String,
@@ -209,7 +123,6 @@ pub struct Toml {
     pub config: Config,
     pub colors: Colors,
     pub hotkey: Hotkey,
-    pub global_hotkey: GlobalHotkey,
 }
 
 impl Toml {
@@ -229,28 +142,6 @@ impl Toml {
                     album: Color::Magenta,
                     artist: Color::Blue,
                     seeker: Color::White,
-                },
-                global_hotkey: GlobalHotkey {
-                    play_pause: Bind {
-                        key: Key::from("CAPSLOCK"),
-                        modifiers: Some(vec![Modifier::SHIFT]),
-                    },
-                    volume_up: Bind {
-                        key: Key::from("2"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    volume_down: Bind {
-                        key: Key::from("1"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    next: Bind {
-                        key: Key::from("W"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
-                    previous: Bind {
-                        key: Key::from("Q"),
-                        modifiers: Some(vec![Modifier::SHIFT, Modifier::ALT]),
-                    },
                 },
                 hotkey: Hotkey {
                     up: vec![
@@ -327,7 +218,7 @@ impl Toml {
                     }],
                     clear_except_playing: vec![Bind {
                         key: Key::from("C"),
-                        modifiers: Some(vec![Modifier::SHIFT]),
+                        modifiers: Some(vec![Modifier::Shift]),
                     }],
                     delete: vec![Bind {
                         key: Key::from("X"),
@@ -355,7 +246,7 @@ impl Toml {
                     }],
                     quit: vec![Bind {
                         key: Key::from("C"),
-                        modifiers: Some(vec![Modifier::CONTROL]),
+                        modifiers: Some(vec![Modifier::Control]),
                     }],
                 },
             };

@@ -1,4 +1,4 @@
-use crate::config::Toml;
+use crate::toml::Toml;
 use crate::widgets::{List, ListItem, ListState};
 use crate::Frame;
 use gonk_player::{Device, DeviceTrait, Index, Player};

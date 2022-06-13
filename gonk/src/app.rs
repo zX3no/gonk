@@ -1,6 +1,5 @@
 use crate::sqlite::{Database, State};
-use crate::{config::*, sqlite};
-use crossbeam_channel::{unbounded, Receiver};
+use crate::{toml::*, sqlite};
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseEventKind,
@@ -29,15 +28,6 @@ mod playlist;
 mod queue;
 mod search;
 mod status_bar;
-
-#[derive(Debug, Clone)]
-enum HotkeyEvent {
-    PlayPause,
-    Next,
-    Prev,
-    VolUp,
-    VolDown,
-}
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Mode {
@@ -150,9 +140,6 @@ impl App {
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut last_tick = Instant::now();
 
-        #[cfg(windows)]
-        let tx = App::register_hotkeys(self.toml.clone());
-
         loop {
             //Update every 200ms.
             if last_tick.elapsed() >= TICK_RATE {
@@ -195,23 +182,6 @@ impl App {
                     self.status_bar.draw(area[1], f, self.busy, &self.queue);
                 }
             })?;
-
-            #[cfg(windows)]
-            if let Ok(recv) = tx.try_recv() {
-                match recv {
-                    HotkeyEvent::VolUp => {
-                        self.queue.player.volume_up();
-                        self.toml.set_volume(self.queue.player.volume);
-                    }
-                    HotkeyEvent::VolDown => {
-                        self.queue.player.volume_down();
-                        self.toml.set_volume(self.queue.player.volume);
-                    }
-                    HotkeyEvent::PlayPause => self.queue.player.toggle_playback(),
-                    HotkeyEvent::Prev => self.queue.player.prev_song(),
-                    HotkeyEvent::Next => self.queue.player.next_song(),
-                }
-            }
 
             if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {
@@ -399,43 +369,6 @@ impl App {
             Mode::Options => self.options.down(),
             Mode::Playlist => self.playlist.down(),
         }
-    }
-
-    #[cfg(windows)]
-    fn register_hotkeys(toml: Toml) -> Receiver<HotkeyEvent> {
-        use global_hotkeys::{keys, modifiers, Listener};
-        let (rx, tx) = unbounded();
-        std::thread::spawn(move || {
-            let mut hk = Listener::<HotkeyEvent>::new();
-            hk.register_hotkey(
-                toml.global_hotkey.volume_up.modifiers(),
-                toml.global_hotkey.volume_up.key(),
-                HotkeyEvent::VolUp,
-            );
-            hk.register_hotkey(
-                toml.global_hotkey.volume_down.modifiers(),
-                toml.global_hotkey.volume_down.key(),
-                HotkeyEvent::VolDown,
-            );
-            hk.register_hotkey(
-                toml.global_hotkey.previous.modifiers(),
-                toml.global_hotkey.previous.key(),
-                HotkeyEvent::Prev,
-            );
-            hk.register_hotkey(
-                toml.global_hotkey.next.modifiers(),
-                toml.global_hotkey.next.key(),
-                HotkeyEvent::Next,
-            );
-            hk.register_hotkey(modifiers::SHIFT, keys::ESCAPE, HotkeyEvent::PlayPause);
-            drop(toml);
-            loop {
-                if let Some(event) = hk.listen() {
-                    rx.send(event.clone()).unwrap();
-                }
-            }
-        });
-        tx
     }
 }
 

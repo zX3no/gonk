@@ -1,4 +1,4 @@
-use crate::config::Colors;
+use crate::toml::Colors;
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crate::Frame;
 use crossterm::event::KeyModifiers;

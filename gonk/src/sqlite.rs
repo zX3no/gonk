@@ -1,3 +1,4 @@
+use crate::DB_DIR;
 use gonk_player::Song;
 use jwalk::WalkDir;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -8,8 +9,6 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
-
-use crate::config::DB_DIR;
 
 pub fn total_songs() -> usize {
     let conn = conn();
@@ -117,12 +116,11 @@ pub fn conn() -> MutexGuard<'static, Connection> {
     unsafe { CONN.as_ref().unwrap().lock().unwrap() }
 }
 
-#[allow(unused)]
 pub fn reset() {
     unsafe {
         CONN = None;
     }
-    std::fs::remove_file(DB_DIR.as_path());
+    let _ = std::fs::remove_file(DB_DIR.as_path());
 }
 
 pub fn add_playlist(name: &str, ids: &[usize]) {

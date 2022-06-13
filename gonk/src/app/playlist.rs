@@ -1,6 +1,6 @@
 #![allow(unused)]
-use crate::widgets::{Cell, List, ListItem, ListState, Row, Table, TableState};
-use crate::{centered_rect, sqlite, Frame};
+use crate::widgets::{centered_rect, Cell, List, ListItem, ListState, Row, Table, TableState};
+use crate::{sqlite, Frame};
 use crossterm::event::KeyModifiers;
 use gonk_player::{Index, Player, Song};
 use std::io::Stdout;
