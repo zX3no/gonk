@@ -1,5 +1,5 @@
 use crate::sqlite::{Database, State};
-use crate::{toml::*, sqlite};
+use crate::{sqlite, toml::*};
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseEventKind,
@@ -186,17 +186,19 @@ impl App {
             if crossterm::event::poll(POLL_RATE)? {
                 match event::read()? {
                     Event::Key(event) => {
+                        let hotkey = &self.toml.hotkey;
+                        let shift = event.modifiers == KeyModifiers::SHIFT;
                         let bind = Bind {
                             key: Key::from(event.code),
                             modifiers: Modifier::from_bitflags(event.modifiers),
                         };
-                        let hotkey = &self.toml.hotkey;
 
-                        if hotkey.quit.contains(&bind) {
+                        //Check if the user wants to exit.
+                        if event.code == KeyCode::Char('C') && shift {
+                            break;
+                        } else if hotkey.quit == bind {
                             break;
                         };
-
-                        let shift = event.modifiers == KeyModifiers::SHIFT;
 
                         match event.code {
                             KeyCode::Char(c)
@@ -209,6 +211,10 @@ impl App {
                             {
                                 self.playlist.on_key(c)
                             }
+                            KeyCode::Up => self.up(),
+                            KeyCode::Down => self.down(),
+                            KeyCode::Left => self.left(),
+                            KeyCode::Right => self.right(),
                             KeyCode::Tab => {
                                 self.mode = match self.mode {
                                     Mode::Browser | Mode::Options => Mode::Queue,
@@ -258,6 +264,13 @@ impl App {
                                 Mode::Playlist => self.playlist.on_escape(&mut self.mode),
                                 _ => (),
                             },
+                            //TODO: Rework mode changing buttons
+                            KeyCode::Char('`') => {
+                                self.status_bar.toggle_hidden();
+                            }
+                            KeyCode::Char(',') => self.mode = Mode::Playlist,
+                            KeyCode::Char('.') => self.mode = Mode::Options,
+                            KeyCode::Char('/') => self.mode = Mode::Search,
                             KeyCode::Char('1' | '!') => {
                                 self.queue.move_constraint(0, event.modifiers);
                             }
@@ -267,71 +280,45 @@ impl App {
                             KeyCode::Char('3' | '#') => {
                                 self.queue.move_constraint(2, event.modifiers);
                             }
-                            //TODO: Add playlist mode to config file.
-                            KeyCode::Char(',') => {
-                                self.mode = Mode::Playlist;
-                            }
-                            //TODO: Add to config file.
-                            KeyCode::Char('`') => {
-                                self.status_bar.toggle_hidden();
-                            }
-                            _ if hotkey.up.contains(&bind) => self.up(),
-                            _ if hotkey.down.contains(&bind) => self.down(),
-                            _ if hotkey.left.contains(&bind) => match self.mode {
-                                Mode::Browser => self.browser.left(),
-                                Mode::Playlist => self.playlist.left(),
-                                _ => (),
-                            },
-                            _ if hotkey.right.contains(&bind) => match self.mode {
-                                Mode::Browser => self.browser.right(),
-                                Mode::Playlist => self.playlist.right(),
-                                _ => (),
-                            },
-                            _ if hotkey.play_pause.contains(&bind) => {
-                                self.queue.player.toggle_playback()
-                            }
-                            _ if hotkey.clear.contains(&bind) => self.queue.clear(),
-                            _ if hotkey.clear_except_playing.contains(&bind) => {
+                            _ if hotkey.up == bind => self.up(),
+                            _ if hotkey.down == bind => self.down(),
+                            _ if hotkey.left == bind => self.left(),
+                            _ if hotkey.right == bind => self.right(),
+                            _ if hotkey.play_pause == bind => self.queue.player.toggle_playback(),
+                            _ if hotkey.clear == bind => self.queue.clear(),
+                            _ if hotkey.clear_except_playing == bind => {
                                 self.queue.clear_except_playing();
                             }
-                            _ if hotkey.refresh_database.contains(&bind)
-                                && self.mode == Mode::Browser =>
-                            {
+                            _ if hotkey.refresh_database == bind && self.mode == Mode::Browser => {
                                 let paths = self.toml.paths();
                                 self.db.add_paths(paths);
                             }
-                            _ if hotkey.seek_backward.contains(&bind)
-                                && self.mode != Mode::Search =>
-                            {
+                            _ if hotkey.seek_backward == bind && self.mode != Mode::Search => {
                                 self.queue.player.seek_by(-SEEK_TIME)
                             }
-                            _ if hotkey.seek_forward.contains(&bind)
-                                && self.mode != Mode::Search =>
-                            {
+                            _ if hotkey.seek_forward == bind && self.mode != Mode::Search => {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
-                            _ if hotkey.previous.contains(&bind) && self.mode != Mode::Search => {
+                            _ if hotkey.previous == bind && self.mode != Mode::Search => {
                                 self.queue.player.prev_song()
                             }
-                            _ if hotkey.next.contains(&bind) && self.mode != Mode::Search => {
+                            _ if hotkey.next == bind && self.mode != Mode::Search => {
                                 self.queue.player.next_song()
                             }
-                            _ if hotkey.volume_up.contains(&bind) => {
+                            _ if hotkey.volume_up == bind => {
                                 self.queue.player.volume_up();
                                 self.toml.set_volume(self.queue.player.volume);
                             }
-                            _ if hotkey.volume_down.contains(&bind) => {
+                            _ if hotkey.volume_down == bind => {
                                 self.queue.player.volume_down();
                                 self.toml.set_volume(self.queue.player.volume);
                             }
-                            _ if hotkey.search.contains(&bind) => self.mode = Mode::Search,
-                            _ if hotkey.options.contains(&bind) => self.mode = Mode::Options,
-                            _ if hotkey.delete.contains(&bind) => match self.mode {
+                            _ if hotkey.delete == bind => match self.mode {
                                 Mode::Queue => self.queue.delete(),
                                 Mode::Playlist => self.playlist.delete(),
                                 _ => (),
                             },
-                            _ if hotkey.random.contains(&bind) => self.queue.player.randomize(),
+                            _ if hotkey.random == bind => self.queue.player.randomize(),
                             _ => (),
                         }
                     }
@@ -349,6 +336,22 @@ impl App {
         }
 
         Ok(())
+    }
+
+    fn left(&mut self) {
+        match self.mode {
+            Mode::Browser => self.browser.left(),
+            Mode::Playlist => self.playlist.left(),
+            _ => (),
+        }
+    }
+
+    fn right(&mut self) {
+        match self.mode {
+            Mode::Browser => self.browser.right(),
+            Mode::Playlist => self.playlist.right(),
+            _ => (),
+        }
     }
 
     fn up(&mut self) {

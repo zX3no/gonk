@@ -13,8 +13,6 @@ pub enum Modifier {
 
 impl Modifier {
     pub fn from_bitflags(m: KeyModifiers) -> Option<Vec<Self>> {
-        //TODO: this doesn't support triple modfifier combos
-        //plus this is stupid, surely there is a better way
         match m.bits() {
             0b0000_0001 => Some(vec![Modifier::Shift]),
             0b0000_0100 => Some(vec![Modifier::Alt]),
@@ -22,17 +20,8 @@ impl Modifier {
             3 => Some(vec![Modifier::Control, Modifier::Shift]),
             5 => Some(vec![Modifier::Alt, Modifier::Shift]),
             6 => Some(vec![Modifier::Control, Modifier::Alt]),
+            7 => Some(vec![Modifier::Control, Modifier::Alt, Modifier::Shift]),
             _ => None,
-        }
-    }
-}
-
-impl From<&Modifier> for KeyModifiers {
-    fn from(m: &Modifier) -> Self {
-        match m {
-            Modifier::Control => KeyModifiers::CONTROL,
-            Modifier::Shift => KeyModifiers::SHIFT,
-            Modifier::Alt => KeyModifiers::ALT,
         }
     }
 }
@@ -80,26 +69,23 @@ pub struct Bind {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Hotkey {
-    pub up: Vec<Bind>,
-    pub down: Vec<Bind>,
-    pub left: Vec<Bind>,
-    pub right: Vec<Bind>,
-    pub play_pause: Vec<Bind>,
-    pub volume_up: Vec<Bind>,
-    pub volume_down: Vec<Bind>,
-    pub next: Vec<Bind>,
-    pub previous: Vec<Bind>,
-    pub seek_forward: Vec<Bind>,
-    pub seek_backward: Vec<Bind>,
-    pub clear: Vec<Bind>,
-    pub clear_except_playing: Vec<Bind>,
-    pub delete: Vec<Bind>,
-    pub search: Vec<Bind>,
-    pub options: Vec<Bind>,
-    pub random: Vec<Bind>,
-    pub change_mode: Vec<Bind>,
-    pub refresh_database: Vec<Bind>,
-    pub quit: Vec<Bind>,
+    pub up: Bind,
+    pub down: Bind,
+    pub left: Bind,
+    pub right: Bind,
+    pub play_pause: Bind,
+    pub volume_up: Bind,
+    pub volume_down: Bind,
+    pub next: Bind,
+    pub previous: Bind,
+    pub seek_forward: Bind,
+    pub seek_backward: Bind,
+    pub clear: Bind,
+    pub clear_except_playing: Bind,
+    pub delete: Bind,
+    pub random: Bind,
+    pub refresh_database: Bind,
+    pub quit: Bind,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -144,110 +130,74 @@ impl Toml {
                     seeker: Color::White,
                 },
                 hotkey: Hotkey {
-                    up: vec![
-                        Bind {
-                            key: Key::from("K"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("UP"),
-                            modifiers: None,
-                        },
-                    ],
-                    down: vec![
-                        Bind {
-                            key: Key::from("J"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("DOWN"),
-                            modifiers: None,
-                        },
-                    ],
-                    left: vec![
-                        Bind {
-                            key: Key::from("H"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("LEFT"),
-                            modifiers: None,
-                        },
-                    ],
-                    right: vec![
-                        Bind {
-                            key: Key::from("L"),
-                            modifiers: None,
-                        },
-                        Bind {
-                            key: Key::from("RIGHT"),
-                            modifiers: None,
-                        },
-                    ],
-                    play_pause: vec![Bind {
+                    up: Bind {
+                        key: Key::from("K"),
+                        modifiers: None,
+                    },
+                    down: Bind {
+                        key: Key::from("J"),
+                        modifiers: None,
+                    },
+                    left: Bind {
+                        key: Key::from("H"),
+                        modifiers: None,
+                    },
+                    right: Bind {
+                        key: Key::from("L"),
+                        modifiers: None,
+                    },
+                    play_pause: Bind {
                         key: Key::from("SPACE"),
                         modifiers: None,
-                    }],
-                    volume_up: vec![Bind {
+                    },
+                    volume_up: Bind {
                         key: Key::from("W"),
                         modifiers: None,
-                    }],
-                    volume_down: vec![Bind {
+                    },
+                    volume_down: Bind {
                         key: Key::from("S"),
                         modifiers: None,
-                    }],
-                    seek_forward: vec![Bind {
+                    },
+                    seek_forward: Bind {
                         key: Key::from("E"),
                         modifiers: None,
-                    }],
-                    seek_backward: vec![Bind {
+                    },
+                    seek_backward: Bind {
                         key: Key::from("Q"),
                         modifiers: None,
-                    }],
-                    next: vec![Bind {
+                    },
+                    next: Bind {
                         key: Key::from("D"),
                         modifiers: None,
-                    }],
-                    previous: vec![Bind {
+                    },
+                    previous: Bind {
                         key: Key::from("A"),
                         modifiers: None,
-                    }],
-                    clear: vec![Bind {
+                    },
+                    clear: Bind {
                         key: Key::from("C"),
                         modifiers: None,
-                    }],
-                    clear_except_playing: vec![Bind {
+                    },
+                    clear_except_playing: Bind {
                         key: Key::from("C"),
                         modifiers: Some(vec![Modifier::Shift]),
-                    }],
-                    delete: vec![Bind {
+                    },
+                    delete: Bind {
                         key: Key::from("X"),
                         modifiers: None,
-                    }],
-                    search: vec![Bind {
-                        key: Key::from("/"),
-                        modifiers: None,
-                    }],
-                    options: vec![Bind {
-                        key: Key::from("."),
-                        modifiers: None,
-                    }],
-                    random: vec![Bind {
+                    },
+                    random: Bind {
                         key: Key::from("R"),
                         modifiers: None,
-                    }],
-                    change_mode: vec![Bind {
-                        key: Key::from("TAB"),
-                        modifiers: None,
-                    }],
-                    refresh_database: vec![Bind {
+                    },
+                    refresh_database: Bind {
                         key: Key::from("U"),
                         modifiers: None,
-                    }],
-                    quit: vec![Bind {
+                    },
+                    quit: Bind {
                         key: Key::from("C"),
                         modifiers: Some(vec![Modifier::Control]),
-                    }],
+                    },
                 },
             };
 
