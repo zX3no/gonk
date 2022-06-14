@@ -23,10 +23,11 @@ pub struct SampleProcessor {
     pub converter: SampleRateConverter,
     pub finished: bool,
     pub left: bool,
+    pub volume: f32,
 }
 
 impl SampleProcessor {
-    pub fn new(sample_rate: Option<u32>, path: impl AsRef<Path>) -> Self {
+    pub fn new(sample_rate: Option<u32>, path: impl AsRef<Path>, volume: f32) -> Self {
         let source = Box::new(File::open(path).unwrap());
 
         let mss = MediaSourceStream::new(source, Default::default());
@@ -79,12 +80,13 @@ impl SampleProcessor {
             ),
             finished: false,
             left: true,
+            volume,
         }
     }
     pub fn next_sample(&mut self) -> f32 {
         loop {
             if let Some(sample) = self.converter.next() {
-                return sample * 0.1;
+                return sample * self.volume;
             } else {
                 self.update();
             }

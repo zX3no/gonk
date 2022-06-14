@@ -21,6 +21,9 @@ pub use cpal::Device;
 pub use index::Index;
 pub use song::Song;
 
+const VOLUME_STEP: u16 = 5;
+const VOLUME_REDUCTION: f32 = 600.0;
+
 #[derive(Debug)]
 pub enum Event {
     Play,
@@ -28,6 +31,7 @@ pub enum Event {
     Stop,
     SeekBy(f32),
     SeekTo(f32),
+    Volume(f32),
 }
 
 pub struct Player {
@@ -144,8 +148,40 @@ impl Player {
         self.songs.down();
         self.play_selected();
     }
-    pub fn volume_up(&self) {}
-    pub fn volume_down(&self) {}
+    pub fn volume_up(&mut self) {
+        self.volume += VOLUME_STEP;
+
+        if self.volume > 100 {
+            self.volume = 100;
+        }
+
+        self.update_volume();
+    }
+    pub fn volume_down(&mut self) {
+        if self.volume != 0 {
+            self.volume -= VOLUME_STEP;
+        }
+
+        self.update_volume();
+    }
+    fn update_volume(&self) {
+        self.s.send(Event::Volume(self.real_volume())).unwrap();
+    }
+    fn real_volume(&self) -> f32 {
+        if let Some(song) = self.songs.selected() {
+            let volume = self.volume as f32 / VOLUME_REDUCTION;
+            //Calculate the volume with gain
+            if song.track_gain == 0.0 {
+                //Reduce the volume a little to match
+                //songs with replay gain information.
+                volume * 0.75
+            } else {
+                volume * song.track_gain as f32
+            }
+        } else {
+            self.volume as f32 / VOLUME_REDUCTION
+        }
+    }
     pub fn is_playing(&self) -> bool {
         self.playing
     }
@@ -180,6 +216,7 @@ impl Player {
         let r = self.r.clone();
         let duration = self.duration.clone();
         let elapsed = self.elapsed.clone();
+        let volume = self.real_volume();
 
         thread::spawn(move || {
             let device = cpal::default_host().default_output_device().unwrap();
@@ -188,6 +225,7 @@ impl Player {
             let processor = Arc::new(RwLock::new(SampleProcessor::new(
                 Some(config.sample_rate().0),
                 path,
+                volume,
             )));
 
             //Update the duration;
@@ -220,6 +258,7 @@ impl Player {
                         Event::Pause => stream.pause().unwrap(),
                         Event::SeekBy(duration) => processor.write().unwrap().seek_by(duration),
                         Event::SeekTo(duration) => processor.write().unwrap().seek_to(duration),
+                        Event::Volume(volume) => processor.write().unwrap().volume = volume,
                         Event::Stop => break,
                     }
                 }
