@@ -19,6 +19,7 @@ pub struct SampleProcessor {
     pub spec: SignalSpec,
     pub capacity: u64,
     pub duration: Duration,
+    pub elapsed: Duration,
     pub converter: SampleRateConverter,
     pub finished: bool,
     pub left: bool,
@@ -70,6 +71,7 @@ impl SampleProcessor {
             spec,
             capacity,
             duration,
+            elapsed: Duration::default(),
             converter: SampleRateConverter::new(
                 sample_buffer.samples().to_vec().into_iter(),
                 spec.rate,
@@ -96,6 +98,13 @@ impl SampleProcessor {
                 buffer.copy_interleaved_ref(decoded);
 
                 self.converter.update(buffer.samples().to_vec().into_iter());
+
+                //Update elapsed
+                let ts = packet.ts();
+                let track = self.format.default_track().unwrap();
+                let tb = track.codec_params.time_base.unwrap();
+                let t = tb.calc_time(ts);
+                self.elapsed = Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
             }
             Err(e) => match e {
                 symphonia::core::errors::Error::IoError(_) => self.finished = true,

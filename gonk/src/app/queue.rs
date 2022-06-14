@@ -332,7 +332,7 @@ impl Queue {
             );
         }
 
-        let elapsed = self.player.elapsed();
+        let elapsed = self.player.elapsed().as_secs_f32();
         let duration = self.player.duration().as_secs_f32();
 
         let seeker = format!(

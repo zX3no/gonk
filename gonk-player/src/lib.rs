@@ -37,6 +37,7 @@ pub struct Player {
     volume: u16,
     songs: Index<Song>,
     duration: Arc<RwLock<Duration>>,
+    elapsed: Arc<RwLock<Duration>>,
 }
 
 impl Player {
@@ -45,9 +46,10 @@ impl Player {
         Self {
             s,
             r,
-            playing: true,
+            playing: false,
             volume,
             duration: Arc::new(RwLock::new(Duration::default())),
+            elapsed: Arc::new(RwLock::new(Duration::default())),
             songs: Index::default(),
         }
     }
@@ -58,6 +60,9 @@ impl Player {
     }
     pub fn duration(&self) -> Duration {
         *self.duration.read().unwrap()
+    }
+    pub fn elapsed(&self) -> Duration {
+        *self.elapsed.read().unwrap()
     }
     pub fn is_empty(&self) -> bool {
         self.songs.is_empty()
@@ -145,9 +150,7 @@ impl Player {
         self.s.send(Event::Play).unwrap();
         self.playing = true;
     }
-    pub fn elapsed(&self) -> f32 {
-        0.0
-    }
+
     pub fn get_index(&self) -> &Index<Song> {
         &self.songs
     }
@@ -170,6 +173,8 @@ impl Player {
     fn run(&self, path: PathBuf) {
         let r = self.r.clone();
         let duration = self.duration.clone();
+        let elapsed = self.elapsed.clone();
+
         thread::spawn(move || {
             let device = cpal::default_host().default_output_device().unwrap();
             let config = device.default_output_config().unwrap();
@@ -201,7 +206,9 @@ impl Player {
             stream.play().unwrap();
 
             loop {
-                if let Ok(event) = r.recv() {
+                *elapsed.write().unwrap() = processor.read().unwrap().elapsed;
+
+                if let Ok(event) = r.recv_timeout(Duration::from_millis(16)) {
                     dbg!(&event);
                     match event {
                         Event::Play => stream.play().unwrap(),
