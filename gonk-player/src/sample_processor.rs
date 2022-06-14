@@ -1,9 +1,10 @@
 use crate::sample_rate::SampleRateConverter;
-use std::{fs::File, path::Path, time::Duration};
+use std::{fs::File, io::ErrorKind, path::Path, time::Duration};
 use symphonia::{
     core::{
         audio::{SampleBuffer, SignalSpec},
         codecs::{Decoder, DecoderOptions},
+        errors::Error,
         formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
         io::MediaSourceStream,
         meta::MetadataOptions,
@@ -113,13 +114,16 @@ impl SampleProcessor {
                     break;
                 }
                 Err(e) => match e {
-                    symphonia::core::errors::Error::DecodeError(_) => {
+                    Error::DecodeError(e) => {
                         decode_errors += 1;
                         if decode_errors > MAX_DECODE_ERRORS {
                             panic!("{:?}", e);
                         }
                     }
-                    _ => (),
+                    Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
+                        self.finished = true;
+                    }
+                    _ => panic!("{:?}", e),
                 },
             };
         }

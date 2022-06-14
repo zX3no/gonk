@@ -58,10 +58,9 @@ impl Player {
         }
     }
     pub fn update(&mut self) {
-        // if self.elapsed() > self.duration {
-        //     self.next_song();
-        // }
+        //TODO: Check if the song is finished playing and skip to next one.
     }
+
     pub fn duration(&self) -> Duration {
         *self.duration.read().unwrap()
     }
