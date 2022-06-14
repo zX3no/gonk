@@ -252,7 +252,7 @@ impl Toml {
         fs::write(TOML_DIR.as_path(), toml).expect("Could not write toml flie.");
     }
     pub fn reset(&mut self) {
-        self.config.paths = Vec::new();
+        *self = Self::default();
         self.write();
     }
 }

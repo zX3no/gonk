@@ -80,8 +80,7 @@ impl App {
                         "reset" => {
                             sqlite::reset();
                             toml.reset();
-                            println!("Database reset!");
-                            return Err(String::new());
+                            return Err(String::from("Files reset!"));
                         }
                         "help" | "--help" => {
                             println!("Usage");
@@ -94,8 +93,7 @@ impl App {
                             return Err(String::new());
                         }
                         _ => {
-                            println!("Invalid command.");
-                            return Err(String::new());
+                            return Err(String::from("Invalid command."));
                         }
                     }
                 }
