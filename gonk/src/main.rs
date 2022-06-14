@@ -42,12 +42,6 @@ fn main() -> Result<()> {
 
     match App::new() {
         Ok(mut app) => app.run(),
-        Err(err) => {
-            return if err.is_empty() {
-                Ok(())
-            } else {
-                Ok(println!("{}", err))
-            }
-        }
+        Err(err) => Ok(println!("{}", err)),
     }
 }

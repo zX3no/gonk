@@ -89,12 +89,9 @@ impl App {
                             println!("Options");
                             println!("   add   <path>  Add music to the library");
                             println!("   reset         Reset the database");
-                            println!();
                             return Err(String::new());
                         }
-                        _ => {
-                            return Err(String::from("Invalid command."));
-                        }
+                        _ => return Err(String::from("Invalid command.")),
                     }
                 }
 
@@ -139,8 +136,8 @@ impl App {
         let mut last_tick = Instant::now();
 
         loop {
-            //Update every 200ms.
             if last_tick.elapsed() >= TICK_RATE {
+                //Update the status_bar at a constant rate.
                 self.status_bar.update(self.busy, &self.queue);
                 last_tick = Instant::now();
             }
