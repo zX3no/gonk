@@ -118,7 +118,7 @@ impl App {
                 Ok(Self {
                     terminal,
                     mode: Mode::Browser,
-                    queue: Queue::new(toml.volume(), toml.colors),
+                    queue: Queue::new(toml.config.volume, toml.colors),
                     browser: Browser::new(),
                     options: Options::new(&mut toml),
                     search: Search::new(toml.colors).init(),
@@ -168,7 +168,7 @@ impl App {
                 match self.mode {
                     Mode::Browser => self.browser.draw(top, f),
                     Mode::Queue => self.queue.draw(f),
-                    Mode::Options => self.options.draw(top, f, &self.toml),
+                    Mode::Options => self.options.draw(top, f),
                     Mode::Search => self.search.draw(top, f),
                     Mode::Playlist => self.playlist.draw(top, f),
                 };
@@ -285,8 +285,7 @@ impl App {
                                 self.queue.clear_except_playing();
                             }
                             _ if hotkey.refresh_database == bind && self.mode == Mode::Browser => {
-                                let paths = self.toml.paths();
-                                self.db.add_paths(paths);
+                                self.db.add_paths(&self.toml.config.paths);
                             }
                             _ if hotkey.seek_backward == bind && self.mode != Mode::Search => {
                                 self.queue.player.seek_by(-SEEK_TIME)

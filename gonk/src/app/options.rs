@@ -10,31 +10,27 @@ use tui::{
 
 pub struct Options {
     pub devices: Index<Device>,
+    current_device: String,
 }
 
 impl Options {
     pub fn new(toml: &mut Toml) -> Self {
-        let devices = Index::new(Player::output_devices(), Some(0));
-        let config_device = toml.output_device();
-        let default_device = Player::default_device().unwrap().name().unwrap();
+        let default_device = Player::default_device();
+        let mut config_device = toml.config.output_device.clone();
 
-        let mut data: Vec<_> = devices
-            .data
-            .iter()
-            .flat_map(gonk_player::DeviceTrait::name)
-            .collect();
+        let devices = Player::audio_devices();
+        let device_names: Vec<String> = devices.iter().flat_map(DeviceTrait::name).collect();
 
-        data.retain(|name| name == config_device);
+        if !device_names.contains(&config_device) {
+            let name = default_device.name().unwrap();
+            config_device = name.clone();
+            toml.set_output_device(name);
+        }
 
-        let device = if data.is_empty() {
-            default_device
-        } else {
-            config_device.to_string()
-        };
-
-        toml.set_output_device(device);
-
-        Self { devices }
+        Self {
+            devices: Index::new(devices, Some(0)),
+            current_device: config_device,
+        }
     }
     pub fn up(&mut self) {
         self.devices.up();
@@ -45,24 +41,28 @@ impl Options {
     pub fn on_enter(&mut self, player: &mut Player, toml: &mut Toml) {
         if let Some(device) = self.devices.selected() {
             //don't update the device if there is an error
-            if player.change_output_device(device) {
-                toml.set_output_device(device.name().expect("Device has no name!"));
+            match player.change_output_device(device) {
+                Ok(_) => {
+                    let name = device.name().unwrap();
+                    self.current_device = name.clone();
+                    toml.set_output_device(name);
+                }
+                //TODO: Print error in status bar
+                Err(e) => panic!("{:?}", e),
             }
         }
     }
 }
 
 impl Options {
-    pub fn draw(&self, area: Rect, f: &mut Frame, toml: &Toml) {
-        let default_device = toml.output_device();
-
+    pub fn draw(&self, area: Rect, f: &mut Frame) {
         let items: Vec<_> = self
             .devices
             .data
             .iter()
             .map(|device| {
-                let name = device.name().expect("Device has no name!");
-                if &name == default_device {
+                let name = device.name().unwrap();
+                if name == self.current_device {
                     ListItem::new(name)
                 } else {
                     ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))

@@ -211,33 +211,32 @@ impl Player {
             self.next_song();
         }
     }
-    pub fn output_devices() -> Vec<Device> {
+    pub fn audio_devices() -> Vec<Device> {
         let host_id = cpal::default_host().id();
         let host = cpal::host_from_id(host_id).unwrap();
 
         //FIXME: Getting just the output devies was too slow(150ms).
-        //Instead collect every device available.
-        //If this was done lazily the user probably wouldn't notice
-        //since the settings menu gets the least amount of use.
+        //Collecting every device is still slow but it's not as bad.
         host.devices().unwrap().collect()
     }
-    pub fn default_device() -> Option<Device> {
-        cpal::default_host().default_output_device()
+    pub fn default_device() -> Device {
+        cpal::default_host().default_output_device().unwrap()
     }
-    //FIXME: This function returns a bool so updating
-    //the config can be skipped when selecting an input.
-    pub fn change_output_device(&mut self, device: &Device) -> bool {
-        //temp fix so that changing to an input doesn't crash
-        if let Ok((stream, handle)) = OutputStream::try_from_device(device) {
-            let pos = self.elapsed();
-            self.stop();
-            self.stream = stream;
-            self.handle = handle;
-            self.play_selected();
-            self.seek_to(pos);
-            true
-        } else {
-            false
+    pub fn change_output_device(&mut self, device: &Device) -> Result<(), stream::StreamError> {
+        match OutputStream::try_from_device(device) {
+            Ok((stream, handle)) => {
+                let pos = self.elapsed();
+                self.stop();
+                self.stream = stream;
+                self.handle = handle;
+                self.play_selected();
+                self.seek_to(pos);
+                Ok(())
+            }
+            Err(e) => match e {
+                stream::StreamError::DefaultStreamConfigError(_) => Ok(()),
+                _ => Err(e),
+            },
         }
     }
 }

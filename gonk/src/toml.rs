@@ -224,15 +224,6 @@ impl Toml {
         }
         Ok(self)
     }
-    pub fn volume(&self) -> u16 {
-        self.config.volume
-    }
-    pub fn paths(&self) -> &[String] {
-        &self.config.paths
-    }
-    pub fn output_device(&self) -> &str {
-        &self.config.output_device
-    }
     pub fn add_path(&mut self, path: String) {
         if !self.config.paths.contains(&path) {
             self.config.paths.push(path);
