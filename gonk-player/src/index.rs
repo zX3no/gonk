@@ -69,9 +69,6 @@ impl<T> Index<T> {
     pub fn select(&mut self, i: Option<usize>) {
         self.index = i;
     }
-    pub fn is_none(&self) -> bool {
-        self.index.is_none()
-    }
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }

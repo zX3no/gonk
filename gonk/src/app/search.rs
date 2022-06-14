@@ -465,7 +465,7 @@ impl Search {
         let area = f.size();
         //Move the cursor position when typing
         if let Mode::Search = self.mode {
-            if self.results.is_none() && self.query.is_empty() {
+            if self.results.selected().is_none() && self.query.is_empty() {
                 f.set_cursor(1, 1);
             } else {
                 let len = self.query.len() as u16;

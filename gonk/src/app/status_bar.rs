@@ -1,6 +1,6 @@
 use super::queue::Queue;
 use crate::Frame;
-use crate::{toml::Colors, sqlite};
+use crate::{sqlite, toml::Colors};
 use std::time::{Duration, Instant};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -106,7 +106,7 @@ impl StatusBar {
         } else if self.wait_timer.is_some() {
             Spans::from(self.scan_message.as_str())
         } else {
-            if let Some(song) = queue.selected() {
+            if let Some(song) = queue.player.selected_song() {
                 Spans::from(vec![
                     Span::raw(" "),
                     Span::styled(
@@ -144,10 +144,10 @@ impl StatusBar {
 
         //TODO: Draw mini progress bar here.
 
-        let text = if queue.player.is_paused() {
-            String::from("Paused ")
+        let text = if queue.player.is_playing() {
+            format!("Vol: {}% ", queue.player.get_volume())
         } else {
-            format!("Vol: {}% ", queue.player.volume)
+            String::from("Paused ")
         };
 
         f.render_widget(

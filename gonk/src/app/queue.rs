@@ -2,7 +2,7 @@ use crate::toml::Colors;
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crate::Frame;
 use crossterm::event::KeyModifiers;
-use gonk_player::{Index, Player, Song};
+use gonk_player::{Index, Player};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
@@ -28,7 +28,7 @@ impl Queue {
         }
     }
     pub fn update(&mut self) {
-        if self.ui.is_none() && !self.player.songs.is_empty() {
+        if self.ui.selected().is_none() && !self.player.is_empty() {
             self.ui.select(Some(0));
         }
         self.player.update();
@@ -51,10 +51,10 @@ impl Queue {
         );
     }
     pub fn up(&mut self) {
-        self.ui.up_with_len(self.player.songs.len());
+        self.ui.up_with_len(self.player.total_songs());
     }
     pub fn down(&mut self) {
-        self.ui.down_with_len(self.player.songs.len());
+        self.ui.down_with_len(self.player.total_songs());
     }
     pub fn clear(&mut self) {
         self.player.clear();
@@ -66,16 +66,13 @@ impl Queue {
     }
     pub fn delete(&mut self) {
         if let Some(i) = self.ui.index() {
-            self.player.delete_song(i);
+            self.player.delete_index(i);
             //make sure the ui index is in sync
-            let len = self.player.songs.len().saturating_sub(1);
+            let len = self.player.total_songs().saturating_sub(1);
             if i > len {
                 self.ui.select(Some(len));
             }
         }
-    }
-    pub fn selected(&self) -> Option<&Song> {
-        self.player.songs.selected()
     }
 }
 
@@ -102,8 +99,8 @@ impl Queue {
 
             //Mouse support for the seek bar.
             if (size.height - 2 == y || size.height - 1 == y) && size.height > 15 {
-                let ratio = f64::from(x) / f64::from(size.width);
-                let duration = self.player.duration;
+                let ratio = x as f32 / size.width as f32;
+                let duration = self.player.duration();
                 let new_time = duration * ratio;
                 self.player.seek_to(new_time);
                 self.clicked_pos = None;
@@ -117,7 +114,7 @@ impl Queue {
 
                     //Make sure you didn't click on the seek bar
                     //and that the song index exists.
-                    if index < self.player.songs.len()
+                    if index < self.player.total_songs()
                         && ((size.height < 15 && y < size.height.saturating_sub(1))
                             || y < size.height.saturating_sub(3))
                     {
@@ -138,9 +135,9 @@ impl Queue {
             area,
         );
 
-        let state = if self.player.songs.is_empty() {
+        let state = if self.player.is_empty() {
             String::from("╭─Stopped")
-        } else if !self.player.is_paused() {
+        } else if self.player.is_playing() {
             String::from("╭─Playing")
         } else {
             String::from("╭─Paused")
@@ -148,15 +145,15 @@ impl Queue {
 
         f.render_widget(Paragraph::new(state).alignment(Alignment::Left), area);
 
-        if !self.player.songs.is_empty() {
+        if !self.player.is_empty() {
             self.draw_title(f, area);
         }
 
-        let volume = Spans::from(format!("Vol: {}%─╮", self.player.volume));
+        let volume = Spans::from(format!("Vol: {}%─╮", self.player.get_volume()));
         f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
     }
     fn draw_title(&mut self, f: &mut Frame, area: Rect) {
-        let title = if let Some(song) = self.player.songs.selected() {
+        let title = if let Some(song) = self.player.selected_song() {
             let mut name = song.name.trim_end().to_string();
             let mut album = song.album.trim_end().to_string();
             let mut artist = song.artist.trim_end().to_string();
@@ -198,7 +195,7 @@ impl Queue {
         f.render_widget(Paragraph::new(title).alignment(Alignment::Center), area);
     }
     fn draw_body(&mut self, f: &mut Frame, area: Rect) -> Option<(usize, usize)> {
-        if self.player.songs.is_empty() {
+        if self.player.is_empty() {
             if self.clicked_pos.is_some() {
                 self.clicked_pos = None;
             }
@@ -212,11 +209,8 @@ impl Queue {
             return None;
         }
 
-        let (songs, player_index, ui_index) = (
-            &self.player.songs.data,
-            self.player.songs.index(),
-            self.ui.index(),
-        );
+        let songs = self.player.get_index();
+        let (songs, player_index, ui_index) = (&songs.data, songs.index(), self.ui.index());
 
         let mut items: Vec<Row> = songs
             .iter()
@@ -329,7 +323,7 @@ impl Queue {
         Some(row_bounds)
     }
     fn draw_seeker(&mut self, f: &mut Frame, area: Rect) {
-        if self.player.songs.is_empty() {
+        if self.player.is_empty() {
             return f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
@@ -339,7 +333,7 @@ impl Queue {
         }
 
         let elapsed = self.player.elapsed();
-        let duration = self.player.duration;
+        let duration = self.player.duration();
 
         let seeker = format!(
             "{:02}:{:02}/{:02}:{:02}",
@@ -349,7 +343,7 @@ impl Queue {
             duration.trunc() as u32 % 60,
         );
 
-        let ratio = self.player.elapsed() / self.player.duration;
+        let ratio = self.player.elapsed() / self.player.duration();
         let ratio = if ratio.is_nan() {
             0.0
         } else {
@@ -364,7 +358,7 @@ impl Queue {
                         .border_type(BorderType::Rounded),
                 )
                 .gauge_style(Style::default().fg(self.colors.seeker))
-                .ratio(ratio)
+                .ratio(ratio as f64)
                 .label(seeker),
             area,
         );

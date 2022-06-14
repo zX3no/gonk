@@ -40,7 +40,7 @@ pub enum Mode {
 
 const TICK_RATE: Duration = Duration::from_millis(200);
 const POLL_RATE: Duration = Duration::from_millis(4);
-const SEEK_TIME: f64 = 10.0;
+const SEEK_TIME: f32 = 10.0;
 
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -230,7 +230,7 @@ impl App {
                                     self.mode = Mode::Playlist;
                                 }
                                 Mode::Queue => {
-                                    if let Some(song) = self.queue.selected() {
+                                    if let Some(song) = self.queue.player.selected_song() {
                                         self.playlist.add_to_playlist(&[song.clone()]);
                                         self.mode = Mode::Playlist;
                                     }
@@ -244,7 +244,7 @@ impl App {
                                 }
                                 Mode::Queue => {
                                     if let Some(i) = self.queue.ui.index() {
-                                        self.queue.player.play_song(i);
+                                        self.queue.player.play_index(i);
                                     }
                                 }
                                 Mode::Search => self.search.on_enter(&mut self.queue.player),
@@ -294,18 +294,18 @@ impl App {
                                 self.queue.player.seek_by(SEEK_TIME)
                             }
                             _ if hotkey.previous == bind && self.mode != Mode::Search => {
-                                self.queue.player.prev_song()
+                                self.queue.player.previous()
                             }
                             _ if hotkey.next == bind && self.mode != Mode::Search => {
-                                self.queue.player.next_song()
+                                self.queue.player.next()
                             }
                             _ if hotkey.volume_up == bind => {
                                 self.queue.player.volume_up();
-                                self.toml.set_volume(self.queue.player.volume);
+                                self.toml.set_volume(self.queue.player.get_volume());
                             }
                             _ if hotkey.volume_down == bind => {
                                 self.queue.player.volume_down();
-                                self.toml.set_volume(self.queue.player.volume);
+                                self.toml.set_volume(self.queue.player.get_volume());
                             }
                             _ if hotkey.delete == bind => match self.mode {
                                 Mode::Queue => self.queue.delete(),
