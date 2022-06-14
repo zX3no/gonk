@@ -136,8 +136,14 @@ impl Player {
             self.play();
         }
     }
-    pub fn previous(&self) {}
-    pub fn next(&self) {}
+    pub fn previous(&mut self) {
+        self.songs.up();
+        self.play_selected();
+    }
+    pub fn next(&mut self) {
+        self.songs.down();
+        self.play_selected();
+    }
     pub fn volume_up(&self) {}
     pub fn volume_down(&self) {}
     pub fn is_playing(&self) -> bool {
@@ -209,13 +215,11 @@ impl Player {
                 *elapsed.write().unwrap() = processor.read().unwrap().elapsed;
 
                 if let Ok(event) = r.recv_timeout(Duration::from_millis(16)) {
-                    dbg!(&event);
                     match event {
                         Event::Play => stream.play().unwrap(),
                         Event::Pause => stream.pause().unwrap(),
-                        Event::SeekBy(_) => (),
-                        Event::SeekTo(_) => (),
-                        // Event::Seek(duration) => processor.write().unwrap().seek_to(duration),
+                        Event::SeekBy(duration) => processor.write().unwrap().seek_by(duration),
+                        Event::SeekTo(duration) => processor.write().unwrap().seek_to(duration),
                         Event::Stop => break,
                     }
                 }

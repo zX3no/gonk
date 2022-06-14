@@ -112,13 +112,17 @@ impl SampleProcessor {
             },
         }
     }
-    pub fn seek_to(&mut self, time: Duration) {
-        let nanos_per_sec = 1_000_000_000.0;
+    pub fn seek_by(&mut self, time: f32) {
+        let time = self.elapsed.as_secs_f32() + time;
+        self.seek_to(time);
+    }
+    pub fn seek_to(&mut self, time: f32) {
+        let time = Duration::from_secs_f32(time);
         self.format
             .seek(
                 SeekMode::Coarse,
                 SeekTo::Time {
-                    time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / nanos_per_sec),
+                    time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / 1_000_000_000.0),
                     track_id: None,
                 },
             )

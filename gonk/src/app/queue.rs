@@ -28,7 +28,7 @@ impl Queue {
         }
     }
     pub fn update(&mut self) {
-        if self.ui.selected().is_none() && !self.player.is_empty() {
+        if self.ui.index().is_none() && !self.player.is_empty() {
             self.ui.select(Some(0));
         }
         self.player.update();
