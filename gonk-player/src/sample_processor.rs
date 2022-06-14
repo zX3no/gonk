@@ -93,25 +93,35 @@ impl SampleProcessor {
         }
     }
     pub fn update(&mut self) {
-        match self.format.next_packet() {
-            Ok(packet) => {
-                let decoded = self.decoder.decode(&packet).unwrap();
-                let mut buffer = SampleBuffer::<f32>::new(self.capacity, self.spec);
-                buffer.copy_interleaved_ref(decoded);
+        let mut decode_errors: usize = 0;
+        const MAX_DECODE_ERRORS: usize = 3;
+        loop {
+            match self.format.next_packet() {
+                Ok(packet) => {
+                    let decoded = self.decoder.decode(&packet).unwrap();
+                    let mut buffer = SampleBuffer::<f32>::new(self.capacity, self.spec);
+                    buffer.copy_interleaved_ref(decoded);
 
-                self.converter.update(buffer.samples().to_vec().into_iter());
+                    self.converter.update(buffer.samples().to_vec().into_iter());
 
-                //Update elapsed
-                let ts = packet.ts();
-                let track = self.format.default_track().unwrap();
-                let tb = track.codec_params.time_base.unwrap();
-                let t = tb.calc_time(ts);
-                self.elapsed = Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
-            }
-            Err(e) => match e {
-                symphonia::core::errors::Error::IoError(_) => self.finished = true,
-                _ => panic!("{:?}", e),
-            },
+                    //Update elapsed
+                    let ts = packet.ts();
+                    let track = self.format.default_track().unwrap();
+                    let tb = track.codec_params.time_base.unwrap();
+                    let t = tb.calc_time(ts);
+                    self.elapsed = Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
+                    break;
+                }
+                Err(e) => match e {
+                    symphonia::core::errors::Error::DecodeError(_) => {
+                        decode_errors += 1;
+                        if decode_errors > MAX_DECODE_ERRORS {
+                            panic!("{:?}", e);
+                        }
+                    }
+                    _ => (),
+                },
+            };
         }
     }
     pub fn seek_by(&mut self, time: f32) {
