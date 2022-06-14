@@ -8,6 +8,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
     thread,
+    time::Duration,
 };
 
 mod index;
@@ -35,6 +36,7 @@ pub struct Player {
     playing: bool,
     volume: u16,
     songs: Index<Song>,
+    duration: Arc<RwLock<Duration>>,
 }
 
 impl Player {
@@ -45,6 +47,7 @@ impl Player {
             r,
             playing: true,
             volume,
+            duration: Arc::new(RwLock::new(Duration::default())),
             songs: Index::default(),
         }
     }
@@ -53,8 +56,8 @@ impl Player {
         //     self.next_song();
         // }
     }
-    pub fn duration(&self) -> f32 {
-        0.0
+    pub fn duration(&self) -> Duration {
+        *self.duration.read().unwrap()
     }
     pub fn is_empty(&self) -> bool {
         self.songs.is_empty()
@@ -75,8 +78,7 @@ impl Player {
                 self.stop();
             }
             self.playing = true;
-            let r2 = self.r.clone();
-            Player::run(r2, song.path.clone());
+            self.run(song.path.clone());
         }
     }
     pub fn play_index(&mut self, i: usize) {
@@ -165,7 +167,9 @@ impl Player {
     pub fn stop(&self) {
         self.s.send(Event::Stop).unwrap();
     }
-    fn run(r: Receiver<Event>, path: PathBuf) {
+    fn run(&self, path: PathBuf) {
+        let r = self.r.clone();
+        let duration = self.duration.clone();
         thread::spawn(move || {
             let device = cpal::default_host().default_output_device().unwrap();
             let config = device.default_output_config().unwrap();
@@ -174,6 +178,9 @@ impl Player {
                 Some(config.sample_rate().0),
                 path,
             )));
+
+            //Update the duration;
+            *duration.write().unwrap() = processor.read().unwrap().duration;
 
             let p = processor.clone();
 

@@ -100,7 +100,7 @@ impl Queue {
             //Mouse support for the seek bar.
             if (size.height - 2 == y || size.height - 1 == y) && size.height > 15 {
                 let ratio = x as f32 / size.width as f32;
-                let duration = self.player.duration();
+                let duration = self.player.duration().as_secs_f32();
                 let new_time = duration * ratio;
                 self.player.seek_to(new_time);
                 self.clicked_pos = None;
@@ -333,7 +333,7 @@ impl Queue {
         }
 
         let elapsed = self.player.elapsed();
-        let duration = self.player.duration();
+        let duration = self.player.duration().as_secs_f32();
 
         let seeker = format!(
             "{:02}:{:02}/{:02}:{:02}",
@@ -343,7 +343,7 @@ impl Queue {
             duration.trunc() as u32 % 60,
         );
 
-        let ratio = self.player.elapsed() / self.player.duration();
+        let ratio = elapsed / duration;
         let ratio = if ratio.is_nan() {
             0.0
         } else {

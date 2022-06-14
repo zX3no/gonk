@@ -17,13 +17,68 @@ pub struct SampleProcessor {
     pub decoder: Box<dyn Decoder>,
     pub format: Box<dyn FormatReader>,
     pub spec: SignalSpec,
-    pub duration: u64,
+    pub capacity: u64,
+    pub duration: Duration,
     pub converter: SampleRateConverter,
     pub finished: bool,
     pub left: bool,
 }
 
 impl SampleProcessor {
+    pub fn new(sample_rate: Option<u32>, path: impl AsRef<Path>) -> Self {
+        let source = Box::new(File::open(path).unwrap());
+
+        let mss = MediaSourceStream::new(source, Default::default());
+
+        let mut probed = get_probe()
+            .format(
+                &Hint::default(),
+                mss,
+                &FormatOptions {
+                    prebuild_seek_index: true,
+                    ..Default::default()
+                },
+                &MetadataOptions::default(),
+            )
+            .unwrap();
+
+        let track = probed.format.default_track().unwrap();
+
+        let duration = if let Some(tb) = track.codec_params.time_base {
+            let n_frames = track.codec_params.n_frames.unwrap();
+            let time = tb.calc_time(n_frames);
+            Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
+        } else {
+            panic!("Could not decode track duration.");
+        };
+        let mut decoder = symphonia::default::get_codecs()
+            .make(&track.codec_params, &DecoderOptions::default())
+            .unwrap();
+
+        let current_frame = probed.format.next_packet().unwrap();
+        let decoded = decoder.decode(&current_frame).unwrap();
+
+        let spec = decoded.spec().to_owned();
+        let capacity = decoded.capacity() as u64;
+
+        let mut sample_buffer = SampleBuffer::<f32>::new(capacity, spec);
+        sample_buffer.copy_interleaved_ref(decoded);
+
+        Self {
+            format: probed.format,
+            decoder,
+            spec,
+            capacity,
+            duration,
+            converter: SampleRateConverter::new(
+                sample_buffer.samples().to_vec().into_iter(),
+                spec.rate,
+                sample_rate.unwrap_or(44100),
+            ),
+            finished: false,
+            left: true,
+        }
+    }
     pub fn next_sample(&mut self) -> f32 {
         loop {
             if let Some(sample) = self.converter.next() {
@@ -37,7 +92,7 @@ impl SampleProcessor {
         match self.format.next_packet() {
             Ok(packet) => {
                 let decoded = self.decoder.decode(&packet).unwrap();
-                let mut buffer = SampleBuffer::<f32>::new(self.duration, self.spec);
+                let mut buffer = SampleBuffer::<f32>::new(self.capacity, self.spec);
                 buffer.copy_interleaved_ref(decoded);
 
                 self.converter.update(buffer.samples().to_vec().into_iter());
@@ -59,50 +114,5 @@ impl SampleProcessor {
                 },
             )
             .unwrap();
-    }
-    pub fn new(sample_rate: Option<u32>, path: impl AsRef<Path>) -> Self {
-        let source = Box::new(File::open(path).unwrap());
-
-        let mss = MediaSourceStream::new(source, Default::default());
-
-        let mut probed = get_probe()
-            .format(
-                &Hint::default(),
-                mss,
-                &FormatOptions {
-                    prebuild_seek_index: true,
-                    ..Default::default()
-                },
-                &MetadataOptions::default(),
-            )
-            .unwrap();
-
-        let track = probed.format.default_track().unwrap();
-        let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
-            .unwrap();
-
-        let current_frame = probed.format.next_packet().unwrap();
-        let decoded = decoder.decode(&current_frame).unwrap();
-
-        let spec = decoded.spec().to_owned();
-        let duration = decoded.capacity() as u64;
-
-        let mut sample_buffer = SampleBuffer::<f32>::new(duration, spec);
-        sample_buffer.copy_interleaved_ref(decoded);
-
-        Self {
-            format: probed.format,
-            decoder,
-            spec,
-            duration,
-            converter: SampleRateConverter::new(
-                sample_buffer.samples().to_vec().into_iter(),
-                spec.rate,
-                sample_rate.unwrap_or(44100),
-            ),
-            finished: false,
-            left: true,
-        }
     }
 }
