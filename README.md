@@ -6,6 +6,10 @@
       <img src="media/gonk.gif">
 </div>
 
+## ⚠️ Warning
+
+- Gonk is under heavy development. Expect breaking changes.
+
 ## ✨ Features
 
 - Vim-style key bindings
@@ -86,9 +90,13 @@ Linux: `~/.config/gonk/gonk.toml`
 
 ## ⚒️ Troubleshooting
 
-If your music player has broken lines, increase your zoom level or font size.
+- Gonk doesn't start after an update.
 
-![](media/broken.png)
+  Run `gonk reset` to reset your config file and database.
+
+- If your music player has broken lines, increase your zoom level or font size.
+
+  ![](media/broken.png)
 
 ## ❤️ Contributing
 
