@@ -39,6 +39,7 @@ impl SampleProcessor {
                 mss,
                 &FormatOptions {
                     prebuild_seek_index: true,
+                    seek_index_fill_rate: 1,
                     ..Default::default()
                 },
                 &MetadataOptions::default(),
