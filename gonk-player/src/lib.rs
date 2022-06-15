@@ -129,8 +129,10 @@ impl Player {
     pub fn play_selected(&mut self) {
         if let Some(song) = self.songs.selected() {
             self.playing = true;
-            self.generator.write().unwrap().update(&song.path.clone());
-            self.duration = self.generator.read().unwrap().duration();
+            let mut gen = self.generator.write().unwrap();
+            gen.update(&song.path.clone());
+            gen.set_volume(self.real_volume());
+            self.duration = gen.duration();
         }
     }
     pub fn play_index(&mut self, i: usize) {
