@@ -18,12 +18,12 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new(vol: u16, colors: Colors) -> Self {
+    pub fn new(vol: u16, colors: Colors, device: String) -> Self {
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
-            player: Player::new(vol),
+            player: Player::new(device, vol),
             colors,
         }
     }

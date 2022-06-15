@@ -38,19 +38,21 @@ impl Options {
     pub fn down(&mut self) {
         self.devices.down();
     }
+    #[allow(unused)]
     pub fn on_enter(&mut self, player: &mut Player, toml: &mut Toml) {
-        if let Some(device) = self.devices.selected() {
-            //don't update the device if there is an error
-            match player.change_output_device(device) {
-                Ok(_) => {
-                    let name = device.name().unwrap();
-                    self.current_device = name.clone();
-                    toml.set_output_device(name);
-                }
-                //TODO: Print error in status bar
-                Err(e) => panic!("{:?}", e),
-            }
-        }
+        //TODO: Update playback device.
+        // if let Some(device) = self.devices.selected() {
+        //     //don't update the device if there is an error
+        //     match player.change_output_device(device) {
+        //         Ok(_) => {
+        //             let name = device.name().unwrap();
+        //             self.current_device = name.clone();
+        //             toml.set_output_device(name);
+        //         }
+        //         //TODO: Print error in status bar
+        //         Err(e) => panic!("{:?}", e),
+        //     }
+        // }
     }
 }
 

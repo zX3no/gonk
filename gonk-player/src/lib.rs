@@ -43,10 +43,20 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(volume: u16) -> Self {
-        let (s, r) = unbounded();
+    //TODO: get device from toml file
+    pub fn new(_device: String, volume: u16) -> Self {
+        // let host_id = cpal::default_host().id();
+        // let host = cpal::host_from_id(host_id).unwrap();
+        // let mut devices: Vec<Device> = host.devices().unwrap().collect();
+        // devices.retain(|host| host.name().unwrap() == device);
 
+        // let device = if devices.is_empty() {
+        //     cpal::default_host().default_output_device().unwrap()
+        // } else {
+        //     devices.remove(0)
+        // };
         let device = cpal::default_host().default_output_device().unwrap();
+
         let config = device.default_output_config().unwrap();
         let rate = config.sample_rate().0;
 
@@ -59,6 +69,8 @@ impl Player {
 
         let elapsed = Arc::new(RwLock::new(Duration::default()));
         let e = elapsed.clone();
+
+        let (s, r) = unbounded();
 
         thread::spawn(move || {
             let stream = device
@@ -254,6 +266,7 @@ impl Player {
     pub fn seek_to(&self, duration: f32) {
         self.s.send(Event::SeekTo(duration)).unwrap();
     }
+    //TODO: Remove?
     pub fn audio_devices() -> Vec<Device> {
         let host_id = cpal::default_host().id();
         let host = cpal::host_from_id(host_id).unwrap();
