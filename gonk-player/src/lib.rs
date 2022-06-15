@@ -2,10 +2,9 @@ use cpal::{
     traits::{HostTrait, StreamTrait},
     StreamError,
 };
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use sample_processor::SampleProcessor;
+use crossbeam_channel::{unbounded, Sender};
+use sample_processor::Generator;
 use std::{
-    path::PathBuf,
     sync::{Arc, RwLock},
     thread,
     time::Duration,
@@ -28,7 +27,6 @@ const VOLUME_REDUCTION: f32 = 600.0;
 pub enum Event {
     Play,
     Pause,
-    Stop,
     SeekBy(f32),
     SeekTo(f32),
     Volume(f32),
@@ -36,33 +34,81 @@ pub enum Event {
 
 pub struct Player {
     s: Sender<Event>,
-    r: Receiver<Event>,
     playing: bool,
     volume: u16,
     songs: Index<Song>,
-    duration: Arc<RwLock<Duration>>,
     elapsed: Arc<RwLock<Duration>>,
+    generator: Arc<RwLock<Generator>>,
+    duration: Duration,
 }
 
 impl Player {
     pub fn new(volume: u16) -> Self {
         let (s, r) = unbounded();
+
+        let device = cpal::default_host().default_output_device().unwrap();
+        let config = device.default_output_config().unwrap();
+        let rate = config.sample_rate().0;
+
+        let generator = Arc::new(RwLock::new(Generator::new(
+            rate,
+            volume as f32 / VOLUME_REDUCTION,
+        )));
+        let gen = generator.clone();
+        let g = generator.clone();
+
+        let elapsed = Arc::new(RwLock::new(Duration::default()));
+        let e = elapsed.clone();
+
+        thread::spawn(move || {
+            let stream = device
+                .build_output_stream(
+                    &config.config(),
+                    move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                        for frame in data.chunks_mut(2) {
+                            for sample in frame.iter_mut() {
+                                *sample = g.write().unwrap().next();
+                            }
+                        }
+                    },
+                    |err| panic!("{}", err),
+                )
+                .unwrap();
+
+            stream.play().unwrap();
+
+            loop {
+                *e.write().unwrap() = gen.read().unwrap().elapsed();
+
+                if let Ok(event) = r.recv_timeout(Duration::from_millis(8)) {
+                    match event {
+                        Event::Play => stream.play().unwrap(),
+                        Event::Pause => stream.pause().unwrap(),
+                        Event::SeekBy(duration) => gen.write().unwrap().seek_by(duration).unwrap(),
+                        Event::SeekTo(duration) => gen.write().unwrap().seek_to(duration).unwrap(),
+                        Event::Volume(volume) => gen.write().unwrap().set_volume(volume),
+                    }
+                }
+            }
+        });
+
         Self {
             s,
-            r,
             playing: false,
             volume,
-            duration: Arc::new(RwLock::new(Duration::default())),
-            elapsed: Arc::new(RwLock::new(Duration::default())),
+            elapsed,
+            duration: Duration::default(),
             songs: Index::default(),
+            generator,
         }
     }
     pub fn update(&mut self) {
-        //TODO: Check if the song is finished playing and skip to next one.
+        if self.generator.read().unwrap().is_done() {
+            self.next();
+        }
     }
-
     pub fn duration(&self) -> Duration {
-        *self.duration.read().unwrap()
+        self.duration
     }
     pub fn elapsed(&self) -> Duration {
         *self.elapsed.read().unwrap()
@@ -82,11 +128,9 @@ impl Player {
     }
     pub fn play_selected(&mut self) {
         if let Some(song) = self.songs.selected() {
-            if self.playing {
-                self.stop();
-            }
             self.playing = true;
-            self.run(song.path.clone());
+            self.generator.write().unwrap().update(&song.path.clone());
+            self.duration = self.generator.read().unwrap().duration();
         }
     }
     pub fn play_index(&mut self, i: usize) {
@@ -117,7 +161,7 @@ impl Player {
     }
     pub fn clear(&mut self) {
         self.songs = Index::default();
-        self.stop();
+        self.generator.write().unwrap().stop();
     }
     pub fn clear_except_playing(&mut self) {
         let selected = self.songs.selected().cloned();
@@ -131,13 +175,20 @@ impl Player {
         }
         self.songs.select(Some(0));
     }
-    pub fn randomize(&self) {}
     pub fn toggle_playback(&mut self) {
         if self.playing {
             self.pause();
         } else {
             self.play();
         }
+    }
+    fn play(&mut self) {
+        self.s.send(Event::Play).unwrap();
+        self.playing = true;
+    }
+    fn pause(&mut self) {
+        self.s.send(Event::Pause).unwrap();
+        self.playing = false;
     }
     pub fn previous(&mut self) {
         self.songs.up();
@@ -163,6 +214,7 @@ impl Player {
 
         self.update_volume();
     }
+    pub fn randomize(&self) {}
     fn update_volume(&self) {
         self.s.send(Event::Volume(self.real_volume())).unwrap();
     }
@@ -187,18 +239,10 @@ impl Player {
     pub fn total_songs(&self) -> usize {
         self.songs.len()
     }
-    fn play(&mut self) {
-        self.s.send(Event::Play).unwrap();
-        self.playing = true;
-    }
-
     pub fn get_index(&self) -> &Index<Song> {
         &self.songs
     }
-    fn pause(&mut self) {
-        self.s.send(Event::Pause).unwrap();
-        self.playing = false;
-    }
+
     pub fn selected_song(&self) -> Option<&Song> {
         self.songs.selected()
     }
@@ -207,62 +251,6 @@ impl Player {
     }
     pub fn seek_to(&self, duration: f32) {
         self.s.send(Event::SeekTo(duration)).unwrap();
-    }
-    pub fn stop(&self) {
-        self.s.send(Event::Stop).unwrap();
-    }
-    fn run(&self, path: PathBuf) {
-        let r = self.r.clone();
-        let duration = self.duration.clone();
-        let elapsed = self.elapsed.clone();
-        let volume = self.real_volume();
-
-        thread::spawn(move || {
-            let device = cpal::default_host().default_output_device().unwrap();
-            let config = device.default_output_config().unwrap();
-
-            let processor = Arc::new(RwLock::new(SampleProcessor::new(
-                Some(config.sample_rate().0),
-                path,
-                volume,
-            )));
-
-            //Update the duration;
-            *duration.write().unwrap() = processor.read().unwrap().duration;
-
-            let p = processor.clone();
-
-            let stream = device
-                .build_output_stream(
-                    &config.config(),
-                    move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                        for frame in data.chunks_mut(2) {
-                            for sample in frame.iter_mut() {
-                                *sample = p.write().unwrap().next_sample();
-                            }
-                        }
-                    },
-                    |err| panic!("{}", err),
-                )
-                .unwrap();
-
-            stream.play().unwrap();
-
-            loop {
-                *elapsed.write().unwrap() = processor.read().unwrap().elapsed;
-
-                if let Ok(event) = r.recv_timeout(Duration::from_millis(16)) {
-                    match event {
-                        Event::Play => stream.play().unwrap(),
-                        Event::Pause => stream.pause().unwrap(),
-                        Event::SeekBy(duration) => processor.write().unwrap().seek_by(duration),
-                        Event::SeekTo(duration) => processor.write().unwrap().seek_to(duration),
-                        Event::Volume(volume) => processor.write().unwrap().volume = volume,
-                        Event::Stop => break,
-                    }
-                }
-            }
-        });
     }
     pub fn audio_devices() -> Vec<Device> {
         let host_id = cpal::default_host().id();
@@ -276,6 +264,7 @@ impl Player {
         cpal::default_host().default_output_device().unwrap()
     }
     pub fn change_output_device(&mut self, _device: &Device) -> Result<(), StreamError> {
+        //TODO
         Ok(())
         // match OutputStream::try_from_device(device) {
         //     Ok((stream, handle)) => {
