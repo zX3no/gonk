@@ -21,8 +21,6 @@
 
 ## 📦 Installation
 
-> MacOS has not been testing.
-
 > I recommend using a font with ligatures for the best experience.
 
 #### Dependencies
