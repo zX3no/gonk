@@ -1,8 +1,15 @@
-use crate::TOML_DIR;
+use crate::GONK_DIR;
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use static_init::dynamic;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tui::style::Color;
+
+#[dynamic]
+static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
 pub enum Modifier {
@@ -102,18 +109,6 @@ pub struct Colors {
     pub album: Color,
     pub artist: Color,
     pub seeker: Color,
-}
-
-impl Colors {
-    pub const fn default() -> Self {
-        Colors {
-            number: Color::Green,
-            name: Color::Cyan,
-            album: Color::Magenta,
-            artist: Color::Blue,
-            seeker: Color::White,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

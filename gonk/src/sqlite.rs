@@ -1,14 +1,18 @@
-use crate::DB_DIR;
+use crate::GONK_DIR;
 use gonk_player::Song;
 use jwalk::WalkDir;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Params, Row};
+use static_init::dynamic;
 use std::{
     path::PathBuf,
     sync::{Mutex, MutexGuard},
     thread::{self, JoinHandle},
     time::Duration,
 };
+
+#[dynamic]
+static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 pub fn total_songs() -> usize {
     let conn = conn();

@@ -28,12 +28,6 @@ static GONK_DIR: PathBuf = {
 };
 
 #[dynamic]
-static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
-
-#[dynamic]
-static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
-
-#[dynamic]
 static COLORS: Colors = Toml::new().colors;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
