@@ -1,6 +1,5 @@
-use crate::toml::Colors;
-use crate::widgets::{Cell, Gauge, Row, Table, TableState};
-use crate::Frame;
+use crate::widgets::*;
+use crate::*;
 use crossterm::event::KeyModifiers;
 use gonk_player::{Index, Player, Song};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -14,17 +13,15 @@ pub struct Queue {
     pub constraint: [u16; 4],
     pub clicked_pos: Option<(u16, u16)>,
     pub player: Player,
-    pub colors: Colors,
 }
 
 impl Queue {
-    pub fn new(vol: u16, colors: Colors) -> Self {
+    pub fn new(vol: u16) -> Self {
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
             clicked_pos: None,
             player: Player::new(vol),
-            colors,
         }
     }
     pub fn update(&mut self) {
@@ -184,12 +181,12 @@ impl Queue {
             vec![
                 Spans::from(vec![
                     Span::raw(format!("─│ {}", pad_front)),
-                    Span::styled(artist, Style::default().fg(self.colors.artist)),
+                    Span::styled(artist, Style::default().fg(COLORS.artist)),
                     Span::raw(" ─ "),
-                    Span::styled(name, Style::default().fg(self.colors.name)),
+                    Span::styled(name, Style::default().fg(COLORS.name)),
                     Span::raw(format!("{} │─", pad_back)),
                 ]),
-                Spans::from(Span::styled(album, Style::default().fg(self.colors.album))),
+                Spans::from(Span::styled(album, Style::default().fg(COLORS.album))),
             ]
         } else {
             Vec::new()
@@ -223,11 +220,10 @@ impl Queue {
             .map(|song| {
                 Row::new(vec![
                     Cell::from(""),
-                    Cell::from(song.number.to_string())
-                        .style(Style::default().fg(self.colors.number)),
-                    Cell::from(song.name.as_str()).style(Style::default().fg(self.colors.name)),
-                    Cell::from(song.album.as_str()).style(Style::default().fg(self.colors.album)),
-                    Cell::from(song.artist.as_str()).style(Style::default().fg(self.colors.artist)),
+                    Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.number)),
+                    Cell::from(song.name.as_str()).style(Style::default().fg(COLORS.name)),
+                    Cell::from(song.album.as_str()).style(Style::default().fg(COLORS.album)),
+                    Cell::from(song.artist.as_str()).style(Style::default().fg(COLORS.artist)),
                 ])
             })
             .collect();
@@ -244,13 +240,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(self.colors.number).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.number).fg(Color::Black)),
                             Cell::from(song.name.as_str())
-                                .style(Style::default().bg(self.colors.name).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.name).fg(Color::Black)),
                             Cell::from(song.album.as_str())
-                                .style(Style::default().bg(self.colors.album).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.album).fg(Color::Black)),
                             Cell::from(song.artist.as_str())
-                                .style(Style::default().bg(self.colors.artist).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.artist).fg(Color::Black)),
                         ])
                     } else {
                         Row::new(vec![
@@ -260,13 +256,12 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(self.colors.number)),
-                            Cell::from(song.name.as_str())
-                                .style(Style::default().fg(self.colors.name)),
+                                .style(Style::default().fg(COLORS.number)),
+                            Cell::from(song.name.as_str()).style(Style::default().fg(COLORS.name)),
                             Cell::from(song.album.as_str())
-                                .style(Style::default().fg(self.colors.album)),
+                                .style(Style::default().fg(COLORS.album)),
                             Cell::from(song.artist.as_str())
-                                .style(Style::default().fg(self.colors.artist)),
+                                .style(Style::default().fg(COLORS.artist)),
                         ])
                     };
 
@@ -279,13 +274,13 @@ impl Queue {
                             let row = Row::new(vec![
                                 Cell::default(),
                                 Cell::from(song.number.to_string())
-                                    .style(Style::default().bg(self.colors.number)),
+                                    .style(Style::default().bg(COLORS.number)),
                                 Cell::from(song.name.as_str())
-                                    .style(Style::default().bg(self.colors.name)),
+                                    .style(Style::default().bg(COLORS.name)),
                                 Cell::from(song.album.as_str())
-                                    .style(Style::default().bg(self.colors.album)),
+                                    .style(Style::default().bg(COLORS.album)),
                                 Cell::from(song.artist.as_str())
-                                    .style(Style::default().bg(self.colors.artist)),
+                                    .style(Style::default().bg(COLORS.artist)),
                             ])
                             .style(Style::default().fg(Color::Black));
                             items.remove(ui_index);
@@ -363,7 +358,7 @@ impl Queue {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 )
-                .gauge_style(Style::default().fg(self.colors.seeker))
+                .gauge_style(Style::default().fg(COLORS.seeker))
                 .ratio(ratio)
                 .label(seeker),
             area,

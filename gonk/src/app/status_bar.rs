@@ -1,6 +1,5 @@
 use super::queue::Queue;
-use crate::Frame;
-use crate::{toml::Colors, sqlite};
+use crate::*;
 use std::time::{Duration, Instant};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -13,7 +12,6 @@ const WAIT_TIME: Duration = Duration::from_secs(2);
 
 pub struct StatusBar {
     dots: usize,
-    colors: Colors,
     busy: bool,
     scan_message: String,
     wait_timer: Option<Instant>,
@@ -22,10 +20,9 @@ pub struct StatusBar {
 }
 
 impl StatusBar {
-    pub fn new(colors: Colors) -> Self {
+    pub fn new() -> Self {
         Self {
             dots: 1,
-            colors,
             busy: false,
             scan_message: String::new(),
             wait_timer: None,
@@ -109,19 +106,13 @@ impl StatusBar {
             if let Some(song) = queue.selected() {
                 Spans::from(vec![
                     Span::raw(" "),
-                    Span::styled(
-                        song.number.to_string(),
-                        Style::default().fg(self.colors.number),
-                    ),
+                    Span::styled(song.number.to_string(), Style::default().fg(COLORS.number)),
                     Span::raw(" ｜ "),
-                    Span::styled(song.name.as_str(), Style::default().fg(self.colors.name)),
+                    Span::styled(song.name.as_str(), Style::default().fg(COLORS.name)),
                     Span::raw(" ｜ "),
-                    Span::styled(song.album.as_str(), Style::default().fg(self.colors.album)),
+                    Span::styled(song.album.as_str(), Style::default().fg(COLORS.album)),
                     Span::raw(" ｜ "),
-                    Span::styled(
-                        song.artist.as_str(),
-                        Style::default().fg(self.colors.artist),
-                    ),
+                    Span::styled(song.artist.as_str(), Style::default().fg(COLORS.artist)),
                 ])
             } else {
                 Spans::default()

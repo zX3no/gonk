@@ -1,3 +1,4 @@
+use crate::toml::{Colors, Toml};
 use app::App;
 use static_init::dynamic;
 use std::{
@@ -12,7 +13,7 @@ mod toml;
 mod widgets;
 
 #[dynamic]
-pub static GONK_DIR: PathBuf = {
+static GONK_DIR: PathBuf = {
     let gonk = if cfg!(windows) {
         PathBuf::from(&std::env::var("APPDATA").unwrap())
     } else {
@@ -27,18 +28,18 @@ pub static GONK_DIR: PathBuf = {
 };
 
 #[dynamic]
-pub static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
+static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 #[dynamic]
-pub static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
+static TOML_DIR: PathBuf = GONK_DIR.join("gonk.toml");
 
-pub type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
+#[dynamic]
+static COLORS: Colors = Toml::new().colors;
+
+type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
 fn main() -> Result<()> {
-    unsafe {
-        //Initialize database.
-        sqlite::CONN = sqlite::open_database();
-    }
+    sqlite::initialize_database();
 
     match App::new() {
         Ok(mut app) => app.run(),

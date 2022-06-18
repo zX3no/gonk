@@ -1,11 +1,10 @@
-#![allow(unused)]
-use crate::widgets::{centered_rect, Cell, List, ListItem, ListState, Row, Table, TableState};
-use crate::{sqlite, Frame};
+use crate::widgets::*;
+use crate::*;
 use crossterm::event::KeyModifiers;
 use gonk_player::{Index, Player, Song};
-use std::io::Stdout;
+use tui::style::Style;
+use tui::text::Span;
 use tui::{
-    backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Margin, Rect},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
@@ -18,7 +17,6 @@ enum Mode {
 }
 
 pub struct Item {
-    id: usize,
     row: usize,
     song: Song,
 }
@@ -54,9 +52,8 @@ impl Playlist {
             let songs = sqlite::get_songs(&song_ids);
             songs
                 .into_iter()
-                .zip(song_ids)
                 .zip(row_ids)
-                .map(|((song, id), row)| Item { id, row, song })
+                .map(|(song, row)| Item { row, song })
                 .collect()
         } else {
             Vec::new()
@@ -275,13 +272,6 @@ impl Playlist {
                 v[0],
             );
 
-            let mut items: Vec<ListItem> = self
-                .playlist
-                .data
-                .iter()
-                .map(|str| ListItem::new(str.as_str()))
-                .collect();
-
             if self.changed {
                 self.changed = false;
                 let eq = self.playlist.data.iter().any(|e| e == &self.search);
@@ -356,7 +346,11 @@ impl Playlist {
             .iter()
             .map(|item| {
                 let song = item.song.clone();
-                Row::new(vec![song.name, song.album, song.artist])
+                Row::new(vec![
+                    Span::styled(song.name, Style::default().fg(COLORS.name)),
+                    Span::styled(song.album, Style::default().fg(COLORS.album)),
+                    Span::styled(song.artist, Style::default().fg(COLORS.artist)),
+                ])
             })
             .collect();
 

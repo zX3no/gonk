@@ -104,6 +104,18 @@ pub struct Colors {
     pub seeker: Color,
 }
 
+impl Colors {
+    pub const fn default() -> Self {
+        Colors {
+            number: Color::Green,
+            name: Color::Cyan,
+            album: Color::Magenta,
+            artist: Color::Blue,
+            seeker: Color::White,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Toml {
     pub config: Config,
