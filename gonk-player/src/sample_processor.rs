@@ -195,7 +195,7 @@ impl Processor {
                     let tb = track.codec_params.time_base.unwrap();
                     let t = tb.calc_time(ts);
                     self.elapsed = Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
-                    break;
+                    return;
                 }
                 Err(e) => match e {
                     Error::DecodeError(e) => {
