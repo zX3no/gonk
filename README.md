@@ -63,7 +63,7 @@ Linux: `~/.config/gonk/gonk.toml`
 
 | Command              | Key             |
 |----------------------|-----------------|
-| Move Up              | `K / UP`        |
+| Move Up              | `K / Up`        |
 | Move Down            | `J / Down`      |
 | Move Left            | `H / Left`      |
 | Move Right           | `L / Right`     |
