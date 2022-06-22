@@ -1,7 +1,6 @@
 use super::Mode as AppMode;
 use crate::widgets::*;
 use crate::*;
-use crossterm::event::KeyModifiers;
 use gonk_player::{Index, Player};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
@@ -45,11 +44,11 @@ pub enum Mode {
 }
 
 pub struct Search {
-    query: String,
-    query_changed: bool,
-    mode: Mode,
-    results: Index<Item>,
-    cache: Vec<Item>,
+    pub query: String,
+    pub query_changed: bool,
+    pub mode: Mode,
+    pub results: Index<Item>,
+    pub cache: Vec<Item>,
 }
 
 impl Search {
@@ -61,21 +60,17 @@ impl Search {
             mode: Mode::Search,
             results: Index::default(),
         };
-        update(&mut search);
+        refresh(&mut search);
         search
     }
 }
 
-pub fn get_input(search: &Search) -> bool {
-    search.mode == Mode::Search
+pub fn refresh(search: &mut Search) {
+    refresh_cache(search);
+    refresh_results(search);
 }
 
-pub fn update(search: &mut Search) {
-    update_cache(search);
-    update_search(search);
-}
-
-fn update_cache(search: &mut Search) {
+fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
     for song in sqlite::get_all_songs() {
@@ -95,7 +90,8 @@ fn update_cache(search: &mut Search) {
         search.cache.push(Item::Artist(Artist { name }));
     }
 }
-fn update_search(search: &mut Search) {
+
+fn refresh_results(search: &mut Search) {
     let query = &search.query.to_lowercase();
 
     let mut results: Vec<_> = if query.is_empty() {
@@ -174,20 +170,9 @@ impl Input for Search {
         self.results.down();
     }
 
-    fn left(&mut self) {
-        todo!()
-    }
+    fn left(&mut self) {}
 
-    fn right(&mut self) {
-        todo!()
-    }
-}
-
-pub fn on_key(search: &mut Search, c: char) {
-    if search.mode == Mode::Search {
-        search.query_changed = true;
-        search.query.push(c);
-    }
+    fn right(&mut self) {}
 }
 
 pub fn on_backspace(search: &mut Search, shift: bool) {
@@ -247,7 +232,7 @@ pub fn on_enter(search: &mut Search, player: &mut Player) {
 
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
     if search.query_changed {
-        update_search(search);
+        refresh_results(search);
     }
 
     let v = Layout::default()
@@ -276,16 +261,16 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
         match item {
             Item::Song(song) => {
                 search::song(f, &song.name, &song.album, &song.artist, h[0]);
-                album(search, f, &song.album, &song.artist, h[1]);
+                album(f, &song.album, &song.artist, h[1]);
             }
             Item::Album(album) => {
-                search::album(search, f, &album.name, &album.artist, h[0]);
-                artist(search, f, &album.artist, h[1]);
+                search::album(f, &album.name, &album.artist, h[0]);
+                artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
                 let albums = sqlite::get_all_albums_by_artist(&artist.name);
 
-                search::artist(search, f, &artist.name, h[0]);
+                search::artist(f, &artist.name, h[0]);
 
                 let h_split = Layout::default()
                     .direction(Direction::Horizontal)
@@ -295,7 +280,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
                 //draw the first two albums
                 for (i, area) in h_split.iter().enumerate() {
                     if let Some(album) = albums.get(i) {
-                        search::album(search, f, album, &artist.name, *area);
+                        search::album(f, album, &artist.name, *area);
                     }
                 }
             }
@@ -331,7 +316,7 @@ fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
     f.render_widget(song_table, area);
 }
 
-fn album(search: &Search, f: &mut Frame, album: &str, artist: &str, area: Rect) {
+fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
     let cells: Vec<_> = sqlite::get_all_songs_from_album(album, artist)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
@@ -356,7 +341,7 @@ fn album(search: &Search, f: &mut Frame, album: &str, artist: &str, area: Rect) 
     f.render_widget(table, area);
 }
 
-fn artist(search: &Search, f: &mut Frame, artist: &str, area: Rect) {
+fn artist(f: &mut Frame, artist: &str, area: Rect) {
     let albums = sqlite::get_all_albums_by_artist(artist);
     let cells: Vec<_> = albums
         .iter()

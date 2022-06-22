@@ -1,7 +1,7 @@
 use crate::widgets::*;
 use crate::*;
-use crossterm::event::{KeyModifiers, MouseEvent};
-use gonk_player::{Index, Player, Song};
+use crossterm::event::MouseEvent;
+use gonk_player::{Index, Player};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
@@ -17,7 +17,7 @@ pub struct Queue {
 impl Queue {
     pub fn new(vol: u16) -> Self {
         Self {
-            ui: Index::default(),
+            ui: Index::new(Vec::new(), Some(0)),
             constraint: [8, 42, 24, 26],
             player: Player::new(vol),
         }
@@ -38,15 +38,8 @@ impl Input for Queue {
     fn right(&mut self) {}
 }
 
-pub fn update(queue: &mut Queue) {
-    if queue.ui.is_none() && !queue.player.songs.is_empty() {
-        queue.ui.select(Some(0));
-    }
-    queue.player.update();
-}
-
-pub fn move_constraint(queue: &mut Queue, row: usize, modifier: KeyModifiers) {
-    if modifier == KeyModifiers::SHIFT && queue.constraint[row] != 0 {
+pub fn constraint(queue: &mut Queue, row: usize, shift: bool) {
+    if shift && queue.constraint[row] != 0 {
         //Move row back.
         queue.constraint[row + 1] += 1;
         queue.constraint[row] = queue.constraint[row].saturating_sub(1);
@@ -63,16 +56,6 @@ pub fn move_constraint(queue: &mut Queue, row: usize, modifier: KeyModifiers) {
     );
 }
 
-pub fn clear(queue: &mut Queue) {
-    queue.player.clear();
-    queue.ui.select(Some(0));
-}
-
-pub fn clear_except_playing(queue: &mut Queue) {
-    queue.player.clear_except_playing();
-    queue.ui.select(Some(0));
-}
-
 pub fn delete(queue: &mut Queue) {
     if let Some(i) = queue.ui.index() {
         queue.player.delete_song(i);
@@ -82,10 +65,6 @@ pub fn delete(queue: &mut Queue) {
             queue.ui.select(Some(len));
         }
     }
-}
-
-pub fn selected(queue: &Queue) -> Option<&Song> {
-    queue.player.songs.selected()
 }
 
 pub fn draw(queue: &mut Queue, f: &mut Frame, event: Option<MouseEvent>) {

@@ -140,7 +140,7 @@ pub fn on_enter(browser: &Browser) -> Vec<Song> {
     Vec::new()
 }
 
-pub fn reset(browser: &mut Browser) {
+pub fn refresh(browser: &mut Browser) {
     browser.mode = Mode::Artist;
 
     browser.artists = Index::new(sqlite::get_all_artists(), Some(0));

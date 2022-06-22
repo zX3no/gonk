@@ -1,8 +1,12 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use queue::Queue;
+use search::Mode as SearchMode;
 use search::Search;
+use sqlite::Database;
+use sqlite::State;
 use static_init::dynamic;
+use std::time::Instant;
 use std::{
     io::{stdout, Stdout},
     path::PathBuf,
@@ -56,6 +60,7 @@ static GONK_DIR: PathBuf = {
 };
 
 const POLL_RATE: Duration = Duration::from_millis(4);
+const TICK_RATE: Duration = Duration::from_millis(200);
 const SEEK_TIME: f64 = 10.0;
 
 #[derive(PartialEq, Eq)]
@@ -96,9 +101,31 @@ fn main() {
     let mut browser = Browser::new();
     let mut queue = Queue::new(15);
     let mut search = Search::new();
+    let mut db = Database::default();
     let mut mode = Mode::Browser;
+    let mut busy = false;
+    let mut last_tick = Instant::now();
 
     loop {
+        //Update
+        {
+            if last_tick.elapsed() >= TICK_RATE {
+                //Update the status_bar at a constant rate.
+                // status_bar.update(busy, queue);
+                last_tick = Instant::now();
+            }
+            queue.player.update();
+            match db.state() {
+                State::Busy => busy = true,
+                State::Idle => busy = false,
+                State::NeedsUpdate => {
+                    browser::refresh(&mut browser);
+                    search::refresh(&mut search);
+                }
+            }
+        }
+
+        //Draw
         terminal
             .draw(|f| {
                 match mode {
@@ -109,7 +136,7 @@ fn main() {
             })
             .unwrap();
 
-        let get_input = search::get_input(&search) && mode == Mode::Search;
+        let get_input = search.mode == SearchMode::Search && mode == Mode::Search;
 
         let input = match mode {
             Mode::Browser => &mut browser as &mut dyn Input,
@@ -119,72 +146,94 @@ fn main() {
 
         if crossterm::event::poll(POLL_RATE).unwrap() {
             match event::read().unwrap() {
-                Event::Key(event) => match event.code {
-                    KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => break,
-                    KeyCode::Char(c) if get_input => {
-                        search::on_key(&mut search, c);
-                    }
-                    KeyCode::Char(' ') => queue.player.toggle_playback(),
-                    KeyCode::Char('c') if event.modifiers == KeyModifiers::SHIFT => {
-                        queue.player.toggle_playback()
-                    }
-                    KeyCode::Char('c') => queue::clear_except_playing(&mut queue),
-                    KeyCode::Char('x') => queue::delete(&mut queue),
-                    KeyCode::Char('u') if mode == Mode::Browser => (),
-                    KeyCode::Char('q') => queue.player.seek_by(-SEEK_TIME),
-                    KeyCode::Char('e') => queue.player.seek_by(SEEK_TIME),
-                    KeyCode::Char('a') => queue.player.prev_song(),
-                    KeyCode::Char('d') => queue.player.next_song(),
-                    KeyCode::Char('w') => queue.player.volume_up(),
-                    KeyCode::Char('s') => queue.player.volume_down(),
-                    KeyCode::Char('r') => queue.player.randomize(),
-                    KeyCode::Char('/') => mode = Mode::Search,
-                    KeyCode::Tab => match mode {
-                        Mode::Browser => mode = Mode::Queue,
-                        Mode::Queue => mode = Mode::Browser,
-                        Mode::Search => mode = Mode::Queue,
-                    },
-                    KeyCode::Esc => match mode {
-                        Mode::Search => search::on_escape(&mut search, &mut mode),
-                        // Mode::Options => mode = Mode::Queue,
-                        // Mode::Playlist => playlist.on_escape(&mut mode),
-                        _ => (),
-                    },
-                    KeyCode::Enter => match mode {
-                        Mode::Browser => {
-                            let songs = browser::on_enter(&browser);
-                            queue.player.add_songs(&songs);
-                        }
-                        Mode::Queue => {
-                            if let Some(i) = queue.ui.index() {
-                                queue.player.play_song(i);
+                Event::Key(event) => {
+                    let shift = event.modifiers == KeyModifiers::SHIFT;
+
+                    match event.code {
+                        KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => break,
+                        KeyCode::Char(c) if get_input => {
+                            //Handle ^W as control backspace.
+                            if event.modifiers == KeyModifiers::CONTROL && c == 'w' {
+                                search::on_backspace(&mut search, true)
+                            } else {
+                                search.query_changed = true;
+                                search.query.push(c);
                             }
                         }
-                        Mode::Search => search::on_enter(&mut search, &mut queue.player),
-                        // Mode::Options => options.on_enter(&mut queue.player, &mut toml),
-                        // Mode::Playlist => playlist.on_enter(&mut queue.player),
-                    },
-                    KeyCode::Backspace => match mode {
-                        Mode::Search => search::on_backspace(
-                            &mut search,
-                            event.modifiers == KeyModifiers::SHIFT,
-                        ),
-                        // Mode::Playlist => self.playlist.on_backspace(event.modifiers),
+                        KeyCode::Char(' ') => queue.player.toggle_playback(),
+                        KeyCode::Char('c') if shift => {
+                            queue.player.clear_except_playing();
+                            queue.ui.select(Some(0));
+                        }
+                        KeyCode::Char('c') => {
+                            queue.player.clear();
+                            queue.ui.select(Some(0));
+                        }
+                        KeyCode::Char('x') => queue::delete(&mut queue),
+                        KeyCode::Char('u') if mode == Mode::Browser => (),
+                        KeyCode::Char('q') => queue.player.seek_by(-SEEK_TIME),
+                        KeyCode::Char('e') => queue.player.seek_by(SEEK_TIME),
+                        KeyCode::Char('a') => queue.player.prev_song(),
+                        KeyCode::Char('d') => queue.player.next_song(),
+                        KeyCode::Char('w') => queue.player.volume_up(),
+                        KeyCode::Char('s') => queue.player.volume_down(),
+                        KeyCode::Char('r') => queue.player.randomize(),
+                        KeyCode::Char('/') => mode = Mode::Search,
+                        KeyCode::Tab => match mode {
+                            Mode::Browser => mode = Mode::Queue,
+                            Mode::Queue => mode = Mode::Browser,
+                            Mode::Search => mode = Mode::Queue,
+                        },
+                        KeyCode::Esc => match mode {
+                            Mode::Search => search::on_escape(&mut search, &mut mode),
+                            // Mode::Options => mode = Mode::Queue,
+                            // Mode::Playlist => playlist.on_escape(&mut mode),
+                            _ => (),
+                        },
+                        KeyCode::Enter => match mode {
+                            Mode::Browser => {
+                                let songs = browser::on_enter(&browser);
+                                queue.player.add_songs(&songs);
+                            }
+                            Mode::Queue => {
+                                if let Some(i) = queue.ui.index() {
+                                    queue.player.play_song(i);
+                                }
+                            }
+                            Mode::Search => search::on_enter(&mut search, &mut queue.player),
+                            // Mode::Options => options.on_enter(&mut queue.player, &mut toml),
+                            // Mode::Playlist => playlist.on_enter(&mut queue.player),
+                        },
+                        KeyCode::Backspace => {
+                            match mode {
+                                Mode::Search => search::on_backspace(&mut search, shift),
+                                // Mode::Playlist => self.playlist.on_backspace(event.modifiers),
+                                _ => (),
+                            }
+                        }
+                        KeyCode::Up => input.up(),
+                        KeyCode::Down => input.down(),
+                        KeyCode::Left => input.left(),
+                        KeyCode::Right => input.right(),
+                        KeyCode::Char('1' | '!') => {
+                            queue::constraint(&mut queue, 0, shift);
+                        }
+                        KeyCode::Char('2' | '@') => {
+                            queue::constraint(&mut queue, 1, shift);
+                        }
+                        KeyCode::Char('3' | '#') => {
+                            queue::constraint(&mut queue, 2, shift);
+                        }
+                        KeyCode::Char(c) => match c {
+                            'h' => input.left(),
+                            'j' => input.down(),
+                            'k' => input.up(),
+                            'l' => input.right(),
+                            _ => (),
+                        },
                         _ => (),
-                    },
-                    KeyCode::Up => input.up(),
-                    KeyCode::Down => input.down(),
-                    KeyCode::Left => input.left(),
-                    KeyCode::Right => input.right(),
-                    KeyCode::Char(c) => match c {
-                        'h' => input.left(),
-                        'j' => input.down(),
-                        'k' => input.up(),
-                        'l' => input.right(),
-                        _ => (),
-                    },
-                    _ => (),
-                },
+                    }
+                }
                 Event::Mouse(_) => {}
                 _ => (),
             }
@@ -268,13 +317,13 @@ fn main() {
 //         KeyCode::Char('.') => self.mode = Mode::Options,
 //         KeyCode::Char('/') => self.mode = Mode::Search,
 //         KeyCode::Char('1' | '!') => {
-//             self.queue.move_constraint(0, event.modifiers);
+//             queue::constraint(0, event.modifiers);
 //         }
 //         KeyCode::Char('2' | '@') => {
-//             self.queue.move_constraint(1, event.modifiers);
+//             queue::constraint(1, event.modifiers);
 //         }
 //         KeyCode::Char('3' | '#') => {
-//             self.queue.move_constraint(2, event.modifiers);
+//             queue::constraint(2, event.modifiers);
 //         }
 //         _ if hotkey.up == bind => self.up(),
 //         _ if hotkey.down == bind => self.down(),
