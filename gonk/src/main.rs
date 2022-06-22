@@ -178,6 +178,11 @@ fn main() {
                                 search.query.push(c);
                             }
                         }
+                        // KeyCode::Char(c)
+                        //     if playlist.input_mode() && mode == Mode::Playlist =>
+                        // {
+                        //     playlist.on_key(c)
+                        // }
                         KeyCode::Char(' ') => queue.player.toggle_playback(),
                         KeyCode::Char('c') if shift => {
                             queue.player.clear_except_playing();
@@ -198,18 +203,42 @@ fn main() {
                         KeyCode::Char('w') => queue.player.volume_up(),
                         KeyCode::Char('s') => queue.player.volume_down(),
                         KeyCode::Char('r') => queue.player.randomize(),
+                        //TODO: Rework mode changing buttons
+                        KeyCode::Char('`') => {
+                            status_bar.hidden = !status_bar.hidden;
+                        }
+                        // KeyCode::Char(',') => mode = Mode::Playlist,
+                        // KeyCode::Char('.') => mode = Mode::Options,
                         KeyCode::Char('/') => mode = Mode::Search,
-                        KeyCode::Tab => match mode {
-                            Mode::Browser => mode = Mode::Queue,
-                            Mode::Queue => mode = Mode::Browser,
-                            Mode::Search => mode = Mode::Queue,
-                        },
+                        KeyCode::Tab => {
+                            mode = match mode {
+                                // Mode::Browser | Mode::Options => Mode::Queue,
+                                Mode::Browser => Mode::Queue,
+                                Mode::Queue => Mode::Browser,
+                                Mode::Search => Mode::Queue,
+                                // Mode::Playlist => Mode::Browser,
+                            };
+                        }
                         KeyCode::Esc => match mode {
                             Mode::Search => search::on_escape(&mut search, &mut mode),
                             // Mode::Options => mode = Mode::Queue,
                             // Mode::Playlist => playlist.on_escape(&mut mode),
                             _ => (),
                         },
+                        // KeyCode::Enter if shift => match mode {
+                        //     Mode::Browser => {
+                        //         let songs = browser.on_enter();
+                        //         playlist.add_to_playlist(&songs);
+                        //         mode = Mode::Playlist;
+                        //     }
+                        //     Mode::Queue => {
+                        //         if let Some(song) = queue.selected() {
+                        //             playlist.add_to_playlist(&[song.clone()]);
+                        //             mode = Mode::Playlist;
+                        //         }
+                        //     }
+                        //     _ => (),
+                        // },
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::on_enter(&browser);
@@ -279,116 +308,3 @@ fn main() {
     )
     .unwrap();
 }
-
-//     match event.code {
-//         KeyCode::Char(c) if self.search.input_mode() && self.mode == Mode::Search => {
-//             self.search.on_key(c)
-//         }
-//         KeyCode::Char(c) if self.playlist.input_mode() && self.mode == Mode::Playlist => {
-//             self.playlist.on_key(c)
-//         }
-//         KeyCode::Up => self.up(),
-//         KeyCode::Down => self.down(),
-//         KeyCode::Left => self.left(),
-//         KeyCode::Right => self.right(),
-//         KeyCode::Tab => {
-//             self.mode = match self.mode {
-//                 Mode::Browser | Mode::Options => Mode::Queue,
-//                 Mode::Queue => Mode::Browser,
-//                 Mode::Search => Mode::Queue,
-//                 Mode::Playlist => Mode::Browser,
-//             };
-//         }
-//         KeyCode::Backspace => match self.mode {
-//             Mode::Search => self.search.on_backspace(event.modifiers),
-//             Mode::Playlist => self.playlist.on_backspace(event.modifiers),
-//             _ => (),
-//         },
-//         KeyCode::Enter if shift => match self.mode {
-//             Mode::Browser => {
-//                 let songs = self.browser.on_enter();
-//                 self.playlist.add_to_playlist(&songs);
-//                 self.mode = Mode::Playlist;
-//             }
-//             Mode::Queue => {
-//                 if let Some(song) = self.queue.selected() {
-//                     self.playlist.add_to_playlist(&[song.clone()]);
-//                     self.mode = Mode::Playlist;
-//                 }
-//             }
-//             _ => (),
-//         },
-//         KeyCode::Enter => match self.mode {
-//             Mode::Browser => {
-//                 let songs = self.browser.on_enter();
-//                 self.queue.player.add_songs(&songs);
-//             }
-//             Mode::Queue => {
-//                 if let Some(i) = self.queue.ui.index() {
-//                     self.queue.player.play_song(i);
-//                 }
-//             }
-//             Mode::Search => self.search.on_enter(&mut self.queue.player),
-//             Mode::Options => self
-//                 .options
-//                 .on_enter(&mut self.queue.player, &mut self.toml),
-//             Mode::Playlist => self.playlist.on_enter(&mut self.queue.player),
-//         },
-//         KeyCode::Esc => match self.mode {
-//             Mode::Search => self.search.on_escape(&mut self.mode),
-//             Mode::Options => self.mode = Mode::Queue,
-//             Mode::Playlist => self.playlist.on_escape(&mut self.mode),
-//             _ => (),
-//         },
-//         //TODO: Rework mode changing buttons
-//         KeyCode::Char('`') => {
-//             self.status_bar.toggle_hidden();
-//         }
-//         KeyCode::Char(',') => self.mode = Mode::Playlist,
-//         KeyCode::Char('.') => self.mode = Mode::Options,
-//         KeyCode::Char('/') => self.mode = Mode::Search,
-//         KeyCode::Char('1' | '!') => {
-//             queue::constraint(0, event.modifiers);
-//         }
-//         KeyCode::Char('2' | '@') => {
-//             queue::constraint(1, event.modifiers);
-//         }
-//         KeyCode::Char('3' | '#') => {
-//             queue::constraint(2, event.modifiers);
-//         }
-//         _ if hotkey.up == bind => self.up(),
-//         _ if hotkey.down == bind => self.down(),
-//         _ if hotkey.left == bind => self.left(),
-//         _ if hotkey.right == bind => self.right(),
-//         _ if hotkey.play_pause == bind => self.queue.player.toggle_playback(),
-//         _ if hotkey.clear == bind => self.queue.clear(),
-//         _ if hotkey.clear_except_playing == bind => {
-//             self.queue.clear_except_playing();
-//         }
-//         _ if hotkey.refresh_database == bind && self.mode == Mode::Browser => {
-//             self.db.add_paths(&self.toml.config.paths);
-//         }
-//         _ if hotkey.seek_backward == bind && self.mode != Mode::Search => {
-//             self.queue.player.seek_by(-SEEK_TIME)
-//         }
-//         _ if hotkey.seek_forward == bind && self.mode != Mode::Search => {
-//             self.queue.player.seek_by(SEEK_TIME)
-//         }
-//         _ if hotkey.previous == bind && self.mode != Mode::Search => self.queue.player.prev_song(),
-//         _ if hotkey.next == bind && self.mode != Mode::Search => self.queue.player.next_song(),
-//         _ if hotkey.volume_up == bind => {
-//             self.queue.player.volume_up();
-//             self.toml.set_volume(self.queue.player.volume);
-//         }
-//         _ if hotkey.volume_down == bind => {
-//             self.queue.player.volume_down();
-//             self.toml.set_volume(self.queue.player.volume);
-//         }
-//         _ if hotkey.delete == bind => match self.mode {
-//             Mode::Queue => self.queue.delete(),
-//             Mode::Playlist => self.playlist.delete(),
-//             _ => (),
-//         },
-//         _ if hotkey.random == bind => self.queue.player.randomize(),
-//         _ => (),
-//     }
