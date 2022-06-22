@@ -146,7 +146,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 .map(|song| song.id.unwrap())
                 .collect();
 
-            sqlite::add_playlist(&name, &ids);
+            sqlite::playlist::add(&name, &ids);
 
             playlist.titles = Index::new(sqlite::playlist::get_names(), playlist.titles.index());
 

@@ -14,106 +14,6 @@ use std::{
 #[dynamic]
 static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
-pub fn total_songs() -> usize {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT COUNT(*) FROM song").unwrap();
-    stmt.query_row([], |row| row.get(0)).unwrap()
-}
-pub fn get_all_songs() -> Vec<Song> {
-    collect_songs("SELECT *, rowid FROM song", params![])
-}
-pub fn get_all_artists() -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
-        .unwrap();
-
-    stmt.query_map([], |row| {
-        let artist: String = row.get(0).unwrap();
-        Ok(artist)
-    })
-    .unwrap()
-    .flatten()
-    .collect()
-}
-pub fn get_all_albums() -> Vec<(String, String)> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
-        .unwrap();
-
-    stmt.query_map([], |row| {
-        let album: String = row.get(0).unwrap();
-        let artist: String = row.get(1).unwrap();
-        Ok((album, artist))
-    })
-    .unwrap()
-    .flatten()
-    .collect()
-}
-pub fn get_all_albums_by_artist(artist: &str) -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
-        .unwrap();
-
-    stmt.query_map([artist], |row| row.get(0))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-pub fn get_all_songs_from_album(album: &str, artist: &str) -> Vec<Song> {
-    collect_songs(
-        "SELECT *, rowid FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
-        params![artist, album],
-    )
-}
-pub fn get_songs_by_artist(artist: &str) -> Vec<Song> {
-    collect_songs(
-        "SELECT *, rowid FROM song WHERE artist = ? ORDER BY album, disc, number",
-        params![artist],
-    )
-}
-pub fn get_songs(ids: &[usize]) -> Vec<Song> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT *, rowid FROM song WHERE rowid = ?")
-        .unwrap();
-
-    ids.iter()
-        .map(|id| stmt.query_row([id], |row| Ok(song(row))))
-        .flatten()
-        .collect()
-}
-fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
-where
-    P: Params,
-{
-    let conn = conn();
-    let mut stmt = conn.prepare(query).expect(query);
-
-    stmt.query_map(params, |row| Ok(song(row)))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-fn song(row: &Row) -> Song {
-    let path: String = row.get(5).unwrap();
-    let dur: f64 = row.get(6).unwrap();
-    let _parent: String = row.get(8).unwrap();
-    Song {
-        number: row.get(0).unwrap(),
-        disc: row.get(1).unwrap(),
-        name: row.get(2).unwrap(),
-        album: row.get(3).unwrap(),
-        artist: row.get(4).unwrap(),
-        duration: Duration::from_secs_f64(dur),
-        path: PathBuf::from(path),
-        track_gain: row.get(7).unwrap(),
-        id: row.get(9).unwrap(),
-    }
-}
-
 pub static mut CONN: Option<Mutex<rusqlite::Connection>> = None;
 
 pub fn initialize_database() {
@@ -165,21 +65,131 @@ pub fn conn() -> MutexGuard<'static, Connection> {
     unsafe { CONN.as_ref().unwrap().lock().unwrap() }
 }
 
-pub fn add_playlist(name: &str, ids: &[usize]) {
+pub fn total_songs() -> usize {
     let conn = conn();
+    let mut stmt = conn.prepare("SELECT COUNT(*) FROM song").unwrap();
+    stmt.query_row([], |row| row.get(0)).unwrap()
+}
 
-    //TODO: batch this
-    for id in ids {
-        conn.execute(
-            "INSERT INTO playlist (song_id, name) VALUES (?1, ?2)",
-            params![id, name],
-        )
+pub fn get_all_songs() -> Vec<Song> {
+    collect_songs("SELECT *, rowid FROM song", params![])
+}
+
+pub fn get_all_artists() -> Vec<String> {
+    let conn = conn();
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
+
+    stmt.query_map([], |row| {
+        let artist: String = row.get(0).unwrap();
+        Ok(artist)
+    })
+    .unwrap()
+    .flatten()
+    .collect()
+}
+
+pub fn get_all_albums() -> Vec<(String, String)> {
+    let conn = conn();
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
+        .unwrap();
+
+    stmt.query_map([], |row| {
+        let album: String = row.get(0).unwrap();
+        let artist: String = row.get(1).unwrap();
+        Ok((album, artist))
+    })
+    .unwrap()
+    .flatten()
+    .collect()
+}
+
+pub fn get_all_albums_by_artist(artist: &str) -> Vec<String> {
+    let conn = conn();
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
+        .unwrap();
+
+    stmt.query_map([artist], |row| row.get(0))
+        .unwrap()
+        .flatten()
+        .collect()
+}
+
+pub fn get_all_songs_from_album(album: &str, artist: &str) -> Vec<Song> {
+    collect_songs(
+        "SELECT *, rowid FROM song WHERE artist=(?1) AND album=(?2) ORDER BY disc, number",
+        params![artist, album],
+    )
+}
+
+pub fn get_songs_by_artist(artist: &str) -> Vec<Song> {
+    collect_songs(
+        "SELECT *, rowid FROM song WHERE artist = ? ORDER BY album, disc, number",
+        params![artist],
+    )
+}
+
+pub fn get_songs(ids: &[usize]) -> Vec<Song> {
+    let conn = conn();
+    let mut stmt = conn
+        .prepare("SELECT *, rowid FROM song WHERE rowid = ?")
+        .unwrap();
+
+    ids.iter()
+        .map(|id| stmt.query_row([id], |row| Ok(song(row))))
+        .flatten()
+        .collect()
+}
+
+fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
+where
+    P: Params,
+{
+    let conn = conn();
+    let mut stmt = conn.prepare(query).expect(query);
+
+    stmt.query_map(params, |row| Ok(song(row)))
+        .unwrap()
+        .flatten()
+        .collect()
+}
+
+fn song(row: &Row) -> Song {
+    let path: String = row.get(5).unwrap();
+    let dur: f64 = row.get(6).unwrap();
+    let _parent: String = row.get(8).unwrap();
+    Song {
+        number: row.get(0).unwrap(),
+        disc: row.get(1).unwrap(),
+        name: row.get(2).unwrap(),
+        album: row.get(3).unwrap(),
+        artist: row.get(4).unwrap(),
+        duration: Duration::from_secs_f64(dur),
+        path: PathBuf::from(path),
+        track_gain: row.get(7).unwrap(),
+        id: row.get(9).unwrap(),
     }
 }
 
 pub mod playlist {
     use super::conn;
+    use rusqlite::params;
+
+    pub fn add(name: &str, ids: &[usize]) {
+        let conn = conn();
+
+        //TODO: batch this
+        for id in ids {
+            conn.execute(
+                "INSERT INTO playlist (song_id, name) VALUES (?1, ?2)",
+                params![id, name],
+            )
+            .unwrap();
+        }
+    }
 
     pub fn get_names() -> Vec<String> {
         let conn = conn();
@@ -290,6 +300,7 @@ impl Database {
             conn().execute_batch(&stmt).unwrap();
         }));
     }
+
     pub fn state(&mut self) -> State {
         match self.handle {
             Some(ref handle) => {

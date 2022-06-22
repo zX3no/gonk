@@ -5,10 +5,12 @@ use playlist::Playlist;
 use queue::Queue;
 use search::Mode as SearchMode;
 use search::Search;
+use settings::Settings;
 use sqlite::Database;
 use sqlite::State;
 use static_init::dynamic;
 use status_bar::StatusBar;
+use std::path::Path;
 use std::time::Instant;
 use std::{
     io::{stdout, Stdout},
@@ -22,6 +24,7 @@ mod browser;
 mod playlist;
 mod queue;
 mod search;
+mod settings;
 mod sqlite;
 mod status_bar;
 mod widgets;
@@ -71,6 +74,7 @@ pub enum Mode {
     Queue,
     Search,
     Playlist,
+    Settings,
 }
 
 pub trait Input {
@@ -80,7 +84,11 @@ pub trait Input {
     fn right(&mut self);
 }
 
-fn main() {
+fn init() -> Terminal<CrosstermBackend<Stdout>> {
+    //Database
+    sqlite::initialize_database();
+
+    //Panic handler
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         disable_raw_mode().unwrap();
@@ -89,6 +97,7 @@ fn main() {
         std::process::exit(1);
     }));
 
+    //Terminal
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
     execute!(
         terminal.backend_mut(),
@@ -99,15 +108,56 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    sqlite::initialize_database();
+    terminal
+}
+
+fn main() {
+    let mut terminal = init();
+    let mut db = Database::default();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+
+    if !args.is_empty() {
+        match args[0].as_str() {
+            "add" => {
+                if let Some(dir) = args.get(1..) {
+                    let dir = dir.join(" ");
+                    let path = Path::new(&dir);
+                    if path.exists() {
+                        // toml.add_path(dir.clone());
+                        db.add_paths(&[dir]);
+                    } else {
+                        return println!("{} is not a valid path.", dir);
+                    }
+                }
+            }
+            "reset" => {
+                sqlite::reset();
+                // toml.reset();
+                return println!("Files reset!");
+            }
+            "help" | "--help" => {
+                println!("Usage");
+                println!("   gonk [<command> <args>]");
+                println!();
+                println!("Options");
+                println!("   add   <path>  Add music to the library");
+                println!("   reset         Reset the database");
+                return;
+            }
+            _ if !args.is_empty() => return println!("Invalid command."),
+            _ => (),
+        }
+    }
 
     let mut browser = Browser::new();
     let mut queue = Queue::new(15);
     let mut search = Search::new();
     let mut status_bar = StatusBar::new();
     let mut playlist = Playlist::new();
-    let mut db = Database::default();
+    let mut settings = Settings::default();
+
     let mut mode = Mode::Browser;
+
     let mut busy = false;
     let mut last_tick = Instant::now();
 
@@ -151,6 +201,7 @@ fn main() {
                     Mode::Queue => queue::draw(&mut queue, f, None),
                     Mode::Search => search::draw(&mut search, top, f),
                     Mode::Playlist => playlist::draw(&mut playlist, top, f),
+                    Mode::Settings => settings::draw(&mut settings, top, f),
                 };
 
                 if mode != Mode::Queue {
@@ -167,6 +218,7 @@ fn main() {
             Mode::Queue => &mut queue as &mut dyn Input,
             Mode::Search => &mut search as &mut dyn Input,
             Mode::Playlist => &mut playlist as &mut dyn Input,
+            Mode::Settings => &mut settings as &mut dyn Input,
         };
 
         if event::poll(Duration::default()).unwrap() {
@@ -223,12 +275,11 @@ fn main() {
                             status_bar.hidden = !status_bar.hidden;
                         }
                         KeyCode::Char(',') => mode = Mode::Playlist,
-                        // KeyCode::Char('.') => mode = Mode::Options,
+                        KeyCode::Char('.') => mode = Mode::Settings,
                         KeyCode::Char('/') => mode = Mode::Search,
                         KeyCode::Tab => {
                             mode = match mode {
-                                // Mode::Browser | Mode::Options => Mode::Queue,
-                                Mode::Browser => Mode::Queue,
+                                Mode::Browser | Mode::Settings => Mode::Queue,
                                 Mode::Queue => Mode::Browser,
                                 Mode::Search => Mode::Queue,
                                 Mode::Playlist => Mode::Browser,
@@ -242,7 +293,7 @@ fn main() {
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
-                                let songs = browser::on_enter(&browser);
+                                let songs = browser::get_selected(&browser);
                                 playlist::add_to_playlist(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
@@ -256,7 +307,7 @@ fn main() {
                         },
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
-                                let songs = browser::on_enter(&browser);
+                                let songs = browser::get_selected(&browser);
                                 queue.player.add_songs(&songs);
                             }
                             Mode::Queue => {
@@ -265,7 +316,9 @@ fn main() {
                                 }
                             }
                             Mode::Search => search::on_enter(&mut search, &mut queue.player),
-                            // Mode::Options => options.on_enter(&mut queue.player, &mut toml),
+                            Mode::Settings => {
+                                // settings::on_enter(&mut settings, &mut queue.player, &mut toml)
+                            }
                             Mode::Playlist => playlist::on_enter(&mut playlist, &mut queue.player),
                         },
                         KeyCode::Backspace => match mode {

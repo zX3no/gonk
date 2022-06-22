@@ -94,6 +94,16 @@ impl Input for Browser {
     }
 }
 
+pub fn refresh(browser: &mut Browser) {
+    browser.mode = Mode::Artist;
+
+    browser.artists = Index::new(sqlite::get_all_artists(), Some(0));
+    browser.albums = Index::default();
+    browser.songs = Index::default();
+
+    update_albums(browser);
+}
+
 pub fn update_browser(browser: &mut Browser) {
     match browser.mode {
         Mode::Artist => update_albums(browser),
@@ -125,7 +135,7 @@ pub fn update_songs(browser: &mut Browser) {
     }
 }
 
-pub fn on_enter(browser: &Browser) -> Vec<Song> {
+pub fn get_selected(browser: &Browser) -> Vec<Song> {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
             if let Some(song) = browser.songs.selected() {
@@ -138,16 +148,6 @@ pub fn on_enter(browser: &Browser) -> Vec<Song> {
         }
     }
     Vec::new()
-}
-
-pub fn refresh(browser: &mut Browser) {
-    browser.mode = Mode::Artist;
-
-    browser.artists = Index::new(sqlite::get_all_artists(), Some(0));
-    browser.albums = Index::default();
-    browser.songs = Index::default();
-
-    update_albums(browser);
 }
 
 pub fn draw(browser: &Browser, area: Rect, f: &mut Frame) {
