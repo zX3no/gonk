@@ -1,6 +1,7 @@
-use browser::*;
+use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use queue::Queue;
+use search::Search;
 use static_init::dynamic;
 use std::{
     io::{stdout, Stdout},
@@ -11,6 +12,7 @@ use tui::{backend::CrosstermBackend, style::Color, *};
 
 mod browser;
 mod queue;
+mod search;
 mod sqlite;
 mod widgets;
 
@@ -54,10 +56,13 @@ static GONK_DIR: PathBuf = {
 };
 
 const POLL_RATE: Duration = Duration::from_millis(4);
+const SEEK_TIME: f64 = 10.0;
 
-enum Mode {
+#[derive(PartialEq, Eq)]
+pub enum Mode {
     Browser,
     Queue,
+    Search,
 }
 
 pub trait Input {
@@ -90,6 +95,7 @@ fn main() {
 
     let mut browser = Browser::new();
     let mut queue = Queue::new(15);
+    let mut search = Search::new();
     let mut mode = Mode::Browser;
 
     loop {
@@ -98,26 +104,55 @@ fn main() {
                 match mode {
                     Mode::Browser => browser::draw(&mut browser, f.size(), f),
                     Mode::Queue => queue::draw(&mut queue, f, None),
+                    Mode::Search => search::draw(&mut search, f.size(), f),
                 };
             })
             .unwrap();
 
+        let get_input = search::get_input(&search) && mode == Mode::Search;
+
         let input = match mode {
             Mode::Browser => &mut browser as &mut dyn Input,
             Mode::Queue => &mut queue as &mut dyn Input,
+            Mode::Search => &mut search as &mut dyn Input,
         };
 
         if crossterm::event::poll(POLL_RATE).unwrap() {
             match event::read().unwrap() {
                 Event::Key(event) => match event.code {
                     KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => break,
+                    KeyCode::Char(c) if get_input => {
+                        search::on_key(&mut search, c);
+                    }
+                    KeyCode::Char(' ') => queue.player.toggle_playback(),
+                    KeyCode::Char('c') if event.modifiers == KeyModifiers::SHIFT => {
+                        queue.player.toggle_playback()
+                    }
+                    KeyCode::Char('c') => queue::clear_except_playing(&mut queue),
+                    KeyCode::Char('x') => queue::delete(&mut queue),
+                    KeyCode::Char('u') if mode == Mode::Browser => (),
+                    KeyCode::Char('q') => queue.player.seek_by(-SEEK_TIME),
+                    KeyCode::Char('e') => queue.player.seek_by(SEEK_TIME),
+                    KeyCode::Char('a') => queue.player.prev_song(),
+                    KeyCode::Char('d') => queue.player.next_song(),
+                    KeyCode::Char('w') => queue.player.volume_up(),
+                    KeyCode::Char('s') => queue.player.volume_down(),
+                    KeyCode::Char('r') => queue.player.randomize(),
+                    KeyCode::Char('/') => mode = Mode::Search,
                     KeyCode::Tab => match mode {
                         Mode::Browser => mode = Mode::Queue,
                         Mode::Queue => mode = Mode::Browser,
+                        Mode::Search => mode = Mode::Queue,
+                    },
+                    KeyCode::Esc => match mode {
+                        Mode::Search => search::on_escape(&mut search, &mut mode),
+                        // Mode::Options => mode = Mode::Queue,
+                        // Mode::Playlist => playlist.on_escape(&mut mode),
+                        _ => (),
                     },
                     KeyCode::Enter => match mode {
                         Mode::Browser => {
-                            let songs = on_enter(&browser);
+                            let songs = browser::on_enter(&browser);
                             queue.player.add_songs(&songs);
                         }
                         Mode::Queue => {
@@ -125,9 +160,17 @@ fn main() {
                                 queue.player.play_song(i);
                             }
                         }
-                        // Mode::Search => search.on_enter(&mut queue.player),
+                        Mode::Search => search::on_enter(&mut search, &mut queue.player),
                         // Mode::Options => options.on_enter(&mut queue.player, &mut toml),
                         // Mode::Playlist => playlist.on_enter(&mut queue.player),
+                    },
+                    KeyCode::Backspace => match mode {
+                        Mode::Search => search::on_backspace(
+                            &mut search,
+                            event.modifiers == KeyModifiers::SHIFT,
+                        ),
+                        // Mode::Playlist => self.playlist.on_backspace(event.modifiers),
+                        _ => (),
                     },
                     KeyCode::Up => input.up(),
                     KeyCode::Down => input.down(),

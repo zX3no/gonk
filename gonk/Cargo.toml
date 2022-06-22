@@ -14,3 +14,5 @@ static_init = "1.0.2"
 
 gonk-player = {path = "../gonk-player"}
 unicode-width = "0.1.9"
+
+strsim = "0.10.0"
