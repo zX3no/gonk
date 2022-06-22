@@ -6,18 +6,21 @@ use search::Search;
 use sqlite::Database;
 use sqlite::State;
 use static_init::dynamic;
+use status_bar::StatusBar;
 use std::time::Instant;
 use std::{
     io::{stdout, Stdout},
     path::PathBuf,
     time::Duration,
 };
+use tui::layout::*;
 use tui::{backend::CrosstermBackend, style::Color, *};
 
 mod browser;
 mod queue;
 mod search;
 mod sqlite;
+mod status_bar;
 mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
@@ -59,10 +62,6 @@ static GONK_DIR: PathBuf = {
     gonk
 };
 
-const POLL_RATE: Duration = Duration::from_millis(4);
-const TICK_RATE: Duration = Duration::from_millis(200);
-const SEEK_TIME: f64 = 10.0;
-
 #[derive(PartialEq, Eq)]
 pub enum Mode {
     Browser,
@@ -101,6 +100,7 @@ fn main() {
     let mut browser = Browser::new();
     let mut queue = Queue::new(15);
     let mut search = Search::new();
+    let mut status_bar = StatusBar::new();
     let mut db = Database::default();
     let mut mode = Mode::Browser;
     let mut busy = false;
@@ -109,12 +109,14 @@ fn main() {
     loop {
         //Update
         {
-            if last_tick.elapsed() >= TICK_RATE {
+            if last_tick.elapsed() >= Duration::from_millis(200) {
                 //Update the status_bar at a constant rate.
-                // status_bar.update(busy, queue);
+                status_bar::update(&mut status_bar, busy, &queue);
                 last_tick = Instant::now();
             }
+
             queue.player.update();
+
             match db.state() {
                 State::Busy => busy = true,
                 State::Idle => busy = false,
@@ -128,11 +130,26 @@ fn main() {
         //Draw
         terminal
             .draw(|f| {
-                match mode {
-                    Mode::Browser => browser::draw(&mut browser, f.size(), f),
-                    Mode::Queue => queue::draw(&mut queue, f, None),
-                    Mode::Search => search::draw(&mut search, f.size(), f),
+                let area = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Min(2), Constraint::Length(3)])
+                    .split(f.size());
+
+                let (top, bottom) = if status_bar.hidden {
+                    (f.size(), area[1])
+                } else {
+                    (area[0], area[1])
                 };
+
+                match mode {
+                    Mode::Browser => browser::draw(&mut browser, top, f),
+                    Mode::Queue => queue::draw(&mut queue, f, None),
+                    Mode::Search => search::draw(&mut search, top, f),
+                };
+
+                if mode != Mode::Queue {
+                    status_bar::draw(&mut status_bar, bottom, f, busy, &queue);
+                }
             })
             .unwrap();
 
@@ -144,16 +161,17 @@ fn main() {
             Mode::Search => &mut search as &mut dyn Input,
         };
 
-        if crossterm::event::poll(POLL_RATE).unwrap() {
+        if event::poll(Duration::default()).unwrap() {
             match event::read().unwrap() {
                 Event::Key(event) => {
                     let shift = event.modifiers == KeyModifiers::SHIFT;
+                    let control = event.modifiers == KeyModifiers::CONTROL;
 
                     match event.code {
-                        KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => break,
+                        KeyCode::Char('c') if control => break,
                         KeyCode::Char(c) if get_input => {
                             //Handle ^W as control backspace.
-                            if event.modifiers == KeyModifiers::CONTROL && c == 'w' {
+                            if control && c == 'w' {
                                 search::on_backspace(&mut search, true)
                             } else {
                                 search.query_changed = true;
@@ -170,9 +188,11 @@ fn main() {
                             queue.ui.select(Some(0));
                         }
                         KeyCode::Char('x') => queue::delete(&mut queue),
-                        KeyCode::Char('u') if mode == Mode::Browser => (),
-                        KeyCode::Char('q') => queue.player.seek_by(-SEEK_TIME),
-                        KeyCode::Char('e') => queue.player.seek_by(SEEK_TIME),
+                        KeyCode::Char('u') if mode == Mode::Browser => {
+                            db.add_paths(&[String::from("D:/OneDrive/Music")])
+                        }
+                        KeyCode::Char('q') => queue.player.seek_by(-10.0),
+                        KeyCode::Char('e') => queue.player.seek_by(10.0),
                         KeyCode::Char('a') => queue.player.prev_song(),
                         KeyCode::Char('d') => queue.player.next_song(),
                         KeyCode::Char('w') => queue.player.volume_up(),
@@ -206,7 +226,7 @@ fn main() {
                         },
                         KeyCode::Backspace => {
                             match mode {
-                                Mode::Search => search::on_backspace(&mut search, shift),
+                                Mode::Search => search::on_backspace(&mut search, control),
                                 // Mode::Playlist => self.playlist.on_backspace(event.modifiers),
                                 _ => (),
                             }
@@ -234,7 +254,18 @@ fn main() {
                         _ => (),
                     }
                 }
-                Event::Mouse(_) => {}
+                Event::Mouse(event) => match event.kind {
+                    MouseEventKind::ScrollUp => input.up(),
+                    MouseEventKind::ScrollDown => input.down(),
+                    MouseEventKind::Down(_) => {
+                        if let Mode::Queue = mode {
+                            terminal
+                                .draw(|f| queue::draw(&mut queue, f, Some(event)))
+                                .unwrap();
+                        }
+                    }
+                    _ => (),
+                },
                 _ => (),
             }
         }
