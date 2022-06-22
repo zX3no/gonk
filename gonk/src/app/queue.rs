@@ -104,7 +104,9 @@ impl Queue {
             let size = f.size();
 
             //Mouse support for the seek bar.
-            if (size.height - 2 == y || size.height - 1 == y) && size.height > 15 {
+            if (size.height - 3 == y || size.height - 2 == y || size.height - 1 == y)
+                && size.height > 15
+            {
                 let ratio = f64::from(x) / f64::from(size.width);
                 let duration = self.player.duration;
                 let new_time = duration * ratio;
