@@ -167,7 +167,7 @@ impl App {
 
                 match self.mode {
                     Mode::Browser => self.browser.draw(top, f),
-                    Mode::Queue => self.queue.draw(f),
+                    Mode::Queue => self.queue.draw(f, None),
                     Mode::Options => self.options.draw(top, f),
                     Mode::Search => self.search.draw(top, f),
                     Mode::Playlist => self.playlist.draw(top, f),
@@ -320,7 +320,9 @@ impl App {
                         MouseEventKind::ScrollUp => self.up(),
                         MouseEventKind::ScrollDown => self.down(),
                         MouseEventKind::Down(_) => {
-                            self.queue.clicked_pos = Some((event.column, event.row));
+                            if let Mode::Queue = self.mode {
+                                self.terminal.draw(|f| self.queue.draw(f, Some(event)))?;
+                            }
                         }
                         _ => (),
                     },

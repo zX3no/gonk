@@ -1,6 +1,6 @@
 use crate::widgets::*;
 use crate::*;
-use crossterm::event::KeyModifiers;
+use crossterm::event::{KeyModifiers, MouseEvent};
 use gonk_player::{Index, Player, Song};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -11,7 +11,6 @@ use unicode_width::UnicodeWidthStr;
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
-    pub clicked_pos: Option<(u16, u16)>,
     pub player: Player,
 }
 
@@ -20,7 +19,6 @@ impl Queue {
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
-            clicked_pos: None,
             player: Player::new(vol),
         }
     }
@@ -77,7 +75,7 @@ impl Queue {
 }
 
 impl Queue {
-    pub fn draw(&mut self, f: &mut Frame) {
+    pub fn draw(&mut self, f: &mut Frame, event: Option<MouseEvent>) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -91,8 +89,16 @@ impl Queue {
 
         let row_bounds = self.draw_body(f, chunks[1]);
 
+        self.draw_seeker(f, chunks[2]);
+
+        //Don't handle mouse input when the queue is empty.
+        if self.player.is_empty() {
+            return;
+        }
+
         //Handle mouse input.
-        if let Some((x, y)) = self.clicked_pos {
+        if let Some(event) = event {
+            let (x, y) = (event.column, event.row);
             const HEADER_HEIGHT: u16 = 5;
 
             let size = f.size();
@@ -103,7 +109,6 @@ impl Queue {
                 let duration = self.player.duration;
                 let new_time = duration * ratio;
                 self.player.seek_to(new_time);
-                self.clicked_pos = None;
             }
 
             //Mouse support for the queue.
@@ -121,11 +126,8 @@ impl Queue {
                         self.ui.select(Some(index));
                     }
                 }
-                self.clicked_pos = None;
             }
         }
-
-        self.draw_seeker(f, chunks[2]);
     }
     fn draw_header(&mut self, f: &mut Frame, area: Rect) {
         f.render_widget(
@@ -196,10 +198,6 @@ impl Queue {
     }
     fn draw_body(&mut self, f: &mut Frame, area: Rect) -> Option<(usize, usize)> {
         if self.player.songs.is_empty() {
-            if self.clicked_pos.is_some() {
-                self.clicked_pos = None;
-            }
-
             f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
