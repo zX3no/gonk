@@ -1,5 +1,7 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
+use playlist::Mode as PlaylistMode;
+use playlist::Playlist;
 use queue::Queue;
 use search::Mode as SearchMode;
 use search::Search;
@@ -17,6 +19,7 @@ use tui::layout::*;
 use tui::{backend::CrosstermBackend, style::Color, *};
 
 mod browser;
+mod playlist;
 mod queue;
 mod search;
 mod sqlite;
@@ -67,6 +70,7 @@ pub enum Mode {
     Browser,
     Queue,
     Search,
+    Playlist,
 }
 
 pub trait Input {
@@ -101,6 +105,7 @@ fn main() {
     let mut queue = Queue::new(15);
     let mut search = Search::new();
     let mut status_bar = StatusBar::new();
+    let mut playlist = Playlist::new();
     let mut db = Database::default();
     let mut mode = Mode::Browser;
     let mut busy = false;
@@ -145,6 +150,7 @@ fn main() {
                     Mode::Browser => browser::draw(&mut browser, top, f),
                     Mode::Queue => queue::draw(&mut queue, f, None),
                     Mode::Search => search::draw(&mut search, top, f),
+                    Mode::Playlist => playlist::draw(&mut playlist, top, f),
                 };
 
                 if mode != Mode::Queue {
@@ -153,12 +159,14 @@ fn main() {
             })
             .unwrap();
 
-        let get_input = search.mode == SearchMode::Search && mode == Mode::Search;
+        let input_search = search.mode == SearchMode::Search && mode == Mode::Search;
+        let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
         let input = match mode {
             Mode::Browser => &mut browser as &mut dyn Input,
             Mode::Queue => &mut queue as &mut dyn Input,
             Mode::Search => &mut search as &mut dyn Input,
+            Mode::Playlist => &mut playlist as &mut dyn Input,
         };
 
         if event::poll(Duration::default()).unwrap() {
@@ -169,7 +177,7 @@ fn main() {
 
                     match event.code {
                         KeyCode::Char('c') if control => break,
-                        KeyCode::Char(c) if get_input => {
+                        KeyCode::Char(c) if input_search => {
                             //Handle ^W as control backspace.
                             if control && c == 'w' {
                                 search::on_backspace(&mut search, true)
@@ -178,11 +186,14 @@ fn main() {
                                 search.query.push(c);
                             }
                         }
-                        // KeyCode::Char(c)
-                        //     if playlist.input_mode() && mode == Mode::Playlist =>
-                        // {
-                        //     playlist.on_key(c)
-                        // }
+                        KeyCode::Char(c) if input_playlist => {
+                            if control && c == 'w' {
+                                playlist::on_backspace(&mut playlist, true)
+                            } else {
+                                playlist.changed = true;
+                                playlist.search.push(c);
+                            }
+                        }
                         KeyCode::Char(' ') => queue.player.toggle_playback(),
                         KeyCode::Char('c') if shift => {
                             queue.player.clear_except_playing();
@@ -192,7 +203,11 @@ fn main() {
                             queue.player.clear();
                             queue.ui.select(Some(0));
                         }
-                        KeyCode::Char('x') => queue::delete(&mut queue),
+                        KeyCode::Char('x') => match mode {
+                            Mode::Queue => queue::delete(&mut queue),
+                            Mode::Playlist => playlist::delete(&mut playlist),
+                            _ => (),
+                        },
                         KeyCode::Char('u') if mode == Mode::Browser => {
                             db.add_paths(&[String::from("D:/OneDrive/Music")])
                         }
@@ -207,7 +222,7 @@ fn main() {
                         KeyCode::Char('`') => {
                             status_bar.hidden = !status_bar.hidden;
                         }
-                        // KeyCode::Char(',') => mode = Mode::Playlist,
+                        KeyCode::Char(',') => mode = Mode::Playlist,
                         // KeyCode::Char('.') => mode = Mode::Options,
                         KeyCode::Char('/') => mode = Mode::Search,
                         KeyCode::Tab => {
@@ -216,29 +231,29 @@ fn main() {
                                 Mode::Browser => Mode::Queue,
                                 Mode::Queue => Mode::Browser,
                                 Mode::Search => Mode::Queue,
-                                // Mode::Playlist => Mode::Browser,
+                                Mode::Playlist => Mode::Browser,
                             };
                         }
                         KeyCode::Esc => match mode {
                             Mode::Search => search::on_escape(&mut search, &mut mode),
                             // Mode::Options => mode = Mode::Queue,
-                            // Mode::Playlist => playlist.on_escape(&mut mode),
+                            Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
                             _ => (),
                         },
-                        // KeyCode::Enter if shift => match mode {
-                        //     Mode::Browser => {
-                        //         let songs = browser.on_enter();
-                        //         playlist.add_to_playlist(&songs);
-                        //         mode = Mode::Playlist;
-                        //     }
-                        //     Mode::Queue => {
-                        //         if let Some(song) = queue.selected() {
-                        //             playlist.add_to_playlist(&[song.clone()]);
-                        //             mode = Mode::Playlist;
-                        //         }
-                        //     }
-                        //     _ => (),
-                        // },
+                        KeyCode::Enter if shift => match mode {
+                            Mode::Browser => {
+                                let songs = browser::on_enter(&browser);
+                                playlist::add_to_playlist(&mut playlist, &songs);
+                                mode = Mode::Playlist;
+                            }
+                            Mode::Queue => {
+                                if let Some(song) = queue.player.songs.selected() {
+                                    playlist::add_to_playlist(&mut playlist, &[song.clone()]);
+                                    mode = Mode::Playlist;
+                                }
+                            }
+                            _ => (),
+                        },
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::on_enter(&browser);
@@ -251,15 +266,13 @@ fn main() {
                             }
                             Mode::Search => search::on_enter(&mut search, &mut queue.player),
                             // Mode::Options => options.on_enter(&mut queue.player, &mut toml),
-                            // Mode::Playlist => playlist.on_enter(&mut queue.player),
+                            Mode::Playlist => playlist::on_enter(&mut playlist, &mut queue.player),
                         },
-                        KeyCode::Backspace => {
-                            match mode {
-                                Mode::Search => search::on_backspace(&mut search, control),
-                                // Mode::Playlist => self.playlist.on_backspace(event.modifiers),
-                                _ => (),
-                            }
-                        }
+                        KeyCode::Backspace => match mode {
+                            Mode::Search => search::on_backspace(&mut search, control),
+                            Mode::Playlist => playlist::on_backspace(&mut playlist, control),
+                            _ => (),
+                        },
                         KeyCode::Up => input.up(),
                         KeyCode::Down => input.down(),
                         KeyCode::Left => input.left(),
