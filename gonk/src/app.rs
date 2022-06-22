@@ -118,11 +118,7 @@ impl App {
                 Ok(Self {
                     terminal,
                     mode: Mode::Browser,
-                    queue: Queue::new(
-                        toml.config.volume,
-                        toml.colors,
-                        toml.config.output_device.clone(),
-                    ),
+                    queue: Queue::new(toml.config.volume, toml.config.output_device.clone()),
                     browser: Browser::new(),
                     options: Options::new(&mut toml),
                     search: Search::new().init(),

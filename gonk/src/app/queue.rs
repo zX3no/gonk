@@ -1,6 +1,5 @@
-use crate::toml::Colors;
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
-use crate::Frame;
+use crate::{Frame, COLORS};
 use crossterm::event::{KeyModifiers, MouseEvent};
 use gonk_player::{Index, Player};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -16,13 +15,11 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new(vol: u16, colors: Colors, device: String) -> Self {
+    pub fn new(vol: u16, device: String) -> Self {
         Self {
             ui: Index::default(),
             constraint: [8, 42, 24, 26],
-            clicked_pos: None,
             player: Player::new(device, vol),
-            colors,
         }
     }
     pub fn update(&mut self) {
@@ -197,7 +194,7 @@ impl Queue {
         f.render_widget(Paragraph::new(title).alignment(Alignment::Center), area);
     }
     fn draw_body(&mut self, f: &mut Frame, area: Rect) -> Option<(usize, usize)> {
-        if self.player.songs.is_empty() {
+        if self.player.is_empty() {
             f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
@@ -353,7 +350,7 @@ impl Queue {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 )
-                .gauge_style(Style::default().fg(self.colors.seeker))
+                .gauge_style(Style::default().fg(COLORS.seeker))
                 .ratio(ratio as f64)
                 .label(seeker),
             area,

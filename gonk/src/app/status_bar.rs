@@ -1,6 +1,7 @@
 use super::queue::Queue;
+use crate::sqlite;
 use crate::Frame;
-use crate::{sqlite, toml::Colors};
+use crate::COLORS;
 use std::time::{Duration, Instant};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
