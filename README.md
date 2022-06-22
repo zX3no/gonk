@@ -21,8 +21,6 @@
 
 ## 📦 Installation
 
-> MacOS has not been testing.
-
 > I recommend using a font with ligatures for the best experience.
 
 #### Dependencies
@@ -65,7 +63,7 @@ Linux: `~/.config/gonk/gonk.toml`
 
 | Command              | Key             |
 |----------------------|-----------------|
-| Move Up              | `K / UP`        |
+| Move Up              | `K / Up`        |
 | Move Down            | `J / Down`      |
 | Move Left            | `H / Left`      |
 | Move Right           | `L / Right`     |

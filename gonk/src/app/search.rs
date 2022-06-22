@@ -1,7 +1,6 @@
 use super::Mode as AppMode;
-use crate::toml::Colors;
-use crate::widgets::{Cell, Row, Table, TableState};
-use crate::{sqlite, Frame};
+use crate::widgets::*;
+use crate::*;
 use crossterm::event::KeyModifiers;
 use gonk_player::{Index, Player};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -51,18 +50,16 @@ pub struct Search {
     mode: Mode,
     results: Index<Item>,
     cache: Vec<Item>,
-    colors: Colors,
 }
 
 impl Search {
-    pub fn new(colors: Colors) -> Self {
+    pub fn new() -> Self {
         Self {
             cache: Vec::new(),
             query: String::new(),
             query_changed: false,
             mode: Mode::Search,
             results: Index::default(),
-            colors,
         }
     }
     pub fn init(mut self) -> Self {
@@ -379,24 +376,24 @@ impl Search {
                     let song = sqlite::get_songs(&[song.id])[0].clone();
                     Row::new(vec![
                         selected_cell,
-                        Cell::from(song.name).style(Style::default().fg(self.colors.name)),
-                        Cell::from(song.album).style(Style::default().fg(self.colors.album)),
-                        Cell::from(song.artist).style(Style::default().fg(self.colors.artist)),
+                        Cell::from(song.name).style(Style::default().fg(COLORS.name)),
+                        Cell::from(song.album).style(Style::default().fg(COLORS.album)),
+                        Cell::from(song.artist).style(Style::default().fg(COLORS.artist)),
                     ])
                 }
                 Item::Album(album) => Row::new(vec![
                     selected_cell,
                     Cell::from(format!("{} - Album", album.name))
-                        .style(Style::default().fg(self.colors.name)),
-                    Cell::from("").style(Style::default().fg(self.colors.album)),
-                    Cell::from(album.artist.clone()).style(Style::default().fg(self.colors.artist)),
+                        .style(Style::default().fg(COLORS.name)),
+                    Cell::from("").style(Style::default().fg(COLORS.album)),
+                    Cell::from(album.artist.clone()).style(Style::default().fg(COLORS.artist)),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
                     selected_cell,
                     Cell::from(format!("{} - Artist", artist.name))
-                        .style(Style::default().fg(self.colors.name)),
-                    Cell::from("").style(Style::default().fg(self.colors.album)),
-                    Cell::from("").style(Style::default().fg(self.colors.artist)),
+                        .style(Style::default().fg(COLORS.name)),
+                    Cell::from("").style(Style::default().fg(COLORS.album)),
+                    Cell::from("").style(Style::default().fg(COLORS.artist)),
                 ]),
             }
         };

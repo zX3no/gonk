@@ -1,7 +1,7 @@
 use crate::toml::Colors;
 use crate::widgets::{Cell, Gauge, Row, Table, TableState};
 use crate::Frame;
-use crossterm::event::KeyModifiers;
+use crossterm::event::{KeyModifiers, MouseEvent};
 use gonk_player::{Index, Player};
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -12,9 +12,7 @@ use unicode_width::UnicodeWidthStr;
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
-    pub clicked_pos: Option<(u16, u16)>,
     pub player: Player,
-    pub colors: Colors,
 }
 
 impl Queue {
@@ -77,7 +75,7 @@ impl Queue {
 }
 
 impl Queue {
-    pub fn draw(&mut self, f: &mut Frame) {
+    pub fn draw(&mut self, f: &mut Frame, event: Option<MouseEvent>) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -91,8 +89,16 @@ impl Queue {
 
         let row_bounds = self.draw_body(f, chunks[1]);
 
+        self.draw_seeker(f, chunks[2]);
+
+        //Don't handle mouse input when the queue is empty.
+        if self.player.is_empty() {
+            return;
+        }
+
         //Handle mouse input.
-        if let Some((x, y)) = self.clicked_pos {
+        if let Some(event) = event {
+            let (x, y) = (event.column, event.row);
             const HEADER_HEIGHT: u16 = 5;
 
             let size = f.size();
@@ -103,7 +109,6 @@ impl Queue {
                 let duration = self.player.duration().as_secs_f32();
                 let new_time = duration * ratio;
                 self.player.seek_to(new_time);
-                self.clicked_pos = None;
             }
 
             //Mouse support for the queue.
@@ -121,11 +126,8 @@ impl Queue {
                         self.ui.select(Some(index));
                     }
                 }
-                self.clicked_pos = None;
             }
         }
-
-        self.draw_seeker(f, chunks[2]);
     }
     fn draw_header(&mut self, f: &mut Frame, area: Rect) {
         f.render_widget(
@@ -181,12 +183,12 @@ impl Queue {
             vec![
                 Spans::from(vec![
                     Span::raw(format!("─│ {}", pad_front)),
-                    Span::styled(artist, Style::default().fg(self.colors.artist)),
+                    Span::styled(artist, Style::default().fg(COLORS.artist)),
                     Span::raw(" ─ "),
-                    Span::styled(name, Style::default().fg(self.colors.name)),
+                    Span::styled(name, Style::default().fg(COLORS.name)),
                     Span::raw(format!("{} │─", pad_back)),
                 ]),
-                Spans::from(Span::styled(album, Style::default().fg(self.colors.album))),
+                Spans::from(Span::styled(album, Style::default().fg(COLORS.album))),
             ]
         } else {
             Vec::new()
@@ -195,11 +197,7 @@ impl Queue {
         f.render_widget(Paragraph::new(title).alignment(Alignment::Center), area);
     }
     fn draw_body(&mut self, f: &mut Frame, area: Rect) -> Option<(usize, usize)> {
-        if self.player.is_empty() {
-            if self.clicked_pos.is_some() {
-                self.clicked_pos = None;
-            }
-
+        if self.player.songs.is_empty() {
             f.render_widget(
                 Block::default()
                     .border_type(BorderType::Rounded)
@@ -217,11 +215,10 @@ impl Queue {
             .map(|song| {
                 Row::new(vec![
                     Cell::from(""),
-                    Cell::from(song.number.to_string())
-                        .style(Style::default().fg(self.colors.number)),
-                    Cell::from(song.name.as_str()).style(Style::default().fg(self.colors.name)),
-                    Cell::from(song.album.as_str()).style(Style::default().fg(self.colors.album)),
-                    Cell::from(song.artist.as_str()).style(Style::default().fg(self.colors.artist)),
+                    Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.number)),
+                    Cell::from(song.name.as_str()).style(Style::default().fg(COLORS.name)),
+                    Cell::from(song.album.as_str()).style(Style::default().fg(COLORS.album)),
+                    Cell::from(song.artist.as_str()).style(Style::default().fg(COLORS.artist)),
                 ])
             })
             .collect();
@@ -238,13 +235,13 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().bg(self.colors.number).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.number).fg(Color::Black)),
                             Cell::from(song.name.as_str())
-                                .style(Style::default().bg(self.colors.name).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.name).fg(Color::Black)),
                             Cell::from(song.album.as_str())
-                                .style(Style::default().bg(self.colors.album).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.album).fg(Color::Black)),
                             Cell::from(song.artist.as_str())
-                                .style(Style::default().bg(self.colors.artist).fg(Color::Black)),
+                                .style(Style::default().bg(COLORS.artist).fg(Color::Black)),
                         ])
                     } else {
                         Row::new(vec![
@@ -254,13 +251,12 @@ impl Queue {
                                     .add_modifier(Modifier::DIM | Modifier::BOLD),
                             ),
                             Cell::from(song.number.to_string())
-                                .style(Style::default().fg(self.colors.number)),
-                            Cell::from(song.name.as_str())
-                                .style(Style::default().fg(self.colors.name)),
+                                .style(Style::default().fg(COLORS.number)),
+                            Cell::from(song.name.as_str()).style(Style::default().fg(COLORS.name)),
                             Cell::from(song.album.as_str())
-                                .style(Style::default().fg(self.colors.album)),
+                                .style(Style::default().fg(COLORS.album)),
                             Cell::from(song.artist.as_str())
-                                .style(Style::default().fg(self.colors.artist)),
+                                .style(Style::default().fg(COLORS.artist)),
                         ])
                     };
 
@@ -273,13 +269,13 @@ impl Queue {
                             let row = Row::new(vec![
                                 Cell::default(),
                                 Cell::from(song.number.to_string())
-                                    .style(Style::default().bg(self.colors.number)),
+                                    .style(Style::default().bg(COLORS.number)),
                                 Cell::from(song.name.as_str())
-                                    .style(Style::default().bg(self.colors.name)),
+                                    .style(Style::default().bg(COLORS.name)),
                                 Cell::from(song.album.as_str())
-                                    .style(Style::default().bg(self.colors.album)),
+                                    .style(Style::default().bg(COLORS.album)),
                                 Cell::from(song.artist.as_str())
-                                    .style(Style::default().bg(self.colors.artist)),
+                                    .style(Style::default().bg(COLORS.artist)),
                             ])
                             .style(Style::default().fg(Color::Black));
                             items.remove(ui_index);

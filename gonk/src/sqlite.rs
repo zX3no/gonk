@@ -1,14 +1,18 @@
-use crate::DB_DIR;
+use crate::GONK_DIR;
 use gonk_player::Song;
 use jwalk::WalkDir;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::{params, Connection, Params, Row};
+use static_init::dynamic;
 use std::{
     path::PathBuf,
     sync::{Mutex, MutexGuard},
     thread::{self, JoinHandle},
     time::Duration,
 };
+
+#[dynamic]
+static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 pub fn total_songs() -> usize {
     let conn = conn();
@@ -112,8 +116,42 @@ fn song(row: &Row) -> Song {
 
 pub static mut CONN: Option<Mutex<rusqlite::Connection>> = None;
 
-pub fn conn() -> MutexGuard<'static, Connection> {
-    unsafe { CONN.as_ref().unwrap().lock().unwrap() }
+pub fn initialize_database() {
+    let exists = DB_DIR.exists();
+    if let Ok(conn) = Connection::open(DB_DIR.as_path()) {
+        if !exists {
+            conn.execute(
+                "CREATE TABLE song (
+                    number     INTEGER NOT NULL,
+                    disc       INTEGER NOT NULL,
+                    name       TEXT NOT NULL,
+                    album      TEXT NOT NULL,
+                    artist     TEXT NOT NULL,
+                    path       TEXT NOT NULL UNIQUE,
+                    duration   DOUBLE NOT NULL,
+                    track_gain DOUBLE NOT NULL,
+                    parent     TEXT NOT NULL
+                )",
+                [],
+            )
+            .unwrap();
+
+            conn.execute(
+                "CREATE TABLE playlist (
+                    song_id INTEGER NOT NULL,
+                    name TEXT NOT NULL
+                )",
+                [],
+            )
+            .unwrap();
+        }
+
+        unsafe {
+            CONN = Some(Mutex::new(conn));
+        }
+    } else {
+        panic!("Could not open database!")
+    }
 }
 
 pub fn reset() {
@@ -121,6 +159,10 @@ pub fn reset() {
         CONN = None;
     }
     let _ = std::fs::remove_file(DB_DIR.as_path());
+}
+
+pub fn conn() -> MutexGuard<'static, Connection> {
+    unsafe { CONN.as_ref().unwrap().lock().unwrap() }
 }
 
 pub fn add_playlist(name: &str, ids: &[usize]) {
@@ -150,7 +192,6 @@ pub mod playlist {
     }
 
     pub fn get(playlist_name: &str) -> (Vec<usize>, Vec<usize>) {
-        //TODO: playlist should reference song
         let conn = conn();
         let mut stmt = conn
             .prepare("SELECT rowid, song_id FROM playlist WHERE name = ?")
@@ -158,9 +199,7 @@ pub mod playlist {
 
         let ids: Vec<_> = stmt
             .query_map([playlist_name], |row| {
-                let row_id: usize = row.get(0).unwrap();
-                let song_id: usize = row.get(1).unwrap();
-                Ok((row_id, song_id))
+                Ok((row.get(0).unwrap(), row.get(1).unwrap()))
             })
             .unwrap()
             .flatten()
@@ -180,41 +219,6 @@ pub mod playlist {
         conn()
             .execute("DELETE FROM playlist WHERE name = ?", [name])
             .unwrap();
-    }
-}
-
-pub fn open_database() -> Option<Mutex<rusqlite::Connection>> {
-    let exists = DB_DIR.exists();
-    if let Ok(conn) = Connection::open(DB_DIR.as_path()) {
-        if !exists {
-            conn.execute(
-                "CREATE TABLE song (
-                    number     INTEGER NOT NULL,
-                    disc       INTEGER NOT NULL,
-                    name       TEXT NOT NULL,
-                    album      TEXT NOT NULL,
-                    artist     TEXT NOT NULL,
-                    path       TEXT NOT NULL UNIQUE,
-                    duration   DOUBLE NOT NULL,
-                    track_gain DOUBLE NOT NULL,
-                    parent     TEXT NOT NULL
-                )",
-                [],
-            )
-            .unwrap();
-
-            conn.execute(
-                "CREATE TABLE playlist (
-                    song_id INTEGER NOT NULL,
-                    name TEXT NOT NULL
-                )",
-                [],
-            )
-            .unwrap();
-        }
-        Some(Mutex::new(conn))
-    } else {
-        None
     }
 }
 
