@@ -8,7 +8,6 @@ use std::{
     path::PathBuf,
     sync::{Mutex, MutexGuard},
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 #[dynamic]
@@ -28,8 +27,7 @@ pub fn initialize_database() {
                     album      TEXT NOT NULL,
                     artist     TEXT NOT NULL,
                     path       TEXT NOT NULL UNIQUE,
-                    duration   DOUBLE NOT NULL,
-                    track_gain DOUBLE NOT NULL,
+                    gain DOUBLE NOT NULL,
                     parent     TEXT NOT NULL
                 )",
                 [],
@@ -180,18 +178,16 @@ where
 
 fn song(row: &Row) -> Song {
     let path: String = row.get(5).unwrap();
-    let dur: f64 = row.get(6).unwrap();
-    let _parent: String = row.get(8).unwrap();
+    let _parent: String = row.get(7).unwrap();
     Song {
         number: row.get(0).unwrap(),
         disc: row.get(1).unwrap(),
         name: row.get(2).unwrap(),
         album: row.get(3).unwrap(),
         artist: row.get(4).unwrap(),
-        duration: Duration::from_secs_f64(dur),
         path: PathBuf::from(path),
-        track_gain: row.get(7).unwrap(),
-        id: row.get(9).unwrap(),
+        gain: row.get(6).unwrap(),
+        id: row.get(8).unwrap(),
     }
 }
 
@@ -209,7 +205,7 @@ pub mod playlist {
                 )
             })
             .collect();
-        let query = format!("BEGIN;\n{}\nCOMMIT;\n", queries.join("\n"));
+        let query = format!("BEGIN;\n{}\nCOMMIT;", queries.join("\n"));
 
         conn().execute_batch(&query).unwrap();
     }
@@ -307,11 +303,12 @@ impl Database {
                                 let artist = song.artist.replace('\'', r"''");
                                 let album = song.album.replace('\'', r"''");
                                 let name = song.name.replace('\'', r"''");
-                                let song_path= song.path.to_string_lossy().replace('\'', r"''");
+                                let song_path = song.path.to_string_lossy().replace('\'', r"''");
                                 let parent = path.replace('\'', r"''");
 
-                                format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, duration, track_gain, parent) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                                            song.number, song.disc, name, album, artist, song_path, song.duration.as_secs_f64(), song.track_gain, parent)
+                                format!("INSERT OR IGNORE INTO song (number, disc, name, album, artist, path, gain, parent)
+                                VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
+                                song.number, song.disc, name, album, artist, song_path, song.gain, parent)
                             })
                             .collect::<Vec<String>>()
                             .join("\n")
@@ -319,7 +316,7 @@ impl Database {
                 })
                 .collect();
 
-            let stmt = format!("BEGIN;\nDELETE FROM song;\n{}COMMIT;\n", queries.join("\n"));
+            let stmt = format!("BEGIN;\nDELETE FROM song;\n{}COMMIT;", queries.join("\n"));
             conn().execute_batch(&stmt).unwrap();
         }));
     }

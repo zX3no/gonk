@@ -2,6 +2,7 @@
 name = "gonk"
 version = "0.0.10"
 edition = "2021"
+default-run = "gonk"
 
 [dependencies]
 crossterm = "0.23.2"
