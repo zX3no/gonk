@@ -122,7 +122,8 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 .songs
                 .data
                 .iter()
-                .map(|item| item.song.clone())
+                .map(|item| &item.song)
+                .cloned()
                 .collect();
 
             player.add_songs(&songs);

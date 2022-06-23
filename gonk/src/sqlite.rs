@@ -197,19 +197,21 @@ fn song(row: &Row) -> Song {
 
 pub mod playlist {
     use super::conn;
-    use rusqlite::params;
 
     pub fn add(name: &str, ids: &[usize]) {
-        let conn = conn();
+        let name = name.replace('\'', r"''");
+        let queries: Vec<String> = ids
+            .iter()
+            .map(|id| {
+                format!(
+                    "INSERT INTO playlist (song_id, name) VALUES ('{}', '{}');",
+                    id, name
+                )
+            })
+            .collect();
+        let query = format!("BEGIN;\n{}\nCOMMIT;\n", queries.join("\n"));
 
-        //TODO: batch this
-        for id in ids {
-            conn.execute(
-                "INSERT INTO playlist (song_id, name) VALUES (?1, ?2)",
-                params![id, name],
-            )
-            .unwrap();
-        }
+        conn().execute_batch(&query).unwrap();
     }
 
     pub fn get_names() -> Vec<String> {
