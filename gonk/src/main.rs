@@ -85,9 +85,6 @@ pub trait Input {
 }
 
 fn init() -> Terminal<CrosstermBackend<Stdout>> {
-    //Database
-    sqlite::initialize_database();
-
     //Panic handler
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -112,27 +109,45 @@ fn init() -> Terminal<CrosstermBackend<Stdout>> {
 }
 
 fn main() {
-    let mut terminal = init();
+    //Program will explode if this isn't called.
+    sqlite::initialize_database();
+
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    let get_path = || -> Option<String> {
+        if let Some(path) = args.get(1..) {
+            let path = path.join(" ");
+            if Path::new(&path).exists() {
+                return Some(path);
+            }
+        }
+        None
+    };
 
     if !args.is_empty() {
         match args[0].as_str() {
             "add" => {
-                if let Some(dir) = args.get(1..) {
-                    let dir = dir.join(" ");
-                    let path = Path::new(&dir);
-                    if path.exists() {
-                        // toml.add_path(dir.clone());
-                        db.add_paths(&[dir]);
-                    } else {
-                        return println!("{} is not a valid path.", dir);
-                    }
+                if let Some(path) = get_path() {
+                    db.add_paths(&[path]);
+                } else {
+                    return println!("Invalid path.");
                 }
+            }
+            "rm" => {
+                if let Some(path) = get_path() {
+                    sqlite::remove_path(&path);
+                } else {
+                    return println!("Invalid path.");
+                }
+            }
+            "list" => {
+                return for path in sqlite::get_paths() {
+                    println!("{path}");
+                };
             }
             "reset" => {
                 sqlite::reset();
-                // toml.reset();
                 return println!("Files reset!");
             }
             "help" | "--help" => {
@@ -148,6 +163,8 @@ fn main() {
             _ => (),
         }
     }
+
+    let mut terminal = init();
 
     let mut browser = Browser::new();
     let mut queue = Queue::new(15);

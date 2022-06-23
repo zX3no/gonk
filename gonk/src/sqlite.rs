@@ -144,6 +144,22 @@ pub fn get_songs(ids: &[usize]) -> Vec<Song> {
         .collect()
 }
 
+pub fn remove_path(path: &str) {
+    let conn = conn();
+    conn.execute("DELETE FROM song WHERE parent = ?", [path])
+        .unwrap();
+}
+
+pub fn get_paths() -> Vec<String> {
+    let conn = conn();
+    let mut stmt = conn.prepare("SELECT DISTINCT parent FROM song").unwrap();
+
+    stmt.query_map([], |row| row.get(0))
+        .unwrap()
+        .flatten()
+        .collect()
+}
+
 fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
