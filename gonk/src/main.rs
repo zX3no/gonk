@@ -227,7 +227,7 @@ fn main() {
             Mode::Settings => &mut settings as &mut dyn Input,
         };
 
-        if event::poll(Duration::default()).unwrap() {
+        if event::poll(Duration::from_millis(2)).unwrap() {
             match event::read().unwrap() {
                 Event::Key(event) => {
                     let shift = event.modifiers == KeyModifiers::SHIFT;
