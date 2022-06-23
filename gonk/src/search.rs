@@ -144,7 +144,7 @@ fn refresh_results(search: &mut Search) {
     //Sort artists above search-titled albums.
     results.sort_by(|(item, a), (_, b)| {
         //If the score is the same
-        if a == b {
+        if (a - b).abs() < f64::EPSILON {
             //And the item is an album
             if let Item::Album(_) = item {
                 //Move item lower in the list.

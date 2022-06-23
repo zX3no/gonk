@@ -1,5 +1,5 @@
-use super::queue::Queue;
-use crate::*;
+use crate::{sqlite, Frame, COLORS};
+use gonk_player::Player;
 use std::time::{Duration, Instant};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -33,7 +33,7 @@ impl StatusBar {
 }
 
 //Updates the dots in "Scanning for files .."
-pub fn update(status_bar: &mut StatusBar, db_busy: bool, queue: &Queue) {
+pub fn update(status_bar: &mut StatusBar, db_busy: bool, player: &Player) {
     if db_busy {
         if status_bar.dots < 3 {
             status_bar.dots += 1;
@@ -54,14 +54,14 @@ pub fn update(status_bar: &mut StatusBar, db_busy: bool, queue: &Queue) {
             //before triggering an update
             //the status bar will stay open
             //without the users permission.
-            if queue.player.is_empty() {
+            if player.is_empty() {
                 status_bar.hidden = true;
             }
         }
     }
 }
 
-pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, queue: &Queue) {
+pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, player: &Player) {
     if busy {
         //If database is busy but status_bar is not
         //set the status bar to busy
@@ -94,21 +94,19 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, q
         Spans::from(format!("Scannig for files{}", ".".repeat(status_bar.dots)))
     } else if status_bar.wait_timer.is_some() {
         Spans::from(status_bar.scan_message.as_str())
+    } else if let Some(song) = player.songs.selected() {
+        Spans::from(vec![
+            Span::raw(" "),
+            Span::styled(song.number.to_string(), Style::default().fg(COLORS.number)),
+            Span::raw(" ｜ "),
+            Span::styled(song.name.as_str(), Style::default().fg(COLORS.name)),
+            Span::raw(" ｜ "),
+            Span::styled(song.album.as_str(), Style::default().fg(COLORS.album)),
+            Span::raw(" ｜ "),
+            Span::styled(song.artist.as_str(), Style::default().fg(COLORS.artist)),
+        ])
     } else {
-        if let Some(song) = queue.player.songs.selected() {
-            Spans::from(vec![
-                Span::raw(" "),
-                Span::styled(song.number.to_string(), Style::default().fg(COLORS.number)),
-                Span::raw(" ｜ "),
-                Span::styled(song.name.as_str(), Style::default().fg(COLORS.name)),
-                Span::raw(" ｜ "),
-                Span::styled(song.album.as_str(), Style::default().fg(COLORS.album)),
-                Span::raw(" ｜ "),
-                Span::styled(song.artist.as_str(), Style::default().fg(COLORS.artist)),
-            ])
-        } else {
-            Spans::default()
-        }
+        Spans::default()
     };
 
     let area = Layout::default()
@@ -127,10 +125,10 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, q
 
     //TODO: Draw mini progress bar here.
 
-    let text = if queue.player.is_paused() {
+    let text = if player.is_paused() {
         String::from("Paused ")
     } else {
-        format!("Vol: {}% ", queue.player.volume)
+        format!("Vol: {}% ", player.volume)
     };
 
     f.render_widget(

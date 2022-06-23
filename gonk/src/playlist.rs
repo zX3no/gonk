@@ -1,5 +1,4 @@
-use crate::widgets::*;
-use crate::*;
+use crate::{sqlite, widgets::*, Frame, Input, COLORS};
 use gonk_player::{Index, Player, Song};
 use tui::style::Style;
 use tui::text::Span;
@@ -76,11 +75,8 @@ impl Input for Playlist {
     }
 
     fn left(&mut self) {
-        match self.mode {
-            Mode::Song => {
-                self.mode = Mode::Playlist;
-            }
-            _ => (),
+        if self.mode == Mode::Song {
+            self.mode = Mode::Playlist;
         }
     }
 
@@ -111,11 +107,11 @@ fn get_songs(playlist: Option<&String>) -> Vec<Item> {
 fn update_songs(playlist: &mut Playlist) {
     //Update the list of songs.
     let songs = get_songs(playlist.titles.selected());
-    playlist.songs = if !songs.is_empty() {
-        Index::new(songs, playlist.songs.index())
-    } else {
+    playlist.songs = if songs.is_empty() {
         playlist.mode = Mode::Playlist;
         Index::default()
+    } else {
+        Index::new(songs, playlist.songs.index())
     };
 }
 
@@ -165,7 +161,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
             playlist.search = String::new();
             playlist.mode = Mode::Song;
         }
-        _ => (),
+        Mode::Popup => (),
     }
 }
 
@@ -193,7 +189,7 @@ pub fn delete(playlist: &mut Playlist) {
         Mode::Playlist => {
             if let Some(selected) = playlist.titles.selected() {
                 //TODO: Prompt the user with yes or no.
-                sqlite::playlist::remove(&selected);
+                sqlite::playlist::remove(selected);
 
                 let index = playlist.titles.index().unwrap();
                 playlist.titles.remove(index);
@@ -211,7 +207,7 @@ pub fn delete(playlist: &mut Playlist) {
                 }
             }
         }
-        Mode::Popup => return,
+        Mode::Popup => (),
     }
 }
 
@@ -322,10 +318,10 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
         .titles
         .clone()
         .into_iter()
-        .map(|str| ListItem::new(str))
+        .map(ListItem::new)
         .collect();
 
-    let list = List::new(items)
+    let list = List::new(&items)
         .block(
             Block::default()
                 .title("─Playlist")

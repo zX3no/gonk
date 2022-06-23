@@ -139,8 +139,7 @@ pub fn get_songs(ids: &[usize]) -> Vec<Song> {
         .unwrap();
 
     ids.iter()
-        .map(|id| stmt.query_row([id], |row| Ok(song(row))))
-        .flatten()
+        .flat_map(|id| stmt.query_row([id], |row| Ok(song(row))))
         .collect()
 }
 

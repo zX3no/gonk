@@ -202,7 +202,7 @@ pub fn draw(browser: &Browser, area: Rect, f: &mut Frame) {
 }
 
 fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
-    let list = List::new(content.to_vec())
+    let list = List::new(content)
         .block(
             Block::default()
                 .title(title)

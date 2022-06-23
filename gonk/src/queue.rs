@@ -11,26 +11,26 @@ use unicode_width::UnicodeWidthStr;
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
-    pub player: Player,
+    pub len: usize,
 }
 
 impl Queue {
-    pub fn new(vol: u16) -> Self {
+    pub fn new() -> Self {
         Self {
             ui: Index::new(Vec::new(), Some(0)),
             constraint: [8, 42, 24, 26],
-            player: Player::new(vol),
+            len: 0,
         }
     }
 }
 
 impl Input for Queue {
     fn up(&mut self) {
-        self.ui.up_with_len(self.player.songs.len());
+        self.ui.up_with_len(self.len);
     }
 
     fn down(&mut self) {
-        self.ui.down_with_len(self.player.songs.len());
+        self.ui.down_with_len(self.len);
     }
 
     fn left(&mut self) {}
@@ -56,18 +56,18 @@ pub fn constraint(queue: &mut Queue, row: usize, shift: bool) {
     );
 }
 
-pub fn delete(queue: &mut Queue) {
+pub fn delete(queue: &mut Queue, player: &mut Player) {
     if let Some(i) = queue.ui.index() {
-        queue.player.delete_song(i);
+        player.delete_song(i);
         //make sure the ui index is in sync
-        let len = queue.player.songs.len().saturating_sub(1);
+        let len = player.songs.len().saturating_sub(1);
         if i > len {
             queue.ui.select(Some(len));
         }
     }
 }
 
-pub fn draw(queue: &mut Queue, f: &mut Frame, event: Option<MouseEvent>) {
+pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option<MouseEvent>) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -77,14 +77,14 @@ pub fn draw(queue: &mut Queue, f: &mut Frame, event: Option<MouseEvent>) {
         ])
         .split(f.size());
 
-    draw_header(queue, f, chunks[0]);
+    draw_header(player, f, chunks[0]);
 
-    let row_bounds = draw_body(queue, f, chunks[1]);
+    let row_bounds = draw_body(queue, player, f, chunks[1]);
 
-    draw_seeker(queue, f, chunks[2]);
+    draw_seeker(player, f, chunks[2]);
 
     //Don't handle mouse input when the queue is empty.
-    if queue.player.is_empty() {
+    if player.is_empty() {
         return;
     }
 
@@ -100,9 +100,9 @@ pub fn draw(queue: &mut Queue, f: &mut Frame, event: Option<MouseEvent>) {
             && size.height > 15
         {
             let ratio = f64::from(x) / f64::from(size.width);
-            let duration = queue.player.duration;
+            let duration = player.duration;
             let new_time = duration * ratio;
-            queue.player.seek_to(new_time);
+            player.seek_to(new_time);
         }
 
         //Mouse support for the queue.
@@ -113,7 +113,7 @@ pub fn draw(queue: &mut Queue, f: &mut Frame, event: Option<MouseEvent>) {
 
                 //Make sure you didn't click on the seek bar
                 //and that the song index exists.
-                if index < queue.player.songs.len()
+                if index < player.songs.len()
                     && ((size.height < 15 && y < size.height.saturating_sub(1))
                         || y < size.height.saturating_sub(3))
                 {
@@ -124,7 +124,7 @@ pub fn draw(queue: &mut Queue, f: &mut Frame, event: Option<MouseEvent>) {
     }
 }
 
-fn draw_header(queue: &mut Queue, f: &mut Frame, area: Rect) {
+fn draw_header(player: &mut Player, f: &mut Frame, area: Rect) {
     f.render_widget(
         Block::default()
             .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
@@ -132,9 +132,9 @@ fn draw_header(queue: &mut Queue, f: &mut Frame, area: Rect) {
         area,
     );
 
-    let state = if queue.player.songs.is_empty() {
+    let state = if player.songs.is_empty() {
         String::from("╭─Stopped")
-    } else if !queue.player.is_paused() {
+    } else if !player.is_paused() {
         String::from("╭─Playing")
     } else {
         String::from("╭─Paused")
@@ -142,16 +142,16 @@ fn draw_header(queue: &mut Queue, f: &mut Frame, area: Rect) {
 
     f.render_widget(Paragraph::new(state).alignment(Alignment::Left), area);
 
-    if !queue.player.songs.is_empty() {
-        draw_title(queue, f, area);
+    if !player.songs.is_empty() {
+        draw_title(player, f, area);
     }
 
-    let volume = Spans::from(format!("Vol: {}%─╮", queue.player.volume));
+    let volume = Spans::from(format!("Vol: {}%─╮", player.volume));
     f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
 }
 
-fn draw_title(queue: &mut Queue, f: &mut Frame, area: Rect) {
-    let title = if let Some(song) = queue.player.songs.selected() {
+fn draw_title(player: &mut Player, f: &mut Frame, area: Rect) {
+    let title = if let Some(song) = player.songs.selected() {
         let mut name = song.name.trim_end().to_string();
         let mut album = song.album.trim_end().to_string();
         let mut artist = song.artist.trim_end().to_string();
@@ -193,8 +193,13 @@ fn draw_title(queue: &mut Queue, f: &mut Frame, area: Rect) {
     f.render_widget(Paragraph::new(title).alignment(Alignment::Center), area);
 }
 
-fn draw_body(queue: &mut Queue, f: &mut Frame, area: Rect) -> Option<(usize, usize)> {
-    if queue.player.songs.is_empty() {
+fn draw_body(
+    queue: &mut Queue,
+    player: &mut Player,
+    f: &mut Frame,
+    area: Rect,
+) -> Option<(usize, usize)> {
+    if player.songs.is_empty() {
         f.render_widget(
             Block::default()
                 .border_type(BorderType::Rounded)
@@ -204,11 +209,8 @@ fn draw_body(queue: &mut Queue, f: &mut Frame, area: Rect) -> Option<(usize, usi
         return None;
     }
 
-    let (songs, player_index, ui_index) = (
-        &queue.player.songs.data,
-        queue.player.songs.index(),
-        queue.ui.index(),
-    );
+    let (songs, player_index, ui_index) =
+        (&player.songs.data, player.songs.index(), queue.ui.index());
 
     let mut items: Vec<Row> = songs
         .iter()
@@ -315,8 +317,9 @@ fn draw_body(queue: &mut Queue, f: &mut Frame, area: Rect) -> Option<(usize, usi
 
     Some(row_bounds)
 }
-fn draw_seeker(queue: &mut Queue, f: &mut Frame, area: Rect) {
-    if queue.player.songs.is_empty() {
+
+fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
+    if player.songs.is_empty() {
         return f.render_widget(
             Block::default()
                 .border_type(BorderType::Rounded)
@@ -325,8 +328,8 @@ fn draw_seeker(queue: &mut Queue, f: &mut Frame, area: Rect) {
         );
     }
 
-    let elapsed = queue.player.elapsed();
-    let duration = queue.player.duration;
+    let elapsed = player.elapsed();
+    let duration = player.duration;
 
     let seeker = format!(
         "{:02}:{:02}/{:02}:{:02}",
@@ -336,7 +339,7 @@ fn draw_seeker(queue: &mut Queue, f: &mut Frame, area: Rect) {
         duration.trunc() as u32 % 60,
     );
 
-    let ratio = queue.player.elapsed() / queue.player.duration;
+    let ratio = player.elapsed() / player.duration;
     let ratio = if ratio.is_nan() {
         0.0
     } else {

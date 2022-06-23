@@ -19,4 +19,4 @@ impl Input for Settings {
 }
 
 #[allow(unused)]
-pub fn draw(settings: &Settings, area: Rect, f: &mut Frame) {}
+pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {}
