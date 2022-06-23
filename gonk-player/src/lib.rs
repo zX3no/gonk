@@ -118,12 +118,12 @@ impl Player {
             let volume = self.volume as f32 / VOLUME_REDUCTION;
 
             //Calculate the volume with gain
-            let volume = if song.track_gain == 0.0 {
+            let volume = if song.gain == 0.0 {
                 //Reduce the volume a little to match
                 //songs with replay gain information.
                 volume * 0.75
             } else {
-                volume * song.track_gain as f32
+                volume * song.gain as f32
             };
 
             self.sink.set_volume(volume);
