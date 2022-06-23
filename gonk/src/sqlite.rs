@@ -144,10 +144,16 @@ pub fn get_songs(ids: &[usize]) -> Vec<Song> {
         .collect()
 }
 
-pub fn remove_path(path: &str) {
+pub fn remove_path(path: &str) -> Result<(), &str> {
     let conn = conn();
-    conn.execute("DELETE FROM song WHERE parent = ?", [path])
+    let result = conn
+        .execute("DELETE FROM song WHERE parent = ?", [path])
         .unwrap();
+    if result == 0 {
+        Err("Invalid path.")
+    } else {
+        Ok(())
+    }
 }
 
 pub fn get_paths() -> Vec<String> {

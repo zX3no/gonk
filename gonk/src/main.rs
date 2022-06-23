@@ -115,31 +115,24 @@ fn main() {
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let get_path = || -> Option<String> {
-        if let Some(path) = args.get(1..) {
-            let path = path.join(" ");
-            if Path::new(&path).exists() {
-                return Some(path);
-            }
-        }
-        None
-    };
-
     if !args.is_empty() {
         match args[0].as_str() {
-            "add" => {
-                if let Some(path) = get_path() {
-                    db.add_paths(&[path]);
+            "add" if args.len() > 1 => {
+                let path = args[1..].join(" ");
+                //TODO: This might silently scan a directory but not add anything.
+                //Might be confusing.
+                if Path::new(&path).exists() {
+                    db.add_paths(&[path])
                 } else {
                     return println!("Invalid path.");
                 }
             }
-            "rm" => {
-                if let Some(path) = get_path() {
-                    sqlite::remove_path(&path);
-                } else {
-                    return println!("Invalid path.");
-                }
+            "rm" if args.len() > 1 => {
+                let path = args[1..].join(" ");
+                match sqlite::remove_path(&path) {
+                    Ok(_) => return,
+                    Err(e) => return println!("{e}"),
+                };
             }
             "list" => {
                 return for path in sqlite::get_paths() {
@@ -160,6 +153,7 @@ fn main() {
                 return;
             }
             _ if !args.is_empty() => return println!("Invalid command."),
+            _ if args.len() > 1 => return println!("Invalid argument."),
             _ => (),
         }
     }
