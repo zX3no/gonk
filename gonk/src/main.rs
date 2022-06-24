@@ -24,6 +24,7 @@ mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
+//TODO: Cleanup colors
 pub struct Colors {
     pub number: Color,
     pub name: Color,
@@ -32,19 +33,13 @@ pub struct Colors {
     pub seeker: Color,
 }
 
-impl Colors {
-    const fn new() -> Self {
-        Self {
-            number: Color::Green,
-            name: Color::Cyan,
-            album: Color::Magenta,
-            artist: Color::Blue,
-            seeker: Color::White,
-        }
-    }
-}
-
-const COLORS: Colors = Colors::new();
+const COLORS: Colors = Colors {
+    number: Color::Green,
+    name: Color::Cyan,
+    album: Color::Magenta,
+    artist: Color::Blue,
+    seeker: Color::White,
+};
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {

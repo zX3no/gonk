@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 use gonk_player::Song;
 use jwalk::WalkDir;
 use rayon::{
@@ -5,7 +8,6 @@ use rayon::{
     slice::ParallelSliceMut,
 };
 use rusqlite::*;
-use static_init::dynamic;
 use std::{
     path::{Path, PathBuf},
     sync::{RwLock, RwLockReadGuard},
@@ -17,23 +19,22 @@ pub mod query;
 
 pub use crate::database::*;
 
-#[dynamic]
-static GONK_DIR: PathBuf = {
-    let gonk = if cfg!(windows) {
-        PathBuf::from(&std::env::var("APPDATA").unwrap())
-    } else {
-        PathBuf::from(&std::env::var("HOME").unwrap()).join(".config")
-    }
-    .join("gonk");
+lazy_static! {
+    pub static ref GONK_DIR: PathBuf = {
+        let gonk = if cfg!(windows) {
+            PathBuf::from(&std::env::var("APPDATA").unwrap())
+        } else {
+            PathBuf::from(&std::env::var("HOME").unwrap()).join(".config")
+        }
+        .join("gonk");
 
-    if !gonk.exists() {
-        std::fs::create_dir_all(&gonk).unwrap();
-    }
-    gonk
-};
-
-#[dynamic]
-static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
+        if !gonk.exists() {
+            std::fs::create_dir_all(&gonk).unwrap();
+        }
+        gonk
+    };
+    pub static ref DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
+}
 
 #[must_use]
 pub fn init() -> Result<()> {
