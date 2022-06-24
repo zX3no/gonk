@@ -12,10 +12,10 @@ use std::{
 };
 
 mod database;
-mod query;
+pub mod playlist;
+pub mod query;
 
 pub use crate::database::*;
-pub use crate::query::*;
 
 #[dynamic]
 static GONK_DIR: PathBuf = {
@@ -37,8 +37,8 @@ static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 #[must_use]
 pub fn init() -> Result<()> {
-    let exists = PathBuf::from("gonk.db").exists();
-    let conn = Connection::open("gonk.db")?;
+    let exists = PathBuf::from(DB_DIR.as_path()).exists();
+    let conn = Connection::open(DB_DIR.as_path())?;
 
     if !exists {
         conn.execute(
@@ -114,7 +114,7 @@ pub fn reset() {
     unsafe {
         CONN = None;
     }
-    let _ = std::fs::remove_file("gonk.db");
+    let _ = std::fs::remove_file(DB_DIR.as_path());
 }
 
 pub fn conn() -> RwLockReadGuard<'static, Connection> {

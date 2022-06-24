@@ -1,4 +1,4 @@
-use gonk_database::*;
+use gonk_database::{query::*, *};
 
 fn main() {
     init().unwrap();

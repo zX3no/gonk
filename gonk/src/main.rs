@@ -1,16 +1,15 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
+use gonk_database::{Database, State};
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
-use sqlite::{Database, State};
-use static_init::dynamic;
 use status_bar::StatusBar;
 use std::{
     io::{stdout, Stdout},
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
@@ -20,7 +19,6 @@ mod playlist;
 mod queue;
 mod search;
 mod settings;
-mod sqlite;
 mod status_bar;
 mod widgets;
 
@@ -47,21 +45,6 @@ impl Colors {
 }
 
 const COLORS: Colors = Colors::new();
-
-#[dynamic]
-static GONK_DIR: PathBuf = {
-    let gonk = if cfg!(windows) {
-        PathBuf::from(&std::env::var("APPDATA").unwrap())
-    } else {
-        PathBuf::from(&std::env::var("HOME").unwrap()).join(".config")
-    }
-    .join("gonk");
-
-    if !gonk.exists() {
-        std::fs::create_dir_all(&gonk).unwrap();
-    }
-    gonk
-};
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {
@@ -105,7 +88,7 @@ fn init() -> Terminal<CrosstermBackend<Stdout>> {
 
 fn main() {
     //Program will explode if this isn't called.
-    sqlite::initialize_database();
+    gonk_database::init().unwrap();
 
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -117,25 +100,25 @@ fn main() {
                 //TODO: This might silently scan a directory but not add anything.
                 //Might be confusing.
                 if Path::new(&path).exists() {
-                    db.add_paths(&[path]);
+                    db.add_path(&path);
                 } else {
                     return println!("Invalid path.");
                 }
             }
             "rm" if args.len() > 1 => {
-                let path = args[1..].join(" ");
-                match sqlite::remove_path(&path) {
-                    Ok(_) => return,
-                    Err(e) => return println!("{e}"),
-                };
+                // let path = args[1..].join(" ");
+                // match query::remove_path(&path) {
+                //     Ok(_) => return,
+                //     Err(e) => return println!("{e}"),
+                // };
             }
             "list" => {
-                return for path in sqlite::get_paths() {
-                    println!("{path}");
-                };
+                // return for path in query::get_paths() {
+                //     println!("{path}");
+                // };
             }
             "reset" => {
-                sqlite::reset();
+                gonk_database::reset();
                 return println!("Files reset!");
             }
             "help" | "--help" => {
@@ -268,7 +251,8 @@ fn main() {
                             _ => (),
                         },
                         KeyCode::Char('u') if mode == Mode::Browser => {
-                            db.add_paths(&[String::from("D:/OneDrive/Music")]);
+                            //FIXME: !!!
+                            db.add_path("D:/OneDrive/Music");
                         }
                         KeyCode::Char('q') => player.seek_by(-10.0),
                         KeyCode::Char('e') => player.seek_by(10.0),

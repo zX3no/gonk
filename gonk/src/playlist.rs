@@ -1,4 +1,5 @@
-use crate::{sqlite, widgets::*, Frame, Input, COLORS};
+use crate::{widgets::*, Frame, Input, COLORS};
+use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
 use tui::style::Style;
 use tui::text::Span;
@@ -36,8 +37,8 @@ pub struct Playlist {
 
 impl Playlist {
     pub fn new() -> Self {
-        let playlists = sqlite::playlist::get_names();
-        let songs = get_songs(playlists.first());
+        let playlists = playlist::get_names();
+        let songs = songs(playlists.first());
 
         Self {
             mode: Mode::Playlist,
@@ -90,10 +91,10 @@ impl Input for Playlist {
     }
 }
 
-fn get_songs(playlist: Option<&String>) -> Vec<Item> {
+fn songs(playlist: Option<&String>) -> Vec<Item> {
     if let Some(playlist) = playlist {
-        let (row_ids, song_ids) = sqlite::playlist::get(playlist);
-        let songs = sqlite::get_songs(&song_ids);
+        let (row_ids, song_ids) = playlist::get(playlist);
+        let songs = query::songs_from_ids(&song_ids);
         songs
             .into_iter()
             .zip(row_ids)
@@ -106,7 +107,7 @@ fn get_songs(playlist: Option<&String>) -> Vec<Item> {
 
 fn update_songs(playlist: &mut Playlist) {
     //Update the list of songs.
-    let songs = get_songs(playlist.titles.selected());
+    let songs = songs(playlist.titles.selected());
     playlist.songs = if songs.is_empty() {
         playlist.mode = Mode::Playlist;
         Index::default()
@@ -143,9 +144,9 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 .map(|song| song.id.unwrap())
                 .collect();
 
-            sqlite::playlist::add(&name, &ids);
+            playlist::add(&name, &ids);
 
-            playlist.titles = Index::new(sqlite::playlist::get_names(), playlist.titles.index());
+            playlist.titles = Index::new(playlist::get_names(), playlist.titles.index());
 
             let mut i = Some(0);
             for (j, playlist) in playlist.titles.data.iter().enumerate() {
@@ -190,7 +191,7 @@ pub fn delete(playlist: &mut Playlist) {
         Mode::Playlist => {
             if let Some(selected) = playlist.titles.selected() {
                 //TODO: Prompt the user with yes or no.
-                sqlite::playlist::remove(selected);
+                playlist::remove(selected);
 
                 let index = playlist.titles.index().unwrap();
                 playlist.titles.remove(index);
@@ -199,12 +200,11 @@ pub fn delete(playlist: &mut Playlist) {
         }
         Mode::Song => {
             if let Some(song) = playlist.songs.selected() {
-                sqlite::playlist::remove_id(song.row);
+                playlist::remove_id(song.row);
                 let index = playlist.songs.index().unwrap();
                 playlist.songs.remove(index);
                 if playlist.songs.is_empty() {
-                    playlist.titles =
-                        Index::new(sqlite::playlist::get_names(), playlist.titles.index());
+                    playlist.titles = Index::new(playlist::get_names(), playlist.titles.index());
                 }
             }
         }

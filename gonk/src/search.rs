@@ -1,6 +1,7 @@
 use super::Mode as AppMode;
 use crate::widgets::*;
 use crate::*;
+use gonk_database::query;
 use gonk_player::{Index, Player};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
@@ -122,11 +123,9 @@ pub fn on_enter(search: &mut Search, player: &mut Player) {
         Mode::Select => {
             if let Some(item) = search.results.selected() {
                 let songs = match item {
-                    Item::Song(song) => sqlite::get_songs(&[song.id]),
-                    Item::Album(album) => {
-                        sqlite::get_all_songs_from_album(&album.name, &album.artist)
-                    }
-                    Item::Artist(artist) => sqlite::get_songs_by_artist(&artist.name),
+                    Item::Song(song) => query::songs_from_ids(&[song.id]),
+                    Item::Album(album) => query::songs_from_album(&album.name, &album.artist),
+                    Item::Artist(artist) => query::songs_by_artist(&artist.name),
                 };
 
                 player.add_songs(&songs);
@@ -138,7 +137,7 @@ pub fn on_enter(search: &mut Search, player: &mut Player) {
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    for song in sqlite::get_all_songs() {
+    for song in query::songs() {
         search.cache.push(Item::Song(Song {
             name: song.name,
             album: song.album,
@@ -147,11 +146,11 @@ pub fn refresh_cache(search: &mut Search) {
         }));
     }
 
-    for (name, artist) in sqlite::get_all_albums() {
+    for (name, artist) in query::albums() {
         search.cache.push(Item::Album(Album { name, artist }));
     }
 
-    for name in sqlite::get_all_artists() {
+    for name in query::artists() {
         search.cache.push(Item::Artist(Artist { name }));
     }
 }
@@ -256,7 +255,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
                 artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
-                let albums = sqlite::get_all_albums_by_artist(&artist.name);
+                let albums = query::albums_by_artist(&artist.name);
 
                 search::artist(f, &artist.name, h[0]);
 
@@ -318,7 +317,7 @@ fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<_> = sqlite::get_all_songs_from_album(album, artist)
+    let cells: Vec<_> = query::songs_from_album(album, artist)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
         .collect();
@@ -343,7 +342,7 @@ fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
 }
 
 fn artist(f: &mut Frame, artist: &str, area: Rect) {
-    let albums = sqlite::get_all_albums_by_artist(artist);
+    let albums = query::albums_by_artist(artist);
     let cells: Vec<_> = albums
         .iter()
         .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -378,7 +377,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 
         match item {
             Item::Song(song) => {
-                let song = sqlite::get_songs(&[song.id])[0].clone();
+                let song = query::songs_from_ids(&[song.id])[0].clone();
                 Row::new(vec![
                     selected_cell,
                     Cell::from(song.name).style(Style::default().fg(COLORS.name)),
