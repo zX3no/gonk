@@ -1,34 +1,39 @@
-#![allow(unused)]
 use gonk_player::Song;
 use jwalk::WalkDir;
 use rayon::{
-    iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator},
+    iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator},
     slice::ParallelSliceMut,
 };
 use rusqlite::*;
+use static_init::dynamic;
 use std::{
-    fs::File,
     path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    sync::{RwLock, RwLockReadGuard},
 };
 
-pub mod query;
+mod database;
+mod query;
 
-#[derive(Debug)]
-pub struct Artist {
-    name: String,
-}
+pub use crate::database::*;
+pub use crate::query::*;
 
-#[derive(Debug)]
-pub struct Album {
-    name: String,
-    artist: String,
-}
+#[dynamic]
+static GONK_DIR: PathBuf = {
+    let gonk = if cfg!(windows) {
+        PathBuf::from(&std::env::var("APPDATA").unwrap())
+    } else {
+        PathBuf::from(&std::env::var("HOME").unwrap()).join(".config")
+    }
+    .join("gonk");
 
-#[derive(Debug)]
-pub struct Folder {
-    pub path: String,
-}
+    if !gonk.exists() {
+        std::fs::create_dir_all(&gonk).unwrap();
+    }
+    gonk
+};
+
+#[dynamic]
+static DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 
 #[must_use]
 pub fn init() -> Result<()> {
@@ -161,7 +166,7 @@ pub fn insert_parents(songs: &[Song]) {
 
     let query: Vec<String> = albums
         .par_iter()
-        .map(|((album, artist))| {
+        .map(|(album, artist)| {
             let artist = artist.replace('\'', r"''");
             let album = album.replace('\'', r"''");
             format!(
@@ -196,8 +201,7 @@ pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
     format!("BEGIN;\n{}\nCOMMIT;", queries.join("\n"))
 }
 
-#[must_use]
-pub fn rescan_folder(folder: &str) -> Result<()> {
+pub fn rescan_folder(folder: &str) {
     //Make sure folder exists.
     if conn()
         .execute("INSERT INTO folder (path) VALUES (?1)", [folder])
@@ -213,31 +217,30 @@ pub fn rescan_folder(folder: &str) -> Result<()> {
         let conn = conn();
 
         //Clean the temp table and add songs.
-        conn.execute("DELETE FROM temp_song", [])?;
-        conn.execute_batch(&query);
+        conn.execute("DELETE FROM temp_song", []).unwrap();
+        conn.execute_batch(&query).unwrap();
 
         //Insert songs into default table.
         let query = create_batch_query("song", folder, &songs);
-        conn.execute_batch(&query);
+        conn.execute_batch(&query).unwrap();
 
         //Drop the difference.
-        let result = conn.execute(
+        conn.execute(
             "DELETE FROM song WHERE rowid IN (SELECT rowid FROM song EXCEPT SELECT rowid FROM temp_song)",
             [],
-        )?;
+        ).unwrap();
     }
-
-    Ok(())
 }
 
 pub fn add_folder(folder: &str) {
-    conn()
+    if conn()
         .execute("INSERT INTO folder (path) VALUES (?1)", [folder])
-        .unwrap();
+        .is_ok()
+    {
+        let songs = collect_songs(folder);
+        insert_parents(&songs);
 
-    let songs = collect_songs(folder);
-    insert_parents(&songs);
-
-    let query = create_batch_query("song", folder, &songs);
-    conn().execute_batch(&query).unwrap();
+        let query = create_batch_query("song", folder, &songs);
+        conn().execute_batch(&query).unwrap();
+    }
 }

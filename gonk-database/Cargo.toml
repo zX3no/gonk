@@ -10,3 +10,4 @@ jwalk = "0.6.0"
 rayon = "1.5.3"
 rusqlite = { version = "0.27.0", features = ["bundled-windows"] }
 gonk-player = {path = "../gonk-player"}
+static_init = "1.0.2"

@@ -1,10 +1,16 @@
-use gonk_database::query::*;
 use gonk_database::*;
 
 fn main() {
-    reset();
     init().unwrap();
-    add_folder("D:\\OneDrive\\Music");
+    let mut db = Database::default();
+    db.add_path("D:\\OneDrive\\Music");
 
-    dbg!(total_songs());
+    loop {
+        if db.state() == State::NeedsUpdate {
+            break;
+        }
+    }
+
+    let a = songs_from_ids(&[200, 323, 1000, 2, 1021]);
+    println!("{:?}", a);
 }
