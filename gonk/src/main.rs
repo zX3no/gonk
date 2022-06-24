@@ -1,6 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_database::{Database, State};
+use gonk_database::{query, Database, State};
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -101,16 +101,16 @@ fn main() {
                 }
             }
             "rm" if args.len() > 1 => {
-                // let path = args[1..].join(" ");
-                // match query::remove_path(&path) {
-                //     Ok(_) => return,
-                //     Err(e) => return println!("{e}"),
-                // };
+                let path = args[1..].join(" ");
+                match query::remove_path(&path) {
+                    Ok(_) => return,
+                    Err(e) => return println!("{e}"),
+                };
             }
             "list" => {
-                // return for path in query::get_paths() {
-                //     println!("{path}");
-                // };
+                return for path in query::paths() {
+                    println!("{path}");
+                };
             }
             "reset" => {
                 gonk_database::reset();

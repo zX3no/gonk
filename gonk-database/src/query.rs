@@ -1,8 +1,29 @@
-use std::path::PathBuf;
-
 use crate::conn;
 use gonk_player::Song;
 use rusqlite::*;
+use std::path::PathBuf;
+
+pub fn paths() -> Vec<String> {
+    let conn = conn();
+    let mut stmt = conn.prepare("SELECT path FROM folder").unwrap();
+
+    stmt.query_map([], |row| row.get(0))
+        .unwrap()
+        .flatten()
+        .collect()
+}
+
+pub fn remove_path(path: &str) -> Result<(), &str> {
+    let conn = conn();
+    let result = conn
+        .execute("DELETE FROM folder WHERE path = ?", [path])
+        .unwrap();
+    if result == 0 {
+        Err("Invalid path.")
+    } else {
+        Ok(())
+    }
+}
 
 pub fn total_songs() -> usize {
     let conn = conn();
