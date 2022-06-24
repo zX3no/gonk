@@ -60,107 +60,12 @@ impl Search {
             mode: Mode::Search,
             results: Index::default(),
         };
-        refresh(&mut search);
+        refresh_cache(&mut search);
+        refresh_results(&mut search);
         search
     }
 }
 
-pub fn refresh(search: &mut Search) {
-    refresh_cache(search);
-    refresh_results(search);
-}
-
-fn refresh_cache(search: &mut Search) {
-    search.cache = Vec::new();
-
-    for song in sqlite::get_all_songs() {
-        search.cache.push(Item::Song(Song {
-            name: song.name,
-            album: song.album,
-            artist: song.artist,
-            id: song.id.unwrap(),
-        }));
-    }
-
-    for (name, artist) in sqlite::get_all_albums() {
-        search.cache.push(Item::Album(Album { name, artist }));
-    }
-
-    for name in sqlite::get_all_artists() {
-        search.cache.push(Item::Artist(Artist { name }));
-    }
-}
-
-fn refresh_results(search: &mut Search) {
-    let query = &search.query.to_lowercase();
-
-    let mut results: Vec<_> = if query.is_empty() {
-        //If there user has not asked to search anything
-        //populate the list with 40 results.
-        search
-            .cache
-            .iter()
-            .take(40)
-            .rev()
-            .map(|item| {
-                let acc = match item {
-                    Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-                    Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
-                    Item::Artist(artist) => {
-                        strsim::jaro_winkler(query, &artist.name.to_lowercase())
-                    }
-                };
-
-                (item, acc)
-            })
-            .collect()
-    } else {
-        search
-            .cache
-            .par_iter()
-            .filter_map(|item| {
-                //I don't know if 'to_lowercase' has any overhead.
-                let acc = match item {
-                    Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-                    Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
-                    Item::Artist(artist) => {
-                        strsim::jaro_winkler(query, &artist.name.to_lowercase())
-                    }
-                };
-
-                //Filter out results that are poor matches. 0.75 is an arbitrary value.
-                if acc > 0.75 {
-                    Some((item, acc))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    };
-
-    //Sort results by score.
-    results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
-
-    //Sort artists above search-titled albums.
-    results.sort_by(|(item, a), (_, b)| {
-        //If the score is the same
-        if (a - b).abs() < f64::EPSILON {
-            //And the item is an album
-            if let Item::Album(_) = item {
-                //Move item lower in the list.
-                Ordering::Greater
-            } else {
-                //Move item higher in the list.
-                Ordering::Less
-            }
-        } else {
-            //Keep the same order.
-            Ordering::Equal
-        }
-    });
-
-    search.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
-}
 impl Input for Search {
     fn up(&mut self) {
         self.results.up();
@@ -230,6 +135,89 @@ pub fn on_enter(search: &mut Search, player: &mut Player) {
     }
 }
 
+pub fn refresh_cache(search: &mut Search) {
+    search.cache = Vec::new();
+
+    for song in sqlite::get_all_songs() {
+        search.cache.push(Item::Song(Song {
+            name: song.name,
+            album: song.album,
+            artist: song.artist,
+            id: song.id.unwrap(),
+        }));
+    }
+
+    for (name, artist) in sqlite::get_all_albums() {
+        search.cache.push(Item::Album(Album { name, artist }));
+    }
+
+    for name in sqlite::get_all_artists() {
+        search.cache.push(Item::Artist(Artist { name }));
+    }
+}
+
+pub fn refresh_results(search: &mut Search) {
+    let query = &search.query.to_lowercase();
+
+    let get_accuary = |item: &Item| -> f64 {
+        match item {
+            Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+            Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
+            Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
+        }
+    };
+
+    let mut results: Vec<_> = if query.is_empty() {
+        //If there user has not asked to search anything
+        //populate the list with 40 results.
+        search
+            .cache
+            .iter()
+            .take(40)
+            .rev()
+            .map(|item| (item, get_accuary(item)))
+            .collect()
+    } else {
+        search
+            .cache
+            .par_iter()
+            .filter_map(|item| {
+                let acc = get_accuary(item);
+
+                //Filter out results that are poor matches. 0.75 is a magic number.
+                if acc > 0.75 {
+                    Some((item, acc))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    };
+
+    //Sort results by score.
+    results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+    //Sort artists above search-titled albums.
+    results.sort_by(|(item, a), (_, b)| {
+        //This is just x == y but for floats.
+        if (a - b).abs() < f64::EPSILON {
+            //And the item is an album
+            if let Item::Album(_) = item {
+                //Move item lower in the list.
+                Ordering::Greater
+            } else {
+                //Move item higher in the list.
+                Ordering::Less
+            }
+        } else {
+            //Keep the same order.
+            Ordering::Equal
+        }
+    });
+
+    search.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
+}
+
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
     if search.query_changed {
         refresh_results(search);
@@ -290,7 +278,20 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
         draw_results(search, f, v[1].union(v[2]));
     }
 
-    update_cursor(search, f);
+    //Move the cursor position when typing
+    if let Mode::Search = search.mode {
+        if search.results.is_none() && search.query.is_empty() {
+            f.set_cursor(1, 1);
+        } else {
+            let len = search.query.len() as u16;
+            let max_width = area.width.saturating_sub(2);
+            if len >= max_width {
+                f.set_cursor(max_width, 1);
+            } else {
+                f.set_cursor(len + 1, 1);
+            }
+        }
+    }
 }
 
 fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
@@ -387,15 +388,35 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
             }
             Item::Album(album) => Row::new(vec![
                 selected_cell,
-                Cell::from(format!("{} - Album", album.name))
-                    .style(Style::default().fg(COLORS.name)),
+                Cell::from(Spans::from(vec![
+                    Span::styled(
+                        format!("{} - ", album.name),
+                        Style::default().fg(COLORS.name),
+                    ),
+                    Span::styled(
+                        "Album",
+                        Style::default()
+                            .fg(COLORS.name)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ])),
                 Cell::from("").style(Style::default().fg(COLORS.album)),
                 Cell::from(album.artist.clone()).style(Style::default().fg(COLORS.artist)),
             ]),
             Item::Artist(artist) => Row::new(vec![
                 selected_cell,
-                Cell::from(format!("{} - Artist", artist.name))
-                    .style(Style::default().fg(COLORS.name)),
+                Cell::from(Spans::from(vec![
+                    Span::styled(
+                        format!("{} - ", artist.name),
+                        Style::default().fg(COLORS.name),
+                    ),
+                    Span::styled(
+                        "Artist",
+                        Style::default()
+                            .fg(COLORS.name)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ])),
                 Cell::from("").style(Style::default().fg(COLORS.album)),
                 Cell::from("").style(Style::default().fg(COLORS.artist)),
             ]),
@@ -462,22 +483,4 @@ fn draw_textbox(search: &Search, f: &mut Frame, area: Rect) {
             .scroll((0, offset_x)),
         area,
     );
-}
-
-fn update_cursor(search: &Search, f: &mut Frame) {
-    let area = f.size();
-    //Move the cursor position when typing
-    if let Mode::Search = search.mode {
-        if search.results.is_none() && search.query.is_empty() {
-            f.set_cursor(1, 1);
-        } else {
-            let len = search.query.len() as u16;
-            let max_width = area.width.saturating_sub(2);
-            if len >= max_width {
-                f.set_cursor(max_width, 1);
-            } else {
-                f.set_cursor(len + 1, 1);
-            }
-        }
-    }
 }

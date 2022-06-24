@@ -184,7 +184,8 @@ fn main() {
             State::Idle => busy = false,
             State::NeedsUpdate => {
                 browser::refresh(&mut browser);
-                search::refresh(&mut search);
+                search::refresh_cache(&mut search);
+                search::refresh_results(&mut search);
             }
         }
 
@@ -290,7 +291,9 @@ fn main() {
                             };
                         }
                         KeyCode::Esc => match mode {
-                            Mode::Search => search::on_escape(&mut search, &mut mode),
+                            Mode::Search => {
+                                search::on_escape(&mut search, &mut mode);
+                            }
                             // Mode::Options => mode = Mode::Queue,
                             Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
                             _ => (),
