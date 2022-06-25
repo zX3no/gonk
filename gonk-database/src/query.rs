@@ -40,7 +40,7 @@ pub fn set_volume(vol: u16) {
         .unwrap();
 }
 
-pub fn paths() -> Vec<String> {
+pub fn folders() -> Vec<String> {
     let conn = conn();
     let mut stmt = conn.prepare("SELECT folder FROM folder").unwrap();
 
@@ -50,7 +50,7 @@ pub fn paths() -> Vec<String> {
         .collect()
 }
 
-pub fn remove_path(path: &str) -> Result<(), &str> {
+pub fn remove_folder(path: &str) -> Result<(), &str> {
     let path = db_path(path);
     let conn = conn();
 

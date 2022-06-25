@@ -102,13 +102,13 @@ fn main() {
             //so users can just write: gonk rm 3
             "rm" if args.len() > 1 => {
                 let path = args[1..].join(" ");
-                match query::remove_path(&path) {
+                match query::remove_folder(&path) {
                     Ok(_) => return println!("Deleted path: {}", path),
                     Err(e) => return println!("{e}"),
                 };
             }
             "list" => {
-                return for path in query::paths() {
+                return for path in query::folders() {
                     println!("{path}");
                 };
             }

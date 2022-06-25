@@ -111,7 +111,7 @@ lazy_static! {
             .unwrap();
         }
 
-        Mutex::new(conn)
+       Mutex::new(conn)
     };
 }
 
@@ -166,23 +166,18 @@ pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
     format!("BEGIN;\n{}\nCOMMIT;", queries.join("\n"))
 }
 
-pub fn rescan_folder(folder: &str) {
-    let folder = db_path(folder);
-    //Make sure folder exists.
-    if conn()
-        .execute("INSERT INTO folder (folder) VALUES (?1)", [&folder])
-        .is_err()
-    {
+pub fn rescan_folders() {
+    let folders = query::folders();
+    let conn = conn();
+
+    for folder in folders {
         let songs = collect_songs(&folder);
         let temp_song_query = create_batch_query("temp_song", &folder, &songs);
         let song_query = create_batch_query("song", &folder, &songs);
 
-        let conn = conn();
         conn.execute("DELETE FROM temp_song", []).unwrap();
         conn.execute_batch(&temp_song_query).unwrap();
         conn.execute_batch(&song_query).unwrap();
-
-        //Drop the difference.
         conn.execute(
             "DELETE FROM song WHERE rowid IN (SELECT rowid FROM song EXCEPT SELECT rowid FROM temp_song)",
             [],
@@ -192,19 +187,19 @@ pub fn rescan_folder(folder: &str) {
 
 pub fn add_folder(folder: &str) {
     let folder = db_path(folder);
-    if conn()
-        .execute("INSERT INTO folder (folder) VALUES (?1)", [&folder])
-        .is_ok()
-    {
-        let songs = collect_songs(&folder);
+    conn()
+        .execute(
+            "INSERT OR IGNORE INTO folder (folder) VALUES (?1)",
+            [&folder],
+        )
+        .unwrap();
 
-        let query = create_batch_query("song", &folder, &songs);
-        conn().execute_batch(&query).unwrap();
-    } else {
-        //TODO: Log to status bar that folder is already added
-    }
+    let songs = collect_songs(&folder);
+    let query = create_batch_query("song", &folder, &songs);
+
+    conn().execute_batch(&query).unwrap();
 }
 
 pub fn db_path(path: &str) -> String {
-    path.replace(r"\", r"/")
+    path.replace("\\", "/")
 }
