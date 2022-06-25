@@ -2,31 +2,16 @@
 name = "gonk"
 version = "0.0.10"
 edition = "2021"
-
-authors = ["Bay"]
-description = "A terminal music player"
-repository = "https://github.com/zX3no/gonk"
-readme = "../README.md"
-license = "MIT"
+default-run = "gonk"
 
 [dependencies]
-# Music
-gonk-player = {version = "0.0.10", path = "../gonk-player"}
-
-# UI
 crossterm = "0.23.2"
-tui = { version = "0.18.0", features = ["serde"] }
-unicode-width = "0.1.9"
+tui = "0.18.0"
 
-# Config
-static_init = "1.0.2"
-serde = { version = "1.0.137", features = ["derive"] }
-toml = { version = "0.5.9", features = ["preserve_order"] }
-
-# Database
-rusqlite = { version = "0.27.0", features = ["bundled"] }
-jwalk = "0.6.0"
 rayon = "1.5.3"
 
-# Search
+unicode-width = "0.1.9"
 strsim = "0.10.0"
+
+gonk-player = {path = "../gonk-player"}
+gonk-database = {path = "../gonk-database"}

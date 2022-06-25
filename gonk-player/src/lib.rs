@@ -33,18 +33,18 @@ pub enum Event {
 }
 
 pub struct Player {
-    s: Sender<Event>,
-    playing: bool,
-    volume: u16,
-    songs: Index<Song>,
-    elapsed: Arc<RwLock<Duration>>,
-    generator: Arc<RwLock<Generator>>,
-    duration: Duration,
+    pub s: Sender<Event>,
+    pub playing: bool,
+    pub volume: u16,
+    pub songs: Index<Song>,
+    pub elapsed: Arc<RwLock<Duration>>,
+    pub generator: Arc<RwLock<Generator>>,
+    pub duration: Duration,
 }
 
 impl Player {
     //TODO: get device from toml file
-    pub fn new(_device: String, volume: u16) -> Self {
+    pub fn new(_device: String, volume: u16, _songs: &[Song]) -> Self {
         // let host_id = cpal::default_host().id();
         // let host = cpal::host_from_id(host_id).unwrap();
         // let mut devices: Vec<Device> = host.devices().unwrap().collect();
@@ -236,12 +236,12 @@ impl Player {
         if let Some(song) = self.songs.selected() {
             let volume = self.volume as f32 / VOLUME_REDUCTION;
             //Calculate the volume with gain
-            if song.track_gain == 0.0 {
+            if song.gain == 0.0 {
                 //Reduce the volume a little to match
                 //songs with replay gain information.
                 volume * 0.75
             } else {
-                volume * song.track_gain as f32
+                volume * song.gain as f32
             }
         } else {
             self.volume as f32 / VOLUME_REDUCTION
@@ -298,3 +298,5 @@ impl Player {
         // }
     }
 }
+
+unsafe impl Sync for Player {}
