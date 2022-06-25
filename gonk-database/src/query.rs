@@ -42,7 +42,7 @@ pub fn set_volume(vol: u16) {
 
 pub fn paths() -> Vec<String> {
     let conn = conn();
-    let mut stmt = conn.prepare("SELECT path FROM folder").unwrap();
+    let mut stmt = conn.prepare("SELECT folder FROM folder").unwrap();
 
     stmt.query_map([], |row| row.get(0))
         .unwrap()
@@ -52,9 +52,14 @@ pub fn paths() -> Vec<String> {
 
 pub fn remove_path(path: &str) -> Result<(), &str> {
     let conn = conn();
-    let result = conn
-        .execute("DELETE FROM folder WHERE path = ?", [path])
+
+    conn.execute("DELETE FROM song WHERE folder = ?", [path])
         .unwrap();
+
+    let result = conn
+        .execute("DELETE FROM folder WHERE folder = ?", [path])
+        .unwrap();
+
     if result == 0 {
         Err("Invalid path.")
     } else {
@@ -75,7 +80,7 @@ pub fn songs() -> Vec<Song> {
 pub fn artists() -> Vec<String> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT name FROM artist ORDER BY name COLLATE NOCASE")
+        .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
     stmt.query_map([], |row| {
@@ -90,7 +95,7 @@ pub fn artists() -> Vec<String> {
 pub fn albums() -> Vec<(String, String)> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT name, artist_id FROM album ORDER BY artist_id COLLATE NOCASE")
+        .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
     stmt.query_map([], |row| {
@@ -106,7 +111,7 @@ pub fn albums() -> Vec<(String, String)> {
 pub fn albums_by_artist(artist: &str) -> Vec<String> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT name FROM album WHERE artist_id = ? ORDER BY name COLLATE NOCASE")
+        .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
         .unwrap();
 
     stmt.query_map([artist], |row| row.get(0))
@@ -117,14 +122,14 @@ pub fn albums_by_artist(artist: &str) -> Vec<String> {
 
 pub fn songs_from_album(album: &str, artist: &str) -> Vec<Song> {
     collect_songs(
-        "SELECT *, rowid FROM song WHERE artist_id = (?1) AND album_id = (?2) ORDER BY disc, number",
+        "SELECT *, rowid FROM song WHERE artist = (?1) AND album = (?2) ORDER BY disc, number",
         params![artist, album],
     )
 }
 
 pub fn songs_by_artist(artist: &str) -> Vec<Song> {
     collect_songs(
-        "SELECT *, rowid FROM song WHERE artist_id = ? ORDER BY album_id, disc, number",
+        "SELECT *, rowid FROM song WHERE artist = ? ORDER BY album, disc, number",
         params![artist],
     )
 }

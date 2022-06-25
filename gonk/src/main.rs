@@ -98,10 +98,12 @@ fn main() {
                     return println!("Invalid path.");
                 }
             }
+            //TODO: Add numbers to each path
+            //so users can just write: gonk rm 3
             "rm" if args.len() > 1 => {
                 let path = args[1..].join(" ");
                 match query::remove_path(&path) {
-                    Ok(_) => return,
+                    Ok(_) => return println!("Deleted path: {}", path),
                     Err(e) => return println!("{e}"),
                 };
             }

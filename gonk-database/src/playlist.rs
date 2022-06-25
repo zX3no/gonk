@@ -31,7 +31,7 @@ pub fn add(playlist: &str, ids: &[usize]) {
             let album = song.album.replace('\'', r"''");
             let path = song.path.to_string_lossy().replace('\'', r"''");
             let playlist = playlist.replace('\'', r"''");
-            format!("INSERT OR IGNORE INTO playlist_item (path, name, album_id, artist_id, playlist_id) VALUES ('{}', '{}', '{}', '{}', '{}');",
+            format!("INSERT OR IGNORE INTO playlist_item (path, name, album, artist, playlist_id) VALUES ('{}', '{}', '{}', '{}', '{}');",
             path, name, album, artist, playlist)
     }).collect();
 
@@ -55,7 +55,7 @@ pub fn playlists() -> Vec<String> {
 pub fn get(playlist_name: &str) -> Vec<PlaylistSong> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT path, name, album_id, artist_id, rowid FROM playlist_item WHERE playlist_id = ?")
+        .prepare("SELECT path, name, album, artist, rowid FROM playlist_item WHERE playlist_id = ?")
         .unwrap();
 
     stmt.query_map([playlist_name], |row| {

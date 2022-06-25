@@ -3,10 +3,7 @@ extern crate lazy_static;
 
 use gonk_player::Song;
 use jwalk::WalkDir;
-use rayon::{
-    iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator},
-    slice::ParallelSliceMut,
-};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use rusqlite::*;
 use std::{
     path::{Path, PathBuf},
@@ -52,43 +49,26 @@ lazy_static! {
 
             conn.execute(
                 "CREATE TABLE folder (
-            path TEXT PRIMARY KEY)",
-                [],
-            )
-            .unwrap();
-
-            conn.execute(
-                "CREATE TABLE artist (
-            name TEXT PRIMARY KEY)",
+            folder TEXT PRIMARY KEY)",
                 [],
             )
             .unwrap();
 
             conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
                 .unwrap();
-            conn.execute(
-                "CREATE TABLE album (
-            name TEXT PRIMARY KEY,
-            artist_id TEXT NOT NULL,
-            FOREIGN KEY (artist_id) REFERENCES artist (name) )",
-                [],
-            )
-            .unwrap();
 
             conn.execute(
                 "CREATE TABLE song (
-            name TEXT NOT NULL,
-            disc INTEGER NOT NULL,
-            number INTEGER NOT NULL,
-            path TEXT NOT NULL,
-            gain DOUBLE NOT NULL,
-            album_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            folder_id TEXT NOT NULL,
-            FOREIGN KEY (album_id) REFERENCES album (name),
-            FOREIGN KEY (artist_id) REFERENCES artist (name),
-            FOREIGN KEY (folder_id) REFERENCES folder (path),
-            UNIQUE(name, disc, number, path, album_id, artist_id, folder_id) ON CONFLICT REPLACE)",
+                name TEXT NOT NULL,
+                disc INTEGER NOT NULL,
+                number INTEGER NOT NULL,
+                path TEXT NOT NULL,
+                gain DOUBLE NOT NULL,
+                album TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                folder TEXT NOT NULL,
+                FOREIGN KEY (folder) REFERENCES folder (folder),
+                UNIQUE(name, disc, number, path, folder) ON CONFLICT REPLACE)",
                 [],
             )
             .unwrap();
@@ -109,13 +89,11 @@ lazy_static! {
                 number INTEGER NOT NULL,
                 path TEXT NOT NULL,
                 gain DOUBLE NOT NULL,
-                album_id TEXT NOT NULL,
-                artist_id TEXT NOT NULL,
-                folder_id TEXT NOT NULL,
-                FOREIGN KEY (album_id) REFERENCES album (name),
-                FOREIGN KEY (artist_id) REFERENCES artist (name),
-                FOREIGN KEY (folder_id) REFERENCES folder (path) 
-            )",
+                album TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                folder TEXT NOT NULL,
+                FOREIGN KEY (folder) REFERENCES folder (folder),
+                UNIQUE(name, disc, number, path, folder) ON CONFLICT REPLACE)",
                 [],
             )
             .unwrap();
@@ -124,11 +102,9 @@ lazy_static! {
                 "CREATE TABLE playlist_item (
             path TEXT NOT NULL,
             name TEXT NOT NULL,
-            album_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
+            album TEXT NOT NULL,
+            artist TEXT NOT NULL,
             playlist_id TEXT NOT NULL,
-            FOREIGN KEY (album_id) REFERENCES album (name),
-            FOREIGN KEY (artist_id) REFERENCES artist (name),
             FOREIGN KEY (playlist_id) REFERENCES playlist (name))",
                 [],
             )
@@ -169,48 +145,6 @@ pub fn collect_songs(path: impl AsRef<Path>) -> Vec<Song> {
         .collect()
 }
 
-pub fn insert_parents(songs: &[Song]) {
-    let mut albums: Vec<(&str, &str)> = songs
-        .par_iter()
-        .map(|song| (song.album.as_str(), song.artist.as_str()))
-        .collect();
-
-    albums.par_sort();
-    albums.dedup();
-
-    let mut artists: Vec<&str> = songs.par_iter().map(|song| song.artist.as_str()).collect();
-
-    artists.par_sort();
-    artists.dedup();
-
-    let query: String = artists
-        .par_iter()
-        .map(|artist| {
-            let artist = artist.replace('\'', r"''");
-            format!("INSERT OR IGNORE INTO artist (name) VALUES ('{}');", artist)
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    let query = format!("BEGIN;\n{}\nCOMMIT;", query);
-    conn().execute_batch(&query).unwrap();
-
-    let query: Vec<String> = albums
-        .par_iter()
-        .map(|(album, artist)| {
-            let artist = artist.replace('\'', r"''");
-            let album = album.replace('\'', r"''");
-            format!(
-                "INSERT OR IGNORE INTO album (name, artist_id) VALUES ('{}', '{}');",
-                album, artist
-            )
-        })
-        .collect();
-
-    let query = format!("BEGIN;\n{}\nCOMMIT;", query.join("\n"));
-    conn().execute_batch(&query).unwrap();
-}
-
 pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
     let queries: Vec<String> = songs
         .iter()
@@ -222,7 +156,7 @@ pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
             let folder = folder.replace('\'', r"''");
 
             format!(
-                "INSERT OR REPLACE INTO {} (name, disc, number, path, gain, album_id, artist_id, folder_id)
+                "INSERT OR REPLACE INTO {} (name, disc, number, path, gain, album, artist, folder)
                 VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                 table, name, song.disc, song.number, path, song.gain, album, artist, folder,
             )
@@ -233,27 +167,20 @@ pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
 }
 
 pub fn rescan_folder(folder: &str) {
+    let folder = folder.replace(r"\", r"/");
     //Make sure folder exists.
     if conn()
-        .execute("INSERT INTO folder (path) VALUES (?1)", [folder])
+        .execute("INSERT INTO folder (folder) VALUES (?1)", [&folder])
         .is_err()
     {
-        //Collect the songs.
-        let songs = collect_songs(folder);
-        insert_parents(&songs);
-
-        //Create query.
-        let query = create_batch_query("temp_song", folder, &songs);
+        let songs = collect_songs(&folder);
+        let temp_song_query = create_batch_query("temp_song", &folder, &songs);
+        let song_query = create_batch_query("song", &folder, &songs);
 
         let conn = conn();
-
-        //Clean the temp table and add songs.
         conn.execute("DELETE FROM temp_song", []).unwrap();
-        conn.execute_batch(&query).unwrap();
-
-        //Insert songs into default table.
-        let query = create_batch_query("song", folder, &songs);
-        conn.execute_batch(&query).unwrap();
+        conn.execute_batch(&temp_song_query).unwrap();
+        conn.execute_batch(&song_query).unwrap();
 
         //Drop the difference.
         conn.execute(
@@ -264,14 +191,14 @@ pub fn rescan_folder(folder: &str) {
 }
 
 pub fn add_folder(folder: &str) {
+    let folder = folder.replace(r"\", r"/");
     if conn()
-        .execute("INSERT INTO folder (path) VALUES (?1)", [folder])
+        .execute("INSERT INTO folder (folder) VALUES (?1)", [&folder])
         .is_ok()
     {
-        let songs = collect_songs(folder);
-        insert_parents(&songs);
+        let songs = collect_songs(&folder);
 
-        let query = create_batch_query("song", folder, &songs);
+        let query = create_batch_query("song", &folder, &songs);
         conn().execute_batch(&query).unwrap();
     }
 }

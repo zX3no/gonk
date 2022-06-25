@@ -37,7 +37,6 @@ impl Database {
         self.handle = Some(thread::spawn(move || {
             for path in query::paths() {
                 let songs = collect_songs(&path);
-                insert_parents(&songs);
                 let query = create_batch_query("song", &path, &songs);
                 conn().execute_batch(&query).unwrap();
             }
