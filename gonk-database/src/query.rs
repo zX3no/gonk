@@ -30,13 +30,13 @@ pub fn get_cache() -> Vec<Song> {
 
 pub fn volume() -> u16 {
     let conn = conn();
-    let mut stmt = conn.prepare("SELECT value FROM volume").unwrap();
+    let mut stmt = conn.prepare("SELECT volume FROM settings").unwrap();
     stmt.query_row([], |row| row.get(0)).unwrap()
 }
 
 pub fn set_volume(vol: u16) {
     conn()
-        .execute("UPDATE volume SET value = ?", [vol])
+        .execute("UPDATE settings SET volume = ?", [vol])
         .unwrap();
 }
 
@@ -167,4 +167,16 @@ fn song(row: &Row) -> Song {
         // folder: row.get(7).unwrap(),
         id: row.get(8).unwrap(),
     }
+}
+
+pub fn playback_device() -> String {
+    let conn = conn();
+    let mut stmt = conn.prepare("SELECT device FROM settings").unwrap();
+    stmt.query_row([], |row| row.get(0)).unwrap()
+}
+
+pub fn set_playback_device(name: &str) {
+    conn()
+        .execute("UPDATE settings SET device = ? ", [name])
+        .unwrap();
 }

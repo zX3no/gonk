@@ -10,6 +10,7 @@ use status_bar::StatusBar;
 use std::{
     io::{stdout, Stdout},
     path::Path,
+    sync::mpsc,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
@@ -113,8 +114,10 @@ fn main() {
                 };
             }
             "reset" => {
-                gonk_database::reset();
-                return println!("Files reset!");
+                return match gonk_database::reset() {
+                    Ok(_) => println!("Files reset!"),
+                    Err(e) => println!("{}", e),
+                }
             }
             "help" | "--help" => {
                 println!("Usage");
@@ -131,22 +134,34 @@ fn main() {
         }
     }
 
+    //Player takes a while so off-load it to another thread.
+    let (s, r) = mpsc::channel();
+
+    //TODO: figure out why database is crashing
+    let songs = query::get_cache();
+    let volume = query::volume();
+
+    std::thread::spawn(move || {
+        let player = Player::new(volume, &songs);
+        s.send(player).unwrap();
+    });
+
     let mut terminal = init();
 
+    //13ms
+    let mut search = Search::new();
+    let mut settings = Settings::new();
     let mut browser = Browser::new();
     let mut queue = Queue::new();
-    let mut search = Search::new();
     let mut status_bar = StatusBar::new();
     let mut playlist = Playlist::new();
-    let mut settings = Settings::default();
-
-    let songs = query::get_cache();
-    let mut player = Player::new(query::volume(), &songs);
 
     let mut mode = Mode::Browser;
 
     let mut busy = false;
     let mut last_tick = Instant::now();
+
+    let mut player = r.recv().unwrap();
 
     loop {
         if last_tick.elapsed() >= Duration::from_millis(200) {
@@ -248,6 +263,7 @@ fn main() {
                         },
                         KeyCode::Char('u') if mode == Mode::Browser => {
                             //FIXME: !!!
+                            //db.refresh
                             db.add_path("D:/OneDrive/Music");
                         }
                         KeyCode::Char('q') => player.seek_by(-10.0),
@@ -274,7 +290,7 @@ fn main() {
                             Mode::Search => {
                                 search::on_escape(&mut search, &mut mode);
                             }
-                            // Mode::Options => mode = Mode::Queue,
+                            Mode::Settings => mode = Mode::Queue,
                             Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
                             _ => (),
                         },
@@ -303,9 +319,7 @@ fn main() {
                                 }
                             }
                             Mode::Search => search::on_enter(&mut search, &mut player),
-                            Mode::Settings => {
-                                // settings::on_enter(&mut settings, &mut player, &mut toml)
-                            }
+                            Mode::Settings => settings::on_enter(&mut settings, &mut player),
                             Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
                         },
                         KeyCode::Backspace => match mode {

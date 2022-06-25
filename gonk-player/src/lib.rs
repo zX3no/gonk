@@ -242,9 +242,12 @@ impl Player {
                 Ok(())
             }
             Err(e) => match e {
+                //HACK: Ignore input devices.
                 stream::StreamError::DefaultStreamConfigError(_) => Ok(()),
                 _ => Err(e),
             },
         }
     }
 }
+
+unsafe impl Send for Player {}

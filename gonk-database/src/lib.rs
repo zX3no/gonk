@@ -42,14 +42,15 @@ pub fn init() {
 
     if !exists {
         conn.execute(
-            "CREATE TABLE volume (
-             value INTEGER UNIQUE
+            "CREATE TABLE settings (
+             volume INTEGER UNIQUE,
+             device TEXT UNIQUE
         )",
             [],
         )
         .unwrap();
 
-        conn.execute("INSERT INTO volume (value) VALUES (?1)", [15])
+        conn.execute("INSERT INTO settings (volume, device) VALUES (15, '')", [])
             .unwrap();
 
         conn.execute(
@@ -151,11 +152,16 @@ pub fn init() {
 
 pub static mut CONN: Option<RwLock<rusqlite::Connection>> = None;
 
-pub fn reset() {
+pub fn reset() -> Result<(), &'static str> {
     unsafe {
         CONN = None;
     }
-    let _ = std::fs::remove_file(DB_DIR.as_path());
+
+    if std::fs::remove_file(DB_DIR.as_path()).is_err() {
+        Err("Could not remove database while it's in use.")
+    } else {
+        Ok(())
+    }
 }
 
 pub fn conn() -> RwLockReadGuard<'static, Connection> {
