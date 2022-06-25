@@ -1,6 +1,7 @@
 /target
-/gonk/target
-Cargo.lock
+/.vscode
+
 *.log
 *.opt
-/.vscode
+*.db
+*.lock

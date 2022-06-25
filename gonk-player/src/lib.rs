@@ -41,29 +41,37 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(volume: u16) -> Self {
+    pub fn new(volume: u16, songs: &[Song]) -> Self {
         let (stream, handle) =
             OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
         sink.set_volume(volume as f32 / VOLUME_REDUCTION);
 
-        Self {
+        let mut s = Self {
             stream,
             handle,
             sink,
             duration: 0.0,
             volume,
             songs: Index::default(),
-        }
+        };
+        s.add_songs(songs);
+        s.toggle_playback();
+        s
     }
     pub fn is_empty(&self) -> bool {
         self.songs.is_empty()
     }
     pub fn add_songs(&mut self, song: &[Song]) {
         self.songs.data.extend(song.to_vec());
-        if self.songs.is_none() && !self.songs.is_empty() {
+
+        //If there are songs but nothing is selected
+        if self.songs.index().is_none() && !self.songs.is_empty() {
             self.songs.select(Some(0));
             self.play_selected();
+        } else if self.is_paused() && !self.songs.is_empty() && self.songs.index().is_some() {
+            //Continue playback when adding songs to queue.
+            self.toggle_playback();
         }
     }
     pub fn play_song(&mut self, i: usize) {
@@ -118,12 +126,12 @@ impl Player {
             let volume = self.volume as f32 / VOLUME_REDUCTION;
 
             //Calculate the volume with gain
-            let volume = if song.track_gain == 0.0 {
+            let volume = if song.gain == 0.0 {
                 //Reduce the volume a little to match
                 //songs with replay gain information.
                 volume * 0.75
             } else {
-                volume * song.track_gain as f32
+                volume * song.gain as f32
             };
 
             self.sink.set_volume(volume);
@@ -234,9 +242,12 @@ impl Player {
                 Ok(())
             }
             Err(e) => match e {
+                //HACK: Ignore input devices.
                 stream::StreamError::DefaultStreamConfigError(_) => Ok(()),
                 _ => Err(e),
             },
         }
     }
 }
+
+unsafe impl Send for Player {}

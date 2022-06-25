@@ -79,7 +79,7 @@ pub struct List<'a> {
 }
 
 impl<'a> List<'a> {
-    pub fn new(items: Vec<ListItem<'a>>) -> List<'a> {
+    pub fn new(items: &[ListItem<'a>]) -> List<'a> {
         List {
             block: None,
             style: Style::default(),
@@ -114,7 +114,7 @@ impl<'a> List<'a> {
     fn get_items_bounds(&self, selection: usize, terminal_height: usize) -> (usize, usize) {
         let mut real_end = 0;
         let mut height = 0;
-        for item in self.items.iter() {
+        for item in &self.items {
             if height + item.height() > terminal_height {
                 break;
             }
@@ -180,16 +180,13 @@ impl<'a> StatefulWidget for List<'a> {
             .skip(start)
             .take(end - start)
         {
-            let (x, y) = match self.start_corner {
-                Corner::BottomLeft => {
-                    current_height += item.height() as u16;
-                    (list_area.left(), list_area.bottom() - current_height)
-                }
-                _ => {
-                    let pos = (list_area.left(), list_area.top() + current_height);
-                    current_height += item.height() as u16;
-                    pos
-                }
+            let (x, y) = if self.start_corner == Corner::BottomLeft {
+                current_height += item.height() as u16;
+                (list_area.left(), list_area.bottom() - current_height)
+            } else {
+                let pos = (list_area.left(), list_area.top() + current_height);
+                current_height += item.height() as u16;
+                pos
             };
 
             let area = Rect {
