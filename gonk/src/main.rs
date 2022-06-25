@@ -83,7 +83,7 @@ fn init() -> Terminal<CrosstermBackend<Stdout>> {
 
 fn main() {
     //Program will explode if this isn't called.
-    gonk_database::init().unwrap();
+    gonk_database::init();
 
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -140,7 +140,7 @@ fn main() {
     let mut playlist = Playlist::new();
     let mut settings = Settings::default();
     //TODO: Store volume in database.
-    let mut player = Player::new(15);
+    let mut player = Player::new(query::volume());
 
     let mut mode = Mode::Browser;
 
@@ -351,6 +351,8 @@ fn main() {
             }
         }
     }
+
+    query::set_volume(player.volume);
 
     disable_raw_mode().unwrap();
     execute!(

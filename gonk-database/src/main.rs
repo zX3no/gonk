@@ -13,7 +13,7 @@ fn add_path() {
 }
 
 fn main() {
-    init().unwrap();
+    init();
 
     playlist::add("test", &[1, 2]);
     let a = playlist::get("test");

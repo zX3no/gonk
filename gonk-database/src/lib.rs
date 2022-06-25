@@ -36,25 +36,47 @@ lazy_static! {
     pub static ref DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
 }
 
-#[must_use]
-pub fn init() -> Result<()> {
+pub fn init() {
     let exists = PathBuf::from(DB_DIR.as_path()).exists();
-    let conn = Connection::open(DB_DIR.as_path())?;
+    let conn = Connection::open(DB_DIR.as_path()).unwrap();
 
     if !exists {
+        conn.execute(
+            "CREATE TABLE volume (
+             value INTEGER UNIQUE
+        )",
+            [],
+        )
+        .unwrap();
+
+        conn.execute("INSERT INTO volume (value) VALUES (?1)", [15])
+            .unwrap();
+
+        //TODO: Cache songs after exit
+        // conn.execute(
+        //     "CREATE TABLE persist (
+        //     song_id INTEGER,
+        //     FOREIGN KEY (song_id) REFERENCES song (rowid)
+        // )",
+        //     [],
+        // )
+        // .unwrap();
+
         conn.execute(
             "CREATE TABLE folder (
             path TEXT PRIMARY KEY
         )",
             [],
-        )?;
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE artist (
             name TEXT PRIMARY KEY
         )",
             [],
-        )?;
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE album (
@@ -63,7 +85,8 @@ pub fn init() -> Result<()> {
             FOREIGN KEY (artist_id) REFERENCES artist (name) 
         )",
             [],
-        )?;
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE song (
@@ -81,7 +104,8 @@ pub fn init() -> Result<()> {
             UNIQUE(name, disc, number, path, album_id, artist_id, folder_id) ON CONFLICT REPLACE
         )",
             [],
-        )?;
+        )
+        .unwrap();
 
         //Used for intersects
         //https://www.sqlitetutorial.net/sqlite-intersect/
@@ -100,14 +124,16 @@ pub fn init() -> Result<()> {
             FOREIGN KEY (folder_id) REFERENCES folder (path) 
         )",
             [],
-        )?;
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE playlist (
             name TEXT PRIMARY KEY
         )",
             [],
-        )?;
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE playlist_item (
@@ -121,14 +147,13 @@ pub fn init() -> Result<()> {
             FOREIGN KEY (playlist_id) REFERENCES playlist (name)
         )",
             [],
-        )?;
+        )
+        .unwrap();
     }
 
     unsafe {
         CONN = Some(RwLock::new(conn));
     }
-
-    Ok(())
 }
 
 pub static mut CONN: Option<RwLock<rusqlite::Connection>> = None;

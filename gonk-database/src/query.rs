@@ -3,6 +3,18 @@ use gonk_player::Song;
 use rusqlite::*;
 use std::path::PathBuf;
 
+pub fn volume() -> u16 {
+    let conn = conn();
+    let mut stmt = conn.prepare("SELECT value FROM volume").unwrap();
+    stmt.query_row([], |row| row.get(0)).unwrap()
+}
+
+pub fn set_volume(vol: u16) {
+    conn()
+        .execute("UPDATE volume SET value = ?", [vol])
+        .unwrap();
+}
+
 pub fn paths() -> Vec<String> {
     let conn = conn();
     let mut stmt = conn.prepare("SELECT path FROM folder").unwrap();
