@@ -51,9 +51,10 @@ pub fn paths() -> Vec<String> {
 }
 
 pub fn remove_path(path: &str) -> Result<(), &str> {
+    let path = path.replace(r"\", r"/");
     let conn = conn();
 
-    conn.execute("DELETE FROM song WHERE folder = ?", [path])
+    conn.execute("DELETE FROM song WHERE folder = ?", [&path])
         .unwrap();
 
     let result = conn

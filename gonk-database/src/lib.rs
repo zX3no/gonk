@@ -200,5 +200,7 @@ pub fn add_folder(folder: &str) {
 
         let query = create_batch_query("song", &folder, &songs);
         conn().execute_batch(&query).unwrap();
+    } else {
+        //TODO: Log to status bar that folder is already added
     }
 }
