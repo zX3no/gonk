@@ -52,16 +52,6 @@ pub fn init() {
         conn.execute("INSERT INTO volume (value) VALUES (?1)", [15])
             .unwrap();
 
-        //TODO: Cache songs after exit
-        // conn.execute(
-        //     "CREATE TABLE persist (
-        //     song_id INTEGER,
-        //     FOREIGN KEY (song_id) REFERENCES song (rowid)
-        // )",
-        //     [],
-        // )
-        // .unwrap();
-
         conn.execute(
             "CREATE TABLE folder (
             path TEXT PRIMARY KEY
@@ -77,6 +67,9 @@ pub fn init() {
             [],
         )
         .unwrap();
+
+        conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
+            .unwrap();
 
         conn.execute(
             "CREATE TABLE album (

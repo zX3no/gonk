@@ -139,8 +139,9 @@ fn main() {
     let mut status_bar = StatusBar::new();
     let mut playlist = Playlist::new();
     let mut settings = Settings::default();
-    //TODO: Store volume in database.
-    let mut player = Player::new(query::volume());
+
+    let songs = query::get_cache();
+    let mut player = Player::new(query::volume(), &songs);
 
     let mut mode = Mode::Browser;
 
@@ -353,6 +354,9 @@ fn main() {
     }
 
     query::set_volume(player.volume);
+
+    let ids: Vec<usize> = player.songs.data.iter().flat_map(|song| song.id).collect();
+    query::cache(&ids);
 
     disable_raw_mode().unwrap();
     execute!(

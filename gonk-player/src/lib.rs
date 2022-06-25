@@ -41,20 +41,23 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(volume: u16) -> Self {
+    pub fn new(volume: u16, songs: &[Song]) -> Self {
         let (stream, handle) =
             OutputStream::try_default().expect("Could not create output stream.");
         let sink = Sink::try_new(&handle).unwrap();
         sink.set_volume(volume as f32 / VOLUME_REDUCTION);
 
-        Self {
+        let mut s = Self {
             stream,
             handle,
             sink,
             duration: 0.0,
             volume,
             songs: Index::default(),
-        }
+        };
+        s.add_songs(songs);
+        s.toggle_playback();
+        s
     }
     pub fn is_empty(&self) -> bool {
         self.songs.is_empty()

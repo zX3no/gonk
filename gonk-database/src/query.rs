@@ -3,6 +3,31 @@ use gonk_player::Song;
 use rusqlite::*;
 use std::path::PathBuf;
 
+pub fn cache(ids: &[usize]) {
+    let conn = conn();
+
+    conn.execute("DELETE FROM persist", []).unwrap();
+
+    for id in ids {
+        conn.execute("INSERT INTO persist (song_id) VALUES (?)", [id])
+            .unwrap();
+    }
+}
+
+pub fn get_cache() -> Vec<Song> {
+    let ids: Vec<usize> = {
+        let conn = conn();
+        let mut stmt = conn.prepare("SELECT song_id FROM persist").unwrap();
+
+        stmt.query_map([], |row| row.get(0))
+            .unwrap()
+            .flatten()
+            .collect()
+    };
+
+    songs_from_ids(&ids)
+}
+
 pub fn volume() -> u16 {
     let conn = conn();
     let mut stmt = conn.prepare("SELECT value FROM volume").unwrap();
