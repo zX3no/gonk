@@ -279,7 +279,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
 
     //Move the cursor position when typing
     if let Mode::Search = search.mode {
-        if search.results.is_none() && search.query.is_empty() {
+        if search.results.index().is_none() && search.query.is_empty() {
             f.set_cursor(1, 1);
         } else {
             let len = search.query.len() as u16;

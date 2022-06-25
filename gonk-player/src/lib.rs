@@ -64,9 +64,14 @@ impl Player {
     }
     pub fn add_songs(&mut self, song: &[Song]) {
         self.songs.data.extend(song.to_vec());
-        if self.songs.is_none() && !self.songs.is_empty() {
+
+        //If there are songs but nothing is selected
+        if self.songs.index().is_none() && !self.songs.is_empty() {
             self.songs.select(Some(0));
             self.play_selected();
+        } else if self.is_paused() && !self.songs.is_empty() && self.songs.index().is_some() {
+            //Continue playback when adding songs to queue.
+            self.toggle_playback();
         }
     }
     pub fn play_song(&mut self, i: usize) {
