@@ -1,4 +1,5 @@
 use crate::{widgets::*, Frame, Input, COLORS};
+use gonk_database::playlist::PlaylistSong;
 use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
 use tui::style::Style;
@@ -15,21 +16,11 @@ pub enum Mode {
     Popup,
 }
 
-pub struct Item {
-    row: usize,
-    song: Song,
-}
-
-//FIXME: Playlist songs are currently stored by id.
-//If the database is rescanned it will delete and re-add every song.
-//This can change the rowid's so the songs can be replaced with something else.
-//Playlist songs should be stored the same way normal songs.
-
 pub struct Playlist {
     pub mode: Mode,
-    pub titles: Index<String>,
-    pub songs: Index<Item>,
-    pub songs_to_add: Vec<Song>,
+    pub playlists: Index<String>,
+    pub songs: Index<PlaylistSong>,
+    pub song_buffer: Vec<Song>,
     pub search: String,
     pub search_result: String,
     pub changed: bool,
@@ -37,14 +28,19 @@ pub struct Playlist {
 
 impl Playlist {
     pub fn new() -> Self {
-        let playlists = playlist::get_names();
-        let songs = songs(playlists.first());
+        let playlists = playlist::playlists();
+
+        let songs = if let Some(playlist) = playlists.first() {
+            Index::new(playlist::get(playlist), Some(0))
+        } else {
+            Index::new(Vec::new(), Some(0))
+        };
 
         Self {
             mode: Mode::Playlist,
-            titles: Index::new(playlists, Some(0)),
-            songs: Index::new(songs, Some(0)),
-            songs_to_add: Vec::new(),
+            playlists: Index::new(playlists, Some(0)),
+            songs,
+            song_buffer: Vec::new(),
             changed: false,
             search: String::new(),
             search_result: String::from("Enter a playlist name..."),
@@ -56,8 +52,9 @@ impl Input for Playlist {
     fn up(&mut self) {
         match self.mode {
             Mode::Playlist => {
-                self.titles.up();
-                update_songs(self);
+                self.playlists.up();
+                let songs = playlist::get(&self.playlists.selected().unwrap());
+                self.songs = Index::new(songs, Some(0));
             }
             Mode::Song => self.songs.up(),
             Mode::Popup => (),
@@ -67,8 +64,9 @@ impl Input for Playlist {
     fn down(&mut self) {
         match self.mode {
             Mode::Playlist => {
-                self.titles.down();
-                update_songs(self);
+                self.playlists.down();
+                let songs = playlist::get(&self.playlists.selected().unwrap());
+                self.songs = Index::new(songs, Some(0));
             }
             Mode::Song => self.songs.down(),
             Mode::Popup => (),
@@ -91,77 +89,49 @@ impl Input for Playlist {
     }
 }
 
-fn songs(playlist: Option<&String>) -> Vec<Item> {
-    if let Some(playlist) = playlist {
-        let (row_ids, song_ids) = playlist::get(playlist);
-        let songs = query::songs_from_ids(&song_ids);
-        songs
-            .into_iter()
-            .zip(row_ids)
-            .map(|(song, row)| Item { row, song })
-            .collect()
-    } else {
-        Vec::new()
-    }
-}
-
-fn update_songs(playlist: &mut Playlist) {
-    //Update the list of songs.
-    let songs = songs(playlist.titles.selected());
-    playlist.songs = if songs.is_empty() {
-        playlist.mode = Mode::Playlist;
-        Index::default()
-    } else {
-        Index::new(songs, playlist.songs.index())
-    };
-}
-
 pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
     match playlist.mode {
         Mode::Playlist => {
-            let songs: Vec<Song> = playlist
-                .songs
-                .data
-                .iter()
-                .map(|item| &item.song)
-                .cloned()
-                .collect();
-
+            let ids: Vec<usize> = playlist.songs.data.iter().map(|song| song.id).collect();
+            let songs = query::songs_from_ids(&ids);
             player.add_songs(&songs);
         }
         Mode::Song => {
             if let Some(item) = playlist.songs.selected() {
-                player.add_songs(&[item.song.clone()]);
+                let song = query::songs_from_ids(&[item.id]).remove(0);
+                player.add_songs(&[song]);
             }
         }
-        Mode::Popup if !playlist.songs_to_add.is_empty() => {
+        Mode::Popup if !playlist.song_buffer.is_empty() => {
             //Select an existing playlist or create a new one.
             let name = playlist.search.trim().to_string();
 
             let ids: Vec<usize> = playlist
-                .songs_to_add
+                .song_buffer
                 .iter()
                 .map(|song| song.id.unwrap())
                 .collect();
 
             playlist::add(&name, &ids);
 
-            playlist.titles = Index::new(playlist::get_names(), playlist.titles.index());
+            playlist.playlists = Index::new(playlist::playlists(), playlist.playlists.index());
 
             let mut i = Some(0);
-            for (j, playlist) in playlist.titles.data.iter().enumerate() {
+            for (j, playlist) in playlist.playlists.data.iter().enumerate() {
                 if playlist == &name {
                     i = Some(j);
                     break;
                 }
             }
-            //Select the playlist was just modified and update the songs.
-            playlist.titles.select(i);
-            update_songs(playlist);
+
+            //Select the playlist that was just modified and update the songs.
+            playlist.playlists.select(i);
+            let songs = playlist::get(playlist.playlists.selected().unwrap());
+            playlist.songs = Index::new(songs, Some(0));
 
             //Reset everything.
             playlist.search = String::new();
-            playlist.mode = Mode::Song;
+            playlist.mode = Mode::Playlist;
         }
         Mode::Popup => (),
     }
@@ -182,29 +152,38 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
 }
 
 pub fn add_to_playlist(playlist: &mut Playlist, songs: &[Song]) {
-    playlist.songs_to_add = songs.to_vec();
+    playlist.song_buffer = songs.to_vec();
     playlist.mode = Mode::Popup;
 }
 
 pub fn delete(playlist: &mut Playlist) {
     match playlist.mode {
         Mode::Playlist => {
-            if let Some(selected) = playlist.titles.selected() {
+            if let Some(index) = playlist.playlists.index() {
                 //TODO: Prompt the user with yes or no.
-                playlist::remove(selected);
+                playlist::remove(&playlist.playlists.data[index]);
+                playlist.playlists.remove(index);
 
-                let index = playlist.titles.index().unwrap();
-                playlist.titles.remove(index);
-                update_songs(playlist);
+                if playlist.playlists.is_empty() {
+                    //No more playlists mean no more songs.
+                    playlist.songs = Index::default();
+                } else {
+                    //After removing a playlist the next songs will need to be loaded.
+                    let songs = playlist::get(playlist.playlists.selected().unwrap());
+                    playlist.songs = Index::new(songs, Some(0));
+                }
             }
         }
         Mode::Song => {
             if let Some(song) = playlist.songs.selected() {
-                playlist::remove_id(song.row);
+                playlist::remove_id(song.id);
                 let index = playlist.songs.index().unwrap();
                 playlist.songs.remove(index);
+
+                //If there are no songs left delete the playlist.
                 if playlist.songs.is_empty() {
-                    playlist.titles = Index::new(playlist::get_names(), playlist.titles.index());
+                    let index = playlist.playlists.index().unwrap();
+                    playlist.playlists.remove(index);
                 }
             }
         }
@@ -240,7 +219,8 @@ pub fn on_escape(playlist: &mut Playlist, mode: &mut super::Mode) {
 //or
 //"25 songs have been added to [playlist name]"
 
-//TODO: Add keybindings to readme
+//TODO: Prompt the user with yes or no on deletes.
+//TODO: Clear playlist with confirmation.
 pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
     if let Some(area) = centered_rect(45, 6, f.size()) {
         let v = Layout::default()
@@ -276,7 +256,11 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
 
         if playlist.changed {
             playlist.changed = false;
-            let eq = playlist.titles.data.iter().any(|e| e == &playlist.search);
+            let eq = playlist
+                .playlists
+                .data
+                .iter()
+                .any(|e| e == &playlist.search);
             playlist.search_result = if eq {
                 format!("Add to existing playlist: {}", playlist.search)
             } else if playlist.search.is_empty() {
@@ -316,7 +300,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
         .split(area);
 
     let items: Vec<ListItem> = playlist
-        .titles
+        .playlists
         .clone()
         .into_iter()
         .map(ListItem::new)
@@ -340,19 +324,18 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
     f.render_stateful_widget(
         list,
         horizontal[0],
-        &mut ListState::new(playlist.titles.index()),
+        &mut ListState::new(playlist.playlists.index()),
     );
 
     let content = playlist
         .songs
         .data
         .iter()
-        .map(|item| {
-            let song = item.song.clone();
+        .map(|song| {
             Row::new(vec![
-                Span::styled(song.name, Style::default().fg(COLORS.name)),
-                Span::styled(song.album, Style::default().fg(COLORS.album)),
-                Span::styled(song.artist, Style::default().fg(COLORS.artist)),
+                Span::styled(song.name.as_str(), Style::default().fg(COLORS.name)),
+                Span::styled(song.album.as_str(), Style::default().fg(COLORS.album)),
+                Span::styled(song.artist.as_str(), Style::default().fg(COLORS.artist)),
             ])
         })
         .collect();

@@ -1,7 +1,7 @@
+#![allow(unused)]
 use gonk_database::{query::*, *};
 
-fn main() {
-    init().unwrap();
+fn add_path() {
     let mut db = Database::default();
     db.add_path("D:\\OneDrive\\Music");
 
@@ -10,7 +10,12 @@ fn main() {
             break;
         }
     }
+}
 
-    let a = songs_from_ids(&[200, 323, 1000, 2, 1021]);
+fn main() {
+    init().unwrap();
+
+    playlist::add("test", &[1, 2]);
+    let a = playlist::get("test");
     println!("{:?}", a);
 }

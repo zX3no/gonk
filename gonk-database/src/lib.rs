@@ -77,7 +77,8 @@ pub fn init() -> Result<()> {
             folder_id TEXT NOT NULL,
             FOREIGN KEY (album_id) REFERENCES album (name),
             FOREIGN KEY (artist_id) REFERENCES artist (name),
-            FOREIGN KEY (folder_id) REFERENCES folder (path) 
+            FOREIGN KEY (folder_id) REFERENCES folder (path),
+            UNIQUE(name, disc, number, path, album_id, artist_id, folder_id) ON CONFLICT REPLACE
         )",
             [],
         )?;
@@ -97,6 +98,27 @@ pub fn init() -> Result<()> {
             FOREIGN KEY (album_id) REFERENCES album (name),
             FOREIGN KEY (artist_id) REFERENCES artist (name),
             FOREIGN KEY (folder_id) REFERENCES folder (path) 
+        )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE playlist (
+            name TEXT PRIMARY KEY
+        )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE playlist_item (
+            path TEXT NOT NULL,
+            name TEXT NOT NULL,
+            album_id TEXT NOT NULL,
+            artist_id TEXT NOT NULL,
+            playlist_id TEXT NOT NULL,
+            FOREIGN KEY (album_id) REFERENCES album (name),
+            FOREIGN KEY (artist_id) REFERENCES artist (name),
+            FOREIGN KEY (playlist_id) REFERENCES playlist (name)
         )",
             [],
         )?;
@@ -192,7 +214,7 @@ pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
             let folder = folder.replace('\'', r"''");
 
             format!(
-                "INSERT INTO {} (name, disc, number, path, gain, album_id, artist_id, folder_id)
+                "INSERT OR REPLACE INTO {} (name, disc, number, path, gain, album_id, artist_id, folder_id)
                 VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
                 table, name, song.disc, song.number, path, song.gain, album, artist, folder,
             )
