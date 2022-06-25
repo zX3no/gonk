@@ -18,13 +18,13 @@ fn db_to_amplitude(db: f64) -> f64 {
 
 #[derive(Debug, Clone, Default)]
 pub struct Song {
-    pub number: u64,
-    pub disc: u64,
     pub name: String,
-    pub album: String,
-    pub artist: String,
+    pub disc: u64,
+    pub number: u64,
     pub path: PathBuf,
     pub gain: f64,
+    pub album: String,
+    pub artist: String,
     pub id: Option<usize>,
 }
 
@@ -52,7 +52,7 @@ impl Song {
             ..Default::default()
         };
 
-        let mut get_songs = |metadata: &MetadataRevision| {
+        let mut update_metadat = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
                 if let Some(std_key) = tag.std_key {
                     match std_key {
@@ -97,17 +97,21 @@ impl Song {
 
         //TODO: Why are there two different ways to get metadata
         if let Some(metadata) = probe.metadata.get() {
-            get_songs(metadata.current().unwrap());
+            if let Some(current) = metadata.current() {
+                update_metadat(current);
+            }
         } else if let Some(metadata) = probe.format.metadata().current() {
-            get_songs(metadata);
+            update_metadat(metadata);
         }
 
         if song.artist.is_empty() {
             song.artist = String::from("Unknown Artist");
         }
+
         if song.name.is_empty() {
             song.name = String::from("Unknown Title");
         }
+
         if song.album.is_empty() {
             song.album = String::from("Unknown Album");
         }
