@@ -167,7 +167,7 @@ pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
 }
 
 pub fn rescan_folder(folder: &str) {
-    let folder = folder.replace(r"\", r"/");
+    let folder = db_path(folder);
     //Make sure folder exists.
     if conn()
         .execute("INSERT INTO folder (folder) VALUES (?1)", [&folder])
@@ -191,7 +191,7 @@ pub fn rescan_folder(folder: &str) {
 }
 
 pub fn add_folder(folder: &str) {
-    let folder = folder.replace(r"\", r"/");
+    let folder = db_path(folder);
     if conn()
         .execute("INSERT INTO folder (folder) VALUES (?1)", [&folder])
         .is_ok()
@@ -203,4 +203,8 @@ pub fn add_folder(folder: &str) {
     } else {
         //TODO: Log to status bar that folder is already added
     }
+}
+
+pub fn db_path(path: &str) -> String {
+    path.replace(r"\", r"/")
 }

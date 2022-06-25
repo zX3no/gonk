@@ -1,4 +1,4 @@
-use crate::conn;
+use crate::{conn, db_path};
 use gonk_player::Song;
 use rusqlite::*;
 use std::path::PathBuf;
@@ -51,7 +51,7 @@ pub fn paths() -> Vec<String> {
 }
 
 pub fn remove_path(path: &str) -> Result<(), &str> {
-    let path = path.replace(r"\", r"/");
+    let path = db_path(path);
     let conn = conn();
 
     conn.execute("DELETE FROM song WHERE folder = ?", [&path])

@@ -21,7 +21,7 @@ impl Database {
             }
         }
 
-        let path = path.to_string();
+        let path = db_path(path);
         self.handle = Some(thread::spawn(move || {
             add_folder(&path);
         }));
