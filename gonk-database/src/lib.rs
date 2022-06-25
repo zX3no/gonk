@@ -10,7 +10,7 @@ use rayon::{
 use rusqlite::*;
 use std::{
     path::{Path, PathBuf},
-    sync::{RwLock, RwLockReadGuard},
+    sync::{Mutex, MutexGuard},
 };
 
 mod database;
@@ -34,56 +34,49 @@ lazy_static! {
         gonk
     };
     pub static ref DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
-}
+    pub static ref CONN: Mutex<Connection> = {
+        let exists = PathBuf::from(DB_DIR.as_path()).exists();
+        let conn = Connection::open(DB_DIR.as_path()).unwrap();
 
-pub fn init() {
-    let exists = PathBuf::from(DB_DIR.as_path()).exists();
-    let conn = Connection::open(DB_DIR.as_path()).unwrap();
-
-    if !exists {
-        conn.execute(
-            "CREATE TABLE settings (
+        if !exists {
+            conn.execute(
+                "CREATE TABLE settings (
              volume INTEGER UNIQUE,
-             device TEXT UNIQUE
-        )",
-            [],
-        )
-        .unwrap();
-
-        conn.execute("INSERT INTO settings (volume, device) VALUES (15, '')", [])
+             device TEXT UNIQUE)",
+                [],
+            )
             .unwrap();
 
-        conn.execute(
-            "CREATE TABLE folder (
-            path TEXT PRIMARY KEY
-        )",
-            [],
-        )
-        .unwrap();
+            conn.execute("INSERT INTO settings (volume, device) VALUES (15, '')", [])
+                .unwrap();
 
-        conn.execute(
-            "CREATE TABLE artist (
-            name TEXT PRIMARY KEY
-        )",
-            [],
-        )
-        .unwrap();
-
-        conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
+            conn.execute(
+                "CREATE TABLE folder (
+            path TEXT PRIMARY KEY)",
+                [],
+            )
             .unwrap();
 
-        conn.execute(
-            "CREATE TABLE album (
+            conn.execute(
+                "CREATE TABLE artist (
+            name TEXT PRIMARY KEY)",
+                [],
+            )
+            .unwrap();
+
+            conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
+                .unwrap();
+            conn.execute(
+                "CREATE TABLE album (
             name TEXT PRIMARY KEY,
             artist_id TEXT NOT NULL,
-            FOREIGN KEY (artist_id) REFERENCES artist (name) 
-        )",
-            [],
-        )
-        .unwrap();
+            FOREIGN KEY (artist_id) REFERENCES artist (name) )",
+                [],
+            )
+            .unwrap();
 
-        conn.execute(
-            "CREATE TABLE song (
+            conn.execute(
+                "CREATE TABLE song (
             name TEXT NOT NULL,
             disc INTEGER NOT NULL,
             number INTEGER NOT NULL,
@@ -95,42 +88,40 @@ pub fn init() {
             FOREIGN KEY (album_id) REFERENCES album (name),
             FOREIGN KEY (artist_id) REFERENCES artist (name),
             FOREIGN KEY (folder_id) REFERENCES folder (path),
-            UNIQUE(name, disc, number, path, album_id, artist_id, folder_id) ON CONFLICT REPLACE
-        )",
-            [],
-        )
-        .unwrap();
+            UNIQUE(name, disc, number, path, album_id, artist_id, folder_id) ON CONFLICT REPLACE)",
+                [],
+            )
+            .unwrap();
 
-        //Used for intersects
-        //https://www.sqlitetutorial.net/sqlite-intersect/
-        conn.execute(
-            "CREATE TABLE temp_song (
-            name TEXT NOT NULL,
-            disc INTEGER NOT NULL,
-            number INTEGER NOT NULL,
-            path TEXT NOT NULL,
-            gain DOUBLE NOT NULL,
-            album_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            folder_id TEXT NOT NULL,
-            FOREIGN KEY (album_id) REFERENCES album (name),
-            FOREIGN KEY (artist_id) REFERENCES artist (name),
-            FOREIGN KEY (folder_id) REFERENCES folder (path) 
-        )",
-            [],
-        )
-        .unwrap();
+            conn.execute(
+                "CREATE TABLE playlist (
+            name TEXT PRIMARY KEY)",
+                [],
+            )
+            .unwrap();
 
-        conn.execute(
-            "CREATE TABLE playlist (
-            name TEXT PRIMARY KEY
-        )",
-            [],
-        )
-        .unwrap();
+            //Used for intersects
+            //https://www.sqlitetutorial.net/sqlite-intersect/
+            conn.execute(
+                "CREATE TABLE temp_song (
+                name TEXT NOT NULL,
+                disc INTEGER NOT NULL,
+                number INTEGER NOT NULL,
+                path TEXT NOT NULL,
+                gain DOUBLE NOT NULL,
+                album_id TEXT NOT NULL,
+                artist_id TEXT NOT NULL,
+                folder_id TEXT NOT NULL,
+                FOREIGN KEY (album_id) REFERENCES album (name),
+                FOREIGN KEY (artist_id) REFERENCES artist (name),
+                FOREIGN KEY (folder_id) REFERENCES folder (path) 
+            )",
+                [],
+            )
+            .unwrap();
 
-        conn.execute(
-            "CREATE TABLE playlist_item (
+            conn.execute(
+                "CREATE TABLE playlist_item (
             path TEXT NOT NULL,
             name TEXT NOT NULL,
             album_id TEXT NOT NULL,
@@ -138,24 +129,18 @@ pub fn init() {
             playlist_id TEXT NOT NULL,
             FOREIGN KEY (album_id) REFERENCES album (name),
             FOREIGN KEY (artist_id) REFERENCES artist (name),
-            FOREIGN KEY (playlist_id) REFERENCES playlist (name)
-        )",
-            [],
-        )
-        .unwrap();
-    }
+            FOREIGN KEY (playlist_id) REFERENCES playlist (name))",
+                [],
+            )
+            .unwrap();
+        }
 
-    unsafe {
-        CONN = Some(RwLock::new(conn));
-    }
+        Mutex::new(conn)
+    };
 }
 
-pub static mut CONN: Option<RwLock<rusqlite::Connection>> = None;
-
 pub fn reset() -> Result<(), &'static str> {
-    unsafe {
-        CONN = None;
-    }
+    *CONN.lock().unwrap() = Connection::open_in_memory().unwrap();
 
     if std::fs::remove_file(DB_DIR.as_path()).is_err() {
         Err("Could not remove database while it's in use.")
@@ -164,12 +149,11 @@ pub fn reset() -> Result<(), &'static str> {
     }
 }
 
-pub fn conn() -> RwLockReadGuard<'static, Connection> {
-    unsafe { CONN.as_ref().unwrap().read().unwrap() }
+pub fn conn() -> MutexGuard<'static, Connection> {
+    CONN.lock().unwrap()
 }
 
 pub fn collect_songs(path: impl AsRef<Path>) -> Vec<Song> {
-    //TODO: Check if the path is in the database and if it is, don't read the metadata.
     WalkDir::new(path)
         .into_iter()
         .flatten()

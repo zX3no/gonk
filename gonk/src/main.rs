@@ -83,9 +83,6 @@ fn init() -> Terminal<CrosstermBackend<Stdout>> {
 }
 
 fn main() {
-    //Program will explode if this isn't called.
-    gonk_database::init();
-
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -261,10 +258,7 @@ fn main() {
                             Mode::Playlist => playlist::delete(&mut playlist),
                             _ => (),
                         },
-                        KeyCode::Char('u') if mode == Mode::Browser => {
-                            //FIXME: !!!
-                            db.refresh()
-                        }
+                        KeyCode::Char('u') if mode == Mode::Browser => db.refresh(),
                         KeyCode::Char('q') => player.seek_by(-10.0),
                         KeyCode::Char('e') => player.seek_by(10.0),
                         KeyCode::Char('a') => player.prev_song(),
