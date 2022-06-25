@@ -176,7 +176,6 @@ fn main() {
             State::Busy => busy = true,
             State::Idle => busy = false,
             State::NeedsUpdate => {
-                dbg!("refresh");
                 browser::refresh(&mut browser);
                 search::refresh_cache(&mut search);
                 search::refresh_results(&mut search);

@@ -54,7 +54,6 @@ pub fn on_enter(settings: &mut Settings, player: &mut Player) {
         match player.change_output_device(device) {
             Ok(_) => {
                 let name = device.name().unwrap();
-                dbg!(&name);
                 query::set_playback_device(&name);
                 settings.current_device = name;
             }
