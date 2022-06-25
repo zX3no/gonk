@@ -203,7 +203,7 @@ pub fn insert_parents(songs: &[Song]) {
         .par_iter()
         .map(|artist| {
             let artist = artist.replace('\'', r"''");
-            format!("INSERT INTO artist (name) VALUES ('{}');", artist)
+            format!("INSERT OR IGNORE INTO artist (name) VALUES ('{}');", artist)
         })
         .collect::<Vec<String>>()
         .join("\n");
@@ -217,7 +217,7 @@ pub fn insert_parents(songs: &[Song]) {
             let artist = artist.replace('\'', r"''");
             let album = album.replace('\'', r"''");
             format!(
-                "INSERT INTO album (name, artist_id) VALUES ('{}', '{}');",
+                "INSERT OR IGNORE INTO album (name, artist_id) VALUES ('{}', '{}');",
                 album, artist
             )
         })

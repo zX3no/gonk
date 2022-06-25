@@ -263,8 +263,7 @@ fn main() {
                         },
                         KeyCode::Char('u') if mode == Mode::Browser => {
                             //FIXME: !!!
-                            //db.refresh
-                            db.add_path("D:/OneDrive/Music");
+                            db.refresh()
                         }
                         KeyCode::Char('q') => player.seek_by(-10.0),
                         KeyCode::Char('e') => player.seek_by(10.0),
