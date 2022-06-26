@@ -57,10 +57,6 @@ gonk add D:/Music
 
 ## ⌨️ Key Bindings
 
-Windows: `%appdata%/gonk/gonk.toml`
-
-Linux: `~/.config/gonk/gonk.toml`
-
 | Command              | Key             |
 |----------------------|-----------------|
 | Move Up              | `K / Up`        |
