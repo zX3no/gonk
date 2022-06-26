@@ -43,11 +43,7 @@ lazy_static! {
 }
 
 pub fn create_tables(conn: &Connection) {
-    conn.execute_batch(
-        "     PRAGMA synchronous = 0;
-              PRAGMA temp_store = MEMORY;",
-    )
-    .unwrap();
+    conn.execute_batch("PRAGMA synchronous = 0;").unwrap();
 
     conn.execute(
         "CREATE TABLE settings (
