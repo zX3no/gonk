@@ -1,4 +1,4 @@
-use crate::{conn, db_path};
+use crate::conn;
 use gonk_player::Song;
 use rusqlite::*;
 use std::path::PathBuf;
@@ -51,7 +51,7 @@ pub fn folders() -> Vec<String> {
 }
 
 pub fn remove_folder(path: &str) -> Result<(), &str> {
-    let path = db_path(path);
+    let path = path.replace("\\", "/");
     let conn = conn();
 
     conn.execute("DELETE FROM song WHERE folder = ?", [&path])
@@ -75,7 +75,7 @@ pub fn total_songs() -> usize {
 }
 
 pub fn songs() -> Vec<Song> {
-    collect_songs("SELECT *, rowid FROM song", params![])
+    collect_songs("SELECT *, rowid FROM song", [])
 }
 
 pub fn artists() -> Vec<String> {
@@ -147,7 +147,7 @@ pub fn songs_from_ids(ids: &[usize]) -> Vec<Song> {
         .collect()
 }
 
-fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
+pub fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
 {
@@ -160,7 +160,7 @@ where
         .collect()
 }
 
-fn song(row: &Row) -> Song {
+pub fn song(row: &Row) -> Song {
     let path: String = row.get(3).unwrap();
     Song {
         name: row.get(0).unwrap(),

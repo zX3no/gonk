@@ -163,15 +163,6 @@ fn main() {
     let mut player = r.recv().unwrap();
 
     loop {
-        if last_tick.elapsed() >= Duration::from_millis(200) {
-            //Update the status_bar at a constant rate.
-            status_bar::update(&mut status_bar, busy, &player);
-            last_tick = Instant::now();
-        }
-
-        queue.len = player.songs.len();
-        player.update();
-
         match db.state() {
             State::Busy => busy = true,
             State::Idle => busy = false,
@@ -181,6 +172,15 @@ fn main() {
                 search::refresh_results(&mut search);
             }
         }
+
+        if last_tick.elapsed() >= Duration::from_millis(200) {
+            //Update the status_bar at a constant rate.
+            status_bar::update(&mut status_bar, busy, &player);
+            last_tick = Instant::now();
+        }
+
+        queue.len = player.songs.len();
+        player.update();
 
         //Draw
         terminal
