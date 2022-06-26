@@ -75,7 +75,7 @@ pub fn create_tables(conn: &Connection) {
                 artist TEXT NOT NULL,
                 folder TEXT NOT NULL,
                 FOREIGN KEY (folder) REFERENCES folder (folder),
-                UNIQUE(name, disc, number, path, folder))",
+                UNIQUE(name, disc, number, path, gain, album, artist, folder) ON CONFLICT REPLACE)",
         [],
     )
     .unwrap();
@@ -161,6 +161,7 @@ pub fn rescan_folders() {
     for folder in folders {
         let songs = collect_songs(&folder);
         let query = create_batch_query("song", &folder, &songs);
+        conn.execute("DELETE FROM song", []).unwrap();
         conn.execute_batch(&query).unwrap();
     }
 }
