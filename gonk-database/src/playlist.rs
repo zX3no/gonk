@@ -18,25 +18,33 @@ pub fn add(playlist: &str, ids: &[usize]) {
         panic!("Failed to add song ids: {:?}", ids);
     }
 
-    let conn = conn();
+    let mut conn = conn();
     conn.execute(
         "INSERT OR IGNORE INTO playlist (name) VALUES (?1)",
         [playlist],
     )
     .unwrap();
+    let tx = conn.transaction().unwrap();
+    {
+        let mut stmt = tx
+            .prepare_cached(
+                "INSERT OR IGNORE INTO playlist_item (path, name, album, artist, playlist_id)
+                VALUES (?, ?, ?, ?, ?)",
+            )
+            .unwrap();
 
-    let query: Vec<String> = songs.iter().map(|song|{
-            let name = song.name.replace('\'', r"''");
-            let artist = song.artist.replace('\'', r"''");
-            let album = song.album.replace('\'', r"''");
-            let path = song.path.to_string_lossy().replace('\'', r"''");
-            let playlist = playlist.replace('\'', r"''");
-            format!("INSERT OR IGNORE INTO playlist_item (path, name, album, artist, playlist_id) VALUES ('{}', '{}', '{}', '{}', '{}');",
-            path, name, album, artist, playlist)
-    }).collect();
-
-    let query = format!("BEGIN;\n{}\nCOMMIT;", query.join("\n"));
-    conn.execute_batch(&query).unwrap();
+        for song in songs {
+            stmt.execute(params![
+                &song.path.to_string_lossy(),
+                &song.name,
+                &song.album,
+                &song.artist,
+                &playlist,
+            ])
+            .unwrap();
+        }
+    }
+    tx.commit().unwrap();
 }
 
 //Only select playlists with songs in them

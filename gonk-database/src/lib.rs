@@ -43,6 +43,12 @@ lazy_static! {
 }
 
 pub fn create_tables(conn: &Connection) {
+    conn.execute_batch(
+        "     PRAGMA synchronous = 0;
+              PRAGMA temp_store = MEMORY;",
+    )
+    .unwrap();
+
     conn.execute(
         "CREATE TABLE settings (
              volume INTEGER UNIQUE,
@@ -133,41 +139,20 @@ pub fn collect_songs(path: &str) -> Vec<Song> {
         .collect()
 }
 
-pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
-    let queries: Vec<String> = songs
-        .iter()
-        .map(|song| {
-            let name = song.name.replace('\'', r"''");
-            let artist = song.artist.replace('\'', r"''");
-            let album = song.album.replace('\'', r"''");
-            let path = song.path.to_string_lossy().replace('\'', r"''");
-            let folder = folder.replace('\'', r"''");
-
-            format!(
-                "INSERT OR IGNORE INTO {} (name, disc, number, path, gain, album, artist, folder)
-                VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                table, name, song.disc, song.number, path, song.gain, album, artist, folder,
-            )
-        })
-        .collect();
-
-    format!("BEGIN;\n{}\nCOMMIT;", queries.join("\n"))
-}
-
 pub fn rescan_folders() {
     let folders = query::folders();
-    let conn = conn();
 
     for folder in folders {
         let songs = collect_songs(&folder);
-        let query = create_batch_query("song", &folder, &songs);
-        conn.execute("DELETE FROM song", []).unwrap();
-        conn.execute_batch(&query).unwrap();
+
+        conn().execute("DELETE FROM song", []).unwrap();
+        insert_songs(songs, &folder);
     }
 }
 
 pub fn add_folder(folder: &str) {
     let folder = folder.replace("\\", "/");
+
     conn()
         .execute(
             "INSERT OR IGNORE INTO folder (folder) VALUES (?1)",
@@ -176,7 +161,33 @@ pub fn add_folder(folder: &str) {
         .unwrap();
 
     let songs = collect_songs(&folder);
-    let query = create_batch_query("song", &folder, &songs);
+    insert_songs(songs, &folder);
+}
 
-    conn().execute_batch(&query).unwrap();
+fn insert_songs(songs: Vec<Song>, folder: &str) {
+    let mut conn = conn();
+    let tx = conn.transaction().unwrap();
+    {
+        let mut stmt = tx
+            .prepare_cached(
+                "INSERT INTO song (name, disc, number, path, gain, album, artist, folder)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .unwrap();
+
+        for song in songs {
+            stmt.execute(params![
+                &song.name,
+                &song.disc,
+                &song.number,
+                &song.path.to_string_lossy(),
+                &song.gain,
+                &song.album,
+                &song.artist,
+                &folder,
+            ])
+            .unwrap();
+        }
+    }
+    tx.commit().unwrap();
 }
