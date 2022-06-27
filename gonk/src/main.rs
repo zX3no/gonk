@@ -58,37 +58,17 @@ pub trait Input {
     fn right(&mut self);
 }
 
-fn init() -> Terminal<CrosstermBackend<Stdout>> {
-    //Panic handler
-    let orig_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        disable_raw_mode().unwrap();
-        execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-        orig_hook(panic_info);
-        std::process::exit(1);
-    }));
-
-    //Terminal
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
-    execute!(
-        terminal.backend_mut(),
-        EnterAlternateScreen,
-        EnableMouseCapture,
-    )
-    .unwrap();
-    enable_raw_mode().unwrap();
-    terminal.clear().unwrap();
-
-    terminal
-}
-
 fn main() {
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     if !args.is_empty() {
         match args[0].as_str() {
-            "add" if args.len() > 1 => {
+            "add" => {
+                if args.len() == 1 {
+                    return println!("Usage: gonk add <path>");
+                }
+
                 let path = args[1..].join(" ");
                 //TODO: This might silently scan a directory but not add anything.
                 //Might be confusing.
@@ -100,7 +80,11 @@ fn main() {
             }
             //TODO: Add numbers to each path
             //so users can just write: gonk rm 3
-            "rm" if args.len() > 1 => {
+            "rm" => {
+                if args.len() == 1 {
+                    return println!("Usage: gonk rm <path>");
+                }
+
                 let path = args[1..].join(" ");
                 match query::remove_folder(&path) {
                     Ok(_) => return println!("Deleted path: {}", path),
@@ -128,10 +112,18 @@ fn main() {
                 return;
             }
             _ if !args.is_empty() => return println!("Invalid command."),
-            _ if args.len() > 1 => return println!("Invalid argument."),
             _ => (),
         }
     }
+
+    //Disable raw mode when the program panics.
+    let orig_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        disable_raw_mode().unwrap();
+        execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        orig_hook(panic_info);
+        std::process::exit(1);
+    }));
 
     //Player takes a while so off-load it to another thread.
     let (s, r) = mpsc::channel();
@@ -145,7 +137,16 @@ fn main() {
         s.send(player).unwrap();
     });
 
-    let mut terminal = init();
+    //Terminal.
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture,
+    )
+    .unwrap();
+    enable_raw_mode().unwrap();
+    terminal.clear().unwrap();
 
     //13ms
     let mut search = Search::new();
