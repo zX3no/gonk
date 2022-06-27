@@ -4,14 +4,20 @@ use rusqlite::*;
 use std::path::PathBuf;
 
 pub fn cache(ids: &[usize]) {
-    let conn = conn();
+    let mut conn = conn();
 
-    conn.execute("DELETE FROM persist", []).unwrap();
-
-    for id in ids {
-        conn.execute("INSERT INTO persist (song_id) VALUES (?)", [id])
+    let tx = conn.transaction().unwrap();
+    tx.execute("DELETE FROM persist", []).unwrap();
+    {
+        let mut stmt = tx
+            .prepare_cached("INSERT INTO persist (song_id) VALUES (?)")
             .unwrap();
+
+        for id in ids {
+            stmt.execute([id]).unwrap();
+        }
     }
+    tx.commit().unwrap();
 }
 
 pub fn get_cache() -> Vec<Song> {
@@ -141,7 +147,6 @@ pub fn songs_from_ids(ids: &[usize]) -> Vec<Song> {
         .prepare("SELECT *, rowid FROM song WHERE rowid = ?")
         .unwrap();
 
-    //TODO: Maybe batch this?
     ids.iter()
         .flat_map(|id| stmt.query_row([id], |row| Ok(song(row))))
         .collect()

@@ -25,7 +25,6 @@ mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
-//TODO: Cleanup colors
 pub struct Colors {
     pub number: Color,
     pub name: Color,
@@ -70,8 +69,6 @@ fn main() {
                 }
 
                 let path = args[1..].join(" ");
-                //TODO: This might silently scan a directory but not add anything.
-                //Might be confusing.
                 if Path::new(&path).exists() {
                     db.add_path(&path);
                 } else {
@@ -125,19 +122,18 @@ fn main() {
         std::process::exit(1);
     }));
 
-    //Player takes a while so off-load it to another thread.
-    let (s, r) = mpsc::channel();
-
-    //TODO: figure out why database is crashing
+    //Get songs and volume on the main thread.
+    //The database might dead-lock if we do this on a different thread.
     let songs = query::get_cache();
     let volume = query::volume();
 
+    //Player takes a while so off-load it to another thread.
+    let (s, r) = mpsc::channel();
     std::thread::spawn(move || {
         let player = Player::new(volume, &songs);
         s.send(player).unwrap();
     });
 
-    //Terminal.
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
     execute!(
         terminal.backend_mut(),
@@ -148,19 +144,16 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    //13ms
+    //Search takes 13ms.
     let mut search = Search::new();
     let mut settings = Settings::new();
     let mut browser = Browser::new();
     let mut queue = Queue::new();
     let mut status_bar = StatusBar::new();
     let mut playlist = Playlist::new();
-
     let mut mode = Mode::Browser;
-
-    let mut busy = false;
     let mut last_tick = Instant::now();
-
+    let mut busy = false;
     let mut player = r.recv().unwrap();
 
     loop {
@@ -183,7 +176,6 @@ fn main() {
         queue.len = player.songs.len();
         player.update();
 
-        //Draw
         terminal
             .draw(|f| {
                 let area = Layout::default()
