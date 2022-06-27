@@ -294,35 +294,36 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
 }
 
 fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
-    let song_table = Table::new(vec![
+    let rows = [
         Row::new(vec![Spans::from(Span::raw(album))]),
         Row::new(vec![Spans::from(Span::raw(artist))]),
-    ])
-    .header(
-        Row::new(vec![Span::styled(
-            format!("{} ", name),
-            Style::default().add_modifier(Modifier::ITALIC),
-        )])
-        .bottom_margin(1),
-    )
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .title("Song"),
-    )
-    .widths(&[Constraint::Percentage(100)]);
+    ];
+    let song_table = Table::new(&rows)
+        .header(
+            Row::new(vec![Span::styled(
+                format!("{} ", name),
+                Style::default().add_modifier(Modifier::ITALIC),
+            )])
+            .bottom_margin(1),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Song"),
+        )
+        .widths(&[Constraint::Percentage(100)]);
 
     f.render_widget(song_table, area);
 }
 
 fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<_> = query::songs_from_album(album, artist)
+    let cells: Vec<Row> = query::songs_from_album(album, artist)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
         .collect();
 
-    let table = Table::new(cells)
+    let table = Table::new(&cells)
         .header(
             Row::new(vec![Cell::from(Span::styled(
                 format!("{} ", album),
@@ -348,7 +349,7 @@ fn artist(f: &mut Frame, artist: &str, area: Rect) {
         .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
         .collect();
 
-    let table = Table::new(cells)
+    let table = Table::new(&cells)
         .header(
             Row::new(vec![Cell::from(Span::styled(
                 format!("{} ", artist),
@@ -422,7 +423,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
         }
     };
 
-    let rows: Vec<_> = search
+    let rows: Vec<Row> = search
         .results
         .data
         .iter()
@@ -440,7 +441,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
         .collect();
 
     let italic = Style::default().add_modifier(Modifier::ITALIC);
-    let table = Table::new(rows)
+    let table = Table::new(&rows)
         .header(
             Row::new(vec![
                 Cell::default(),

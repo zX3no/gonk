@@ -293,7 +293,7 @@ fn draw_body(
         Constraint::Percentage(queue.constraint[3]),
     ];
 
-    let t = Table::new(items)
+    let t = Table::new(&items)
         .header(
             Row::new(["", "#", "Title", "Album", "Artist"])
                 .style(
