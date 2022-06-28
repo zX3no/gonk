@@ -73,7 +73,6 @@ gonk add D:/Music
 | Delete Song          | `X`             |
 | Clear Queue          | `C`             |
 | Clear Except Playing | `Shift + C`     |
-| Randomize Queue      | `R`             |
 | Change Mode          | `Tab`           |
 | Search               | `/`             |
 | Settings             | `.`             |
