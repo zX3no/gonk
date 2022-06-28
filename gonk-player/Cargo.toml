@@ -11,5 +11,4 @@ license = "MIT"
 
 [dependencies]
 cpal = "0.13.5"
-rand = "0.8.5"
 symphonia = { version = "0.5.0", features = ["mp3", "isomp4", "alac", "aac"] }

@@ -5,8 +5,6 @@ pub use cpal::{
     SupportedStreamConfig,
 };
 use decoder::Decoder;
-use rand::prelude::SliceRandom;
-use rand::thread_rng;
 use sink::Sink;
 use source::Source;
 use std::fs::File;
@@ -172,19 +170,6 @@ impl Player {
                 self.songs.select(Some(playing - 1));
             }
         };
-    }
-    pub fn randomize(&mut self) {
-        if let Some(song) = &self.songs.selected().cloned() {
-            self.songs.data.shuffle(&mut thread_rng());
-
-            let mut index = 0;
-            for (i, s) in self.songs.data.iter().enumerate() {
-                if s == song {
-                    index = i;
-                }
-            }
-            self.songs.select(Some(index));
-        }
     }
     pub fn stop(&mut self) {
         self.sink = Sink::try_new(&self.handle).expect("Could not create new sink.");

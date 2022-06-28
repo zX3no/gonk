@@ -260,7 +260,6 @@ fn main() {
                         KeyCode::Char('d') => player.next_song(),
                         KeyCode::Char('w') => player.volume_up(),
                         KeyCode::Char('s') => player.volume_down(),
-                        KeyCode::Char('r') => player.randomize(),
                         //TODO: Rework mode changing buttons
                         KeyCode::Char('`') => {
                             status_bar.hidden = !status_bar.hidden;
