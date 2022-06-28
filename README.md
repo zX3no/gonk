@@ -76,6 +76,9 @@ gonk add D:/Music
 | Randomize Queue      | `R`             |
 | Change Mode          | `Tab`           |
 | Search               | `/`             |
+| Settings             | `.`             |
+| Playlists            | `,`             |
+| Add to playlist      | `Shift + Enter` |
 | Update Database      | `U`             |
 | Quit                 | `Ctrl + C`      |
 | Move Song            | `1 / Shift + 1` |
