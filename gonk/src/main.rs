@@ -240,7 +240,7 @@ fn main() {
                             }
                         }
                         KeyCode::Char(' ') => player.toggle_playback(),
-                        KeyCode::Char('c') if shift => {
+                        KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
                         }
