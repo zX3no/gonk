@@ -48,8 +48,14 @@ impl Song {
         };
 
         let mut song = Song {
+            name: String::from("Unknown Title"),
+            disc: 1,
+            number: 1,
             path: path.to_path_buf(),
-            ..Default::default()
+            gain: 0.0,
+            album: String::from("Unknown Album"),
+            artist: String::from("Unknown Artist"),
+            id: None,
         };
 
         let mut update_metadat = |metadata: &MetadataRevision| {
@@ -95,25 +101,13 @@ impl Song {
             }
         };
 
-        //TODO: Why are there two different ways to get metadata
+        //Why are there two different ways to get metadata?
         if let Some(metadata) = probe.metadata.get() {
             if let Some(current) = metadata.current() {
                 update_metadat(current);
             }
         } else if let Some(metadata) = probe.format.metadata().current() {
             update_metadat(metadata);
-        }
-
-        if song.artist.is_empty() {
-            song.artist = String::from("Unknown Artist");
-        }
-
-        if song.name.is_empty() {
-            song.name = String::from("Unknown Title");
-        }
-
-        if song.album.is_empty() {
-            song.album = String::from("Unknown Album");
         }
 
         Some(song)
