@@ -5,7 +5,7 @@ use gonk_database::{query, Database, State};
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
-use search::{Mode as SearchMode, Search};
+use search::{Item, Mode as SearchMode, Search};
 use settings::Settings;
 use status_bar::StatusBar;
 use std::{
@@ -135,11 +135,11 @@ fn main() {
     terminal.clear().unwrap();
 
     //443 us
-    let songs = query::get_cache();
+    let cache = query::get_cache();
     let volume = query::volume();
 
     //40ms
-    let player = thread::spawn(move || Player::new(volume, &songs));
+    let player = thread::spawn(move || Player::new(volume, &cache));
 
     //3ms
     let mut browser = Browser::new();
@@ -276,7 +276,16 @@ fn main() {
                         }
                         KeyCode::Char(',') => mode = Mode::Playlist,
                         KeyCode::Char('.') => mode = Mode::Settings,
-                        KeyCode::Char('/') => mode = Mode::Search,
+                        KeyCode::Char('/') => {
+                            if mode == Mode::Search {
+                                if search.mode == SearchMode::Select {
+                                    search.results.select(None);
+                                    search.mode = SearchMode::Search;
+                                }
+                            } else {
+                                mode = Mode::Search;
+                            }
+                        }
                         KeyCode::Tab => {
                             mode = match mode {
                                 Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
@@ -303,6 +312,12 @@ fn main() {
                                     mode = Mode::Playlist;
                                 }
                             }
+                            Mode::Search => {
+                                if let Some(songs) = search::on_enter(&mut search) {
+                                    playlist::add_to_playlist(&mut playlist, &songs);
+                                    mode = Mode::Playlist;
+                                }
+                            }
                             _ => (),
                         },
                         KeyCode::Enter => match mode {
@@ -315,7 +330,11 @@ fn main() {
                                     player.play_song(i);
                                 }
                             }
-                            Mode::Search => search::on_enter(&mut search, &mut player),
+                            Mode::Search => {
+                                if let Some(songs) = search::on_enter(&mut search) {
+                                    player.add_songs(&songs);
+                                }
+                            }
                             Mode::Settings => settings::on_enter(&mut settings, &mut player),
                             Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
                         },
