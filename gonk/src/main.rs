@@ -134,6 +134,13 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
+    //443 us
+    let songs = query::get_cache();
+    let volume = query::volume();
+
+    //40ms
+    let player = thread::spawn(move || Player::new(volume, &songs));
+
     //3ms
     let mut browser = Browser::new();
 
@@ -152,16 +159,12 @@ fn main() {
     //5.5ms
     let mut search = Search::new();
 
-    //443 us
-    let songs = query::get_cache();
-    let volume = query::volume();
-
-    //40ms
-    let mut player = Player::new(volume, &songs);
-
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut busy = false;
+
+    //Using the a thread here is roughly 7ms faster.
+    let mut player = player.join().unwrap();
 
     loop {
         match db.state() {
