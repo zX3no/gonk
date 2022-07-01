@@ -1,3 +1,4 @@
+#![allow(unused)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_database::{query, Database, State};
@@ -11,6 +12,7 @@ use std::{
     io::{stdout, Stdout},
     path::Path,
     sync::mpsc,
+    thread,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
@@ -122,18 +124,6 @@ fn main() {
         std::process::exit(1);
     }));
 
-    //Get songs and volume on the main thread.
-    //The database might dead-lock if we do this on a different thread.
-    let songs = query::get_cache();
-    let volume = query::volume();
-
-    //Player takes a while so off-load it to another thread.
-    let (s, r) = mpsc::channel();
-    std::thread::spawn(move || {
-        let player = Player::new(volume, &songs);
-        s.send(player).unwrap();
-    });
-
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
     execute!(
         terminal.backend_mut(),
@@ -144,17 +134,20 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    //Search takes 13ms.
-    let mut search = Search::new();
-    let mut settings = Settings::new();
     let mut browser = Browser::new();
     let mut queue = Queue::new();
     let mut status_bar = StatusBar::new();
     let mut playlist = Playlist::new();
+    let mut settings = Settings::new();
+    let mut search = Search::new();
+
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut busy = false;
-    let mut player = r.recv().unwrap();
+
+    let songs = query::get_cache();
+    let volume = query::volume();
+    let mut player = Player::new(volume, &songs);
 
     loop {
         match db.state() {

@@ -21,17 +21,10 @@ pub fn cache(ids: &[usize]) {
 }
 
 pub fn get_cache() -> Vec<Song> {
-    let ids: Vec<usize> = {
-        let conn = conn();
-        let mut stmt = conn.prepare("SELECT song_id FROM persist").unwrap();
-
-        stmt.query_map([], |row| row.get(0))
-            .unwrap()
-            .flatten()
-            .collect()
-    };
-
-    songs_from_ids(&ids)
+    collect_songs(
+        "SELECT *, rowid FROM song WHERE rowid IN (SELECT song_id FROM persist)",
+        [],
+    )
 }
 
 pub fn volume() -> u16 {
@@ -143,12 +136,21 @@ pub fn songs_by_artist(artist: &str) -> Vec<Song> {
 
 pub fn songs_from_ids(ids: &[usize]) -> Vec<Song> {
     let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT *, rowid FROM song WHERE rowid = ?")
-        .unwrap();
 
-    ids.iter()
-        .flat_map(|id| stmt.query_row([id], |row| Ok(song(row))))
+    let sql: Vec<String> = ids
+        .iter()
+        .map(|id| format!("SELECT *, rowid FROM song WHERE rowid = {}\nUNION ALL", id))
+        .collect();
+
+    let sql = sql.join("\n");
+    //Remove the last 'UNION ALL'
+    let sql = &sql[..sql.len() - 10];
+
+    let mut stmt = conn.prepare(&sql).unwrap();
+
+    stmt.query_map([], |row| Ok(song(row)))
+        .unwrap()
+        .flatten()
         .collect()
 }
 
