@@ -28,9 +28,9 @@ pub fn get_cache() -> Vec<Song> {
 }
 
 pub fn volume() -> u16 {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT volume FROM settings").unwrap();
-    stmt.query_row([], |row| row.get(0)).unwrap()
+    conn()
+        .query_row("SELECT volume FROM settings", [], |row| row.get(0))
+        .unwrap()
 }
 
 pub fn set_volume(vol: u16) {
@@ -68,9 +68,9 @@ pub fn remove_folder(path: &str) -> Result<(), &str> {
 }
 
 pub fn total_songs() -> usize {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT COUNT(*) FROM song").unwrap();
-    stmt.query_row([], |row| row.get(0)).unwrap()
+    conn()
+        .query_row("SELECT COUNT(*) FROM song", [], |row| row.get(0))
+        .unwrap()
 }
 
 pub fn songs() -> Vec<Song> {

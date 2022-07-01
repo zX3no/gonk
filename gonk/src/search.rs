@@ -134,6 +134,7 @@ pub fn on_enter(search: &mut Search, player: &mut Player) {
     }
 }
 
+//FIXME: Queries take around 5ms total.
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 

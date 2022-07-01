@@ -134,20 +134,34 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
+    //3ms
     let mut browser = Browser::new();
+
+    //300 ns
     let mut queue = Queue::new();
+
+    //200 ns
     let mut status_bar = StatusBar::new();
+
+    //68 us
     let mut playlist = Playlist::new();
+
+    //6.1ms
     let mut settings = Settings::new();
+
+    //5.5ms
     let mut search = Search::new();
+
+    //443 us
+    let songs = query::get_cache();
+    let volume = query::volume();
+
+    //40ms
+    let mut player = Player::new(volume, &songs);
 
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut busy = false;
-
-    let songs = query::get_cache();
-    let volume = query::volume();
-    let mut player = Player::new(volume, &songs);
 
     loop {
         match db.state() {
