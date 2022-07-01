@@ -58,14 +58,14 @@ impl Song {
             id: None,
         };
 
-        let mut update_metadat = |metadata: &MetadataRevision| {
+        let mut backup_artist = String::new();
+
+        let mut update_metadata = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
                 if let Some(std_key) = tag.std_key {
                     match std_key {
+                        StandardTagKey::Artist => backup_artist = tag.value.to_string(),
                         StandardTagKey::AlbumArtist => song.artist = tag.value.to_string(),
-                        StandardTagKey::Artist if song.artist.is_empty() => {
-                            song.artist = tag.value.to_string();
-                        }
                         StandardTagKey::Album => song.album = tag.value.to_string(),
                         StandardTagKey::TrackTitle => song.name = tag.value.to_string(),
                         StandardTagKey::TrackNumber => {
@@ -104,10 +104,14 @@ impl Song {
         //Why are there two different ways to get metadata?
         if let Some(metadata) = probe.metadata.get() {
             if let Some(current) = metadata.current() {
-                update_metadat(current);
+                update_metadata(current);
             }
         } else if let Some(metadata) = probe.format.metadata().current() {
-            update_metadat(metadata);
+            update_metadata(metadata);
+        }
+
+        if song.artist == String::from("Unknown Artist") {
+            song.artist = backup_artist;
         }
 
         Some(song)
