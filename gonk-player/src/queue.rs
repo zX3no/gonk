@@ -58,18 +58,6 @@ where
     S: Sample + Send + 'static,
 {
     /// Adds a new source to the end of the queue.
-    #[inline]
-    pub fn append<T>(&self, source: T)
-    where
-        T: Source<Item = S> + Send + 'static,
-    {
-        self.next_sounds
-            .lock()
-            .unwrap()
-            .push((Box::new(source) as Box<_>, None));
-    }
-
-    /// Adds a new source to the end of the queue.
     ///
     /// The `Receiver` will be signalled when the sound has finished playing.
     #[inline]

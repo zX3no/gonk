@@ -7,7 +7,6 @@ use crate::conversions::Sample;
 pub use self::amplify::Amplify;
 pub use self::done::Done;
 pub use self::empty::Empty;
-pub use self::fadein::FadeIn;
 pub use self::pausable::Pausable;
 pub use self::periodic::PeriodicAccess;
 pub use self::samples_converter::SamplesConverter;
@@ -19,7 +18,6 @@ pub use self::zero::Zero;
 mod amplify;
 mod done;
 mod empty;
-mod fadein;
 mod pausable;
 mod periodic;
 mod samples_converter;
@@ -142,15 +140,6 @@ where
         Self: Sized,
     {
         amplify::amplify(self, value)
-    }
-
-    /// Fades in the sound.
-    #[inline]
-    fn fade_in(self, duration: Duration) -> FadeIn<Self>
-    where
-        Self: Sized,
-    {
-        fadein::fadein(self, duration)
     }
 
     /// Calls the `access` closure on `Self` the first time the source is iterated and every

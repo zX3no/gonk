@@ -1,8 +1,6 @@
-#[macro_use]
-extern crate lazy_static;
-
 use gonk_player::Song;
 use jwalk::WalkDir;
+use lazy_static::lazy_static;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::*;
 use std::{

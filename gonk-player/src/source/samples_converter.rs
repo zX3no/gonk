@@ -23,24 +23,6 @@ impl<I, D> SamplesConverter<I, D> {
             dest: PhantomData,
         }
     }
-
-    /// Returns a reference to the inner source.
-    #[inline]
-    pub fn inner(&self) -> &I {
-        &self.inner
-    }
-
-    /// Returns a mutable reference to the inner source.
-    #[inline]
-    pub fn inner_mut(&mut self) -> &mut I {
-        &mut self.inner
-    }
-
-    /// Returns the inner source.
-    #[inline]
-    pub fn into_inner(self) -> I {
-        self.inner
-    }
 }
 
 impl<I, D> Iterator for SamplesConverter<I, D>

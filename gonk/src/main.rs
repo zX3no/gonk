@@ -1,17 +1,15 @@
-#![allow(unused)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_database::{query, Database, State};
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
-use search::{Item, Mode as SearchMode, Search};
+use search::{Mode as SearchMode, Search};
 use settings::Settings;
 use status_bar::StatusBar;
 use std::{
     io::{stdout, Stdout},
     path::Path,
-    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };

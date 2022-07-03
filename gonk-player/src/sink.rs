@@ -98,6 +98,7 @@ impl Sink {
     ///
     /// The value `1.0` is the "normal" volume (unfiltered input). Any value other than 1.0 will
     /// multiply each sample by this value.
+    #[allow(unused)]
     #[inline]
     pub fn volume(&self) -> f32 {
         *self.controls.volume.lock().unwrap()
@@ -150,19 +151,6 @@ impl Sink {
         self.controls.pause.load(Ordering::SeqCst)
     }
 
-    /// Destroys the sink without stopping the sounds that are still playing.
-    #[inline]
-    pub fn detach(mut self) {
-        self.detached = true;
-    }
-
-    /// Sleeps the current thread until the sound ends.
-    #[inline]
-    pub fn sleep_until_end(&self) {
-        if let Some(sleep_until_end) = self.sleep_until_end.lock().unwrap().take() {
-            let _ = sleep_until_end.recv();
-        }
-    }
     /// Returns true if this sink has no more sounds to play.
     #[inline]
     pub fn is_empty(&self) -> bool {

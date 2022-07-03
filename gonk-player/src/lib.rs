@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use cpal::traits::HostTrait;
 pub use cpal::{
     self, traits::DeviceTrait, Device, Devices, DevicesError, InputDevices, OutputDevices,
@@ -11,7 +10,6 @@ use std::fs::File;
 use std::time::Duration;
 use stream::{OutputStream, OutputStreamHandle};
 
-mod buffer;
 mod conversions;
 mod decoder;
 mod dynamic_mixer;
@@ -30,9 +28,9 @@ const VOLUME_STEP: u16 = 5;
 const VOLUME_REDUCTION: f32 = 600.0;
 
 pub struct Player {
-    stream: OutputStream,
-    handle: OutputStreamHandle,
-    sink: Sink,
+    pub stream: OutputStream,
+    pub handle: OutputStreamHandle,
+    pub sink: Sink,
     pub duration: f64,
     pub volume: u16,
     pub songs: Index<Song>,
@@ -82,7 +80,6 @@ impl Player {
         self.songs = Index::default();
         self.stop();
     }
-    //TODO: might remove this?
     pub fn clear_except_playing(&mut self) {
         let selected = self.songs.selected().cloned();
         let mut i = 0;
@@ -143,8 +140,14 @@ impl Player {
             let file = File::open(&song.path).expect("Could not open song.");
             let decoder = Decoder::new(file).unwrap();
 
-            //FIXME: The duration is slightly off for some reason.
-            self.duration = decoder.total_duration().unwrap().as_secs_f64() - 0.29;
+            //HACK: The elapsed time in the sink is broken
+            //It will rewind for some reason. This would break the seek bar and
+            //make it rewind as well. To fix this the total duration is reduced,
+            //this makes the last second last for 2 seconds since the sink isn't
+            //empty yet.
+            //The way I fixed this before was just to skip the last part of the
+            //song.
+            self.duration = decoder.total_duration().unwrap().as_secs_f64() - 0.85;
             self.sink.append(decoder);
             self.update_volume();
         }
@@ -176,7 +179,13 @@ impl Player {
         self.update_volume();
     }
     pub fn elapsed(&self) -> f64 {
-        self.sink.elapsed().as_secs_f64()
+        let elapsed = self.sink.elapsed().as_secs_f64();
+
+        if elapsed > self.duration {
+            self.duration
+        } else {
+            elapsed
+        }
     }
     pub fn toggle_playback(&self) {
         self.sink.toggle_playback();
@@ -200,7 +209,7 @@ impl Player {
         }
     }
     pub fn update(&mut self) {
-        if self.elapsed() > self.duration {
+        if self.sink.is_empty() {
             self.next_song();
         }
     }

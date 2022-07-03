@@ -14,32 +14,6 @@ where
         input,
         remaining_duration: duration,
         requested_duration: duration,
-        filter: None,
-    }
-}
-
-/// A filter that can be applied to a `TakeDuration`.
-#[derive(Clone, Debug)]
-enum DurationFilter {
-    FadeOut,
-}
-impl DurationFilter {
-    fn apply<I: Iterator>(
-        &self,
-        sample: <I as Iterator>::Item,
-        parent: &TakeDuration<I>,
-    ) -> <I as Iterator>::Item
-    where
-        I::Item: Sample,
-    {
-        use self::DurationFilter::*;
-        match self {
-            FadeOut => {
-                let remaining = parent.remaining_duration.as_millis() as f32;
-                let total = parent.requested_duration.as_millis() as f32;
-                sample.amplify(remaining / total)
-            }
-        }
     }
 }
 
@@ -51,7 +25,6 @@ pub struct TakeDuration<I> {
     input: I,
     remaining_duration: Duration,
     requested_duration: Duration,
-    filter: Option<DurationFilter>,
     // Remaining samples in current frame.
     current_frame_len: Option<usize>,
     // Only updated when the current frame len is exhausted.
@@ -69,32 +42,6 @@ where
         let ns = NANOS_PER_SEC / (input.sample_rate() as u64 * input.channels() as u64);
         // \|/ the maximum value of `ns` is one billion, so this can't fail
         Duration::new(0, ns as u32)
-    }
-
-    /// Returns a reference to the inner source.
-    #[inline]
-    pub fn inner(&self) -> &I {
-        &self.input
-    }
-
-    /// Returns a mutable reference to the inner source.
-    #[inline]
-    pub fn inner_mut(&mut self) -> &mut I {
-        &mut self.input
-    }
-
-    /// Returns the inner source.
-    #[inline]
-    pub fn into_inner(self) -> I {
-        self.input
-    }
-
-    pub fn set_filter_fadeout(&mut self) {
-        self.filter = Some(DurationFilter::FadeOut);
-    }
-
-    pub fn clear_filter(&mut self) {
-        self.filter = None;
     }
 }
 
@@ -119,11 +66,6 @@ where
         if self.remaining_duration <= self.duration_per_sample {
             None
         } else if let Some(sample) = self.input.next() {
-            let sample = match &self.filter {
-                Some(filter) => filter.apply(sample, self),
-                None => sample,
-            };
-
             self.remaining_duration -= self.duration_per_sample;
 
             Some(sample)
