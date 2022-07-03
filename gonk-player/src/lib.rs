@@ -103,6 +103,7 @@ impl Player {
             generator,
         }
     }
+    //TODO: Run update loop in the player not in the client.
     pub fn update(&mut self) {
         if self.generator.read().unwrap().is_done() {
             self.next();
