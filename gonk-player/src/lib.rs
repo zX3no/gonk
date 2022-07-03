@@ -43,18 +43,7 @@ pub struct Player {
 }
 
 impl Player {
-    //TODO: get device from toml file
     pub fn new(_device: String, volume: u16, _songs: &[Song]) -> Self {
-        // let host_id = cpal::default_host().id();
-        // let host = cpal::host_from_id(host_id).unwrap();
-        // let mut devices: Vec<Device> = host.devices().unwrap().collect();
-        // devices.retain(|host| host.name().unwrap() == device);
-
-        // let device = if devices.is_empty() {
-        //     cpal::default_host().default_output_device().unwrap()
-        // } else {
-        //     devices.remove(0)
-        // };
         let device = cpal::default_host().default_output_device().unwrap();
 
         let config = device.default_output_config().unwrap();

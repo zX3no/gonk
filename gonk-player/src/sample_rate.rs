@@ -76,11 +76,16 @@ impl SampleRateConverter {
     }
 
     pub fn update(&mut self, mut input: IntoIter<f32>) {
-        let current_frame = vec![input.next().unwrap(), input.next().unwrap()];
-        let next_frame = vec![input.next().unwrap(), input.next().unwrap()];
-        self.input = input;
+        let (current_frame, next_frame) = if self.from == self.to {
+            (Vec::new(), Vec::new())
+        } else {
+            let current = vec![input.next().unwrap(), input.next().unwrap()];
+            let next = vec![input.next().unwrap(), input.next().unwrap()];
+            (current, next)
+        };
         self.current_frame = current_frame;
         self.next_frame = next_frame;
+        self.input = input;
         self.current_frame_pos_in_chunk = 0;
         self.next_output_frame_pos_in_chunk = 0;
     }
