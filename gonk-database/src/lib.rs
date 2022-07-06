@@ -1,22 +1,17 @@
-#[macro_use]
-extern crate lazy_static;
-
 use gonk_player::Song;
 use jwalk::WalkDir;
-use rayon::{
-    iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator},
-    slice::ParallelSliceMut,
-};
+use lazy_static::lazy_static;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rusqlite::*;
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Mutex, MutexGuard},
 };
 
 mod database;
+
 pub mod playlist;
 pub mod query;
-
 pub use crate::database::*;
 
 lazy_static! {
@@ -39,104 +34,70 @@ lazy_static! {
         let conn = Connection::open(DB_DIR.as_path()).unwrap();
 
         if !exists {
-            conn.execute(
-                "CREATE TABLE settings (
+            create_tables(&conn);
+        };
+        Mutex::new(conn)
+    };
+}
+
+pub fn create_tables(conn: &Connection) {
+    conn.execute_batch("PRAGMA synchronous = 0;").unwrap();
+
+    conn.execute(
+        "CREATE TABLE settings (
              volume INTEGER UNIQUE,
              device TEXT UNIQUE)",
-                [],
-            )
-            .unwrap();
+        [],
+    )
+    .unwrap();
 
-            conn.execute("INSERT INTO settings (volume, device) VALUES (15, '')", [])
-                .unwrap();
+    conn.execute("INSERT INTO settings (volume, device) VALUES (15, '')", [])
+        .unwrap();
 
-            conn.execute(
-                "CREATE TABLE folder (
-            path TEXT PRIMARY KEY)",
-                [],
-            )
-            .unwrap();
+    conn.execute(
+        "CREATE TABLE folder (
+            folder TEXT PRIMARY KEY)",
+        [],
+    )
+    .unwrap();
 
-            conn.execute(
-                "CREATE TABLE artist (
-            name TEXT PRIMARY KEY)",
-                [],
-            )
-            .unwrap();
+    conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
+        .unwrap();
 
-            conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
-                .unwrap();
-            conn.execute(
-                "CREATE TABLE album (
-            name TEXT PRIMARY KEY,
-            artist_id TEXT NOT NULL,
-            FOREIGN KEY (artist_id) REFERENCES artist (name) )",
-                [],
-            )
-            .unwrap();
-
-            conn.execute(
-                "CREATE TABLE song (
-            name TEXT NOT NULL,
-            disc INTEGER NOT NULL,
-            number INTEGER NOT NULL,
-            path TEXT NOT NULL,
-            gain DOUBLE NOT NULL,
-            album_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            folder_id TEXT NOT NULL,
-            FOREIGN KEY (album_id) REFERENCES album (name),
-            FOREIGN KEY (artist_id) REFERENCES artist (name),
-            FOREIGN KEY (folder_id) REFERENCES folder (path),
-            UNIQUE(name, disc, number, path, album_id, artist_id, folder_id) ON CONFLICT REPLACE)",
-                [],
-            )
-            .unwrap();
-
-            conn.execute(
-                "CREATE TABLE playlist (
-            name TEXT PRIMARY KEY)",
-                [],
-            )
-            .unwrap();
-
-            //Used for intersects
-            //https://www.sqlitetutorial.net/sqlite-intersect/
-            conn.execute(
-                "CREATE TABLE temp_song (
+    conn.execute(
+        "CREATE TABLE song (
                 name TEXT NOT NULL,
                 disc INTEGER NOT NULL,
                 number INTEGER NOT NULL,
                 path TEXT NOT NULL,
                 gain DOUBLE NOT NULL,
-                album_id TEXT NOT NULL,
-                artist_id TEXT NOT NULL,
-                folder_id TEXT NOT NULL,
-                FOREIGN KEY (album_id) REFERENCES album (name),
-                FOREIGN KEY (artist_id) REFERENCES artist (name),
-                FOREIGN KEY (folder_id) REFERENCES folder (path) 
-            )",
-                [],
-            )
-            .unwrap();
+                album TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                folder TEXT NOT NULL,
+                FOREIGN KEY (folder) REFERENCES folder (folder),
+                UNIQUE(name, disc, number, path, gain, album, artist, folder) ON CONFLICT REPLACE)",
+        [],
+    )
+    .unwrap();
 
-            conn.execute(
-                "CREATE TABLE playlist_item (
+    conn.execute(
+        "CREATE TABLE playlist (
+            name TEXT PRIMARY KEY)",
+        [],
+    )
+    .unwrap();
+
+    conn.execute(
+        "CREATE TABLE playlist_item (
             path TEXT NOT NULL,
             name TEXT NOT NULL,
-            album_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
+            album TEXT NOT NULL,
+            artist TEXT NOT NULL,
             playlist_id TEXT NOT NULL,
-            FOREIGN KEY (album_id) REFERENCES album (name),
-            FOREIGN KEY (artist_id) REFERENCES artist (name),
             FOREIGN KEY (playlist_id) REFERENCES playlist (name))",
-                [],
-            )
-            .unwrap();
-        }
-
-        Mutex::new(conn)
-    };
+        [],
+    )
+    .unwrap();
 }
 
 pub fn reset() -> Result<(), &'static str> {
@@ -153,8 +114,8 @@ pub fn conn() -> MutexGuard<'static, Connection> {
     CONN.lock().unwrap()
 }
 
-pub fn collect_songs(path: impl AsRef<Path>) -> Vec<Song> {
-    WalkDir::new(path)
+pub fn collect_songs(path: &str) -> Vec<Song> {
+    let paths: Vec<_> = WalkDir::new(path)
         .into_iter()
         .flatten()
         .map(|dir| dir.path())
@@ -164,114 +125,63 @@ pub fn collect_songs(path: impl AsRef<Path>) -> Vec<Song> {
             }
             None => false,
         })
-        .par_bridge()
+        .collect();
+
+    paths
+        .par_iter()
         .flat_map(|path| Song::from(&path))
         .collect()
 }
 
-pub fn insert_parents(songs: &[Song]) {
-    let mut albums: Vec<(&str, &str)> = songs
-        .par_iter()
-        .map(|song| (song.album.as_str(), song.artist.as_str()))
-        .collect();
+pub fn rescan_folders() {
+    let folders = query::folders();
 
-    albums.par_sort();
-    albums.dedup();
+    for folder in folders {
+        let songs = collect_songs(&folder);
 
-    let mut artists: Vec<&str> = songs.par_iter().map(|song| song.artist.as_str()).collect();
-
-    artists.par_sort();
-    artists.dedup();
-
-    let query: String = artists
-        .par_iter()
-        .map(|artist| {
-            let artist = artist.replace('\'', r"''");
-            format!("INSERT OR IGNORE INTO artist (name) VALUES ('{}');", artist)
-        })
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    let query = format!("BEGIN;\n{}\nCOMMIT;", query);
-    conn().execute_batch(&query).unwrap();
-
-    let query: Vec<String> = albums
-        .par_iter()
-        .map(|(album, artist)| {
-            let artist = artist.replace('\'', r"''");
-            let album = album.replace('\'', r"''");
-            format!(
-                "INSERT OR IGNORE INTO album (name, artist_id) VALUES ('{}', '{}');",
-                album, artist
-            )
-        })
-        .collect();
-
-    let query = format!("BEGIN;\n{}\nCOMMIT;", query.join("\n"));
-    conn().execute_batch(&query).unwrap();
-}
-
-pub fn create_batch_query(table: &str, folder: &str, songs: &[Song]) -> String {
-    let queries: Vec<String> = songs
-        .iter()
-        .map(|song| {
-            let name = song.name.replace('\'', r"''");
-            let artist = song.artist.replace('\'', r"''");
-            let album = song.album.replace('\'', r"''");
-            let path = song.path.to_string_lossy().replace('\'', r"''");
-            let folder = folder.replace('\'', r"''");
-
-            format!(
-                "INSERT OR REPLACE INTO {} (name, disc, number, path, gain, album_id, artist_id, folder_id)
-                VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}');",
-                table, name, song.disc, song.number, path, song.gain, album, artist, folder,
-            )
-        })
-        .collect();
-
-    format!("BEGIN;\n{}\nCOMMIT;", queries.join("\n"))
-}
-
-pub fn rescan_folder(folder: &str) {
-    //Make sure folder exists.
-    if conn()
-        .execute("INSERT INTO folder (path) VALUES (?1)", [folder])
-        .is_err()
-    {
-        //Collect the songs.
-        let songs = collect_songs(folder);
-        insert_parents(&songs);
-
-        //Create query.
-        let query = create_batch_query("temp_song", folder, &songs);
-
-        let conn = conn();
-
-        //Clean the temp table and add songs.
-        conn.execute("DELETE FROM temp_song", []).unwrap();
-        conn.execute_batch(&query).unwrap();
-
-        //Insert songs into default table.
-        let query = create_batch_query("song", folder, &songs);
-        conn.execute_batch(&query).unwrap();
-
-        //Drop the difference.
-        conn.execute(
-            "DELETE FROM song WHERE rowid IN (SELECT rowid FROM song EXCEPT SELECT rowid FROM temp_song)",
-            [],
-        ).unwrap();
+        conn().execute("DELETE FROM song", []).unwrap();
+        insert_songs(songs, &folder);
     }
 }
 
 pub fn add_folder(folder: &str) {
-    if conn()
-        .execute("INSERT INTO folder (path) VALUES (?1)", [folder])
-        .is_ok()
-    {
-        let songs = collect_songs(folder);
-        insert_parents(&songs);
+    let folder = folder.replace("\\", "/");
 
-        let query = create_batch_query("song", folder, &songs);
-        conn().execute_batch(&query).unwrap();
+    conn()
+        .execute(
+            "INSERT OR IGNORE INTO folder (folder) VALUES (?1)",
+            [&folder],
+        )
+        .unwrap();
+
+    let songs = collect_songs(&folder);
+    insert_songs(songs, &folder);
+}
+
+fn insert_songs(songs: Vec<Song>, folder: &str) {
+    let mut conn = conn();
+    let tx = conn.transaction().unwrap();
+    {
+        let mut stmt = tx
+            .prepare_cached(
+                "INSERT INTO song (name, disc, number, path, gain, album, artist, folder)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .unwrap();
+
+        for song in songs {
+            stmt.execute(params![
+                &song.name,
+                &song.disc,
+                &song.number,
+                &song.path.to_string_lossy(),
+                &song.gain,
+                &song.album,
+                &song.artist,
+                &folder,
+            ])
+            .unwrap();
+        }
     }
+    tx.commit().unwrap();
 }

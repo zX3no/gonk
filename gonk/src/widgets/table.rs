@@ -86,13 +86,13 @@ pub struct Table<'a> {
     /// Optional header
     header: Option<Row<'a>>,
     /// Data to display in each row
-    rows: Vec<Row<'a>>,
+    rows: &'a [Row<'a>],
     /// Underline the header
     separator: bool,
 }
 
 impl<'a> Table<'a> {
-    pub fn new(rows: Vec<Row<'a>>) -> Self {
+    pub fn new(rows: &'a [Row<'a>]) -> Self {
         Self {
             block: None,
             style: Style::default(),
@@ -174,7 +174,7 @@ impl<'a> Table<'a> {
         let len = self.rows.len();
         let selection = selected.unwrap_or(0).min(len.saturating_sub(1));
 
-        for item in &self.rows {
+        for item in self.rows {
             if height + item.height as usize > terminal_height as usize {
                 break;
             }
@@ -311,13 +311,7 @@ impl<'a> StatefulWidget for Table<'a> {
         let (start, end) = self.get_row_bounds(state.selected, rows_height);
 
         //TODO: Fix the table moving to the left when selected.
-        for (i, table_row) in self
-            .rows
-            .iter_mut()
-            .enumerate()
-            .skip(start)
-            .take(end - start)
-        {
+        for (i, table_row) in self.rows.iter().enumerate().skip(start).take(end - start) {
             let (row, col) = (table_area.top() + current_height, table_area.left());
             current_height += table_row.total_height();
             let table_row_area = Rect {

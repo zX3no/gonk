@@ -3,7 +3,12 @@ name = "gonk-database"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Bay"]
+description = "Database for gonk"
+repository = "https://github.com/zX3no/gonk"
+readme = "README.md"
+license = "MIT"
+
 
 [dependencies]
 jwalk = "0.6.0"

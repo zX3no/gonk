@@ -57,10 +57,6 @@ gonk add D:/Music
 
 ## ⌨️ Key Bindings
 
-Windows: `%appdata%/gonk/gonk.toml`
-
-Linux: `~/.config/gonk/gonk.toml`
-
 | Command              | Key             |
 |----------------------|-----------------|
 | Move Up              | `K / Up`        |
@@ -77,9 +73,11 @@ Linux: `~/.config/gonk/gonk.toml`
 | Delete Song          | `X`             |
 | Clear Queue          | `C`             |
 | Clear Except Playing | `Shift + C`     |
-| Randomize Queue      | `R`             |
 | Change Mode          | `Tab`           |
 | Search               | `/`             |
+| Settings             | `.`             |
+| Playlists            | `,`             |
+| Add to playlist      | `Shift + Enter` |
 | Update Database      | `U`             |
 | Quit                 | `Ctrl + C`      |
 | Move Song            | `1 / Shift + 1` |

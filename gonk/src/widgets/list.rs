@@ -66,7 +66,7 @@ impl<'a> ListItem<'a> {
 #[derive(Debug, Clone)]
 pub struct List<'a> {
     block: Option<Block<'a>>,
-    items: Vec<ListItem<'a>>,
+    items: &'a [ListItem<'a>],
     /// Style used as a base style for the widget
     style: Style,
     start_corner: Corner,
@@ -79,11 +79,11 @@ pub struct List<'a> {
 }
 
 impl<'a> List<'a> {
-    pub fn new(items: &[ListItem<'a>]) -> List<'a> {
+    pub fn new(items: &'a [ListItem<'a>]) -> List<'a> {
         List {
             block: None,
             style: Style::default(),
-            items: items.to_vec(),
+            items,
             start_corner: Corner::TopLeft,
             highlight_style: Style::default(),
             highlight_symbol: None,
@@ -114,7 +114,7 @@ impl<'a> List<'a> {
     fn get_items_bounds(&self, selection: usize, terminal_height: usize) -> (usize, usize) {
         let mut real_end = 0;
         let mut height = 0;
-        for item in &self.items {
+        for item in self.items {
             if height + item.height() > terminal_height {
                 break;
             }
@@ -173,13 +173,7 @@ impl<'a> StatefulWidget for List<'a> {
         let blank_symbol = " ".repeat(highlight_symbol.len());
         let mut current_height = 0;
 
-        for (i, item) in self
-            .items
-            .iter_mut()
-            .enumerate()
-            .skip(start)
-            .take(end - start)
-        {
+        for (i, item) in self.items.iter().enumerate().skip(start).take(end - start) {
             let (x, y) = if self.start_corner == Corner::BottomLeft {
                 current_height += item.height() as u16;
                 (list_area.left(), list_area.bottom() - current_height)

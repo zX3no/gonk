@@ -1,2 +1,6 @@
 [workspace]
 members = ["gonk", "gonk-player", "gonk-database"]
+
+[profile.release]
+debug = true
+

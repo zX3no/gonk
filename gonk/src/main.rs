@@ -10,7 +10,7 @@ use status_bar::StatusBar;
 use std::{
     io::{stdout, Stdout},
     path::Path,
-    sync::mpsc,
+    thread,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
@@ -25,7 +25,6 @@ mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
-//TODO: Cleanup colors
 pub struct Colors {
     pub number: Color,
     pub name: Color,
@@ -58,55 +57,39 @@ pub trait Input {
     fn right(&mut self);
 }
 
-fn init() -> Terminal<CrosstermBackend<Stdout>> {
-    //Panic handler
-    let orig_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        disable_raw_mode().unwrap();
-        execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-        orig_hook(panic_info);
-        std::process::exit(1);
-    }));
-
-    //Terminal
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
-    execute!(
-        terminal.backend_mut(),
-        EnterAlternateScreen,
-        EnableMouseCapture,
-    )
-    .unwrap();
-    enable_raw_mode().unwrap();
-    terminal.clear().unwrap();
-
-    terminal
-}
-
 fn main() {
     let mut db = Database::default();
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     if !args.is_empty() {
         match args[0].as_str() {
-            "add" if args.len() > 1 => {
+            "add" => {
+                if args.len() == 1 {
+                    return println!("Usage: gonk add <path>");
+                }
+
                 let path = args[1..].join(" ");
-                //TODO: This might silently scan a directory but not add anything.
-                //Might be confusing.
                 if Path::new(&path).exists() {
                     db.add_path(&path);
                 } else {
                     return println!("Invalid path.");
                 }
             }
-            "rm" if args.len() > 1 => {
+            //TODO: Add numbers to each path
+            //so users can just write: gonk rm 3
+            "rm" => {
+                if args.len() == 1 {
+                    return println!("Usage: gonk rm <path>");
+                }
+
                 let path = args[1..].join(" ");
-                match query::remove_path(&path) {
-                    Ok(_) => return,
+                match query::remove_folder(&path) {
+                    Ok(_) => return println!("Deleted path: {}", path),
                     Err(e) => return println!("{e}"),
                 };
             }
             "list" => {
-                return for path in query::paths() {
+                return for path in query::folders() {
                     println!("{path}");
                 };
             }
@@ -126,50 +109,62 @@ fn main() {
                 return;
             }
             _ if !args.is_empty() => return println!("Invalid command."),
-            _ if args.len() > 1 => return println!("Invalid argument."),
             _ => (),
         }
     }
 
-    //Player takes a while so off-load it to another thread.
-    let (s, r) = mpsc::channel();
+    //Disable raw mode when the program panics.
+    let orig_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        disable_raw_mode().unwrap();
+        execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        orig_hook(panic_info);
+        std::process::exit(1);
+    }));
 
-    //TODO: figure out why database is crashing
-    let songs = query::get_cache();
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture,
+    )
+    .unwrap();
+    enable_raw_mode().unwrap();
+    terminal.clear().unwrap();
+
+    //443 us
+    let cache = query::get_cache();
     let volume = query::volume();
 
-    std::thread::spawn(move || {
-        let player = Player::new(String::from("device"), volume, &songs);
-        s.send(player).unwrap();
-    });
+    //40ms
+    let player = thread::spawn(move || Player::new(volume, &cache, &Vec::new()));
 
-    let mut terminal = init();
-
-    //13ms
-    let mut search = Search::new();
-    let mut settings = Settings::new();
+    //3ms
     let mut browser = Browser::new();
+
+    //300 ns
     let mut queue = Queue::new();
+
+    //200 ns
     let mut status_bar = StatusBar::new();
+
+    //68 us
     let mut playlist = Playlist::new();
 
+    //6.1ms
+    let mut settings = Settings::new();
+
+    //5.5ms
+    let mut search = Search::new();
+
     let mut mode = Mode::Browser;
-
-    let mut busy = false;
     let mut last_tick = Instant::now();
+    let mut busy = false;
 
-    let mut player = r.recv().unwrap();
+    //Using the a thread here is roughly 7ms faster.
+    let mut player = player.join().unwrap();
 
     loop {
-        if last_tick.elapsed() >= Duration::from_millis(200) {
-            //Update the status_bar at a constant rate.
-            status_bar::update(&mut status_bar, busy, &player);
-            last_tick = Instant::now();
-        }
-
-        queue.len = player.songs.len();
-        player.update();
-
         match db.state() {
             State::Busy => busy = true,
             State::Idle => busy = false,
@@ -180,7 +175,15 @@ fn main() {
             }
         }
 
-        //Draw
+        if last_tick.elapsed() >= Duration::from_millis(200) {
+            //Update the status_bar at a constant rate.
+            status_bar::update(&mut status_bar, busy, &player);
+            last_tick = Instant::now();
+        }
+
+        queue.len = player.songs.len();
+        player.update();
+
         terminal
             .draw(|f| {
                 let area = Layout::default()
@@ -245,7 +248,7 @@ fn main() {
                             }
                         }
                         KeyCode::Char(' ') => player.toggle_playback(),
-                        KeyCode::Char('c') if shift => {
+                        KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
                         }
@@ -265,14 +268,22 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => player.volume_up(),
                         KeyCode::Char('s') => player.volume_down(),
-                        KeyCode::Char('r') => player.randomize(),
                         //TODO: Rework mode changing buttons
                         KeyCode::Char('`') => {
                             status_bar.hidden = !status_bar.hidden;
                         }
                         KeyCode::Char(',') => mode = Mode::Playlist,
                         KeyCode::Char('.') => mode = Mode::Settings,
-                        KeyCode::Char('/') => mode = Mode::Search,
+                        KeyCode::Char('/') => {
+                            if mode == Mode::Search {
+                                if search.mode == SearchMode::Select {
+                                    search.results.select(None);
+                                    search.mode = SearchMode::Search;
+                                }
+                            } else {
+                                mode = Mode::Search;
+                            }
+                        }
                         KeyCode::Tab => {
                             mode = match mode {
                                 Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
@@ -299,6 +310,12 @@ fn main() {
                                     mode = Mode::Playlist;
                                 }
                             }
+                            Mode::Search => {
+                                if let Some(songs) = search::on_enter(&mut search) {
+                                    playlist::add_to_playlist(&mut playlist, &songs);
+                                    mode = Mode::Playlist;
+                                }
+                            }
                             _ => (),
                         },
                         KeyCode::Enter => match mode {
@@ -311,7 +328,11 @@ fn main() {
                                     player.play_index(i);
                                 }
                             }
-                            Mode::Search => search::on_enter(&mut search, &mut player),
+                            Mode::Search => {
+                                if let Some(songs) = search::on_enter(&mut search) {
+                                    player.add_songs(&songs);
+                                }
+                            }
                             Mode::Settings => settings::on_enter(&mut settings, &mut player),
                             Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
                         },

@@ -48,18 +48,24 @@ impl Song {
         };
 
         let mut song = Song {
+            name: String::from("Unknown Title"),
+            disc: 1,
+            number: 1,
             path: path.to_path_buf(),
-            ..Default::default()
+            gain: 0.0,
+            album: String::from("Unknown Album"),
+            artist: String::from("Unknown Artist"),
+            id: None,
         };
 
-        let mut update_metadat = |metadata: &MetadataRevision| {
+        let mut backup_artist = String::new();
+
+        let mut update_metadata = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
                 if let Some(std_key) = tag.std_key {
                     match std_key {
+                        StandardTagKey::Artist => backup_artist = tag.value.to_string(),
                         StandardTagKey::AlbumArtist => song.artist = tag.value.to_string(),
-                        StandardTagKey::Artist if song.artist.is_empty() => {
-                            song.artist = tag.value.to_string();
-                        }
                         StandardTagKey::Album => song.album = tag.value.to_string(),
                         StandardTagKey::TrackTitle => song.name = tag.value.to_string(),
                         StandardTagKey::TrackNumber => {
@@ -95,25 +101,17 @@ impl Song {
             }
         };
 
-        //TODO: Why are there two different ways to get metadata
+        //Why are there two different ways to get metadata?
         if let Some(metadata) = probe.metadata.get() {
             if let Some(current) = metadata.current() {
-                update_metadat(current);
+                update_metadata(current);
             }
         } else if let Some(metadata) = probe.format.metadata().current() {
-            update_metadat(metadata);
+            update_metadata(metadata);
         }
 
-        if song.artist.is_empty() {
-            song.artist = String::from("Unknown Artist");
-        }
-
-        if song.name.is_empty() {
-            song.name = String::from("Unknown Title");
-        }
-
-        if song.album.is_empty() {
-            song.album = String::from("Unknown Album");
+        if song.artist == String::from("Unknown Artist") {
+            song.artist = backup_artist;
         }
 
         Some(song)

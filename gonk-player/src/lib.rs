@@ -219,7 +219,6 @@ impl Player {
 
         self.update_volume();
     }
-    pub fn randomize(&self) {}
     fn update_volume(&self) {
         self.s.send(Event::Volume(self.real_volume())).unwrap();
     }

@@ -327,7 +327,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
         &mut ListState::new(playlist.playlists.index()),
     );
 
-    let content = playlist
+    let content: Vec<Row> = playlist
         .songs
         .data
         .iter()
@@ -340,7 +340,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
         })
         .collect();
 
-    let table = Table::new(content)
+    let table = Table::new(&content)
         .widths(&[
             Constraint::Percentage(42),
             Constraint::Percentage(30),

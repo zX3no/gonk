@@ -4,34 +4,33 @@ use rusqlite::*;
 use std::path::PathBuf;
 
 pub fn cache(ids: &[usize]) {
-    let conn = conn();
+    let mut conn = conn();
 
-    conn.execute("DELETE FROM persist", []).unwrap();
-
-    for id in ids {
-        conn.execute("INSERT INTO persist (song_id) VALUES (?)", [id])
+    let tx = conn.transaction().unwrap();
+    tx.execute("DELETE FROM persist", []).unwrap();
+    {
+        let mut stmt = tx
+            .prepare_cached("INSERT INTO persist (song_id) VALUES (?)")
             .unwrap();
+
+        for id in ids {
+            stmt.execute([id]).unwrap();
+        }
     }
+    tx.commit().unwrap();
 }
 
 pub fn get_cache() -> Vec<Song> {
-    let ids: Vec<usize> = {
-        let conn = conn();
-        let mut stmt = conn.prepare("SELECT song_id FROM persist").unwrap();
-
-        stmt.query_map([], |row| row.get(0))
-            .unwrap()
-            .flatten()
-            .collect()
-    };
-
-    songs_from_ids(&ids)
+    collect_songs(
+        "SELECT *, rowid FROM song WHERE rowid IN (SELECT song_id FROM persist)",
+        [],
+    )
 }
 
 pub fn volume() -> u16 {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT volume FROM settings").unwrap();
-    stmt.query_row([], |row| row.get(0)).unwrap()
+    conn()
+        .query_row("SELECT volume FROM settings", [], |row| row.get(0))
+        .unwrap()
 }
 
 pub fn set_volume(vol: u16) {
@@ -40,9 +39,9 @@ pub fn set_volume(vol: u16) {
         .unwrap();
 }
 
-pub fn paths() -> Vec<String> {
+pub fn folders() -> Vec<String> {
     let conn = conn();
-    let mut stmt = conn.prepare("SELECT path FROM folder").unwrap();
+    let mut stmt = conn.prepare("SELECT folder FROM folder").unwrap();
 
     stmt.query_map([], |row| row.get(0))
         .unwrap()
@@ -50,11 +49,17 @@ pub fn paths() -> Vec<String> {
         .collect()
 }
 
-pub fn remove_path(path: &str) -> Result<(), &str> {
+pub fn remove_folder(path: &str) -> Result<(), &str> {
+    let path = path.replace("\\", "/");
     let conn = conn();
-    let result = conn
-        .execute("DELETE FROM folder WHERE path = ?", [path])
+
+    conn.execute("DELETE FROM song WHERE folder = ?", [&path])
         .unwrap();
+
+    let result = conn
+        .execute("DELETE FROM folder WHERE folder = ?", [path])
+        .unwrap();
+
     if result == 0 {
         Err("Invalid path.")
     } else {
@@ -63,19 +68,19 @@ pub fn remove_path(path: &str) -> Result<(), &str> {
 }
 
 pub fn total_songs() -> usize {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT COUNT(*) FROM song").unwrap();
-    stmt.query_row([], |row| row.get(0)).unwrap()
+    conn()
+        .query_row("SELECT COUNT(*) FROM song", [], |row| row.get(0))
+        .unwrap()
 }
 
 pub fn songs() -> Vec<Song> {
-    collect_songs("SELECT *, rowid FROM song", params![])
+    collect_songs("SELECT *, rowid FROM song", [])
 }
 
 pub fn artists() -> Vec<String> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT name FROM artist ORDER BY name COLLATE NOCASE")
+        .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
     stmt.query_map([], |row| {
@@ -90,7 +95,7 @@ pub fn artists() -> Vec<String> {
 pub fn albums() -> Vec<(String, String)> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT name, artist_id FROM album ORDER BY artist_id COLLATE NOCASE")
+        .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
         .unwrap();
 
     stmt.query_map([], |row| {
@@ -106,7 +111,7 @@ pub fn albums() -> Vec<(String, String)> {
 pub fn albums_by_artist(artist: &str) -> Vec<String> {
     let conn = conn();
     let mut stmt = conn
-        .prepare("SELECT name FROM album WHERE artist_id = ? ORDER BY name COLLATE NOCASE")
+        .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
         .unwrap();
 
     stmt.query_map([artist], |row| row.get(0))
@@ -117,31 +122,39 @@ pub fn albums_by_artist(artist: &str) -> Vec<String> {
 
 pub fn songs_from_album(album: &str, artist: &str) -> Vec<Song> {
     collect_songs(
-        "SELECT *, rowid FROM song WHERE artist_id = (?1) AND album_id = (?2) ORDER BY disc, number",
+        "SELECT *, rowid FROM song WHERE artist = (?1) AND album = (?2) ORDER BY disc, number",
         params![artist, album],
     )
 }
 
 pub fn songs_by_artist(artist: &str) -> Vec<Song> {
     collect_songs(
-        "SELECT *, rowid FROM song WHERE artist_id = ? ORDER BY album_id, disc, number",
+        "SELECT *, rowid FROM song WHERE artist = ? ORDER BY album, disc, number",
         params![artist],
     )
 }
 
 pub fn songs_from_ids(ids: &[usize]) -> Vec<Song> {
     let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT *, rowid FROM song WHERE rowid = ?")
-        .unwrap();
 
-    //TODO: Maybe batch this?
-    ids.iter()
-        .flat_map(|id| stmt.query_row([id], |row| Ok(song(row))))
+    let sql: Vec<String> = ids
+        .iter()
+        .map(|id| format!("SELECT *, rowid FROM song WHERE rowid = {}\nUNION ALL", id))
+        .collect();
+
+    let sql = sql.join("\n");
+    //Remove the last 'UNION ALL'
+    let sql = &sql[..sql.len() - 10];
+
+    let mut stmt = conn.prepare(&sql).unwrap();
+
+    stmt.query_map([], |row| Ok(song(row)))
+        .unwrap()
+        .flatten()
         .collect()
 }
 
-fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
+pub fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
 where
     P: Params,
 {
@@ -154,7 +167,7 @@ where
         .collect()
 }
 
-fn song(row: &Row) -> Song {
+pub fn song(row: &Row) -> Song {
     let path: String = row.get(3).unwrap();
     Song {
         name: row.get(0).unwrap(),

@@ -2,7 +2,7 @@ use super::Mode as AppMode;
 use crate::widgets::*;
 use crate::*;
 use gonk_database::query;
-use gonk_player::{Index, Player};
+use gonk_player::{Index, Song};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{
@@ -14,13 +14,13 @@ use tui::{
 
 #[derive(Clone)]
 pub enum Item {
-    Song(Song),
+    Song(MinSong),
     Album(Album),
     Artist(Artist),
 }
 
 #[derive(Clone, Default)]
-pub struct Song {
+pub struct MinSong {
     pub id: usize,
     pub name: String,
     pub album: String,
@@ -112,33 +112,35 @@ pub fn on_escape(search: &mut Search, mode: &mut AppMode) {
     }
 }
 
-pub fn on_enter(search: &mut Search, player: &mut Player) {
+pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
     match search.mode {
         Mode::Search => {
             if !search.results.is_empty() {
                 search.mode = Mode::Select;
                 search.results.select(Some(0));
             }
+            None
         }
         Mode::Select => {
             if let Some(item) = search.results.selected() {
-                let songs = match item {
+                Some(match item {
                     Item::Song(song) => query::songs_from_ids(&[song.id]),
                     Item::Album(album) => query::songs_from_album(&album.name, &album.artist),
                     Item::Artist(artist) => query::songs_by_artist(&artist.name),
-                };
-
-                player.add_songs(&songs);
+                })
+            } else {
+                None
             }
         }
     }
 }
 
+//FIXME: Queries take around 5ms total.
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
     for song in query::songs() {
-        search.cache.push(Item::Song(Song {
+        search.cache.push(Item::Song(MinSong {
             name: song.name,
             album: song.album,
             artist: song.artist,
@@ -294,35 +296,36 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
 }
 
 fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
-    let song_table = Table::new(vec![
+    let rows = [
         Row::new(vec![Spans::from(Span::raw(album))]),
         Row::new(vec![Spans::from(Span::raw(artist))]),
-    ])
-    .header(
-        Row::new(vec![Span::styled(
-            format!("{} ", name),
-            Style::default().add_modifier(Modifier::ITALIC),
-        )])
-        .bottom_margin(1),
-    )
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .title("Song"),
-    )
-    .widths(&[Constraint::Percentage(100)]);
+    ];
+    let song_table = Table::new(&rows)
+        .header(
+            Row::new(vec![Span::styled(
+                format!("{} ", name),
+                Style::default().add_modifier(Modifier::ITALIC),
+            )])
+            .bottom_margin(1),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Song"),
+        )
+        .widths(&[Constraint::Percentage(100)]);
 
     f.render_widget(song_table, area);
 }
 
 fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<_> = query::songs_from_album(album, artist)
+    let cells: Vec<Row> = query::songs_from_album(album, artist)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
         .collect();
 
-    let table = Table::new(cells)
+    let table = Table::new(&cells)
         .header(
             Row::new(vec![Cell::from(Span::styled(
                 format!("{} ", album),
@@ -348,7 +351,7 @@ fn artist(f: &mut Frame, artist: &str, area: Rect) {
         .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
         .collect();
 
-    let table = Table::new(cells)
+    let table = Table::new(&cells)
         .header(
             Row::new(vec![Cell::from(Span::styled(
                 format!("{} ", artist),
@@ -422,7 +425,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
         }
     };
 
-    let rows: Vec<_> = search
+    let rows: Vec<Row> = search
         .results
         .data
         .iter()
@@ -440,7 +443,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
         .collect();
 
     let italic = Style::default().add_modifier(Modifier::ITALIC);
-    let table = Table::new(rows)
+    let table = Table::new(&rows)
         .header(
             Row::new(vec![
                 Cell::default(),

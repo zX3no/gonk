@@ -18,7 +18,7 @@ impl Queue {
     pub fn new() -> Self {
         Self {
             ui: Index::new(Vec::new(), Some(0)),
-            constraint: [8, 42, 24, 26],
+            constraint: [6, 44, 24, 26],
             len: 0,
         }
     }
@@ -292,9 +292,9 @@ fn draw_body(
         Constraint::Percentage(queue.constraint[3]),
     ];
 
-    let t = Table::new(items)
+    let t = Table::new(&items)
         .header(
-            Row::new(["", "Track", "Title", "Album", "Artist"])
+            Row::new(["", "#", "Title", "Album", "Artist"])
                 .style(
                     Style::default()
                         .fg(Color::White)
@@ -307,7 +307,6 @@ fn draw_body(
                 .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
                 .border_type(BorderType::Rounded),
         )
-        // .separator()
         .widths(&con);
 
     let row_bounds = t.get_row_bounds(ui_index, t.get_row_height(area));
