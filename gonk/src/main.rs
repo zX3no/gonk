@@ -137,7 +137,7 @@ fn main() {
     let volume = query::volume();
 
     //40ms
-    let player = thread::spawn(move || Player::new(volume, &cache, &Vec::new()));
+    let player = thread::spawn(move || Player::new(String::new(), volume, &cache));
 
     //3ms
     let mut browser = Browser::new();
