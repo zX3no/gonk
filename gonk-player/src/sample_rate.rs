@@ -10,6 +10,11 @@ const fn gcd(a: u32, b: u32) -> u32 {
     }
 }
 
+#[inline]
+const fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    return a + t * (b - a);
+}
+
 /// Iterator that converts from a certain sample rate to another.
 pub struct SampleRateConverter {
     /// The iterator that gives us samples.
@@ -28,7 +33,7 @@ pub struct SampleRateConverter {
     /// This counter is incremented (modulo `to`) every time the iterator is called.
     next_output_frame_pos_in_chunk: u32,
     /// The buffer containing the samples waiting to be output.
-    output_buffer: Vec<f32>,
+    output_buffer: Option<f32>,
 }
 
 impl SampleRateConverter {
@@ -57,7 +62,7 @@ impl SampleRateConverter {
             next_output_frame_pos_in_chunk: 0,
             current_frame: first_samples,
             next_frame: next_samples,
-            output_buffer: Vec::with_capacity(1),
+            output_buffer: None,
         }
     }
 
@@ -66,12 +71,11 @@ impl SampleRateConverter {
 
         mem::swap(&mut self.current_frame, &mut self.next_frame);
         self.next_frame.clear();
-        for _ in 0..2 {
-            if let Some(i) = self.input.next() {
-                self.next_frame.push(i);
-            } else {
-                break;
-            }
+        if let Some(i) = self.input.next() {
+            self.next_frame.push(i);
+        }
+        if let Some(i) = self.input.next() {
+            self.next_frame.push(i);
         }
     }
 
@@ -97,8 +101,8 @@ impl SampleRateConverter {
         }
 
         // Short circuit if there are some samples waiting.
-        if !self.output_buffer.is_empty() {
-            return Some(self.output_buffer.remove(0));
+        if let Some(output) = self.output_buffer.take() {
+            return Some(output);
         }
 
         // The frame we are going to return from this function will be a linear interpolation
@@ -130,40 +134,25 @@ impl SampleRateConverter {
         // Merging `self.current_frame` and `self.next_frame` into `self.output_buffer`.
         // Note that `self.output_buffer` can be truncated if there is not enough data in
         // `self.next_frame`.
-        let mut result = None;
         let numerator = (self.from * self.next_output_frame_pos_in_chunk) % self.to;
-        for (off, (cur, next)) in self
-            .current_frame
-            .iter()
-            .zip(self.next_frame.iter())
-            .enumerate()
-        {
-            let sample = cur + (next - cur) * numerator as f32 / self.to as f32;
-
-            if off == 0 {
-                result = Some(sample);
-            } else {
-                self.output_buffer.push(sample);
-            }
-        }
 
         // Incrementing the counter for the next iteration.
         self.next_output_frame_pos_in_chunk += 1;
 
-        if result.is_some() {
-            result
-        } else {
-            debug_assert!(self.next_frame.is_empty());
-
-            // draining `self.current_frame`
-            if !self.current_frame.is_empty() {
-                let r = Some(self.current_frame.remove(0));
-                mem::swap(&mut self.output_buffer, &mut self.current_frame);
-                self.current_frame.clear();
-                r
-            } else {
+        if self.next_frame.is_empty() {
+            if self.current_frame.is_empty() {
                 None
+            } else {
+                let r = Some(self.current_frame.remove(0));
+                let current_frame = self.current_frame[0];
+                self.output_buffer = Some(current_frame);
+                r
             }
+        } else {
+            let ratio = numerator as f32 / self.to as f32;
+            let sample = lerp(self.current_frame[1], self.next_frame[1], ratio);
+            self.output_buffer = Some(sample);
+            Some(lerp(self.current_frame[0], self.next_frame[0], ratio))
         }
     }
 }

@@ -1,3 +1,4 @@
+#![feature(const_fn_floating_point_arithmetic)]
 use cpal::{
     traits::{HostTrait, StreamTrait},
     StreamError,
