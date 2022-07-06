@@ -1,4 +1,3 @@
-//https://github.com/RustAudio/rodio/blob/master/src/conversions/sample_rate.rs
 use std::{mem, vec::IntoIter};
 
 #[inline]
@@ -15,49 +14,51 @@ const fn lerp(a: f32, b: f32, t: f32) -> f32 {
     return a + t * (b - a);
 }
 
-/// Iterator that converts from a certain sample rate to another.
 pub struct SampleRateConverter {
     /// The iterator that gives us samples.
-    sample_buffer: IntoIter<f32>,
-    ///Input sample rate - interpolation factor
+    buffer: IntoIter<f32>,
+
+    ///Input sample rate - interpolation factor.
     input: u32,
-    ///Output sample rate - decimation factor
+    ///Output sample rate - decimation factor.
     output: u32,
+
     /// One sample per channel, extracted from `input`.
     current_frame: Vec<f32>,
     /// Position of `current_sample` modulo `from`.
+    ///
+    /// `0..input / gcd`
     current_frame_pos_in_chunk: u32,
+
     /// The samples right after `current_sample` (one per channel), extracted from `input`.
     next_frame: Vec<f32>,
     /// The position of the next sample that the iterator should return, modulo `to`.
     /// This counter is incremented (modulo `to`) every time the iterator is called.
+    ///
+    /// `0..output / gcd`
     next_output_frame_pos_in_chunk: u32,
-    /// The buffer containing the samples waiting to be output.
+
     output_buffer: Option<f32>,
 }
 
 impl SampleRateConverter {
-    pub fn new(mut input: IntoIter<f32>, from_rate: u32, to_rate: u32) -> SampleRateConverter {
-        assert!(from_rate >= 1);
-        assert!(to_rate >= 1);
+    pub fn new(mut buffer: IntoIter<f32>, input: u32, output: u32) -> SampleRateConverter {
+        assert!(input >= 1);
+        assert!(output >= 1);
 
-        // finding greatest common divisor
-        let gcd = gcd(from_rate, to_rate);
-
-        let (first_samples, next_samples) = if from_rate == to_rate {
-            // if `from` == `to` == 1, then we just pass through
-            debug_assert_eq!(from_rate, gcd);
+        let gcd = gcd(input, output);
+        let (first_samples, next_samples) = if input == output {
             (Vec::new(), Vec::new())
         } else {
-            let first = vec![input.next().unwrap(), input.next().unwrap()];
-            let next = vec![input.next().unwrap(), input.next().unwrap()];
+            let first = vec![buffer.next().unwrap(), buffer.next().unwrap()];
+            let next = vec![buffer.next().unwrap(), buffer.next().unwrap()];
             (first, next)
         };
 
         SampleRateConverter {
-            sample_buffer: input,
-            input: from_rate / gcd,
-            output: to_rate / gcd,
+            buffer,
+            input: input / gcd,
+            output: output / gcd,
             current_frame_pos_in_chunk: 0,
             next_output_frame_pos_in_chunk: 0,
             current_frame: first_samples,
@@ -66,49 +67,42 @@ impl SampleRateConverter {
         }
     }
 
-    fn next_input_frame(&mut self) {
-        self.current_frame_pos_in_chunk += 1;
-
-        mem::swap(&mut self.current_frame, &mut self.next_frame);
-        self.next_frame.clear();
-        if let Some(i) = self.sample_buffer.next() {
-            self.next_frame.push(i);
-        }
-        if let Some(i) = self.sample_buffer.next() {
-            self.next_frame.push(i);
-        }
-    }
-
     pub fn update(&mut self, input: Vec<f32>) {
-        self.sample_buffer = input.into_iter();
+        self.buffer = input.into_iter();
 
         if self.input == self.output {
             self.current_frame = Vec::new();
             self.next_frame = Vec::new();
         } else {
-            self.current_frame = vec![
-                self.sample_buffer.next().unwrap(),
-                self.sample_buffer.next().unwrap(),
-            ];
-            self.next_frame = vec![
-                self.sample_buffer.next().unwrap(),
-                self.sample_buffer.next().unwrap(),
-            ];
+            self.current_frame = vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
+            self.next_frame = vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
         };
 
         self.current_frame_pos_in_chunk = 0;
         self.next_output_frame_pos_in_chunk = 0;
     }
 
-    pub fn next(&mut self) -> Option<f32> {
-        // the algorithm below doesn't work if `self.from == self.to`
-        if self.input == self.output {
-            return self.sample_buffer.next();
+    fn next_input_frame(&mut self) {
+        mem::swap(&mut self.current_frame, &mut self.next_frame);
+
+        self.next_frame.clear();
+
+        if let Some(sample) = self.buffer.next() {
+            self.next_frame.push(sample);
         }
 
-        // Short circuit if there are some samples waiting.
-        if let Some(output) = self.output_buffer.take() {
-            return Some(output);
+        if let Some(sample) = self.buffer.next() {
+            self.next_frame.push(sample);
+        }
+
+        self.current_frame_pos_in_chunk += 1;
+    }
+
+    pub fn next(&mut self) -> Option<f32> {
+        if self.input == self.output {
+            return self.buffer.next();
+        } else if let Some(sample) = self.output_buffer.take() {
+            return Some(sample);
         }
 
         // The frame we are going to return from this function will be a linear interpolation
