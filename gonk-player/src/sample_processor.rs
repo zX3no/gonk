@@ -187,7 +187,7 @@ impl Processor {
                     let mut buffer = SampleBuffer::<f32>::new(self.capacity, self.spec);
                     buffer.copy_interleaved_ref(decoded);
 
-                    self.converter.update(buffer.samples().to_vec().into_iter());
+                    self.converter.update(buffer.samples().to_vec());
 
                     //Update elapsed
                     let ts = packet.ts();
