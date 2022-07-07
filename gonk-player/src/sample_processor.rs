@@ -101,10 +101,13 @@ pub struct Processor {
     pub duration: Duration,
     pub elapsed: Duration,
     pub volume: f32,
+
+    pub input: u32,
+    pub output: u32,
 }
 
 impl Processor {
-    pub fn new(sample_rate: u32, path: &Path, volume: f32) -> Self {
+    pub fn new(output_rate: u32, path: &Path, volume: f32) -> Self {
         let source = Box::new(File::open(path).unwrap());
 
         let mss = MediaSourceStream::new(source, Default::default());
@@ -155,11 +158,13 @@ impl Processor {
             converter: SampleRateConverter::new(
                 sample_buffer.samples().to_vec().into_iter(),
                 spec.rate,
-                sample_rate,
+                output_rate,
             ),
             finished: false,
             left: true,
             volume,
+            input: spec.rate,
+            output: output_rate,
         }
     }
     pub fn next_sample(&mut self) -> f32 {
@@ -187,7 +192,11 @@ impl Processor {
                     let mut buffer = SampleBuffer::<f32>::new(self.capacity, self.spec);
                     buffer.copy_interleaved_ref(decoded);
 
-                    self.converter.update(buffer.samples().to_vec());
+                    self.converter = SampleRateConverter::new(
+                        buffer.samples().to_vec().into_iter(),
+                        self.input,
+                        self.output,
+                    );
 
                     //Update elapsed
                     let ts = packet.ts();

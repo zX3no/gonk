@@ -43,16 +43,17 @@ pub struct SampleRateConverter {
 
 impl SampleRateConverter {
     pub fn new(mut buffer: IntoIter<f32>, input: u32, output: u32) -> SampleRateConverter {
-        assert!(input >= 1);
-        assert!(output >= 1);
+        debug_assert!(input >= 1);
+        debug_assert!(output >= 1);
 
         let gcd = gcd(input, output);
-        let (first_samples, next_samples) = if input == output {
+        let (current_frame, next_frame) = if input == output {
             (Vec::new(), Vec::new())
         } else {
-            let first = vec![buffer.next().unwrap(), buffer.next().unwrap()];
-            let next = vec![buffer.next().unwrap(), buffer.next().unwrap()];
-            (first, next)
+            (
+                vec![buffer.next().unwrap(), buffer.next().unwrap()],
+                vec![buffer.next().unwrap(), buffer.next().unwrap()],
+            )
         };
 
         SampleRateConverter {
@@ -61,25 +62,10 @@ impl SampleRateConverter {
             output: output / gcd,
             current_frame_pos_in_chunk: 0,
             next_output_frame_pos_in_chunk: 0,
-            current_frame: first_samples,
-            next_frame: next_samples,
+            current_frame,
+            next_frame,
             output_buffer: None,
         }
-    }
-
-    pub fn update(&mut self, input: Vec<f32>) {
-        self.buffer = input.into_iter();
-
-        if self.input == self.output {
-            self.current_frame = Vec::new();
-            self.next_frame = Vec::new();
-        } else {
-            self.current_frame = vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
-            self.next_frame = vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
-        };
-
-        self.current_frame_pos_in_chunk = 0;
-        self.next_output_frame_pos_in_chunk = 0;
     }
 
     fn next_input_frame(&mut self) {
