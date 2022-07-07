@@ -53,7 +53,7 @@ impl Input for Playlist {
         match self.mode {
             Mode::Playlist => {
                 self.playlists.up();
-                let songs = playlist::get(&self.playlists.selected().unwrap());
+                let songs = playlist::get(self.playlists.selected().unwrap());
                 self.songs = Index::new(songs, Some(0));
             }
             Mode::Song => self.songs.up(),
@@ -65,7 +65,7 @@ impl Input for Playlist {
         match self.mode {
             Mode::Playlist => {
                 self.playlists.down();
-                let songs = playlist::get(&self.playlists.selected().unwrap());
+                let songs = playlist::get(self.playlists.selected().unwrap());
                 self.songs = Index::new(songs, Some(0));
             }
             Mode::Song => self.songs.down(),
@@ -285,9 +285,9 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
         } else {
             let width = v[0].width.saturating_sub(3);
             if len < width {
-                f.set_cursor(x + len, y)
+                f.set_cursor(x + len, y);
             } else {
-                f.set_cursor(x + width, y)
+                f.set_cursor(x + width, y);
             }
         }
     }

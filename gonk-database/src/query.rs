@@ -50,7 +50,7 @@ pub fn folders() -> Vec<String> {
 }
 
 pub fn remove_folder(path: &str) -> Result<(), &str> {
-    let path = path.replace("\\", "/");
+    let path = path.replace('\\', "/");
     let conn = conn();
 
     conn.execute("DELETE FROM song WHERE folder = ?", [&path])
@@ -146,7 +146,7 @@ pub fn songs_from_ids(ids: &[usize]) -> Vec<Song> {
     //Remove the last 'UNION ALL'
     let sql = &sql[..sql.len() - 10];
 
-    let mut stmt = conn.prepare(&sql).unwrap();
+    let mut stmt = conn.prepare(sql).unwrap();
 
     stmt.query_map([], |row| Ok(song(row)))
         .unwrap()

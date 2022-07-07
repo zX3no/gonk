@@ -127,10 +127,7 @@ pub fn collect_songs(path: &str) -> Vec<Song> {
         })
         .collect();
 
-    paths
-        .par_iter()
-        .flat_map(|path| Song::from(&path))
-        .collect()
+    paths.par_iter().flat_map(|path| Song::from(path)).collect()
 }
 
 pub fn rescan_folders() {
@@ -145,7 +142,7 @@ pub fn rescan_folders() {
 }
 
 pub fn add_folder(folder: &str) {
-    let folder = folder.replace("\\", "/");
+    let folder = folder.replace('\\', "/");
 
     conn()
         .execute(

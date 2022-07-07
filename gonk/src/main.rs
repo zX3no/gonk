@@ -383,7 +383,13 @@ fn main() {
 
     query::set_volume(player.volume);
 
-    let ids: Vec<usize> = player.songs.data.iter().flat_map(|song| song.id).collect();
+    let ids: Vec<usize> = player
+        .songs
+        .data
+        .iter()
+        .filter_map(|song| song.id)
+        .collect();
+
     query::cache(&ids);
 
     disable_raw_mode().unwrap();

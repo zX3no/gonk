@@ -34,7 +34,7 @@ impl Database {
             }
         }
 
-        self.handle = Some(thread::spawn(|| rescan_folders()));
+        self.handle = Some(thread::spawn(rescan_folders));
     }
 
     pub fn state(&mut self) -> State {

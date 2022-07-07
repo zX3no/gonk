@@ -91,7 +91,7 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
     //Handle mouse input.
     if let Some(event) = event {
         let (x, y) = (event.column, event.row);
-        const HEADER_HEIGHT: u16 = 5;
+        let header_height = 5;
 
         let size = f.size();
 
@@ -107,8 +107,8 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
         //Mouse support for the queue.
         if let Some((start, _)) = row_bounds {
             //Check if you clicked on the header.
-            if y >= HEADER_HEIGHT {
-                let index = (y - HEADER_HEIGHT) as usize + start;
+            if y >= header_height {
+                let index = (y - header_height) as usize + start;
 
                 //Make sure you didn't click on the seek bar
                 //and that the song index exists.

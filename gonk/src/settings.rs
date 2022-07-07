@@ -18,14 +18,17 @@ impl Settings {
         let wanted_device = query::playback_device();
 
         let devices = Player::audio_devices();
-        let device_names: Vec<String> = devices.iter().flat_map(DeviceTrait::name).collect();
 
-        let current_device = if !device_names.contains(&wanted_device) {
+        let current_device = if devices
+            .iter()
+            .flat_map(DeviceTrait::name)
+            .any(|x| x == wanted_device)
+        {
+            wanted_device
+        } else {
             let name = default_device.name().unwrap();
             query::set_playback_device(&name);
             name
-        } else {
-            wanted_device
         };
 
         Self {
@@ -41,7 +44,7 @@ impl Input for Settings {
     }
 
     fn down(&mut self) {
-        self.devices.down()
+        self.devices.down();
     }
 
     fn left(&mut self) {}

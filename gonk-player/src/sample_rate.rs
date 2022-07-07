@@ -11,7 +11,7 @@ const fn gcd(a: u32, b: u32) -> u32 {
 
 #[inline]
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    return a + t * (b - a);
+    a + t * (b - a)
 }
 
 pub struct SampleRateConverter {
@@ -128,7 +128,7 @@ impl SampleRateConverter {
 
         if self.next_frame.is_empty() {
             let r = self.current_frame.remove(0);
-            self.output_buffer = self.current_frame.get(0).cloned();
+            self.output_buffer = self.current_frame.first().cloned();
             self.current_frame.clear();
             Some(r)
         } else {

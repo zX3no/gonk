@@ -125,11 +125,10 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, p
     );
 
     //TODO: Draw mini progress bar here.
-
-    let text = if !player.is_playing() {
-        String::from("Paused ")
-    } else {
+    let text = if player.is_playing() {
         format!("Vol: {}% ", player.volume)
+    } else {
+        String::from("Paused ")
     };
 
     f.render_widget(

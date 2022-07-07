@@ -110,7 +110,7 @@ impl Song {
             update_metadata(metadata);
         }
 
-        if song.artist == String::from("Unknown Artist") {
+        if song.artist == *"Unknown Artist" {
             song.artist = backup_artist;
         }
 

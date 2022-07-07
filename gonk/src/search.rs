@@ -121,17 +121,11 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
             }
             None
         }
-        Mode::Select => {
-            if let Some(item) = search.results.selected() {
-                Some(match item {
-                    Item::Song(song) => query::songs_from_ids(&[song.id]),
-                    Item::Album(album) => query::songs_from_album(&album.name, &album.artist),
-                    Item::Artist(artist) => query::songs_by_artist(&artist.name),
-                })
-            } else {
-                None
-            }
-        }
+        Mode::Select => search.results.selected().map(|item| match item {
+            Item::Song(song) => query::songs_from_ids(&[song.id]),
+            Item::Album(album) => query::songs_from_album(&album.name, &album.artist),
+            Item::Artist(artist) => query::songs_by_artist(&artist.name),
+        }),
     }
 }
 
