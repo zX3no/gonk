@@ -10,7 +10,7 @@ const fn gcd(a: u32, b: u32) -> u32 {
 }
 
 #[inline]
-const fn lerp(a: f32, b: f32, t: f32) -> f32 {
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
     return a + t * (b - a);
 }
 
