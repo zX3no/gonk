@@ -69,9 +69,7 @@ impl SampleRateConverter {
     }
 
     fn next_input_frame(&mut self) {
-        mem::swap(&mut self.current_frame, &mut self.next_frame);
-
-        self.next_frame.clear();
+        self.current_frame = mem::take(&mut self.next_frame);
 
         if let Some(sample) = self.buffer.next() {
             self.next_frame.push(sample);
