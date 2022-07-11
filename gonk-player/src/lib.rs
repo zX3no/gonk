@@ -149,8 +149,8 @@ impl Resampler {
                 smp * self.volume * self.gain
             }
         } else {
+            let mut decode_errors: usize = 0;
             loop {
-                let mut decode_errors: usize = 0;
                 match self.probed.format.next_packet() {
                     Ok(next_packet) => {
                         let decoded = self.decoder.decode(&next_packet).unwrap();
@@ -489,7 +489,9 @@ impl Player {
             return;
         }
 
-        let time = Duration::from_secs_f32(time.clamp(0.0, f32::MAX));
+        //Seeking at under 0.5 seconds causes an unexpected EOF.
+        //Could be because of the coarse seek.
+        let time = Duration::from_secs_f32(time.clamp(0.5, f32::MAX));
 
         unsafe {
             match RESAMPLER.as_mut().unwrap().probed.format.seek(
