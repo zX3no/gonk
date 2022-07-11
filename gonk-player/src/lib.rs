@@ -79,7 +79,11 @@ impl Resampler {
             .format(
                 &Hint::default(),
                 mss,
-                &FormatOptions::default(),
+                &FormatOptions {
+                    prebuild_seek_index: true,
+                    seek_index_fill_rate: 10,
+                    enable_gapless: false,
+                },
                 &MetadataOptions::default(),
             )
             .unwrap();
