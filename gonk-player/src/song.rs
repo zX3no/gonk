@@ -12,8 +12,8 @@ use symphonia::{
     default::get_probe,
 };
 
-fn db_to_amplitude(db: f64) -> f64 {
-    10.0_f64.powf(db / 20.0_f64)
+fn db_to_amplitude(db: f32) -> f32 {
+    10.0_f32.powf(db / 20.0)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -22,7 +22,7 @@ pub struct Song {
     pub disc: u64,
     pub number: u64,
     pub path: PathBuf,
-    pub gain: f64,
+    pub gain: f32,
     pub album: String,
     pub artist: String,
     pub id: Option<usize>,

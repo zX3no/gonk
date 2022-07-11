@@ -84,7 +84,7 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
     draw_seeker(player, f, chunks[2]);
 
     //Don't handle mouse input when the queue is empty.
-    if player.is_empty() {
+    if player.songs.is_empty() {
         return;
     }
 
@@ -100,7 +100,7 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
             && size.height > 15
         {
             let ratio = x as f32 / size.width as f32;
-            let duration = player.duration.as_secs_f32();
+            let duration = player.duration().as_secs_f32();
             player.seek_to(duration * ratio);
         }
 
@@ -145,7 +145,7 @@ fn draw_header(player: &mut Player, f: &mut Frame, area: Rect) {
         draw_title(player, f, area);
     }
 
-    let volume = Spans::from(format!("Vol: {}%─╮", player.volume));
+    let volume = Spans::from(format!("Vol: {}%─╮", player.volume()));
     f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
 }
 
@@ -326,8 +326,8 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
         );
     }
 
-    let elapsed = player.elapsed().as_secs_f64();
-    let duration = player.duration.as_secs_f64();
+    let elapsed = player.elapsed().as_secs_f32();
+    let duration = player.duration().as_secs_f32();
 
     let seeker = format!(
         "{:02}:{:02}/{:02}:{:02}",
@@ -352,7 +352,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
                     .border_type(BorderType::Rounded),
             )
             .gauge_style(Style::default().fg(COLORS.seeker))
-            .ratio(ratio)
+            .ratio(ratio as f64)
             .label(seeker),
         area,
     );

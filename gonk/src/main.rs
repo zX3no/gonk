@@ -381,7 +381,7 @@ fn main() {
         }
     }
 
-    query::set_volume(player.volume);
+    query::set_volume(player.volume());
 
     let ids: Vec<usize> = player
         .songs

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::{widgets::*, Frame, Input};
 use gonk_database::query;
 use gonk_player::{Device, DeviceTrait, Index, Player};
@@ -14,26 +15,28 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
-        let default_device = Player::default_device();
-        let wanted_device = query::playback_device();
+        // let default_device = Player::default_device();
+        // let wanted_device = query::playback_device();
 
-        let devices = Player::audio_devices();
+        // let devices = Player::audio_devices();
 
-        let current_device = if devices
-            .iter()
-            .flat_map(DeviceTrait::name)
-            .any(|x| x == wanted_device)
-        {
-            wanted_device
-        } else {
-            let name = default_device.name().unwrap();
-            query::set_playback_device(&name);
-            name
-        };
+        // let current_device = if devices
+        //     .iter()
+        //     .flat_map(DeviceTrait::name)
+        //     .any(|x| x == wanted_device)
+        // {
+        //     wanted_device
+        // } else {
+        //     let name = default_device.name().unwrap();
+        //     query::set_playback_device(&name);
+        //     name
+        // };
 
         Self {
-            devices: Index::new(devices, Some(0)),
-            current_device,
+            // devices: Index::new(devices, Some(0)),
+            // current_device,
+            devices: Index::default(),
+            current_device: String::new(),
         }
     }
 }
@@ -53,17 +56,17 @@ impl Input for Settings {
 }
 
 pub fn on_enter(settings: &mut Settings, player: &mut Player) {
-    if let Some(device) = settings.devices.selected() {
-        match player.change_output_device(device) {
-            Ok(_) => {
-                let name = device.name().unwrap();
-                query::set_playback_device(&name);
-                settings.current_device = name;
-            }
-            //TODO: Print error in status bar
-            Err(e) => panic!("{:?}", e),
-        }
-    }
+    // if let Some(device) = settings.devices.selected() {
+    //     match player.change_output_device(device) {
+    //         Ok(_) => {
+    //             let name = device.name().unwrap();
+    //             query::set_playback_device(&name);
+    //             settings.current_device = name;
+    //         }
+    //         //TODO: Print error in status bar
+    //         Err(e) => panic!("{:?}", e),
+    //     }
+    // }
 }
 
 #[allow(unused)]

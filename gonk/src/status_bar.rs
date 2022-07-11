@@ -55,7 +55,7 @@ pub fn update(status_bar: &mut StatusBar, db_busy: bool, player: &Player) {
             //before triggering an update
             //the status bar will stay open
             //without the users permission.
-            if player.is_empty() {
+            if player.songs.is_empty() {
                 status_bar.hidden = true;
             }
         }
@@ -126,7 +126,7 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, p
 
     //TODO: Draw mini progress bar here.
     let text = if player.is_playing() {
-        format!("Vol: {}% ", player.volume)
+        format!("Vol: {}% ", player.volume())
     } else {
         String::from("Paused ")
     };
