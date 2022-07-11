@@ -301,6 +301,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
 
     let items: Vec<ListItem> = playlist
         .playlists
+        .data
         .clone()
         .into_iter()
         .map(ListItem::new)

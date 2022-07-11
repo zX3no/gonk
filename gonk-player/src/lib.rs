@@ -72,9 +72,8 @@ pub struct Resampler {
 }
 
 impl Resampler {
-    pub fn new(output: usize, path: &str, volume: u16, gain: f32) -> Self {
-        let source = Box::new(File::open(path).unwrap());
-        let mss = MediaSourceStream::new(source, Default::default());
+    pub fn new(output: usize, file: File, volume: u16, gain: f32) -> Self {
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let mut probed = get_probe()
             .format(
@@ -291,7 +290,14 @@ impl Player {
                     for frame in data.chunks_mut(2) {
                         for sample in frame.iter_mut() {
                             let smp = if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                                resampler.next()
+                                //Makes sure that the next sample isn't
+                                //read in the middle of changing songs.
+                                //idk reliable this is.
+                                if resampler.finished {
+                                    0.0
+                                } else {
+                                    resampler.next()
+                                }
                             } else {
                                 0.0
                             };
@@ -330,7 +336,6 @@ impl Player {
             self.songs.select(Some(0));
             self.play_selected();
         }
-        // self.play();
     }
 
     pub fn previous(&mut self) {
@@ -345,10 +350,18 @@ impl Player {
 
     pub fn play_selected(&mut self) {
         if let Some(song) = self.songs.selected() {
+            let file = match File::open(&song.path) {
+                Ok(file) => file,
+                //TODO: Print to status-bar
+                Err(_) => panic!("Could not open path: {:?}", song.path),
+            };
             unsafe {
+                if let Some(resampler) = &mut RESAMPLER {
+                    resampler.finished = true;
+                }
                 RESAMPLER = Some(Resampler::new(
                     self.sample_rate,
-                    song.path.to_str().unwrap(),
+                    file,
                     self.volume,
                     song.gain as f32,
                 ));
@@ -406,7 +419,7 @@ impl Player {
             self.volume = 100;
         }
 
-        if let Some(resampler) = unsafe { RESAMPLER.as_mut() } {
+        if let Some(resampler) = unsafe { &mut RESAMPLER } {
             resampler.set_volume(self.volume);
         }
     }
@@ -416,7 +429,7 @@ impl Player {
             self.volume -= VOLUME_STEP;
         }
 
-        if let Some(resampler) = unsafe { RESAMPLER.as_mut() } {
+        if let Some(resampler) = unsafe { &mut RESAMPLER } {
             resampler.set_volume(self.volume);
         }
     }
@@ -463,7 +476,7 @@ impl Player {
 
     pub fn seek_by(&mut self, time: f32) {
         unsafe {
-            if RESAMPLER.is_none() {
+            if RESAMPLER.is_none() || self.state != State::Playing {
                 return;
             }
 
@@ -472,13 +485,12 @@ impl Player {
     }
 
     pub fn seek_to(&mut self, time: f32) {
-        if unsafe { RESAMPLER.is_none() } {
+        if unsafe { RESAMPLER.is_none() } || self.state != State::Playing {
             return;
         }
 
-        let time = if time.is_sign_negative() { 0.0 } else { time };
+        let time = Duration::from_secs_f32(time.clamp(0.0, f32::MAX));
 
-        let time = Duration::from_secs_f32(time);
         unsafe {
             match RESAMPLER.as_mut().unwrap().probed.format.seek(
                 SeekMode::Coarse,
