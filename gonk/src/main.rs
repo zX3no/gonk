@@ -164,6 +164,11 @@ fn main() {
     //Using the another thread here is roughly 7ms faster.
     let mut player = player.join().unwrap();
 
+    //If there are songs in the queue, display the queue.
+    if !player.songs.is_empty() {
+        mode = Mode::Queue;
+    }
+
     loop {
         match db.state() {
             State::Busy => busy = true,

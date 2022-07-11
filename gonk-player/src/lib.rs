@@ -305,16 +305,15 @@ impl Player {
 
         stream.play().unwrap();
 
-        let mut player = Self {
+        let index = if cache.is_empty() { None } else { Some(0) };
+
+        Self {
             sample_rate: config.sample_rate.0 as usize,
             stream,
             volume,
             state: State::Stopped,
-            songs: Index::default(),
-        };
-        player.add_songs(cache);
-        player.pause();
-        player
+            songs: Index::new(cache.to_vec(), index),
+        }
     }
 
     pub fn update(&mut self) {
@@ -441,10 +440,14 @@ impl Player {
     }
 
     pub fn toggle_playback(&mut self) {
-        match self.state {
-            State::Playing => self.pause(),
-            State::Paused => self.play(),
-            State::Stopped => (),
+        if unsafe { RESAMPLER.is_none() } {
+            self.play_selected()
+        } else {
+            match self.state {
+                State::Playing => self.pause(),
+                State::Paused => self.play(),
+                State::Stopped => (),
+            }
         }
     }
 
