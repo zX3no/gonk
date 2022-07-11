@@ -268,23 +268,7 @@ impl Player {
         cpal::default_host().default_output_device().unwrap()
     }
     pub fn change_output_device(&mut self, _device: &Device) -> Result<(), StreamError> {
-        //TODO
-        Ok(())
-        // match OutputStream::try_from_device(device) {
-        //     Ok((stream, handle)) => {
-        //         let pos = self.elapsed();
-        //         self.stop();
-        //         self.stream = stream;
-        //         self.handle = handle;
-        //         self.play_selected();
-        //         self.seek_to(pos);
-        //         Ok(())
-        //     }
-        //     Err(e) => match e {
-        //         stream::StreamError::DefaultStreamConfigError(_) => Ok(()),
-        //         _ => Err(e),
-        //     },
-        // }
+        todo!()
     }
 }
 
