@@ -1,4 +1,3 @@
-#![feature(const_fn_floating_point_arithmetic)]
 use cpal::{
     traits::{HostTrait, StreamTrait},
     Stream,
@@ -35,7 +34,7 @@ const fn gcd(a: usize, b: usize) -> usize {
 }
 
 #[inline]
-const fn lerp(a: f32, b: f32, t: f32) -> f32 {
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + t * (b - a)
 }
 
@@ -43,8 +42,6 @@ static mut RESAMPLER: Option<Resampler> = None;
 
 const VOLUME_STEP: u16 = 5;
 const VOLUME_REDUCTION: f32 = 600.0;
-const MAX_VOLUME: f32 = 100.0 / VOLUME_REDUCTION;
-const MIN_VOLUME: f32 = 0.0 / VOLUME_REDUCTION;
 
 pub struct Resampler {
     probed: ProbeResult,
@@ -74,7 +71,7 @@ pub struct Resampler {
 }
 
 impl Resampler {
-    pub fn new(output: usize, path: &str, gain: f32) -> Self {
+    pub fn new(output: usize, path: &str, volume: u16, gain: f32) -> Self {
         let source = Box::new(File::open(path).unwrap());
         let mss = MediaSourceStream::new(source, Default::default());
 
@@ -131,7 +128,7 @@ impl Resampler {
             current_frame,
             next_frame,
             output_buffer: None,
-            volume: 15.0 / VOLUME_REDUCTION,
+            volume: volume as f32 / VOLUME_REDUCTION,
             duration,
             elapsed,
             time_base,
@@ -236,20 +233,8 @@ impl Resampler {
         }
     }
 
-    pub fn volume_up(&mut self) {
-        self.volume += VOLUME_STEP as f32 / VOLUME_REDUCTION;
-
-        if self.volume > MAX_VOLUME {
-            self.volume = MAX_VOLUME;
-        }
-    }
-
-    pub fn volume_down(&mut self) {
-        self.volume -= VOLUME_STEP as f32 / VOLUME_REDUCTION;
-
-        if self.volume < MIN_VOLUME {
-            self.volume = MIN_VOLUME;
-        }
+    pub fn set_volume(&mut self, volume: u16) {
+        self.volume = volume as f32 / VOLUME_REDUCTION;
     }
 }
 
@@ -265,10 +250,11 @@ pub struct Player {
     pub sample_rate: usize,
     pub state: State,
     pub songs: Index<Song>,
+    pub volume: u16,
 }
 
 impl Player {
-    pub fn new(_device: String, _volume: u16, _cache: &[Song]) -> Self {
+    pub fn new(_device: String, volume: u16, _cache: &[Song]) -> Self {
         let device = cpal::default_host().default_output_device().unwrap();
         let config = device.default_output_config().unwrap().config();
 
@@ -293,6 +279,7 @@ impl Player {
         Self {
             sample_rate: config.sample_rate.0 as usize,
             stream,
+            volume,
             state: State::Stopped,
             songs: Index::default(),
         }
@@ -326,7 +313,7 @@ impl Player {
 
     pub fn play(&mut self, path: &str) {
         unsafe {
-            RESAMPLER = Some(Resampler::new(self.sample_rate, path, 0.0));
+            RESAMPLER = Some(Resampler::new(self.sample_rate, path, self.volume, 0.0));
         }
         self.state = State::Playing;
     }
@@ -337,6 +324,7 @@ impl Player {
                 RESAMPLER = Some(Resampler::new(
                     self.sample_rate,
                     song.path.to_str().unwrap(),
+                    self.volume,
                     song.gain as f32,
                 ));
             }
@@ -384,28 +372,24 @@ impl Player {
         }
     }
 
-    pub fn volume_up(&self) {
-        unsafe {
-            if let Some(resampler) = RESAMPLER.as_mut() {
-                resampler.volume_up();
-            }
+    pub fn volume_up(&mut self) {
+        self.volume += VOLUME_STEP;
+        if self.volume > 100 {
+            self.volume = 100;
+        }
+
+        if let Some(resampler) = unsafe { RESAMPLER.as_mut() } {
+            resampler.set_volume(self.volume);
         }
     }
 
-    pub fn volume_down(&self) {
-        unsafe {
-            if let Some(resampler) = RESAMPLER.as_mut() {
-                resampler.volume_down();
-            }
+    pub fn volume_down(&mut self) {
+        if self.volume != 0 {
+            self.volume -= VOLUME_STEP;
         }
-    }
 
-    pub fn volume(&self) -> u16 {
-        //TODO: Volume needs to be stored in the player
-        //otherwise it will go away when the next song is played.
-        unsafe {
-            let volume = RESAMPLER.as_ref().unwrap().volume;
-            (volume * VOLUME_REDUCTION).round() as u16
+        if let Some(resampler) = unsafe { RESAMPLER.as_mut() } {
+            resampler.set_volume(self.volume);
         }
     }
 

@@ -145,7 +145,7 @@ fn draw_header(player: &mut Player, f: &mut Frame, area: Rect) {
         draw_title(player, f, area);
     }
 
-    let volume = Spans::from(format!("Vol: {}%─╮", player.volume()));
+    let volume = Spans::from(format!("Vol: {}%─╮", player.volume));
     f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
 }
 
