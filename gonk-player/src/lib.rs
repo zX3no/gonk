@@ -288,11 +288,14 @@ impl Player {
             .build_output_stream(
                 &config,
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                        for frame in data.chunks_mut(2) {
-                            for sample in frame.iter_mut() {
-                                *sample = resampler.next();
-                            }
+                    for frame in data.chunks_mut(2) {
+                        for sample in frame.iter_mut() {
+                            let smp = if let Some(resampler) = unsafe { &mut RESAMPLER } {
+                                resampler.next()
+                            } else {
+                                0.0
+                            };
+                            *sample = smp;
                         }
                     }
                 },
@@ -386,6 +389,9 @@ impl Player {
     pub fn clear(&mut self) {
         self.songs = Index::default();
         self.state = State::Stopped;
+        unsafe {
+            RESAMPLER = None;
+        }
     }
 
     pub fn clear_except_playing(&mut self) {
