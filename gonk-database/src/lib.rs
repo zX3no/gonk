@@ -70,7 +70,7 @@ pub fn create_tables(conn: &Connection) {
                 disc INTEGER NOT NULL,
                 number INTEGER NOT NULL,
                 path TEXT NOT NULL,
-                gain DOUBLE NOT NULL,
+                gain FLOAT NOT NULL,
                 album TEXT NOT NULL,
                 artist TEXT NOT NULL,
                 folder TEXT NOT NULL,
