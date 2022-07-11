@@ -161,7 +161,7 @@ fn main() {
     let mut last_tick = Instant::now();
     let mut busy = false;
 
-    //Using the a thread here is roughly 7ms faster.
+    //Using the another thread here is roughly 7ms faster.
     let mut player = player.join().unwrap();
 
     loop {

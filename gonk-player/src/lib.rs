@@ -2,7 +2,7 @@ use cpal::{
     traits::{HostTrait, StreamTrait},
     Stream,
 };
-use std::{fs::File, time::Duration, vec::IntoIter};
+use std::{fs::File, io::ErrorKind, time::Duration, vec::IntoIter};
 use symphonia::{
     core::{
         audio::SampleBuffer,
@@ -42,6 +42,7 @@ static mut RESAMPLER: Option<Resampler> = None;
 
 const VOLUME_STEP: u16 = 5;
 const VOLUME_REDUCTION: f32 = 600.0;
+const MAX_DECODE_ERRORS: usize = 3;
 
 pub struct Resampler {
     probed: ProbeResult,
@@ -138,7 +139,9 @@ impl Resampler {
     }
 
     pub fn next(&mut self) -> f32 {
-        if let Some(smp) = self.next_sample() {
+        if self.finished {
+            0.0
+        } else if let Some(smp) = self.next_sample() {
             if self.gain == 0.0 {
                 //Reduce the volume a little to match
                 //songs with replay gain information.
@@ -147,30 +150,53 @@ impl Resampler {
                 smp * self.volume * self.gain
             }
         } else {
-            let next_packet = self.probed.format.next_packet().unwrap();
-            let decoded = self.decoder.decode(&next_packet).unwrap();
-            let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
-            buffer.copy_interleaved_ref(decoded);
-            self.buffer = buffer.samples().to_vec().into_iter();
+            loop {
+                let mut decode_errors: usize = 0;
+                match self.probed.format.next_packet() {
+                    Ok(next_packet) => {
+                        let decoded = self.decoder.decode(&next_packet).unwrap();
+                        let mut buffer =
+                            SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
+                        buffer.copy_interleaved_ref(decoded);
+                        self.buffer = buffer.samples().to_vec().into_iter();
 
-            let ts = next_packet.ts();
-            let t = self.time_base.calc_time(ts);
-            self.elapsed = Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
+                        let ts = next_packet.ts();
+                        let t = self.time_base.calc_time(ts);
+                        self.elapsed =
+                            Duration::from_secs(t.seconds) + Duration::from_secs_f64(t.frac);
 
-            if self.input == self.output {
-                self.current_frame = Vec::new();
-                self.next_frame = Vec::new();
-            } else {
-                self.current_frame = vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
-                self.next_frame = vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
+                        if self.input == self.output {
+                            self.current_frame = Vec::new();
+                            self.next_frame = Vec::new();
+                        } else {
+                            self.current_frame =
+                                vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
+                            self.next_frame =
+                                vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
+                        }
+
+                        self.current_frame_pos_in_chunk = 0;
+                        self.next_output_frame_pos_in_chunk = 0;
+
+                        debug_assert!(self.output_buffer.is_none());
+
+                        return self.next();
+                    }
+                    Err(e) => match e {
+                        Error::DecodeError(e) => {
+                            decode_errors += 1;
+                            if decode_errors > MAX_DECODE_ERRORS {
+                                panic!("{:?}", e);
+                            }
+                        }
+                        Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
+                            self.finished = true;
+                            return 0.0;
+                        }
+                        _ => panic!("{:?}", e),
+                    },
+                }
             }
-
-            self.current_frame_pos_in_chunk = 0;
-            self.next_output_frame_pos_in_chunk = 0;
-
-            debug_assert!(self.output_buffer.is_none());
-
-            self.next()
         }
     }
 
@@ -254,7 +280,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(_device: String, volume: u16, _cache: &[Song]) -> Self {
+    pub fn new(_device: String, volume: u16, cache: &[Song]) -> Self {
         let device = cpal::default_host().default_output_device().unwrap();
         let config = device.default_output_config().unwrap().config();
 
@@ -276,13 +302,16 @@ impl Player {
 
         stream.play().unwrap();
 
-        Self {
+        let mut player = Self {
             sample_rate: config.sample_rate.0 as usize,
             stream,
             volume,
             state: State::Stopped,
             songs: Index::default(),
-        }
+        };
+        player.add_songs(cache);
+        player.pause();
+        player
     }
 
     pub fn update(&mut self) {
@@ -299,6 +328,7 @@ impl Player {
             self.songs.select(Some(0));
             self.play_selected();
         }
+        // self.play();
     }
 
     pub fn previous(&mut self) {
@@ -311,13 +341,6 @@ impl Player {
         self.play_selected();
     }
 
-    pub fn play(&mut self, path: &str) {
-        unsafe {
-            RESAMPLER = Some(Resampler::new(self.sample_rate, path, self.volume, 0.0));
-        }
-        self.state = State::Playing;
-    }
-
     pub fn play_selected(&mut self) {
         if let Some(song) = self.songs.selected() {
             unsafe {
@@ -328,7 +351,7 @@ impl Player {
                     song.gain as f32,
                 ));
             }
-            self.state = State::Playing;
+            self.play();
         }
     }
 
@@ -413,10 +436,20 @@ impl Player {
 
     pub fn toggle_playback(&mut self) {
         match self.state {
-            State::Playing => self.stream.pause().unwrap(),
-            State::Paused => self.stream.play().unwrap(),
+            State::Playing => self.pause(),
+            State::Paused => self.play(),
             State::Stopped => (),
         }
+    }
+
+    pub fn play(&mut self) {
+        self.stream.play().unwrap();
+        self.state = State::Playing;
+    }
+
+    pub fn pause(&mut self) {
+        self.stream.pause().unwrap();
+        self.state = State::Paused;
     }
 
     pub fn seek_by(&mut self, time: f32) {
