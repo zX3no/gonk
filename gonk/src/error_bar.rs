@@ -1,4 +1,4 @@
-use crate::{Frame, ERROR, SHOW_ERROR};
+use crate::{Frame, ERROR, OLD_ERROR, SHOW_ERROR};
 use std::time::{Duration, Instant};
 use tui::{
     layout::{Alignment, Rect},
@@ -27,6 +27,7 @@ pub fn draw(error_bar: &mut ErrorBar, area: Rect, f: &mut Frame) {
             unsafe {
                 SHOW_ERROR = false;
                 ERROR = String::new();
+                OLD_ERROR = String::new();
             }
         }
     }

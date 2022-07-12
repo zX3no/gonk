@@ -204,7 +204,7 @@ fn draw_body(
     f: &mut Frame,
     area: Rect,
 ) -> Option<(usize, usize)> {
-    if player.songs.is_empty() {
+    if player.songs.is_empty() && unsafe { ERROR.is_empty() } {
         f.render_widget(
             Block::default()
                 .border_type(BorderType::Rounded)
