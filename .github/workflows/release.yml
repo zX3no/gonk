@@ -34,6 +34,7 @@ jobs:
         profile: minimal
         
     - name: Install dependencies
+      shell: bash
       run: |
        if [[ "$RUNNER_OS" != "Windows" ]]; then
           sudo apt install -y libasound2-dev
