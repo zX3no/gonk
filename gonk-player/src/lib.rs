@@ -313,7 +313,9 @@ impl Player {
             if s.seek_to(elapsed).is_ok() {
                 s.pause();
                 //Elapsed will not update while paused so force update it.
-                unsafe { RESAMPLER.as_mut().unwrap().elapsed = Duration::from_secs_f32(elapsed) }
+                if let Some(resampler) = unsafe { &mut RESAMPLER } {
+                    resampler.elapsed = Duration::from_secs_f32(elapsed);
+                }
             }
         }
         s
