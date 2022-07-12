@@ -68,12 +68,10 @@ jobs:
             tar czf $archive *
             echo "::set-output name=archive::$archive"
         fi
+        
     - name: Publish Archive
-      uses: softprops/action-gh-release@v0.1.5
+    - uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        draft: false
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: false
         files: ${{ steps.package.outputs.archive }}
-        prerelease: true
-        tag_name: "dev"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
