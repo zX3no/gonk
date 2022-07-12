@@ -13,100 +13,32 @@ jobs:
     strategy:
       matrix:
         include:
-        - target: aarch64-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: aarch64-apple-darwin
-          os: macos-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: aarch64-pc-windows-msvc
-          os: windows-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: x86_64-apple-darwin
-          os: macos-latest
-          cargo-flags: ""
+#         - target: x86_64-unknown-linux-musl
+#           os: ubuntu-latest
+#           use-cross: true
+#           cargo-flags: ""
         - target: x86_64-pc-windows-msvc
           os: windows-latest
-          cargo-flags: ""
-        - target: x86_64-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: i686-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: i686-pc-windows-msvc
-          os: windows-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: armv7-unknown-linux-musleabihf
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: arm-unknown-linux-musleabihf
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: mips-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: mipsel-unknown-linux-musl
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: mips64-unknown-linux-gnuabi64
-          os: ubuntu-latest
-          use-cross: true
-          cargo-flags: ""
-        - target: mips64el-unknown-linux-gnuabi64
-          os: ubuntu-latest
-          use-cross: true
           cargo-flags: ""
     runs-on: ${{matrix.os}}
 
     steps:
     - uses: actions/checkout@v2
 
-    - name: Check Tag
-      id: check-tag
-      shell: bash
-      run: |
-        tag=${GITHUB_REF##*/}
-        echo "::set-output name=version::$tag"
-        if [[ "$tag" =~ [0-9]+.[0-9]+.[0-9]+$ ]]; then
-          echo "::set-output name=rc::false"
-        else
-          echo "::set-output name=rc::true"
-        fi
     - name: Install Rust Toolchain Components
       uses: actions-rs/toolchain@v1
       with:
         override: true
         target: ${{ matrix.target }}
         toolchain: stable
-        profile: minimal # minimal component installation (ie, no documentation)
-  
-    - name: Show Version Information (Rust, cargo, GCC)
-      shell: bash
-      run: |
-        gcc --version || true
-        rustup -V
-        rustup toolchain list
-        rustup default
-        cargo -V
-        rustc -V
-      
+        profile: minimal
+
     - name: Build
       uses: actions-rs/cargo@v1
       with:
         use-cross: ${{ matrix.use-cross }}
         command: build
-        args: --locked --release --target=${{ matrix.target }} ${{ matrix.cargo-flags }}
+        args: --release --target=${{ matrix.target }} ${{ matrix.cargo-flags }}
 
     - name: Build Archive
       shell: bash
