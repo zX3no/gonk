@@ -58,7 +58,10 @@ pub fn constraint(queue: &mut Queue, row: usize, shift: bool) {
 
 pub fn delete(queue: &mut Queue, player: &mut Player) {
     if let Some(i) = queue.ui.index() {
-        player.delete_song(i);
+        match player.delete_index(i) {
+            Ok(_) => (),
+            Err(e) => set_error(e),
+        };
         //make sure the ui index is in sync
         let len = player.songs.len().saturating_sub(1);
         if i > len {
@@ -84,14 +87,14 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
     draw_seeker(player, f, chunks[2]);
 
     //Don't handle mouse input when the queue is empty.
-    if player.is_empty() {
+    if player.songs.is_empty() {
         return;
     }
 
     //Handle mouse input.
     if let Some(event) = event {
         let (x, y) = (event.column, event.row);
-        const HEADER_HEIGHT: u16 = 5;
+        let header_height = 5;
 
         let size = f.size();
 
@@ -99,17 +102,19 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
         if (size.height - 3 == y || size.height - 2 == y || size.height - 1 == y)
             && size.height > 15
         {
-            let ratio = f64::from(x) / f64::from(size.width);
-            let duration = player.duration;
-            let new_time = duration * ratio;
-            player.seek_to(new_time);
+            let ratio = x as f32 / size.width as f32;
+            let duration = player.duration().as_secs_f32();
+            match player.seek_to(duration * ratio) {
+                Ok(_) => (),
+                Err(e) => set_error(e),
+            };
         }
 
         //Mouse support for the queue.
         if let Some((start, _)) = row_bounds {
             //Check if you clicked on the header.
-            if y >= HEADER_HEIGHT {
-                let index = (y - HEADER_HEIGHT) as usize + start;
+            if y >= header_height {
+                let index = (y - header_height) as usize + start;
 
                 //Make sure you didn't click on the seek bar
                 //and that the song index exists.
@@ -134,7 +139,7 @@ fn draw_header(player: &mut Player, f: &mut Frame, area: Rect) {
 
     let state = if player.songs.is_empty() {
         String::from("╭─Stopped")
-    } else if !player.is_paused() {
+    } else if player.is_playing() {
         String::from("╭─Playing")
     } else {
         String::from("╭─Paused")
@@ -199,7 +204,7 @@ fn draw_body(
     f: &mut Frame,
     area: Rect,
 ) -> Option<(usize, usize)> {
-    if player.songs.is_empty() {
+    if player.songs.is_empty() && unsafe { ERROR.is_empty() } {
         f.render_widget(
             Block::default()
                 .border_type(BorderType::Rounded)
@@ -327,8 +332,8 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
         );
     }
 
-    let elapsed = player.elapsed();
-    let duration = player.duration;
+    let elapsed = player.elapsed().as_secs_f32();
+    let duration = player.duration().as_secs_f32();
 
     let seeker = format!(
         "{:02}:{:02}/{:02}:{:02}",
@@ -338,7 +343,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
         duration.trunc() as u32 % 60,
     );
 
-    let ratio = player.elapsed() / player.duration;
+    let ratio = elapsed / duration;
     let ratio = if ratio.is_nan() {
         0.0
     } else {
@@ -353,7 +358,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
                     .border_type(BorderType::Rounded),
             )
             .gauge_style(Style::default().fg(COLORS.seeker))
-            .ratio(ratio)
+            .ratio(ratio as f64)
             .label(seeker),
         area,
     );

@@ -1,4 +1,4 @@
-use crate::{widgets::*, Frame, Input};
+use crate::{set_error, widgets::*, Frame, Input};
 use gonk_database::query;
 use gonk_player::{Device, DeviceTrait, Index, Player};
 use tui::{
@@ -14,18 +14,21 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
-        let default_device = Player::default_device();
+        let default_device = gonk_player::default_device();
         let wanted_device = query::playback_device();
 
-        let devices = Player::audio_devices();
-        let device_names: Vec<String> = devices.iter().flat_map(DeviceTrait::name).collect();
+        let devices = gonk_player::audio_devices();
 
-        let current_device = if !device_names.contains(&wanted_device) {
+        let current_device = if devices
+            .iter()
+            .flat_map(DeviceTrait::name)
+            .any(|x| x == wanted_device)
+        {
+            wanted_device
+        } else {
             let name = default_device.name().unwrap();
             query::set_playback_device(&name);
             name
-        } else {
-            wanted_device
         };
 
         Self {
@@ -41,7 +44,7 @@ impl Input for Settings {
     }
 
     fn down(&mut self) {
-        self.devices.down()
+        self.devices.down();
     }
 
     fn left(&mut self) {}
@@ -51,19 +54,13 @@ impl Input for Settings {
 
 pub fn on_enter(settings: &mut Settings, player: &mut Player) {
     if let Some(device) = settings.devices.selected() {
-        match player.change_output_device(device) {
-            Ok(_) => {
-                let name = device.name().unwrap();
-                query::set_playback_device(&name);
-                settings.current_device = name;
-            }
-            //TODO: Print error in status bar
-            Err(e) => panic!("{:?}", e),
+        match player.set_output_device(device) {
+            Ok(_) => (),
+            Err(e) => set_error(e),
         }
     }
 }
 
-#[allow(unused)]
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
     let items: Vec<ListItem> = settings
         .devices

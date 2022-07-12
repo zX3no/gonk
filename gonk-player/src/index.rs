@@ -90,12 +90,6 @@ impl<T> Index<T> {
     }
 }
 
-impl<T: Clone> Index<T> {
-    pub fn clone(&self) -> Vec<T> {
-        self.data.to_owned()
-    }
-}
-
 impl<T> Default for Index<T> {
     fn default() -> Self {
         Self {

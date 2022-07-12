@@ -1,4 +1,4 @@
-use crate::{widgets::*, Frame, Input, COLORS};
+use crate::{set_error, widgets::*, Frame, Input, COLORS};
 use gonk_database::playlist::PlaylistSong;
 use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
@@ -53,7 +53,7 @@ impl Input for Playlist {
         match self.mode {
             Mode::Playlist => {
                 self.playlists.up();
-                let songs = playlist::get(&self.playlists.selected().unwrap());
+                let songs = playlist::get(self.playlists.selected().unwrap());
                 self.songs = Index::new(songs, Some(0));
             }
             Mode::Song => self.songs.up(),
@@ -65,7 +65,7 @@ impl Input for Playlist {
         match self.mode {
             Mode::Playlist => {
                 self.playlists.down();
-                let songs = playlist::get(&self.playlists.selected().unwrap());
+                let songs = playlist::get(self.playlists.selected().unwrap());
                 self.songs = Index::new(songs, Some(0));
             }
             Mode::Song => self.songs.down(),
@@ -94,12 +94,18 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Playlist => {
             let ids: Vec<usize> = playlist.songs.data.iter().map(|song| song.id).collect();
             let songs = query::songs_from_ids(&ids);
-            player.add_songs(&songs);
+            match player.add_songs(&songs) {
+                Ok(_) => (),
+                Err(e) => set_error(e),
+            }
         }
         Mode::Song => {
             if let Some(item) = playlist.songs.selected() {
                 let song = query::songs_from_ids(&[item.id]).remove(0);
-                player.add_songs(&[song]);
+                match player.add_songs(&[song]) {
+                    Ok(_) => (),
+                    Err(e) => set_error(e),
+                }
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {
@@ -285,9 +291,9 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
         } else {
             let width = v[0].width.saturating_sub(3);
             if len < width {
-                f.set_cursor(x + len, y)
+                f.set_cursor(x + len, y);
             } else {
-                f.set_cursor(x + width, y)
+                f.set_cursor(x + width, y);
             }
         }
     }
@@ -301,6 +307,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
 
     let items: Vec<ListItem> = playlist
         .playlists
+        .data
         .clone()
         .into_iter()
         .map(ListItem::new)
