@@ -1,16 +1,20 @@
 use crate::conn;
-use gonk_player::Song;
+use gonk_player::{Index, Song};
 use rusqlite::*;
 use std::path::PathBuf;
 
-pub fn cache(ids: &[usize]) {
+pub fn save_queue(ids: &[usize], index: usize, elapsed: f32) {
     let mut conn = conn();
 
     let tx = conn.transaction().unwrap();
-    tx.execute("DELETE FROM persist", []).unwrap();
+    tx.execute("DELETE FROM queue", []).unwrap();
+    tx.execute("UPDATE settings SET selected = ?", [index])
+        .unwrap();
+    tx.execute("UPDATE settings SET elapsed = ?", [elapsed])
+        .unwrap();
     {
         let mut stmt = tx
-            .prepare_cached("INSERT INTO persist (song_id) VALUES (?)")
+            .prepare_cached("INSERT INTO queue (song_id) VALUES (?)")
             .unwrap();
 
         for id in ids {
@@ -20,11 +24,19 @@ pub fn cache(ids: &[usize]) {
     tx.commit().unwrap();
 }
 
-pub fn get_cache() -> Vec<Song> {
-    collect_songs(
-        "SELECT *, rowid FROM song WHERE rowid IN (SELECT song_id FROM persist)",
+pub fn get_queue() -> (Index<Song>, f32) {
+    let songs = collect_songs(
+        "SELECT *, rowid FROM song WHERE rowid IN (SELECT song_id FROM queue)",
         [],
-    )
+    );
+
+    let (index, elapsed) = conn()
+        .query_row("SELECT selected, elapsed FROM settings", [], |row| {
+            Ok((row.get(0).unwrap(), row.get(1).unwrap()))
+        })
+        .unwrap();
+
+    (Index::new(songs, Some(index)), elapsed)
 }
 
 pub fn volume() -> u16 {

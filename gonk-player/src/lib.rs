@@ -283,7 +283,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(wanted_device: String, volume: u16, cache: &[Song]) -> Self {
+    pub fn new(wanted_device: String, volume: u16, songs: Index<Song>, elapsed: f32) -> Self {
         let mut device = None;
 
         for d in audio_devices() {
@@ -302,15 +302,21 @@ impl Player {
         let stream = create_output_stream(&device, &config).unwrap();
         stream.play().unwrap();
 
-        let index = if cache.is_empty() { None } else { Some(0) };
-
-        Self {
+        let mut s = Self {
             sample_rate: config.sample_rate.0 as usize,
             stream,
             volume,
             state: State::Stopped,
-            songs: Index::new(cache.to_vec(), index),
+            songs,
+        };
+        if s.play_selected().is_ok() {
+            if s.seek_to(elapsed).is_ok() {
+                s.pause();
+                //Elapsed will not update while paused so force update it.
+                unsafe { RESAMPLER.as_mut().unwrap().elapsed = Duration::from_secs_f32(elapsed) }
+            }
         }
+        s
     }
 
     pub fn set_output_device(&mut self, device: &Device) -> Result<(), String> {

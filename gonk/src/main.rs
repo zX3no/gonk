@@ -146,13 +146,13 @@ fn main() {
     terminal.clear().unwrap();
 
     //443 us
-    let cache = query::get_cache();
+    let (songs, elapsed) = query::get_queue();
     let volume = query::volume();
 
     let device = query::playback_device();
 
     //40ms
-    let player = thread::spawn(move || Player::new(device, volume, &cache));
+    let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
 
     //3ms
     let mut browser = Browser::new();
@@ -178,7 +178,7 @@ fn main() {
     let mut last_tick = Instant::now();
     let mut busy = false;
 
-    //Using the another thread here is roughly 7ms faster.
+    //TODO: Re-time if using another thread is faster after the rework.
     let mut player = player.join().unwrap();
 
     //If there are songs in the queue, display the queue.
@@ -448,14 +448,21 @@ fn main() {
 
     query::set_volume(player.volume);
 
-    let ids: Vec<usize> = player
-        .songs
-        .data
-        .iter()
-        .filter_map(|song| song.id)
-        .collect();
+    //Save the state of the queue.
+    if !player.songs.is_empty() {
+        let ids: Vec<usize> = player
+            .songs
+            .data
+            .iter()
+            .filter_map(|song| song.id)
+            .collect();
 
-    query::cache(&ids);
+        query::save_queue(
+            &ids,
+            player.songs.index().unwrap(),
+            player.elapsed().as_secs_f32(),
+        );
+    }
 
     disable_raw_mode().unwrap();
     execute!(

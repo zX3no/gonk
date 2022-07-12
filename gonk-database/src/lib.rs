@@ -45,14 +45,19 @@ pub fn create_tables(conn: &Connection) {
 
     conn.execute(
         "CREATE TABLE settings (
-             volume INTEGER UNIQUE,
-             device TEXT UNIQUE)",
+             volume  INTEGER UNIQUE,
+             device  TEXT UNIQUE,
+             selected   INTEGER UNIQUE,
+             elapsed FLOAT UNIQUE)",
         [],
     )
     .unwrap();
 
-    conn.execute("INSERT INTO settings (volume, device) VALUES (15, '')", [])
-        .unwrap();
+    conn.execute(
+        "INSERT INTO settings (volume, device, selected, elapsed) VALUES (15, '', 0, 0.0)",
+        [],
+    )
+    .unwrap();
 
     conn.execute(
         "CREATE TABLE folder (
@@ -61,7 +66,7 @@ pub fn create_tables(conn: &Connection) {
     )
     .unwrap();
 
-    conn.execute("CREATE TABLE persist(song_id INTEGER)", [])
+    conn.execute("CREATE TABLE queue(song_id INTEGER)", [])
         .unwrap();
 
     conn.execute(
@@ -104,7 +109,7 @@ pub fn reset() -> Result<(), &'static str> {
     *CONN.lock().unwrap() = Connection::open_in_memory().unwrap();
 
     if std::fs::remove_file(DB_DIR.as_path()).is_err() {
-        Err("Could not remove database while it's in use.")
+        Err("Can't remove database while it's in use.")
     } else {
         Ok(())
     }
