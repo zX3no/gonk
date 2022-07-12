@@ -136,8 +136,10 @@ fn main() {
     let cache = query::get_cache();
     let volume = query::volume();
 
+    let device = query::playback_device();
+
     //40ms
-    let player = thread::spawn(move || Player::new(String::new(), volume, &cache));
+    let player = thread::spawn(move || Player::new(device, volume, &cache));
 
     //3ms
     let mut browser = Browser::new();

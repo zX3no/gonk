@@ -1,6 +1,6 @@
 use cpal::{
     traits::{HostTrait, StreamTrait},
-    Stream,
+    BuildStreamError, Stream, StreamConfig,
 };
 use std::{fs::File, io::ErrorKind, time::Duration, vec::IntoIter};
 use symphonia::{
@@ -283,36 +283,23 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(_device: String, volume: u16, cache: &[Song]) -> Self {
-        let device = cpal::default_host().default_output_device().unwrap();
+    pub fn new(wanted_device: String, volume: u16, cache: &[Song]) -> Self {
+        let mut device = None;
+
+        for d in audio_devices() {
+            if d.name().unwrap() == wanted_device {
+                device = Some(d);
+            }
+        }
+
+        let device = if let Some(device) = device {
+            device
+        } else {
+            default_device()
+        };
+
         let config = device.default_output_config().unwrap().config();
-
-        let stream = device
-            .build_output_stream(
-                &config,
-                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    for frame in data.chunks_mut(2) {
-                        for sample in frame.iter_mut() {
-                            let smp = if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                                //Makes sure that the next sample isn't
-                                //read in the middle of changing songs.
-                                //idk reliable this is.
-                                if resampler.finished {
-                                    0.0
-                                } else {
-                                    resampler.next()
-                                }
-                            } else {
-                                0.0
-                            };
-                            *sample = smp;
-                        }
-                    }
-                },
-                |err| panic!("{}", err),
-            )
-            .unwrap();
-
+        let stream = create_output_stream(&device, &config).unwrap();
         stream.play().unwrap();
 
         let index = if cache.is_empty() { None } else { Some(0) };
@@ -323,6 +310,22 @@ impl Player {
             volume,
             state: State::Stopped,
             songs: Index::new(cache.to_vec(), index),
+        }
+    }
+
+    pub fn set_output_device(&mut self, device: &Device) -> Result<(), String> {
+        match device.default_output_config() {
+            Ok(supported_stream) => {
+                match create_output_stream(device, &supported_stream.config()) {
+                    Ok(stream) => {
+                        self.stream = stream;
+                        self.stream.play().unwrap();
+                        Ok(())
+                    }
+                    Err(e) => Err(format!("{}", e)),
+                }
+            }
+            Err(e) => Err(format!("{}", e)),
         }
     }
 
@@ -525,3 +528,45 @@ impl Player {
 }
 
 unsafe impl Send for Player {}
+
+fn create_output_stream(
+    device: &Device,
+    config: &StreamConfig,
+) -> Result<Stream, BuildStreamError> {
+    device.build_output_stream(
+        &config,
+        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            for frame in data.chunks_mut(2) {
+                for sample in frame.iter_mut() {
+                    let smp = if let Some(resampler) = unsafe { &mut RESAMPLER } {
+                        //Makes sure that the next sample isn't
+                        //read in the middle of changing songs.
+                        //idk reliable this is.
+                        if resampler.finished {
+                            0.0
+                        } else {
+                            resampler.next()
+                        }
+                    } else {
+                        0.0
+                    };
+                    *sample = smp;
+                }
+            }
+        },
+        |err| panic!("{}", err),
+    )
+}
+
+pub fn audio_devices() -> Vec<Device> {
+    let host_id = cpal::default_host().id();
+    let host = cpal::host_from_id(host_id).unwrap();
+
+    //FIXME: Getting just the output devies was too slow(150ms).
+    //Collecting every device is still slow but it's not as bad.
+    host.devices().unwrap().collect()
+}
+
+pub fn default_device() -> Device {
+    cpal::default_host().default_output_device().unwrap()
+}
