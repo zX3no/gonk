@@ -74,5 +74,6 @@ jobs:
         draft: false
         files: ${{ steps.package.outputs.archive }}
         prerelease: true
+        tag_name: "dev"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
