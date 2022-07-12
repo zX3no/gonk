@@ -329,38 +329,40 @@ impl Player {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> Result<(), String> {
         if let Some(resampler) = unsafe { RESAMPLER.as_ref() } {
             if resampler.finished {
-                self.next();
+                return self.next();
             }
         }
+        Ok(())
     }
 
-    pub fn add_songs(&mut self, songs: &[Song]) {
+    pub fn add_songs(&mut self, songs: &[Song]) -> Result<(), String> {
         self.songs.data.extend(songs.to_vec());
         if self.songs.selected().is_none() {
             self.songs.select(Some(0));
-            self.play_selected();
+            self.play_selected()
+        } else {
+            Ok(())
         }
     }
 
-    pub fn previous(&mut self) {
+    pub fn previous(&mut self) -> Result<(), String> {
         self.songs.up();
-        self.play_selected();
+        self.play_selected()
     }
 
-    pub fn next(&mut self) {
+    pub fn next(&mut self) -> Result<(), String> {
         self.songs.down();
-        self.play_selected();
+        self.play_selected()
     }
 
-    pub fn play_selected(&mut self) {
+    fn play_selected(&mut self) -> Result<(), String> {
         if let Some(song) = self.songs.selected() {
             let file = match File::open(&song.path) {
                 Ok(file) => file,
-                //TODO: Print to status-bar
-                Err(_) => panic!("Could not open path: {:?}", song.path),
+                Err(_) => return Err(format!("Could not open file: {:?}", song.path)),
             };
             unsafe {
                 if let Some(resampler) = &mut RESAMPLER {
@@ -375,34 +377,34 @@ impl Player {
             }
             self.play();
         }
+        Ok(())
     }
 
-    pub fn play_index(&mut self, i: usize) {
+    pub fn play_index(&mut self, i: usize) -> Result<(), String> {
         self.songs.select(Some(i));
-        self.play_selected();
+        self.play_selected()
     }
 
-    pub fn delete_index(&mut self, i: usize) {
+    pub fn delete_index(&mut self, i: usize) -> Result<(), String> {
         self.songs.data.remove(i);
 
         if let Some(playing) = self.songs.index() {
             let len = self.songs.len();
 
             if len == 0 {
-                return self.clear();
-            }
-
-            if i == playing && i == 0 {
+                self.clear();
+            } else if i == playing && i == 0 {
                 if i == 0 {
                     self.songs.select(Some(0));
                 }
-                self.play_selected();
+                return self.play_selected();
             } else if i == playing && i == len {
                 self.songs.select(Some(len - 1));
             } else if i < playing {
                 self.songs.select(Some(playing - 1));
             }
         };
+        Ok(())
     }
 
     pub fn clear(&mut self) {
@@ -461,7 +463,7 @@ impl Player {
 
     pub fn toggle_playback(&mut self) {
         if unsafe { RESAMPLER.is_none() } {
-            self.play_selected()
+            self.play_selected().unwrap()
         } else {
             match self.state {
                 State::Playing => self.pause(),
@@ -481,19 +483,19 @@ impl Player {
         self.state = State::Paused;
     }
 
-    pub fn seek_by(&mut self, time: f32) {
+    pub fn seek_by(&mut self, time: f32) -> Result<(), String> {
         unsafe {
             if RESAMPLER.is_none() || self.state != State::Playing {
-                return;
+                return Ok(());
             }
 
-            self.seek_to(RESAMPLER.as_ref().unwrap().elapsed.as_secs_f32() + time);
+            self.seek_to(RESAMPLER.as_ref().unwrap().elapsed.as_secs_f32() + time)
         }
     }
 
-    pub fn seek_to(&mut self, time: f32) {
+    pub fn seek_to(&mut self, time: f32) -> Result<(), String> {
         if unsafe { RESAMPLER.is_none() } || self.state != State::Playing {
-            return;
+            return Ok(());
         }
 
         //Seeking at under 0.5 seconds causes an unexpected EOF.
@@ -508,11 +510,11 @@ impl Player {
                     track_id: None,
                 },
             ) {
-                Ok(_) => (),
+                Ok(_) => Ok(()),
                 Err(e) => match e {
                     Error::SeekError(e) => match e {
                         SeekErrorKind::OutOfRange => {
-                            self.next();
+                            return self.next();
                         }
                         _ => panic!("{:?}", e),
                     },

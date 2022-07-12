@@ -1,5 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
+use error_bar::ErrorBar;
 use gonk_database::{query, Database, State};
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
@@ -16,6 +17,7 @@ use std::{
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
+mod error_bar;
 mod playlist;
 mod queue;
 mod search;
@@ -24,6 +26,15 @@ mod status_bar;
 mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
+
+static mut SHOW_ERROR: bool = false;
+static mut ERROR: String = String::new();
+
+pub fn set_error(message: String) {
+    unsafe {
+        ERROR = message;
+    }
+}
 
 pub struct Colors {
     pub number: Color,
@@ -150,6 +161,8 @@ fn main() {
     //200 ns
     let mut status_bar = StatusBar::new();
 
+    let mut error_bar = ErrorBar::new();
+
     //68 us
     let mut playlist = Playlist::new();
 
@@ -189,7 +202,18 @@ fn main() {
         }
 
         queue.len = player.songs.len();
-        player.update();
+
+        match player.update() {
+            Ok(_) => (),
+            Err(e) => set_error(e),
+        };
+
+        unsafe {
+            if !ERROR.is_empty() && SHOW_ERROR == false {
+                error_bar.start();
+                SHOW_ERROR = true;
+            }
+        }
 
         terminal
             .draw(|f| {
@@ -198,8 +222,8 @@ fn main() {
                     .constraints([Constraint::Min(2), Constraint::Length(3)])
                     .split(f.size());
 
-                let (top, bottom) = if status_bar.hidden {
-                    (f.size(), area[1])
+                let (top, bottom) = if status_bar.hidden && unsafe { !SHOW_ERROR } {
+                    (f.size(), Rect::default())
                 } else {
                     (area[0], area[1])
                 };
@@ -212,7 +236,9 @@ fn main() {
                     Mode::Settings => settings::draw(&mut settings, top, f),
                 };
 
-                if mode != Mode::Queue {
+                if unsafe { SHOW_ERROR } {
+                    error_bar::draw(&mut error_bar, bottom, f);
+                } else if mode != Mode::Queue {
                     status_bar::draw(&mut status_bar, bottom, f, busy, &player);
                 }
             })
@@ -269,10 +295,22 @@ fn main() {
                             _ => (),
                         },
                         KeyCode::Char('u') if mode == Mode::Browser => db.refresh(),
-                        KeyCode::Char('q') => player.seek_by(-10.0),
-                        KeyCode::Char('e') => player.seek_by(10.0),
-                        KeyCode::Char('a') => player.previous(),
-                        KeyCode::Char('d') => player.next(),
+                        KeyCode::Char('q') => match player.seek_by(-10.0) {
+                            Ok(_) => (),
+                            Err(e) => set_error(e),
+                        },
+                        KeyCode::Char('e') => match player.seek_by(10.0) {
+                            Ok(_) => (),
+                            Err(e) => set_error(e),
+                        },
+                        KeyCode::Char('a') => match player.previous() {
+                            Ok(_) => (),
+                            Err(e) => set_error(e),
+                        },
+                        KeyCode::Char('d') => match player.next() {
+                            Ok(_) => (),
+                            Err(e) => set_error(e),
+                        },
                         KeyCode::Char('w') => player.volume_up(),
                         KeyCode::Char('s') => player.volume_down(),
                         //TODO: Rework mode changing buttons
@@ -328,16 +366,25 @@ fn main() {
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                player.add_songs(&songs);
+                                match player.add_songs(&songs) {
+                                    Ok(_) => (),
+                                    Err(e) => set_error(e),
+                                }
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
-                                    player.play_index(i);
+                                    match player.play_index(i) {
+                                        Ok(_) => (),
+                                        Err(e) => set_error(e),
+                                    }
                                 }
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    player.add_songs(&songs);
+                                    match player.add_songs(&songs) {
+                                        Ok(_) => (),
+                                        Err(e) => set_error(e),
+                                    }
                                 }
                             }
                             Mode::Settings => settings::on_enter(&mut settings, &mut player),

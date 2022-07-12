@@ -1,4 +1,4 @@
-use crate::{widgets::*, Frame, Input, COLORS};
+use crate::{set_error, widgets::*, Frame, Input, COLORS};
 use gonk_database::playlist::PlaylistSong;
 use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
@@ -94,12 +94,18 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Playlist => {
             let ids: Vec<usize> = playlist.songs.data.iter().map(|song| song.id).collect();
             let songs = query::songs_from_ids(&ids);
-            player.add_songs(&songs);
+            match player.add_songs(&songs) {
+                Ok(_) => (),
+                Err(e) => set_error(e),
+            }
         }
         Mode::Song => {
             if let Some(item) = playlist.songs.selected() {
                 let song = query::songs_from_ids(&[item.id]).remove(0);
-                player.add_songs(&[song]);
+                match player.add_songs(&[song]) {
+                    Ok(_) => (),
+                    Err(e) => set_error(e),
+                }
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {
