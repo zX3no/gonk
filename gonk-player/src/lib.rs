@@ -461,15 +461,16 @@ impl Player {
         }
     }
 
-    pub fn toggle_playback(&mut self) {
+    pub fn toggle_playback(&mut self) -> Result<(), String> {
         if unsafe { RESAMPLER.is_none() } {
-            self.play_selected().unwrap()
+            self.play_selected()
         } else {
             match self.state {
                 State::Playing => self.pause(),
                 State::Paused => self.play(),
                 State::Stopped => (),
-            }
+            };
+            Ok(())
         }
     }
 

@@ -50,7 +50,7 @@ pub fn folders() -> Vec<String> {
 }
 
 pub fn remove_folder(path: &str) -> Result<(), &str> {
-    let path = path.replace('\\', "/");
+    let path = path.replace('/', "\\");
     let conn = conn();
 
     conn.execute("DELETE FROM song WHERE folder = ?", [&path])

@@ -28,10 +28,12 @@ mod widgets;
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
 static mut SHOW_ERROR: bool = false;
+static mut OLD_ERROR: String = String::new();
 static mut ERROR: String = String::new();
 
 pub fn set_error(message: String) {
     unsafe {
+        OLD_ERROR = ERROR.clone();
         ERROR = message;
     }
 }
@@ -209,6 +211,12 @@ fn main() {
         };
 
         unsafe {
+            if OLD_ERROR != ERROR {
+                error_bar.start();
+                SHOW_ERROR = true;
+                OLD_ERROR = ERROR.clone();
+            }
+
             if !ERROR.is_empty() && SHOW_ERROR == false {
                 error_bar.start();
                 SHOW_ERROR = true;
@@ -280,7 +288,10 @@ fn main() {
                                 playlist.search.push(c);
                             }
                         }
-                        KeyCode::Char(' ') => player.toggle_playback(),
+                        KeyCode::Char(' ') => match player.toggle_playback() {
+                            Ok(_) => (),
+                            Err(e) => set_error(e),
+                        },
                         KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
