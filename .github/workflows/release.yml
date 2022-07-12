@@ -13,10 +13,10 @@ jobs:
     strategy:
       matrix:
         include:
-#         - target: x86_64-unknown-linux-musl
-#           os: ubuntu-latest
-#           use-cross: true
-#           cargo-flags: ""
+        - target: x86_64-unknown-linux-gnu
+          os: ubuntu-latest
+          use-cross: true
+          cargo-flags: ""
         - target: x86_64-pc-windows-msvc
           os: windows-latest
           cargo-flags: ""
@@ -24,7 +24,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
+    
     - name: Install Rust Toolchain Components
       uses: actions-rs/toolchain@v1
       with:
@@ -32,6 +32,12 @@ jobs:
         target: ${{ matrix.target }}
         toolchain: stable
         profile: minimal
+        
+    - name: Install dependencies
+      run: |
+       if [[ "$RUNNER_OS" != "Windows" ]]; then
+          sudo apt install -y libasound2-dev
+       fi
 
     - name: Build
       uses: actions-rs/cargo@v1
