@@ -58,7 +58,10 @@ pub fn constraint(queue: &mut Queue, row: usize, shift: bool) {
 
 pub fn delete(queue: &mut Queue, player: &mut Player) {
     if let Some(i) = queue.ui.index() {
-        player.delete_index(i);
+        match player.delete_index(i) {
+            Ok(_) => (),
+            Err(e) => set_error(e),
+        };
         //make sure the ui index is in sync
         let len = player.songs.len().saturating_sub(1);
         if i > len {
@@ -101,7 +104,10 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
         {
             let ratio = x as f32 / size.width as f32;
             let duration = player.duration().as_secs_f32();
-            player.seek_to(duration * ratio);
+            match player.seek_to(duration * ratio) {
+                Ok(_) => (),
+                Err(e) => set_error(e),
+            };
         }
 
         //Mouse support for the queue.
