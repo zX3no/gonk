@@ -328,7 +328,12 @@ impl Player {
                         self.stream.play().unwrap();
                         Ok(())
                     }
-                    Err(e) => Err(format!("{}", e)),
+                    Err(e) => match e {
+                        BuildStreamError::BackendSpecific { err } => {
+                            Err(format!("{}", err.description))
+                        }
+                        _ => Err(format!("{}", e)),
+                    },
                 }
             }
             Err(e) => Err(format!("{}", e)),
@@ -368,6 +373,7 @@ impl Player {
         if let Some(song) = self.songs.selected() {
             let file = match File::open(&song.path) {
                 Ok(file) => file,
+                //TODO: Error might be too vague.
                 Err(_) => return Err(format!("Could not open file: {:?}", song.path)),
             };
             unsafe {
