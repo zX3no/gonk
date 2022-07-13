@@ -1,4 +1,4 @@
-use crate::{log, widgets::*, Frame, Input, COLORS};
+use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
 use gonk_database::playlist::PlaylistSong;
 use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
@@ -98,6 +98,8 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 Ok(_) => (),
                 Err(e) => log!("{}", e),
             }
+
+            save_queue(&player);
         }
         Mode::Song => {
             if let Some(item) = playlist.songs.selected() {
@@ -106,6 +108,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                     Ok(_) => (),
                     Err(e) => log!("{}", e),
                 }
+                save_queue(&player);
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {

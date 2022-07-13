@@ -297,8 +297,14 @@ fn main() {
                             Ok(_) => (),
                             Err(e) => log!("{}", e),
                         },
-                        KeyCode::Char('w') => player.volume_up(),
-                        KeyCode::Char('s') => player.volume_down(),
+                        KeyCode::Char('w') => {
+                            player.volume_up();
+                            query::set_volume(player.volume);
+                        }
+                        KeyCode::Char('s') => {
+                            player.volume_down();
+                            query::set_volume(player.volume);
+                        }
                         //TODO: Rework mode changing buttons
                         KeyCode::Char('`') => {
                             status_bar.hidden = !status_bar.hidden;
@@ -356,6 +362,8 @@ fn main() {
                                     Ok(_) => (),
                                     Err(e) => log!("{}", e),
                                 }
+
+                                save_queue(&player);
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
@@ -371,6 +379,8 @@ fn main() {
                                         Ok(_) => (),
                                         Err(e) => log!("{}", e),
                                     }
+
+                                    save_queue(&player);
                                 }
                             }
                             Mode::Settings => settings::on_enter(&mut settings, &mut player),
@@ -421,9 +431,18 @@ fn main() {
         }
     }
 
-    query::set_volume(player.volume);
+    save_queue(&player);
 
-    //Save the state of the queue.
+    disable_raw_mode().unwrap();
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )
+    .unwrap();
+}
+
+fn save_queue(player: &Player) {
     if !player.songs.is_empty() {
         let ids: Vec<usize> = player
             .songs
@@ -438,12 +457,4 @@ fn main() {
             player.elapsed().as_secs_f32(),
         );
     }
-
-    disable_raw_mode().unwrap();
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )
-    .unwrap();
 }
