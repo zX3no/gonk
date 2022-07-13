@@ -72,11 +72,18 @@ jobs:
             echo "::set-output name=archive::$archive"
         fi
         
+    - name: Delete old release
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+        delete_release: true
+        tag_name: "latest"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: Publish Archive
       uses: softprops/action-gh-release@v1
       with:
-#         name: "Development Build"
-        generate_release_notes: true
+        name: "Development Build"
         tag_name: "latest"
         prerelease: true
         files: ${{ steps.package.outputs.archive }}
