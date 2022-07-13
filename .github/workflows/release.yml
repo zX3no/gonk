@@ -73,11 +73,11 @@ jobs:
         fi
         
     - name: Publish Archive
-      run: ""
-    - uses: "marvinpinto/action-automatic-releases@latest"
+      uses: softprops/action-gh-release@latest
       with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "latest"
+        name: "Development Build"
+        tag_name: "latest"
         prerelease: true
-        title: "Development Build"
         files: ${{ steps.package.outputs.archive }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
