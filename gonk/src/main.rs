@@ -443,18 +443,16 @@ fn main() {
 }
 
 fn save_queue(player: &Player) {
-    if !player.songs.is_empty() {
-        let ids: Vec<usize> = player
-            .songs
-            .data
-            .iter()
-            .filter_map(|song| song.id)
-            .collect();
+    let ids: Vec<usize> = player
+        .songs
+        .data
+        .iter()
+        .filter_map(|song| song.id)
+        .collect();
 
-        query::save_queue(
-            &ids,
-            player.songs.index().unwrap(),
-            player.elapsed().as_secs_f32(),
-        );
-    }
+    query::save_queue(
+        &ids,
+        player.songs.index().unwrap_or(0),
+        player.elapsed().as_secs_f32(),
+    );
 }
