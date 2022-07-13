@@ -11,7 +11,6 @@ tui = "0.18.0"
 rayon = "1.5.3"
 
 unicode-width = "0.1.9"
-strsim = "0.10.0"
 
 gonk-player = {path = "../gonk-player"}
 gonk-database = {path = "../gonk-database"}
