@@ -11,13 +11,12 @@
 - Gonk is under heavy development. Expect breaking changes.
 
 ## ✨ Features
-
-- Vim-style key bindings
 - Easy to use
-- Fuzzy search
-- Mouse support
 - Cross-platform
 - Plays FLAC, MP3, OGG, M4A and WAV
+- Fuzzy search
+- Vim-style key bindings
+- Mouse support
 
 ## 📦 Installation
 
