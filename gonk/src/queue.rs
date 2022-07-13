@@ -59,7 +59,7 @@ pub fn constraint(queue: &mut Queue, row: usize, shift: bool) {
 pub fn delete(queue: &mut Queue, player: &mut Player) {
     if let Some(i) = queue.ui.index() {
         match player.delete_index(i) {
-            Ok(_) => (),
+            Ok(_) => save_queue(player),
             Err(e) => log!("{}", e),
         };
         //make sure the ui index is in sync

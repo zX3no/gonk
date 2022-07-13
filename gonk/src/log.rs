@@ -23,6 +23,7 @@ pub struct Log {
 pub fn init() {
     thread::spawn(|| loop {
         unsafe {
+            thread::sleep(Duration::from_millis(1));
             if let Some(timer) = LOG.timer {
                 if timer.elapsed() >= WAIT_TIME {
                     LOG.timer = None;
