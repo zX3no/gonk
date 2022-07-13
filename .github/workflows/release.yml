@@ -73,7 +73,7 @@ jobs:
         fi
         
     - name: Publish Archive
-      uses: softprops/action-gh-release@latest
+      uses: softprops/action-gh-release@v1
       with:
         name: "Development Build"
         tag_name: "latest"
