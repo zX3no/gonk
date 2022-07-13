@@ -75,7 +75,8 @@ jobs:
     - name: Publish Archive
       uses: softprops/action-gh-release@v1
       with:
-        name: "Development Build"
+#         name: "Development Build"
+        generate_release_notes: true
         tag_name: "latest"
         prerelease: true
         files: ${{ steps.package.outputs.archive }}
