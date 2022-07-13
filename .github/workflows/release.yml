@@ -22,6 +22,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
+    - name: Delete old release
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+         delete_release: true
+         tag_name: "latest"
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
     - name: Install Rust Toolchain Components
       uses: actions-rs/toolchain@v1
       with:
@@ -71,15 +79,7 @@ jobs:
             tar czf $archive *
             echo "::set-output name=archive::$archive"
         fi
-        
-    - name: Delete old release
-      uses: dev-drprasad/delete-tag-and-release@v0.2.0
-      with:
-        delete_release: true
-        tag_name: "latest"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+
     - name: Publish Archive
       uses: softprops/action-gh-release@v1
       with:
