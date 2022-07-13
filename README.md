@@ -87,7 +87,7 @@ gonk add D:/Music
 
 - Gonk doesn't start after an update.
 
-  Run `gonk reset` to reset your config file and database.
+  Run `gonk reset` to reset your database.
 
 - If your music player has broken lines, increase your zoom level or font size.
 
