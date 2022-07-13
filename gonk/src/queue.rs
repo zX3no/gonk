@@ -60,7 +60,7 @@ pub fn delete(queue: &mut Queue, player: &mut Player) {
     if let Some(i) = queue.ui.index() {
         match player.delete_index(i) {
             Ok(_) => (),
-            Err(e) => set_error(e),
+            Err(e) => log!("{}", e),
         };
         //make sure the ui index is in sync
         let len = player.songs.len().saturating_sub(1);
@@ -106,7 +106,7 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
             let duration = player.duration().as_secs_f32();
             match player.seek_to(duration * ratio) {
                 Ok(_) => (),
-                Err(e) => set_error(e),
+                Err(e) => log!("{}", e),
             };
         }
 
@@ -204,7 +204,7 @@ fn draw_body(
     f: &mut Frame,
     area: Rect,
 ) -> Option<(usize, usize)> {
-    if player.songs.is_empty() && unsafe { ERROR.is_empty() } {
+    if player.songs.is_empty() && log::message().is_none() {
         f.render_widget(
             Block::default()
                 .border_type(BorderType::Rounded)
@@ -323,13 +323,18 @@ fn draw_body(
 }
 
 fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
-    if player.songs.is_empty() {
-        return f.render_widget(
-            Block::default()
-                .border_type(BorderType::Rounded)
-                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT),
-            area,
-        );
+    let block = if player.songs.is_empty() {
+        Block::default()
+            .border_type(BorderType::Rounded)
+            .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+    } else {
+        Block::default()
+            .border_type(BorderType::Rounded)
+            .borders(Borders::ALL)
+    };
+
+    if log::message().is_some() || player.songs.is_empty() {
+        return f.render_widget(block, area);
     }
 
     let elapsed = player.elapsed().as_secs_f32();
@@ -352,11 +357,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
 
     f.render_widget(
         Gauge::default()
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            )
+            .block(block)
             .gauge_style(Style::default().fg(COLORS.seeker))
             .ratio(ratio as f64)
             .label(seeker),

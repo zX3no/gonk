@@ -1,4 +1,4 @@
-use crate::{set_error, widgets::*, Frame, Input, COLORS};
+use crate::{log, widgets::*, Frame, Input, COLORS};
 use gonk_database::playlist::PlaylistSong;
 use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
@@ -96,7 +96,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
             let songs = query::songs_from_ids(&ids);
             match player.add_songs(&songs) {
                 Ok(_) => (),
-                Err(e) => set_error(e),
+                Err(e) => log!("{}", e),
             }
         }
         Mode::Song => {
@@ -104,7 +104,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 let song = query::songs_from_ids(&[item.id]).remove(0);
                 match player.add_songs(&[song]) {
                     Ok(_) => (),
-                    Err(e) => set_error(e),
+                    Err(e) => log!("{}", e),
                 }
             }
         }

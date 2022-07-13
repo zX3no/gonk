@@ -1,4 +1,4 @@
-use crate::{set_error, widgets::*, Frame, Input};
+use crate::{log, widgets::*, Frame, Input};
 use gonk_database::query;
 use gonk_player::{Device, DeviceTrait, Index, Player};
 use tui::{
@@ -56,7 +56,7 @@ pub fn on_enter(settings: &mut Settings, player: &mut Player) {
     if let Some(device) = settings.devices.selected() {
         match player.set_output_device(device) {
             Ok(_) => (),
-            Err(e) => set_error(e),
+            Err(e) => log!("{}", e),
         }
     }
 }
