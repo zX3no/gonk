@@ -59,6 +59,7 @@ pub trait Input {
 }
 
 fn main() {
+    gonk_database::init();
     log::init();
 
     let mut db = Database::default();

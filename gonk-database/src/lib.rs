@@ -1,8 +1,9 @@
 use gonk_player::Song;
-use lazy_static::lazy_static;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rusqlite::*;
 use std::{
+    env, fs,
+    mem::MaybeUninit,
     path::PathBuf,
     sync::{Mutex, MutexGuard},
 };
@@ -13,63 +14,55 @@ pub mod playlist;
 pub mod query;
 pub use crate::database::*;
 
-lazy_static! {
-    pub static ref GONK_DIR: PathBuf = {
-        let gonk = if cfg!(windows) {
-            PathBuf::from(&std::env::var("APPDATA").unwrap())
-        } else {
-            PathBuf::from(&std::env::var("HOME").unwrap()).join(".config")
-        }
-        .join("gonk");
+pub static mut CONN: MaybeUninit<Mutex<Connection>> = MaybeUninit::uninit();
 
-        if !gonk.exists() {
-            std::fs::create_dir_all(&gonk).unwrap();
-        }
-        gonk
-    };
-    pub static ref DB_DIR: PathBuf = GONK_DIR.join("gonk.db");
-    pub static ref CONN: Mutex<Connection> = {
-        let exists = PathBuf::from(DB_DIR.as_path()).exists();
-        let conn = Connection::open(DB_DIR.as_path()).unwrap();
+pub fn init() {
+    let gonk = if cfg!(windows) {
+        PathBuf::from(&env::var("APPDATA").unwrap())
+    } else {
+        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
+    }
+    .join("gonk");
 
-        if !exists {
-            create_tables(&conn);
-        };
-        Mutex::new(conn)
-    };
-}
+    let db_path = gonk.join("gonk.db");
 
-pub fn create_tables(conn: &Connection) {
-    conn.execute_batch("PRAGMA synchronous = 0;").unwrap();
+    if !gonk.exists() {
+        fs::create_dir_all(&gonk).unwrap();
+    }
+    let exists = db_path.exists();
+    let conn = Connection::open(&db_path).unwrap();
 
-    conn.execute(
-        "CREATE TABLE settings (
+    if !exists {
+        conn.execute_batch("PRAGMA synchronous = 0;").unwrap();
+
+        conn.execute(
+            "CREATE TABLE settings (
              volume  INTEGER UNIQUE,
              device  TEXT UNIQUE,
              selected   INTEGER UNIQUE,
              elapsed FLOAT UNIQUE)",
-        [],
-    )
-    .unwrap();
-
-    conn.execute(
-        "INSERT INTO settings (volume, device, selected, elapsed) VALUES (15, '', 0, 0.0)",
-        [],
-    )
-    .unwrap();
-
-    conn.execute(
-        "CREATE TABLE folder (
-            folder TEXT PRIMARY KEY)",
-        [],
-    )
-    .unwrap();
-
-    conn.execute("CREATE TABLE queue(song_id INTEGER)", [])
+            [],
+        )
         .unwrap();
 
-    conn.execute(
-        "CREATE TABLE song (
+        conn.execute(
+            "INSERT INTO settings (volume, device, selected, elapsed) VALUES (15, '', 0, 0.0)",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE TABLE folder (
+            folder TEXT PRIMARY KEY)",
+            [],
+        )
+        .unwrap();
+
+        conn.execute("CREATE TABLE queue(song_id INTEGER)", [])
+            .unwrap();
+
+        conn.execute(
+            "CREATE TABLE song (
                 name TEXT NOT NULL,
                 disc INTEGER NOT NULL,
                 number INTEGER NOT NULL,
@@ -80,42 +73,54 @@ pub fn create_tables(conn: &Connection) {
                 folder TEXT NOT NULL,
                 FOREIGN KEY (folder) REFERENCES folder (folder),
                 UNIQUE(name, disc, number, path, gain, album, artist, folder) ON CONFLICT REPLACE)",
-        [],
-    )
-    .unwrap();
+            [],
+        )
+        .unwrap();
 
-    conn.execute(
-        "CREATE TABLE playlist (
+        conn.execute(
+            "CREATE TABLE playlist (
             name TEXT PRIMARY KEY)",
-        [],
-    )
-    .unwrap();
+            [],
+        )
+        .unwrap();
 
-    conn.execute(
-        "CREATE TABLE playlist_item (
+        conn.execute(
+            "CREATE TABLE playlist_item (
             path TEXT NOT NULL,
             name TEXT NOT NULL,
             album TEXT NOT NULL,
             artist TEXT NOT NULL,
             playlist_id TEXT NOT NULL,
             FOREIGN KEY (playlist_id) REFERENCES playlist (name))",
-        [],
-    )
-    .unwrap();
-}
-
-pub fn reset() -> Result<(), &'static str> {
-    *CONN.lock().unwrap() = Connection::open_in_memory().unwrap();
-
-    if std::fs::remove_file(DB_DIR.as_path()).is_err() {
-        Err("Can't remove database while it's in use.")
-    } else {
-        Ok(())
+            [],
+        )
+        .unwrap();
+    };
+    unsafe {
+        CONN = MaybeUninit::new(Mutex::new(conn));
     }
 }
 
 pub fn conn() -> MutexGuard<'static, Connection> {
-    CONN.lock().unwrap()
+    unsafe { CONN.assume_init_mut().lock().unwrap() }
+}
+
+pub fn reset() -> Result<(), &'static str> {
+    unsafe { *CONN.assume_init_mut().lock().unwrap() = Connection::open_in_memory().unwrap() };
+
+    let db = if cfg!(windows) {
+        PathBuf::from(&env::var("APPDATA").unwrap())
+    } else {
+        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
+    }
+    .join("gonk")
+    .join("gonk.db");
+
+    if fs::remove_file(db).is_err() {
+        Err("Can't remove database while it's in use.")
+    } else {
+        Ok(())
+    }
 }
 
 pub fn collect_songs(path: &str) -> Vec<Song> {
