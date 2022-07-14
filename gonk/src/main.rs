@@ -62,57 +62,59 @@ fn main() {
     log::init();
 
     let mut db = Database::default();
-    let args: Vec<String> = std::env::args().skip(1).collect();
 
-    if !args.is_empty() {
-        match args[0].as_str() {
-            "add" => {
-                if args.len() == 1 {
-                    return println!("Usage: gonk add <path>");
-                }
+    {
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        if !args.is_empty() {
+            match args[0].as_str() {
+                "add" => {
+                    if args.len() == 1 {
+                        return println!("Usage: gonk add <path>");
+                    }
 
-                let path = args[1..].join(" ");
-                if Path::new(&path).exists() {
-                    db.add_path(&path);
-                } else {
-                    return println!("Invalid path.");
+                    let path = args[1..].join(" ");
+                    if Path::new(&path).exists() {
+                        db.add_path(&path);
+                    } else {
+                        return println!("Invalid path.");
+                    }
                 }
-            }
-            //TODO: Add numbers to each path
-            //so users can just write: gonk rm 3
-            "rm" => {
-                if args.len() == 1 {
-                    return println!("Usage: gonk rm <path>");
-                }
+                //TODO: Add numbers to each path
+                //so users can just write: gonk rm 3
+                "rm" => {
+                    if args.len() == 1 {
+                        return println!("Usage: gonk rm <path>");
+                    }
 
-                let path = args[1..].join(" ");
-                match query::remove_folder(&path) {
-                    Ok(_) => return println!("Deleted path: {}", path),
-                    Err(e) => return println!("{e}"),
-                };
-            }
-            "list" => {
-                return for path in query::folders() {
-                    println!("{path}");
-                };
-            }
-            "reset" => {
-                return match gonk_database::reset() {
-                    Ok(_) => println!("Files reset!"),
-                    Err(e) => println!("{}", e),
+                    let path = args[1..].join(" ");
+                    match query::remove_folder(&path) {
+                        Ok(_) => return println!("Deleted path: {}", path),
+                        Err(e) => return println!("{e}"),
+                    };
                 }
+                "list" => {
+                    return for path in query::folders() {
+                        println!("{path}");
+                    };
+                }
+                "reset" => {
+                    return match gonk_database::reset() {
+                        Ok(_) => println!("Files reset!"),
+                        Err(e) => println!("{}", e),
+                    }
+                }
+                "help" | "--help" => {
+                    println!("Usage");
+                    println!("   gonk [<command> <args>]");
+                    println!();
+                    println!("Options");
+                    println!("   add   <path>  Add music to the library");
+                    println!("   reset         Reset the database");
+                    return;
+                }
+                _ if !args.is_empty() => return println!("Invalid command."),
+                _ => (),
             }
-            "help" | "--help" => {
-                println!("Usage");
-                println!("   gonk [<command> <args>]");
-                println!();
-                println!("Options");
-                println!("   add   <path>  Add music to the library");
-                println!("   reset         Reset the database");
-                return;
-            }
-            _ if !args.is_empty() => return println!("Invalid command."),
-            _ => (),
         }
     }
 

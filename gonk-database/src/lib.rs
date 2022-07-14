@@ -1,7 +1,6 @@
 use gonk_player::Song;
-use jwalk::WalkDir;
 use lazy_static::lazy_static;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rusqlite::*;
 use std::{
     path::PathBuf,
@@ -120,11 +119,10 @@ pub fn conn() -> MutexGuard<'static, Connection> {
 }
 
 pub fn collect_songs(path: &str) -> Vec<Song> {
-    let paths: Vec<_> = WalkDir::new(path)
+    let paths: Vec<_> = walkdir::WalkDir::new(path)
         .into_iter()
         .flatten()
-        .map(|dir| dir.path())
-        .filter(|path| match path.extension() {
+        .filter(|path| match path.path().extension() {
             Some(ex) => {
                 matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
             }
@@ -132,7 +130,10 @@ pub fn collect_songs(path: &str) -> Vec<Song> {
         })
         .collect();
 
-    paths.par_iter().flat_map(|path| Song::from(path)).collect()
+    paths
+        .into_par_iter()
+        .flat_map(|path| Song::from(path.path()))
+        .collect()
 }
 
 pub fn rescan_folders() {
