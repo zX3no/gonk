@@ -153,7 +153,7 @@ pub fn rescan_folders() {
 }
 
 pub fn add_folder(folder: &str) {
-    let folder = folder.replace('/', "\\");
+    let folder = folder.replace('\\', "/");
 
     conn()
         .execute(

@@ -51,7 +51,7 @@ impl Song {
             name: String::from("Unknown Title"),
             disc: 1,
             number: 1,
-            path: path.to_path_buf(),
+            path: PathBuf::from(path.to_str().unwrap().replace("\\", "/")),
             gain: 0.0,
             album: String::from("Unknown Album"),
             artist: String::from("Unknown Artist"),
