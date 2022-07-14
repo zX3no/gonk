@@ -400,6 +400,9 @@ impl Player {
     }
 
     pub fn delete_index(&mut self, i: usize) -> Result<(), String> {
+        if self.songs.is_empty() {
+            return Ok(());
+        }
         self.songs.data.remove(i);
 
         if let Some(playing) = self.songs.index() {
