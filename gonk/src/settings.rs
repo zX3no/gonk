@@ -55,7 +55,7 @@ impl Input for Settings {
 pub fn on_enter(settings: &mut Settings, player: &mut Player) {
     if let Some(device) = settings.devices.selected() {
         match player.set_output_device(device) {
-            Ok(_) => (),
+            Ok(_) => settings.current_device = device.name().unwrap(),
             Err(e) => log!("{}", e),
         }
     }

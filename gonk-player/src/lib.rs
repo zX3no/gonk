@@ -48,6 +48,7 @@ pub struct Resampler {
     probed: ProbeResult,
     decoder: Box<dyn Decoder>,
 
+    input_real: usize,
     input: usize,
     output: usize,
 
@@ -125,6 +126,7 @@ impl Resampler {
             probed,
             decoder,
             buffer,
+            input_real: input,
             input: input / gcd,
             output: output / gcd,
             current_frame_pos_in_chunk: 0,
@@ -139,6 +141,16 @@ impl Resampler {
             finished: false,
             gain,
         }
+    }
+
+    pub fn update_sample_rate(&mut self, output: usize) {
+        let gcd = gcd(self.input_real, output);
+        self.input = self.input_real / gcd;
+        self.output = output / gcd;
+
+        //TODO: There might be more buffers that should be cleared
+        //when change the sample rate. It's hard to test.
+        self.output_buffer = None;
     }
 
     pub fn next(&mut self) -> f32 {
@@ -322,11 +334,26 @@ impl Player {
     }
 
     pub fn set_output_device(&mut self, device: &Device) -> Result<(), String> {
+        //TODO: Pausing the stream and hanging the thread for 500ms
+        //gives the device enough time to release it's lock.
+        //My interface has two outputs on the same device and
+        //is unable to grab handles for each other while
+        //in use.
+
         match device.default_output_config() {
             Ok(supported_stream) => {
                 match create_output_stream(device, &supported_stream.config()) {
                     Ok(stream) => {
                         self.stream = stream;
+                        self.sample_rate = supported_stream.sample_rate().0 as usize;
+
+                        unsafe {
+                            RESAMPLER
+                                .as_mut()
+                                .unwrap()
+                                .update_sample_rate(self.sample_rate);
+                        }
+
                         self.stream.play().unwrap();
                         Ok(())
                     }
