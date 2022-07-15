@@ -5,12 +5,9 @@ edition = "2021"
 default-run = "gonk"
 
 [dependencies]
-crossterm = "0.23.2"
 tui = "0.18.0"
-
-rayon = "1.5.3"
-
+crossterm = "0.23.2"
 unicode-width = "0.1.9"
-
+rayon = "1.5.3"
 gonk-player = {path = "../gonk-player"}
 gonk-database = {path = "../gonk-database"}
