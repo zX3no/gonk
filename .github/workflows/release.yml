@@ -42,7 +42,7 @@ jobs:
       shell: bash
       run: |
        if [[ "$RUNNER_OS" != "Windows" ]]; then
-          sudo apt install -y libasound2-dev
+          sudo apt install -y libasound2-dev libjack-jackd2-dev
        fi
 
     - name: Build
