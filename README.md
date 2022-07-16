@@ -27,7 +27,7 @@
 Debian:
 
 ```
-sudo apt install libasound2-dev pkg-config build-essential
+sudo apt install libasound2-dev pkg-config build-essential libjack-jackd2-dev
 ```
 
 Alpine:
