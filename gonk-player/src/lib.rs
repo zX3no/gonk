@@ -149,7 +149,7 @@ impl Resampler {
         self.output = output / gcd;
 
         //TODO: There might be more buffers that should be cleared
-        //when change the sample rate. It's hard to test.
+        //when changing the sample rate. It's hard to test.
         self.output_buffer = None;
     }
 
@@ -296,6 +296,9 @@ pub struct Player {
 
 impl Player {
     pub fn new(wanted_device: String, volume: u16, songs: Index<Song>, elapsed: f32) -> Self {
+        #[cfg(unix)]
+        let _gag = gag::Gag::stderr().unwrap();
+
         let mut device = None;
 
         for d in audio_devices() {
@@ -347,11 +350,8 @@ impl Player {
                         self.stream = stream;
                         self.sample_rate = supported_stream.sample_rate().0 as usize;
 
-                        unsafe {
-                            RESAMPLER
-                                .as_mut()
-                                .unwrap()
-                                .update_sample_rate(self.sample_rate);
+                        if let Some(resampler) = unsafe { &mut RESAMPLER } {
+                            resampler.update_sample_rate(self.sample_rate);
                         }
 
                         self.stream.play().unwrap();
