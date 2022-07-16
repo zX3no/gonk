@@ -58,14 +58,14 @@ impl Song {
             id: None,
         };
 
-        let mut backup_artist = String::new();
-
         let mut update_metadata = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
                 if let Some(std_key) = tag.std_key {
                     match std_key {
-                        StandardTagKey::Artist => backup_artist = tag.value.to_string(),
                         StandardTagKey::AlbumArtist => song.artist = tag.value.to_string(),
+                        StandardTagKey::Artist if song.artist == "Unknown Artist" => {
+                            song.artist = tag.value.to_string()
+                        }
                         StandardTagKey::Album => song.album = tag.value.to_string(),
                         StandardTagKey::TrackTitle => song.name = tag.value.to_string(),
                         StandardTagKey::TrackNumber => {
@@ -108,10 +108,6 @@ impl Song {
             }
         } else if let Some(metadata) = probe.format.metadata().current() {
             update_metadata(metadata);
-        }
-
-        if song.artist == *"Unknown Artist" {
-            song.artist = backup_artist;
         }
 
         Some(song)
