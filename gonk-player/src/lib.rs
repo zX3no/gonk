@@ -279,7 +279,7 @@ impl Resampler {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum State {
     Playing,
     Paused,
@@ -324,13 +324,11 @@ impl Player {
             state: State::Stopped,
             songs,
         };
-        if s.play_selected().is_ok() {
-            if s.seek_to(elapsed).is_ok() {
-                s.pause();
-                //Elapsed will not update while paused so force update it.
-                if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                    resampler.elapsed = Duration::from_secs_f32(elapsed);
-                }
+        if s.play_selected().is_ok() && s.seek_to(elapsed).is_ok() {
+            s.pause();
+            //Elapsed will not update while paused so force update it.
+            if let Some(resampler) = unsafe { &mut RESAMPLER } {
+                resampler.elapsed = Duration::from_secs_f32(elapsed);
             }
         }
         s
@@ -358,9 +356,7 @@ impl Player {
                         Ok(())
                     }
                     Err(e) => match e {
-                        BuildStreamError::BackendSpecific { err } => {
-                            Err(format!("{}", err.description))
-                        }
+                        BuildStreamError::BackendSpecific { err } => Err(err.description),
                         _ => Err(format!("{}", e)),
                     },
                 }
@@ -558,9 +554,7 @@ impl Player {
                 Ok(_) => Ok(()),
                 Err(e) => match e {
                     Error::SeekError(e) => match e {
-                        SeekErrorKind::OutOfRange => {
-                            return self.next();
-                        }
+                        SeekErrorKind::OutOfRange => self.next(),
                         _ => panic!("{:?}", e),
                     },
                     _ => panic!("{}", e),
@@ -581,7 +575,7 @@ fn create_output_stream(
     config: &StreamConfig,
 ) -> Result<Stream, BuildStreamError> {
     device.build_output_stream(
-        &config,
+        config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             for frame in data.chunks_mut(2) {
                 for sample in frame.iter_mut() {

@@ -38,7 +38,7 @@ pub fn init() {
 macro_rules! log {
     ($($arg:tt)*) => {{
         use std::time::Instant;
-        use crate::log::LOG;
+        use $crate::log::LOG;
 
         unsafe {
            LOG.message = format_args!($($arg)*).to_string();
@@ -59,7 +59,7 @@ pub fn message() -> Option<&'static str> {
 }
 
 pub fn draw(area: Rect, f: &mut Frame) {
-    let message = message().unwrap_or_else(|| "");
+    let message = message().unwrap_or("");
 
     f.render_widget(
         Paragraph::new(message).alignment(Alignment::Left).block(

@@ -102,11 +102,11 @@ pub fn init() {
 }
 
 pub fn conn() -> MutexGuard<'static, Connection> {
-    unsafe { CONN.assume_init_mut().lock().unwrap() }
+    unsafe { CONN.assume_init_ref().lock().unwrap() }
 }
 
 pub fn reset() -> Result<(), &'static str> {
-    unsafe { *CONN.assume_init_mut().lock().unwrap() = Connection::open_in_memory().unwrap() };
+    unsafe { *CONN.assume_init_ref().lock().unwrap() = Connection::open_in_memory().unwrap() };
 
     let db = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())

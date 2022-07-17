@@ -99,7 +99,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 Err(e) => log!("{}", e),
             }
 
-            save_queue(&player);
+            save_queue(player);
         }
         Mode::Song => {
             if let Some(item) = playlist.songs.selected() {
@@ -108,7 +108,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                     Ok(_) => (),
                     Err(e) => log!("{}", e),
                 }
-                save_queue(&player);
+                save_queue(player);
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {
