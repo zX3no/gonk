@@ -12,14 +12,16 @@ use tui::{
     widgets::{Block, BorderType, Borders, Paragraph},
 };
 
-#[derive(Clone)]
+const MIN_ACCURACY: f64 = 0.75;
+
+#[derive(Clone, Debug)]
 pub enum Item {
     Song(MinSong),
     Album(Album),
     Artist(Artist),
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct MinSong {
     pub id: usize,
     pub name: String,
@@ -27,13 +29,13 @@ pub struct MinSong {
     pub artist: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Album {
     pub name: String,
     pub artist: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Artist {
     pub name: String,
 }
@@ -169,7 +171,6 @@ pub fn refresh_results(search: &mut Search) {
             .cache
             .iter()
             .take(40)
-            .rev()
             .map(|item| (item, get_accuary(item)))
             .collect()
     } else {
@@ -178,9 +179,7 @@ pub fn refresh_results(search: &mut Search) {
             .par_iter()
             .filter_map(|item| {
                 let acc = get_accuary(item);
-
-                //Filter out results that are poor matches. 0.75 is a magic number.
-                if acc > 0.75 {
+                if acc > MIN_ACCURACY {
                     Some((item, acc))
                 } else {
                     None
@@ -192,20 +191,27 @@ pub fn refresh_results(search: &mut Search) {
     //Sort results by score.
     results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
-    //Sort artists above search-titled albums.
-    results.sort_by(|(item, a), (_, b)| {
-        //This is just x == y but for floats.
-        if (a - b).abs() < f64::EPSILON {
-            //And the item is an album
-            if let Item::Album(_) = item {
-                //Move item lower in the list.
-                Ordering::Greater
-            } else {
-                //Move item higher in the list.
-                Ordering::Less
+    //Sort songs with equal score. Artist > Album > Song.
+    results.sort_by(|(item_1, score_1), (item_2, score_2)| {
+        if (score_1 - score_2).abs() < f64::EPSILON {
+            match item_1 {
+                Item::Artist(_) => match item_2 {
+                    Item::Song(_) => Ordering::Less,
+                    Item::Album(_) => Ordering::Less,
+                    Item::Artist(_) => Ordering::Equal,
+                },
+                Item::Album(_) => match item_2 {
+                    Item::Song(_) => Ordering::Less,
+                    Item::Album(_) => Ordering::Equal,
+                    Item::Artist(_) => Ordering::Greater,
+                },
+                Item::Song(_) => match item_2 {
+                    Item::Song(_) => Ordering::Equal,
+                    Item::Album(_) => Ordering::Greater,
+                    Item::Artist(_) => Ordering::Greater,
+                },
             }
         } else {
-            //Keep the same order.
             Ordering::Equal
         }
     });
