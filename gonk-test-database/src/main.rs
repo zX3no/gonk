@@ -8,7 +8,7 @@ use std::{
     mem::size_of,
     ops::Range,
     path::Path,
-    str::from_utf8_unchecked,
+    str::{from_utf8, from_utf8_unchecked},
     time::Instant,
 };
 
@@ -112,6 +112,16 @@ impl Display for StaticStr {
         }
     }
 }
+fn strip_padding(bytes: &[u8]) -> String {
+    for (i, b) in bytes.iter().enumerate() {
+        if b == &b'\0' {
+            unsafe {
+                return from_utf8_unchecked(&bytes[..i]).to_string();
+            }
+        }
+    }
+    unreachable!();
+}
 
 struct Database {
     mmap: Mmap,
@@ -135,6 +145,28 @@ impl Database {
     }
     pub fn len(&self) -> usize {
         self.mmap.len() / SONG_LEN
+    }
+    pub fn names_by_artist(&self, artist: &str) -> Vec<String> {
+        self.query(artist.as_bytes(), ARTIST, NAME)
+    }
+    pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
+        self.query(artist.as_bytes(), ARTIST, ALBUM)
+    }
+    pub fn query(&self, input: &[u8], query: Range<usize>, response: Range<usize>) -> Vec<String> {
+        let mut i = 0;
+        let mut items = Vec::new();
+        loop {
+            match self.mmap.get(i + query.start..i + query.end) {
+                Some(artist) => {
+                    if artist.starts_with(input) {
+                        let album = self.mmap.get(i + response.start..i + response.end).unwrap();
+                        items.push(strip_padding(album));
+                    }
+                }
+                None => return items,
+            }
+            i += SONG_LEN;
+        }
     }
     pub fn names(&self) -> Vec<String> {
         self.collect(0)
@@ -214,7 +246,7 @@ fn main() {
 
     let db = Database::new();
     let now = Instant::now();
-    let artits = db.artists();
+    let artits = db.albums_by_artist("joe");
+    dbg!(artits.len());
     dbg!(now.elapsed());
-    dbg!(&artits[10000]);
 }
