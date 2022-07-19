@@ -1,3 +1,4 @@
+#![allow(clippy::should_implement_trait, clippy::unnecessary_to_owned)]
 use cpal::{
     traits::{HostTrait, StreamTrait},
     BuildStreamError, Stream, StreamConfig,
