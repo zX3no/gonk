@@ -1,72 +1,91 @@
 #![allow(unused)]
 use std::{
     collections::{BTreeMap, HashMap},
+    fmt::Display,
     fs::{self, File, OpenOptions},
     io::{BufWriter, Write},
     mem::size_of,
+    ops::Range,
     path::Path,
     time::Instant,
 };
 
 use memmap2::Mmap;
 
+const STR_LEN: usize = 128;
+const SONG_LEN: usize = STR_LEN * 4 + size_of::<u8>() * 2;
+
+const NAME: Range<usize> = (0..STR_LEN);
+const ALBUM: Range<usize> = (STR_LEN..STR_LEN * 2);
+const ARTIST: Range<usize> = (STR_LEN * 2..STR_LEN * 3);
+const PATH: Range<usize> = (STR_LEN * 3..STR_LEN * 4);
+const NUMBER: usize = SONG_LEN - 2;
+const DISC: usize = SONG_LEN - 1;
+
 #[derive(PartialEq, PartialOrd, Eq, Ord, Clone)]
 struct Song {
-    name: String,
-    album: String,
-    artist: String,
-    path: String,
-    folder: String,
+    name: StaticStr,
+    album: StaticStr,
+    artist: StaticStr,
+    path: StaticStr,
     number: u8,
     disc: u8,
 }
 
 impl Song {
-    pub fn len(&self) -> usize {
-        self.name.len()
-            + self.album.len()
-            + self.artist.len()
-            + self.path.len()
-            + self.folder.len()
-            + u8::BITS as usize
-        // + (size_of::<u8>() * 8)
-    }
-    pub fn into_bytes(mut self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::with_capacity(self.len());
-        unsafe {
-            bytes.append(self.name.as_mut_vec());
-            bytes.push(b'\n');
-            bytes.append(self.album.as_mut_vec());
-            bytes.push(b'\n');
-            bytes.append(self.artist.as_mut_vec());
-            bytes.push(b'\n');
-            bytes.append(self.path.as_mut_vec());
-            bytes.push(b'\n');
-            bytes.append(self.folder.as_mut_vec());
-            bytes.push(b'\n');
-            bytes.push(self.number);
-            bytes.push(self.disc);
-            bytes.push(b'\r');
-        }
+    pub fn into_bytes(self) -> [u8; SONG_LEN] {
+        let mut bytes = [0; SONG_LEN];
+        bytes[NAME].copy_from_slice(&self.name.0[..]);
+        bytes[ALBUM].copy_from_slice(&self.album.0[..]);
+        bytes[ARTIST].copy_from_slice(&self.artist.0[..]);
+        bytes[PATH].copy_from_slice(&self.path.0[..]);
+        bytes[NUMBER] = self.number;
+        bytes[DISC] = self.disc;
         bytes
     }
 }
 
+impl<'a> From<&'a [u8]> for Song {
+    fn from(from: &'a [u8]) -> Self {
+        Self {
+            name: StaticStr(from[NAME].try_into().unwrap()),
+            album: StaticStr(from[ALBUM].try_into().unwrap()),
+            artist: StaticStr(from[ARTIST].try_into().unwrap()),
+            path: StaticStr(from[PATH].try_into().unwrap()),
+            number: from[NUMBER],
+            disc: from[DISC],
+        }
+    }
+}
+
+#[derive(PartialEq, PartialOrd, Eq, Ord, Clone)]
+struct StaticStr([u8; STR_LEN]);
+
+impl From<&str> for StaticStr {
+    fn from(from: &str) -> Self {
+        if from.len() > STR_LEN {
+            panic!("{} is greater than {} characters", from, STR_LEN);
+        }
+
+        let mut array: [u8; STR_LEN] = [0; STR_LEN];
+        for (i, b) in from.as_bytes().iter().enumerate() {
+            array[i] = *b;
+        }
+
+        StaticStr(array)
+    }
+}
+
+impl Display for StaticStr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            let str = std::str::from_utf8_unchecked(&self.0);
+            f.write_str(str)
+        }
+    }
+}
+
 fn main() {
-    let mut tree: BTreeMap<usize, usize> = BTreeMap::new();
-    // let mut tree: HashMap<usize, usize> = HashMap::new();
-
-    let mut song = Song {
-        name: String::from("this is a very very long name"),
-        album: String::from("album album album album album"),
-        artist: String::from("artist artist artist arist artist"),
-        path: String::from("D:\\OneDrive\\Music\\Joe\\joe's song 1.flac"),
-        folder: String::from("D:\\OneDrive\\Music"),
-        number: 1,
-        disc: 1,
-    };
-    let bytes = song.into_bytes();
-
     let mut db = OpenOptions::new()
         .create(true)
         .read(true)
@@ -74,15 +93,25 @@ fn main() {
         .truncate(true)
         .open("db")
         .unwrap();
-
     let mut writer = BufWriter::new(&db);
 
-    tree.insert(0, 0);
+    let song = Song {
+        name: StaticStr::from("joe's song"),
+        album: StaticStr::from("joe's album"),
+        artist: StaticStr::from("joe"),
+        path: StaticStr::from("joe's path"),
+        number: 50,
+        disc: 100,
+    };
+
+    let bytes = song.into_bytes();
+    let mut tree: BTreeMap<usize, usize> = BTreeMap::new();
     let mut pos = 0;
-    for i in 0..100_000 {
-        writer.write_all(&bytes).unwrap();
-        pos += bytes.len();
+
+    for _ in 0..100_000 {
         tree.insert(tree.len(), pos);
+        writer.write_all(&bytes);
+        pos += SONG_LEN;
     }
 
     writer.flush().unwrap();
@@ -90,50 +119,11 @@ fn main() {
     let map = unsafe { Mmap::map(&db).unwrap() };
 
     let now = Instant::now();
-    for i in 0..tree.len() - 1 {
-        let start = *tree.get(&i).unwrap();
-        let end = *tree.get(&(i + 1)).unwrap();
-        let bytes = match map.get(start..end) {
-            Some(bytes) => bytes,
-            None => panic!("{} {} {}", start, end, i),
-        };
-        let mut new_lines = 0;
-        let mut pos = 0;
-        for (i, b) in bytes.iter().enumerate() {
-            if b == &b'\n' {
-                new_lines += 1;
-                if new_lines == 4 {
-                    pos = i + 1;
-                }
-            } else if new_lines == 5 {
-                let path = &map.get(pos..i - 1).unwrap();
-                unsafe {
-                    let path = std::str::from_utf8_unchecked(path);
-                }
-                // panic!("{}", artist);
-                break;
-            }
-        }
-    }
+    let start = *tree.get(&1000).unwrap();
+    let end = *tree.get(&1001).unwrap();
 
+    let song_bytes = &map[start..end];
+    let song = Song::from(song_bytes);
     dbg!(now.elapsed());
-
-    let now = Instant::now();
-    let ids: Vec<(usize, usize)> = tree.into_iter().collect();
-
-    let mut tree = OpenOptions::new()
-        .create(true)
-        .read(true)
-        .write(true)
-        .truncate(true)
-        .open("tree")
-        .unwrap();
-
-    let mut writer = BufWriter::new(&tree);
-
-    for (k, v) in ids {
-        writer.write_all(&k.to_le_bytes());
-        writer.write_all(&v.to_le_bytes());
-    }
-    dbg!(now.elapsed());
+    println!("{}", song.album);
 }
