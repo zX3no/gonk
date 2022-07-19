@@ -1,5 +1,6 @@
 #![allow(unused)]
 use std::{
+    borrow::Borrow,
     collections::{BTreeMap, HashMap},
     fmt::{Debug, Display},
     fs::{self, File, OpenOptions},
@@ -7,6 +8,7 @@ use std::{
     mem::size_of,
     ops::Range,
     path::Path,
+    str::from_utf8_unchecked,
     time::Instant,
 };
 
@@ -105,45 +107,68 @@ impl Debug for StaticStr {
 impl Display for StaticStr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
-            let str = std::str::from_utf8_unchecked(&self.0);
+            let str = from_utf8_unchecked(&self.0);
             f.write_str(str)
         }
     }
 }
 
-fn read_vec() -> Vec<u64> {
-    let file = File::open("tree").unwrap();
-    let map = unsafe { Mmap::map(&file).unwrap() };
-    let size = size_of::<u64>();
-    let mut pos = 0;
-    let mut vec = Vec::new();
-
-    loop {
-        match map.get(pos..pos + size) {
-            Some(v) => {
-                let v = u64::from_le_bytes(v.try_into().unwrap());
-                vec.push(v);
-
-                pos += size;
-            }
-            None => return vec,
-        }
-    }
+struct Database {
+    mmap: Mmap,
 }
 
-fn write_vec(vec: Vec<u64>) {
-    let mut tree = OpenOptions::new()
-        .create(true)
-        .read(true)
-        .write(true)
-        .truncate(true)
-        .open("tree")
-        .unwrap();
-
-    let mut writer = BufWriter::new(&tree);
-
-    for v in vec {
-        writer.write_all(&v.to_le_bytes());
+impl Database {
+    pub fn new() -> Self {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open("db")
+            .unwrap();
+        let mmap = unsafe { Mmap::map(&file).unwrap() };
+        Self { mmap }
+    }
+    pub fn get(&self, index: usize) -> Option<Song> {
+        let start = SONG_LEN * index;
+        let bytes = self.mmap.get(start..start + SONG_LEN)?;
+        Some(Song::from(bytes))
+    }
+    pub fn len(&self) -> usize {
+        self.mmap.len() / SONG_LEN
+    }
+    pub fn names(&self) -> Vec<String> {
+        self.collect(0)
+    }
+    pub fn albums(&self) -> Vec<String> {
+        self.collect(1)
+    }
+    pub fn artists(&self) -> Vec<String> {
+        self.collect(2)
+    }
+    pub fn paths(&self) -> Vec<String> {
+        self.collect(3)
+    }
+    fn collect(&self, position: usize) -> Vec<String> {
+        let mut i = 0;
+        let mut names = Vec::new();
+        let offset = STR_LEN * position;
+        loop {
+            match self.mmap.get(i + offset..i + offset + STR_LEN) {
+                Some(name) => {
+                    //Make sure to exclude the zero padding.
+                    for (i, b) in name.iter().enumerate() {
+                        if b == &b'\0' {
+                            unsafe {
+                                names.push(from_utf8_unchecked(&name[0..i]).to_string());
+                            }
+                            break;
+                        }
+                    }
+                    i += SONG_LEN;
+                }
+                None => return names,
+            }
+        }
     }
 }
 
@@ -160,20 +185,20 @@ fn write_db(file: &File) {
         pad: [0; PAD_LEN],
     };
 
-    let bytes = song.into_bytes();
-    //TODO: maybe use u16 instead of u64
-    //most must databases are not even close to 65,000 songs.
-    let mut vec = Vec::new();
-    let mut pos = 0;
-
-    for _ in 0..100_000 {
-        vec.push(pos);
-        writer.write_all(&bytes);
-        pos += SONG_LEN as u64;
+    for i in 0..100_000 {
+        let song = Song {
+            name: StaticStr::from(format!("joe's song {}", i).as_str()),
+            album: StaticStr::from("joe's album"),
+            artist: StaticStr::from("joe"),
+            path: StaticStr::from("joe's path"),
+            number: 50,
+            disc: 100,
+            pad: [0; PAD_LEN],
+        };
+        writer.write_all(&song.into_bytes());
     }
 
     writer.flush().unwrap();
-    write_vec(vec);
 }
 
 fn main() {
@@ -184,18 +209,12 @@ fn main() {
         .truncate(true)
         .open("db")
         .unwrap();
-
     write_db(&file);
-    let vec = read_vec();
+    drop(file);
 
-    // let now = Instant::now();
-    // let start = *vec.get(10000).unwrap() as usize;
-    // let end = *vec.get(10001).unwrap() as usize;
-
-    // let song_bytes = &map[start..end];
-    // let song = Song::from(song_bytes);
-
-    // dbg!(now.elapsed());
-    // dbg!(song);
-    // write_vec(vec);
+    let db = Database::new();
+    let now = Instant::now();
+    let artits = db.artists();
+    dbg!(now.elapsed());
+    dbg!(&artits[10000]);
 }
