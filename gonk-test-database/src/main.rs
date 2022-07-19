@@ -1,9 +1,8 @@
 #![allow(unused)]
+use song::Song as RealSong;
 use std::{
-    borrow::Borrow,
-    collections::{BTreeMap, HashMap},
     fmt::{Debug, Display},
-    fs::{self, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::{BufWriter, Write},
     mem::size_of,
     ops::Range,
@@ -11,20 +10,33 @@ use std::{
     str::{from_utf8, from_utf8_unchecked},
     time::Instant,
 };
+use symphonia::{
+    core::{
+        formats::FormatOptions,
+        io::{MediaSourceStream, MediaSourceStreamOptions},
+        meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+        probe::Hint,
+    },
+    default::get_probe,
+};
+
+mod song;
 
 use memmap2::Mmap;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use walkdir::DirEntry;
 
 const PAD_LEN: usize = 14;
-const STR_LEN: usize = 128;
+const STR_LEN: usize = 512;
 const SONG_LEN: usize = STR_LEN * 4 + size_of::<u8>() * 2 + PAD_LEN;
 
-const NAME: Range<usize> = (0..STR_LEN);
-const ALBUM: Range<usize> = (STR_LEN..STR_LEN * 2);
-const ARTIST: Range<usize> = (STR_LEN * 2..STR_LEN * 3);
-const PATH: Range<usize> = (STR_LEN * 3..STR_LEN * 4);
+const NAME: Range<usize> = 0..STR_LEN;
+const ALBUM: Range<usize> = STR_LEN..STR_LEN * 2;
+const ARTIST: Range<usize> = STR_LEN * 2..STR_LEN * 3;
+const PATH: Range<usize> = STR_LEN * 3..STR_LEN * 4;
 const NUMBER: usize = SONG_LEN - PAD_LEN - 2;
 const DISC: usize = SONG_LEN - PAD_LEN - 1;
-const PAD: Range<usize> = (SONG_LEN - PAD_LEN..SONG_LEN);
+const PAD: Range<usize> = SONG_LEN - PAD_LEN..SONG_LEN;
 
 #[derive(PartialEq, PartialOrd, Eq, Ord, Clone)]
 struct Song {
@@ -51,8 +63,8 @@ impl Song {
     }
 }
 
-impl<'a> From<&'a [u8]> for Song {
-    fn from(from: &'a [u8]) -> Self {
+impl From<&'_ [u8]> for Song {
+    fn from(from: &[u8]) -> Self {
         Self {
             name: StaticStr(from[NAME].try_into().unwrap()),
             album: StaticStr(from[ALBUM].try_into().unwrap()),
@@ -62,6 +74,86 @@ impl<'a> From<&'a [u8]> for Song {
             disc: from[DISC],
             pad: [0; PAD_LEN],
         }
+    }
+}
+
+impl From<&'_ Path> for Song {
+    fn from(from: &'_ Path) -> Self {
+        let file = Box::new(File::open(from).expect("Could not open file."));
+        let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+
+        let mut probe = match get_probe().format(
+            &Hint::new(),
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        ) {
+            Ok(probe) => probe,
+            Err(e) => {
+                panic!("{:?}", from);
+            }
+        };
+
+        let mut song = Song {
+            name: StaticStr::from("Unknown Title"),
+            disc: 1,
+            number: 1,
+            path: StaticStr::from(from.to_str().unwrap()),
+            album: StaticStr::from("Unknown Album"),
+            artist: StaticStr::from("Unknown Artist"),
+            pad: [0; PAD_LEN],
+        };
+
+        let mut update_metadata = |metadata: &MetadataRevision| {
+            for tag in metadata.tags() {
+                if let Some(std_key) = tag.std_key {
+                    match std_key {
+                        StandardTagKey::AlbumArtist => {
+                            song.artist = StaticStr::from(tag.value.to_string().as_str())
+                        }
+                        StandardTagKey::Artist
+                            if song.artist == StaticStr::from("Unknown Artist") =>
+                        {
+                            song.artist = StaticStr::from(tag.value.to_string().as_str())
+                        }
+                        StandardTagKey::Album => {
+                            song.album = StaticStr::from(tag.value.to_string().as_str())
+                        }
+                        StandardTagKey::TrackTitle => {
+                            song.name = StaticStr::from(tag.value.to_string().as_str())
+                        }
+                        StandardTagKey::TrackNumber => {
+                            let number = tag.value.to_string();
+                            if let Some((num, _)) = number.split_once('/') {
+                                song.number = num.parse().unwrap_or(1);
+                            } else {
+                                song.number = number.parse().unwrap_or(1);
+                            }
+                        }
+                        StandardTagKey::DiscNumber => {
+                            let number = tag.value.to_string();
+                            if let Some((num, _)) = number.split_once('/') {
+                                song.disc = num.parse().unwrap_or(1);
+                            } else {
+                                song.disc = number.parse().unwrap_or(1);
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        };
+
+        //Why are there two different ways to get metadata?
+        if let Some(metadata) = probe.metadata.get() {
+            if let Some(current) = metadata.current() {
+                update_metadata(current);
+            }
+        } else if let Some(metadata) = probe.format.metadata().current() {
+            update_metadata(metadata);
+        }
+
+        song
     }
 }
 
@@ -84,7 +176,7 @@ struct StaticStr([u8; STR_LEN]);
 impl From<&str> for StaticStr {
     fn from(from: &str) -> Self {
         if from.len() > STR_LEN {
-            panic!("{} is greater than {} characters", from, STR_LEN);
+            panic!("{} is '{} characters to big", from, from.len() - STR_LEN);
         }
 
         let mut array: [u8; STR_LEN] = [0; STR_LEN];
@@ -129,7 +221,7 @@ struct Database {
 
 impl Database {
     pub fn new() -> Self {
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .create(true)
             .read(true)
             .write(true)
@@ -145,6 +237,28 @@ impl Database {
     }
     pub fn len(&self) -> usize {
         self.mmap.len() / SONG_LEN
+    }
+    pub fn songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
+        let mut i = 0;
+        let mut songs = Vec::new();
+        for id in ids {
+            match self.mmap.get(id * SONG_LEN..id * SONG_LEN + SONG_LEN) {
+                Some(bytes) => songs.push(Song::from(bytes)),
+                None => return songs,
+            }
+        }
+        songs
+    }
+    pub fn songs(&self) -> Vec<Song> {
+        let mut i = 0;
+        let mut songs = Vec::new();
+        loop {
+            match self.mmap.get(i..i + SONG_LEN) {
+                Some(bytes) => songs.push(Song::from(bytes)),
+                None => return songs,
+            }
+            i += SONG_LEN;
+        }
     }
     pub fn names_by_artist(&self, artist: &str) -> Vec<String> {
         self.query(artist.as_bytes(), ARTIST, NAME)
@@ -204,49 +318,47 @@ impl Database {
     }
 }
 
-fn write_db(file: &File) {
-    let mut writer = BufWriter::new(file);
-
-    let song = Song {
-        name: StaticStr::from("joe's song"),
-        album: StaticStr::from("joe's album"),
-        artist: StaticStr::from("joe"),
-        path: StaticStr::from("joe's path"),
-        number: 50,
-        disc: 100,
-        pad: [0; PAD_LEN],
-    };
-
-    for i in 0..100_000 {
-        let song = Song {
-            name: StaticStr::from(format!("joe's song {}", i).as_str()),
-            album: StaticStr::from("joe's album"),
-            artist: StaticStr::from("joe"),
-            path: StaticStr::from("joe's path"),
-            number: 50,
-            disc: 100,
-            pad: [0; PAD_LEN],
-        };
-        writer.write_all(&song.into_bytes());
-    }
-
-    writer.flush().unwrap();
-}
-
-fn main() {
-    let mut file = OpenOptions::new()
+fn write_db() {
+    let file = OpenOptions::new()
         .create(true)
         .read(true)
         .write(true)
         .truncate(true)
         .open("db")
         .unwrap();
-    write_db(&file);
-    drop(file);
+    let mut writer = BufWriter::new(file);
+
+    let paths: Vec<DirEntry> = walkdir::WalkDir::new("D:\\OneDrive\\Music")
+        .into_iter()
+        .flatten()
+        .filter(|path| match path.path().extension() {
+            Some(ex) => {
+                matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
+            }
+            None => false,
+        })
+        .collect();
+
+    let songs: Vec<Song> = paths
+        .into_par_iter()
+        .map(|path| Song::from(path.path()))
+        .collect();
+
+    for song in songs {
+        writer.write_all(&song.into_bytes()).unwrap();
+    }
+
+    writer.flush().unwrap();
+}
+
+fn main() {
+    // let now = Instant::now();
+    // write_db();
+    // dbg!(now.elapsed());
 
     let db = Database::new();
     let now = Instant::now();
-    let artits = db.albums_by_artist("joe");
-    dbg!(artits.len());
+    let songs = db.albums_by_artist("Iglooghost");
     dbg!(now.elapsed());
+    dbg!(songs);
 }
