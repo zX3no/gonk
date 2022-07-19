@@ -1,5 +1,4 @@
 #![allow(unused)]
-use song::Song as RealSong;
 use std::{
     fmt::{Debug, Display},
     fs::{File, OpenOptions},
@@ -19,8 +18,6 @@ use symphonia::{
     },
     default::get_probe,
 };
-
-mod song;
 
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -204,11 +201,12 @@ impl Display for StaticStr {
         }
     }
 }
-fn strip_padding(bytes: &[u8]) -> String {
+
+fn strip_padding(bytes: &[u8]) -> &str {
     for (i, b) in bytes.iter().enumerate() {
         if b == &b'\0' {
             unsafe {
-                return from_utf8_unchecked(&bytes[..i]).to_string();
+                return from_utf8_unchecked(&bytes[..i]);
             }
         }
     }
@@ -260,21 +258,26 @@ impl Database {
             i += SONG_LEN;
         }
     }
-    pub fn names_by_artist(&self, artist: &str) -> Vec<String> {
+    pub fn names_by_artist(&self, artist: &str) -> Vec<StaticStr> {
         self.query(artist.as_bytes(), ARTIST, NAME)
     }
-    pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
+    pub fn albums_by_artist(&self, artist: &str) -> Vec<StaticStr> {
         self.query(artist.as_bytes(), ARTIST, ALBUM)
     }
-    pub fn query(&self, input: &[u8], query: Range<usize>, response: Range<usize>) -> Vec<String> {
+    pub fn query(
+        &self,
+        input: &[u8],
+        query: Range<usize>,
+        response: Range<usize>,
+    ) -> Vec<StaticStr> {
         let mut i = 0;
         let mut items = Vec::new();
         loop {
             match self.mmap.get(i + query.start..i + query.end) {
-                Some(artist) => {
-                    if artist.starts_with(input) {
-                        let album = self.mmap.get(i + response.start..i + response.end).unwrap();
-                        items.push(strip_padding(album));
+                Some(query) => {
+                    if query.starts_with(input) {
+                        let response = self.mmap.get(i + response.start..i + response.end).unwrap();
+                        items.push(StaticStr::from(strip_padding(response)));
                     }
                 }
                 None => return items,
@@ -358,7 +361,7 @@ fn main() {
 
     let db = Database::new();
     let now = Instant::now();
-    let songs = db.albums_by_artist("Iglooghost");
+    let songs = db.albums_by_artist("Kendrick Lamar");
     dbg!(now.elapsed());
-    dbg!(songs);
+    dbg!(songs.len());
 }
