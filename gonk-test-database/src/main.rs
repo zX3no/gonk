@@ -1,11 +1,20 @@
-#![allow(unused)]
+#![feature(portable_simd)]
+#![allow(dead_code, unused_imports)]
+use core_simd::*;
+use memmap2::Mmap;
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
 use std::{
-    fmt::{Debug, Display},
+    arch::x86_64::{
+        __m256i, _mm256_cmpeq_epi8, _mm256_movemask_epi8, _mm_cmpeq_epi16, _mm_cmpeq_epi32,
+        _mm_cmpeq_epi8, _mm_movemask_epi8, _mm_set1_epi16, _mm_set1_epi8, _mm_set_epi16,
+        _mm_setzero_si128,
+    },
+    fmt::Debug,
     fs::{File, OpenOptions},
     io::{BufWriter, Write},
     mem::size_of,
-    num,
-    ops::Range,
     path::Path,
     str::{from_utf8, from_utf8_unchecked},
     time::Instant,
@@ -19,13 +28,71 @@ use symphonia::{
     },
     default::get_probe,
 };
-
-use memmap2::Mmap;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::DirEntry;
 
 const TEXT_LEN: usize = 510;
 const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() * 2;
+
+pub fn name(text: &[u8; TEXT_LEN]) -> &str {
+    let now = Instant::now();
+    let end = text.iter().position(|&c| c == b'\0').unwrap();
+    dbg!(now.elapsed());
+    unsafe { from_utf8_unchecked(&text[..end]) }
+}
+
+pub fn album(text: &[u8; TEXT_LEN]) -> &str {
+    let now = Instant::now();
+    let mut start = 0;
+
+    for (i, c) in text.iter().enumerate() {
+        if c == &b'\0' {
+            if start == 0 {
+                start = i + 1;
+            } else {
+                dbg!(now.elapsed());
+                return unsafe { from_utf8_unchecked(&text[start..i]) };
+            }
+        }
+    }
+    unreachable!();
+}
+pub fn artist(text: &[u8; TEXT_LEN]) -> &str {
+    let now = Instant::now();
+    let mut pos = [None; 2];
+    for (i, c) in text.iter().enumerate() {
+        if c == &b'\0' {
+            if pos[0].is_none() {
+                pos[0] = Some(i);
+            } else if pos[1].is_none() {
+                pos[1] = Some(i);
+            } else {
+                dbg!(now.elapsed());
+                return unsafe { from_utf8_unchecked(&text[pos[1].unwrap() + 1..i]) };
+            }
+        }
+    }
+    unreachable!();
+}
+
+pub fn path(text: &[u8; TEXT_LEN]) -> &str {
+    let now = Instant::now();
+    let mut pos = [None; 3];
+    for (i, c) in text.iter().enumerate() {
+        if c == &b'\0' {
+            if pos[0].is_none() {
+                pos[0] = Some(i);
+            } else if pos[1].is_none() {
+                pos[1] = Some(i);
+            } else if pos[2].is_none() {
+                pos[2] = Some(i);
+            } else {
+                dbg!(now.elapsed());
+                return unsafe { from_utf8_unchecked(&text[pos[2].unwrap() + 1..i]) };
+            }
+        }
+    }
+    unreachable!();
+}
 
 #[derive(PartialEq, PartialOrd, Eq, Ord, Clone, Debug)]
 struct Song {
@@ -60,61 +127,12 @@ impl Song {
             Self { text, number, disc }
         }
     }
-    pub fn into_bytes(mut self) -> [u8; SONG_LEN] {
+    pub fn into_bytes(self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
         song[0..TEXT_LEN].copy_from_slice(&self.text);
         song[SONG_LEN - 2] = self.number;
         song[SONG_LEN - 1] = self.disc;
         song
-    }
-    pub fn name(&self) -> &str {
-        let end = self.text.iter().position(|&c| c == b'\0').unwrap();
-        unsafe { from_utf8_unchecked(&self.text[..end]) }
-    }
-    pub fn album(&self) -> &str {
-        let mut start = 0;
-        for (i, c) in self.text.into_iter().enumerate() {
-            if c == b'\0' {
-                if start == 0 {
-                    start = i + 1;
-                } else {
-                    return unsafe { from_utf8_unchecked(&self.text[start..i]) };
-                }
-            }
-        }
-        unreachable!();
-    }
-    pub fn artist(&self) -> &str {
-        let mut pos = [None; 2];
-        for (i, c) in self.text.into_iter().enumerate() {
-            if c == b'\0' {
-                if pos[0].is_none() {
-                    pos[0] = Some(i);
-                } else if pos[1].is_none() {
-                    pos[1] = Some(i);
-                } else {
-                    return unsafe { from_utf8_unchecked(&self.text[pos[1].unwrap() + 1..i]) };
-                }
-            }
-        }
-        unreachable!();
-    }
-    pub fn path(&self) -> &str {
-        let mut pos = [None; 3];
-        for (i, c) in self.text.into_iter().enumerate() {
-            if c == b'\0' {
-                if pos[0].is_none() {
-                    pos[0] = Some(i);
-                } else if pos[1].is_none() {
-                    pos[1] = Some(i);
-                } else if pos[2].is_none() {
-                    pos[2] = Some(i);
-                } else {
-                    return unsafe { from_utf8_unchecked(&self.text[pos[2].unwrap() + 1..i]) };
-                }
-            }
-        }
-        unreachable!();
     }
 }
 
@@ -140,9 +158,7 @@ impl From<&'_ Path> for Song {
             &MetadataOptions::default(),
         ) {
             Ok(probe) => probe,
-            Err(e) => {
-                panic!("{:?}", path);
-            }
+            Err(_) => panic!("{:?}", path),
         };
 
         let mut name = String::from("Unknown Title");
@@ -203,17 +219,6 @@ impl From<&'_ Path> for Song {
     }
 }
 
-fn strip_padding(bytes: &[u8]) -> &str {
-    for (i, b) in bytes.iter().enumerate() {
-        if b == &b'\0' {
-            unsafe {
-                return from_utf8_unchecked(&bytes[..i]);
-            }
-        }
-    }
-    unreachable!();
-}
-
 struct Database {
     mmap: Mmap,
 }
@@ -233,6 +238,25 @@ impl Database {
         let start = SONG_LEN * index;
         let bytes = self.mmap.get(start..start + SONG_LEN)?;
         Some(Song::from(bytes))
+    }
+    pub fn artists(&self) -> Vec<String> {
+        let mut artists = Vec::new();
+        let mut i = 0;
+        while let Some(text) = self.mmap.get(i..i + TEXT_LEN) {
+            artists.push(artist(text.try_into().unwrap()).to_string());
+            i += SONG_LEN;
+        }
+        artists
+    }
+    pub fn par_artists(&self) -> Vec<String> {
+        (0..self.len())
+            .into_par_iter()
+            .map(|i| {
+                let pos = i * SONG_LEN;
+                let text = &self.mmap[pos..pos + TEXT_LEN];
+                artist(text.try_into().unwrap()).to_string()
+            })
+            .collect()
     }
     pub fn len(&self) -> usize {
         self.mmap.len() / SONG_LEN
@@ -296,8 +320,21 @@ fn create_test_db() {
 }
 
 fn main() {
-    let db = Database::new();
-    let song = db.get(102).unwrap();
-    let item = song.path();
-    dbg!(item);
+    // let db = Database::new();
+    // let song = db.get(102).unwrap();
+
+    let song = Song::new(
+        "joe's songa;d ask;ld ja;d lkasjd ;akld jsa;l dkjasd ;lsakd jas;d lkasjd ;aslkds;al kdj;l",
+        "joe's albumasd ;aslkdj as;dlk jas;d laskjd ;aslkd jas;ld kaj;al kdjas; lkasjd; laskdj as; ldkj",
+        "joeasd;alks jas;dl kjas;d lkasjd; alskd jas;ld kajsd; laskjd asldk jas;d laskjd;alskd jas;dl kjasd; laskj",
+        "D:\\OneDrive\\Joe\\joe's song.flac",
+        2,
+        1,
+    );
+
+    dbg!(name(&song.text));
+    // let result = album(&song.text);
+    // dbg!(result);
+    // let artists = db.artists();
+    // dbg!(&artists[10000]);
 }

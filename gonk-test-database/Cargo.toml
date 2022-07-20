@@ -8,3 +8,4 @@ memmap2 = "0.5.5"
 rayon = "1.5.3"
 walkdir = "2.3.2"
 symphonia = { version = "0.5.0", features = ["mp3", "isomp4", "alac", "aac"] }
+core_simd = { git = "https://github.com/rust-lang/portable-simd" }
