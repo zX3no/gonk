@@ -4,6 +4,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{BufWriter, Write},
     mem::size_of,
+    num,
     ops::Range,
     path::Path,
     str::{from_utf8, from_utf8_unchecked},
@@ -23,60 +24,113 @@ use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::DirEntry;
 
-const PAD_LEN: usize = 14;
-const STR_LEN: usize = 256;
-const SONG_LEN: usize = STR_LEN * 4 + size_of::<u8>() * 2 + PAD_LEN;
+const TEXT_LEN: usize = 510;
+const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() * 2;
 
-const NAME: Range<usize> = 0..STR_LEN;
-const ALBUM: Range<usize> = STR_LEN..STR_LEN * 2;
-const ARTIST: Range<usize> = STR_LEN * 2..STR_LEN * 3;
-const PATH: Range<usize> = STR_LEN * 3..STR_LEN * 4;
-const NUMBER: usize = SONG_LEN - PAD_LEN - 2;
-const DISC: usize = SONG_LEN - PAD_LEN - 1;
-const PAD: Range<usize> = SONG_LEN - PAD_LEN..SONG_LEN;
-
-#[derive(PartialEq, PartialOrd, Eq, Ord, Clone)]
+#[derive(PartialEq, PartialOrd, Eq, Ord, Clone, Debug)]
 struct Song {
-    name: StaticStr,
-    album: StaticStr,
-    artist: StaticStr,
-    path: StaticStr,
+    //Name, album, artist, path are all crammed into this space.
+    text: [u8; TEXT_LEN],
     number: u8,
     disc: u8,
-    pad: [u8; PAD_LEN],
 }
 
 impl Song {
-    pub fn into_bytes(self) -> [u8; SONG_LEN] {
-        let mut bytes = [0; SONG_LEN];
-        bytes[NAME].copy_from_slice(&self.name.0[..]);
-        bytes[ALBUM].copy_from_slice(&self.album.0[..]);
-        bytes[ARTIST].copy_from_slice(&self.artist.0[..]);
-        bytes[PATH].copy_from_slice(&self.path.0[..]);
-        bytes[NUMBER] = self.number;
-        bytes[DISC] = self.disc;
-        bytes[PAD].copy_from_slice(&[0; PAD_LEN]);
-        bytes
+    pub fn new(name: &str, album: &str, artist: &str, path: &str, number: u8, disc: u8) -> Self {
+        let len = name.len() + album.len() + artist.len() + path.len();
+        if len > TEXT_LEN {
+            panic!("Text is '{}' bytes to many!", len - TEXT_LEN);
+        } else {
+            let name = [name.as_bytes(), &[b'\0']].concat();
+            let album = [album.as_bytes(), &[b'\0']].concat();
+            let artist = [artist.as_bytes(), &[b'\0']].concat();
+            let path = [path.as_bytes(), &[b'\0']].concat();
+
+            let mut text = [0u8; TEXT_LEN];
+            let name_pos = name.len();
+            let album_pos = name_pos + album.len();
+            let artist_pos = album_pos + artist.len();
+            let path_pos = artist_pos + path.len();
+
+            text[..name_pos].copy_from_slice(&name);
+            text[name_pos..album_pos].copy_from_slice(&album);
+            text[album_pos..artist_pos].copy_from_slice(&artist);
+            text[artist_pos..path_pos].copy_from_slice(&path);
+
+            Self { text, number, disc }
+        }
+    }
+    pub fn into_bytes(mut self) -> [u8; SONG_LEN] {
+        let mut song = [0u8; SONG_LEN];
+        song[0..TEXT_LEN].copy_from_slice(&self.text);
+        song[SONG_LEN - 2] = self.number;
+        song[SONG_LEN - 1] = self.disc;
+        song
+    }
+    pub fn name(&self) -> &str {
+        let end = self.text.iter().position(|&c| c == b'\0').unwrap();
+        unsafe { from_utf8_unchecked(&self.text[..end]) }
+    }
+    pub fn album(&self) -> &str {
+        let mut start = 0;
+        for (i, c) in self.text.into_iter().enumerate() {
+            if c == b'\0' {
+                if start == 0 {
+                    start = i + 1;
+                } else {
+                    return unsafe { from_utf8_unchecked(&self.text[start..i]) };
+                }
+            }
+        }
+        unreachable!();
+    }
+    pub fn artist(&self) -> &str {
+        let mut pos = [None; 2];
+        for (i, c) in self.text.into_iter().enumerate() {
+            if c == b'\0' {
+                if pos[0].is_none() {
+                    pos[0] = Some(i);
+                } else if pos[1].is_none() {
+                    pos[1] = Some(i);
+                } else {
+                    return unsafe { from_utf8_unchecked(&self.text[pos[1].unwrap() + 1..i]) };
+                }
+            }
+        }
+        unreachable!();
+    }
+    pub fn path(&self) -> &str {
+        let mut pos = [None; 3];
+        for (i, c) in self.text.into_iter().enumerate() {
+            if c == b'\0' {
+                if pos[0].is_none() {
+                    pos[0] = Some(i);
+                } else if pos[1].is_none() {
+                    pos[1] = Some(i);
+                } else if pos[2].is_none() {
+                    pos[2] = Some(i);
+                } else {
+                    return unsafe { from_utf8_unchecked(&self.text[pos[2].unwrap() + 1..i]) };
+                }
+            }
+        }
+        unreachable!();
     }
 }
 
 impl From<&'_ [u8]> for Song {
-    fn from(from: &[u8]) -> Self {
+    fn from(bytes: &[u8]) -> Self {
         Self {
-            name: StaticStr(from[NAME].try_into().unwrap()),
-            album: StaticStr(from[ALBUM].try_into().unwrap()),
-            artist: StaticStr(from[ARTIST].try_into().unwrap()),
-            path: StaticStr(from[PATH].try_into().unwrap()),
-            number: from[NUMBER],
-            disc: from[DISC],
-            pad: [0; PAD_LEN],
+            text: bytes[..TEXT_LEN].try_into().unwrap(),
+            number: bytes[SONG_LEN - 2],
+            disc: bytes[SONG_LEN - 1],
         }
     }
 }
 
 impl From<&'_ Path> for Song {
-    fn from(from: &'_ Path) -> Self {
-        let file = Box::new(File::open(from).expect("Could not open file."));
+    fn from(path: &'_ Path) -> Self {
+        let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
 
         let mut probe = match get_probe().format(
@@ -87,52 +141,40 @@ impl From<&'_ Path> for Song {
         ) {
             Ok(probe) => probe,
             Err(e) => {
-                panic!("{:?}", from);
+                panic!("{:?}", path);
             }
         };
 
-        let mut song = Song {
-            name: StaticStr::from("Unknown Title"),
-            disc: 1,
-            number: 1,
-            path: StaticStr::from(from.to_str().unwrap()),
-            album: StaticStr::from("Unknown Album"),
-            artist: StaticStr::from("Unknown Artist"),
-            pad: [0; PAD_LEN],
-        };
+        let mut name = String::from("Unknown Title");
+        let mut album = String::from("Unknown Album");
+        let mut artist = String::from("Unknown Artist");
+        let mut number = 1;
+        let mut disc = 1;
 
         let mut update_metadata = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
                 if let Some(std_key) = tag.std_key {
                     match std_key {
-                        StandardTagKey::AlbumArtist => {
-                            song.artist = StaticStr::from(tag.value.to_string().as_str())
+                        StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
+                        StandardTagKey::Artist if artist == "Unknown Artist" => {
+                            artist = tag.value.to_string()
                         }
-                        StandardTagKey::Artist
-                            if song.artist == StaticStr::from("Unknown Artist") =>
-                        {
-                            song.artist = StaticStr::from(tag.value.to_string().as_str())
-                        }
-                        StandardTagKey::Album => {
-                            song.album = StaticStr::from(tag.value.to_string().as_str())
-                        }
-                        StandardTagKey::TrackTitle => {
-                            song.name = StaticStr::from(tag.value.to_string().as_str())
-                        }
+                        StandardTagKey::Album => album = tag.value.to_string(),
+                        StandardTagKey::TrackTitle => name = tag.value.to_string(),
                         StandardTagKey::TrackNumber => {
-                            let number = tag.value.to_string();
-                            if let Some((num, _)) = number.split_once('/') {
-                                song.number = num.parse().unwrap_or(1);
+                            let num = tag.value.to_string();
+                            if let Some((num, _)) = num.split_once('/') {
+                                number = num.parse().unwrap_or(1);
                             } else {
-                                song.number = number.parse().unwrap_or(1);
+                                number = num.parse().unwrap_or(1);
                             }
                         }
                         StandardTagKey::DiscNumber => {
-                            let number = tag.value.to_string();
-                            if let Some((num, _)) = number.split_once('/') {
-                                song.disc = num.parse().unwrap_or(1);
+                            let num = tag.value.to_string();
+                            if let Some((num, _)) = num.split_once('/') {
+                                disc = num.parse().unwrap_or(1);
                             } else {
-                                song.disc = number.parse().unwrap_or(1);
+                                disc = num.parse().unwrap_or(1);
                             }
                         }
                         _ => (),
@@ -150,56 +192,14 @@ impl From<&'_ Path> for Song {
             update_metadata(metadata);
         }
 
-        song
-    }
-}
-
-impl Debug for Song {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Song")
-            .field("name", &self.name)
-            .field("album", &self.album)
-            .field("artist", &self.artist)
-            .field("path", &self.path)
-            .field("number", &self.number)
-            .field("disc", &self.disc)
-            .finish()
-    }
-}
-
-#[derive(PartialEq, PartialOrd, Eq, Ord, Clone)]
-struct StaticStr([u8; STR_LEN]);
-
-impl From<&str> for StaticStr {
-    fn from(from: &str) -> Self {
-        if from.len() > STR_LEN {
-            println!("{} is '{} characters to big", from, from.len() - STR_LEN);
-            return StaticStr([0; STR_LEN]);
-        }
-
-        let mut array: [u8; STR_LEN] = [0; STR_LEN];
-        for (i, b) in from.as_bytes().iter().enumerate() {
-            array[i] = *b;
-        }
-
-        StaticStr(array)
-    }
-}
-
-impl Debug for StaticStr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StaticStr")
-            .field(&format_args!("{}", self))
-            .finish()
-    }
-}
-
-impl Display for StaticStr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            let str = from_utf8_unchecked(&self.0);
-            f.write_str(str)
-        }
+        Song::new(
+            &name,
+            &album,
+            &artist,
+            &path.to_string_lossy(),
+            number,
+            disc,
+        )
     }
 }
 
@@ -237,81 +237,9 @@ impl Database {
     pub fn len(&self) -> usize {
         self.mmap.len() / SONG_LEN
     }
-    pub fn songs_from_ids(&self, ids: &[usize]) -> Vec<Song> {
-        let mut i = 0;
-        let mut songs = Vec::new();
-        for id in ids {
-            match self.mmap.get(id * SONG_LEN..id * SONG_LEN + SONG_LEN) {
-                Some(bytes) => songs.push(Song::from(bytes)),
-                None => return songs,
-            }
-        }
-        songs
-    }
-    pub fn songs(&self) -> Vec<Song> {
-        let mut i = 0;
-        let mut songs = Vec::new();
-        loop {
-            match self.mmap.get(i..i + SONG_LEN) {
-                Some(bytes) => songs.push(Song::from(bytes)),
-                None => return songs,
-            }
-            i += SONG_LEN;
-        }
-    }
-    pub fn names_by_artist(&self, artist: &str) -> Vec<String> {
-        self.query(artist.as_bytes(), ARTIST, NAME)
-    }
-    pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
-        self.query(artist.as_bytes(), ARTIST, ALBUM)
-    }
-    pub fn query(&self, input: &[u8], query: Range<usize>, response: Range<usize>) -> Vec<String> {
-        let mut i = 0;
-        let mut items = Vec::new();
-        loop {
-            match self.mmap.get(i + query.start..i + query.end) {
-                Some(query) => {
-                    if query.starts_with(input) {
-                        let response = self.mmap.get(i + response.start..i + response.end).unwrap();
-                        unsafe {
-                            items.push(strip_padding(response).to_string());
-                        }
-                    }
-                }
-                None => return items,
-            }
-            i += SONG_LEN;
-        }
-    }
-    pub fn names(&self) -> Vec<String> {
-        self.collect(0)
-    }
-    pub fn albums(&self) -> Vec<String> {
-        self.collect(1)
-    }
-    pub fn artists(&self) -> Vec<String> {
-        self.collect(2)
-    }
-    pub fn paths(&self) -> Vec<String> {
-        self.collect(3)
-    }
-    fn collect(&self, position: usize) -> Vec<String> {
-        let mut i = 0;
-        let mut names = Vec::new();
-        let offset = STR_LEN * position;
-        loop {
-            match self.mmap.get(i + offset..i + offset + STR_LEN) {
-                Some(name) => {
-                    names.push(strip_padding(name).to_string());
-                    i += SONG_LEN;
-                }
-                None => return names,
-            }
-        }
-    }
 }
 
-fn write_db() {
+fn create_db() {
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -344,15 +272,32 @@ fn write_db() {
     writer.flush().unwrap();
 }
 
-fn main() {
-    // let now = Instant::now();
-    // write_db();
-    // dbg!(now.elapsed());
+fn create_test_db() {
+    let song = Song::new(
+        "joe's song",
+        "joe's album",
+        "joe",
+        "D:\\OneDrive\\Joe\\joe's song.flac",
+        2,
+        1,
+    );
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(true)
+        .open("db")
+        .unwrap();
+    let mut writer = BufWriter::new(file);
+    let bytes = song.into_bytes();
+    for _ in 0..100_000 {
+        writer.write_all(&bytes).unwrap();
+    }
+}
 
+fn main() {
     let db = Database::new();
-    let now = Instant::now();
-    let songs = db.albums_by_artist("Kendrick Lamar");
-    dbg!(now.elapsed());
-    dbg!(&songs);
-    dbg!(songs.len());
+    let song = db.get(102).unwrap();
+    let item = song.path();
+    dbg!(item);
 }
