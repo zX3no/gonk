@@ -24,7 +24,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use walkdir::DirEntry;
 
 const PAD_LEN: usize = 14;
-const STR_LEN: usize = 512;
+const STR_LEN: usize = 256;
 const SONG_LEN: usize = STR_LEN * 4 + size_of::<u8>() * 2 + PAD_LEN;
 
 const NAME: Range<usize> = 0..STR_LEN;
@@ -173,7 +173,8 @@ struct StaticStr([u8; STR_LEN]);
 impl From<&str> for StaticStr {
     fn from(from: &str) -> Self {
         if from.len() > STR_LEN {
-            panic!("{} is '{} characters to big", from, from.len() - STR_LEN);
+            println!("{} is '{} characters to big", from, from.len() - STR_LEN);
+            return StaticStr([0; STR_LEN]);
         }
 
         let mut array: [u8; STR_LEN] = [0; STR_LEN];
@@ -258,18 +259,13 @@ impl Database {
             i += SONG_LEN;
         }
     }
-    pub fn names_by_artist(&self, artist: &str) -> Vec<StaticStr> {
+    pub fn names_by_artist(&self, artist: &str) -> Vec<String> {
         self.query(artist.as_bytes(), ARTIST, NAME)
     }
-    pub fn albums_by_artist(&self, artist: &str) -> Vec<StaticStr> {
+    pub fn albums_by_artist(&self, artist: &str) -> Vec<String> {
         self.query(artist.as_bytes(), ARTIST, ALBUM)
     }
-    pub fn query(
-        &self,
-        input: &[u8],
-        query: Range<usize>,
-        response: Range<usize>,
-    ) -> Vec<StaticStr> {
+    pub fn query(&self, input: &[u8], query: Range<usize>, response: Range<usize>) -> Vec<String> {
         let mut i = 0;
         let mut items = Vec::new();
         loop {
@@ -277,7 +273,9 @@ impl Database {
                 Some(query) => {
                     if query.starts_with(input) {
                         let response = self.mmap.get(i + response.start..i + response.end).unwrap();
-                        items.push(StaticStr::from(strip_padding(response)));
+                        unsafe {
+                            items.push(strip_padding(response).to_string());
+                        }
                     }
                 }
                 None => return items,
@@ -304,15 +302,7 @@ impl Database {
         loop {
             match self.mmap.get(i + offset..i + offset + STR_LEN) {
                 Some(name) => {
-                    //Make sure to exclude the zero padding.
-                    for (i, b) in name.iter().enumerate() {
-                        if b == &b'\0' {
-                            unsafe {
-                                names.push(from_utf8_unchecked(&name[0..i]).to_string());
-                            }
-                            break;
-                        }
-                    }
+                    names.push(strip_padding(name).to_string());
                     i += SONG_LEN;
                 }
                 None => return names,
@@ -363,5 +353,6 @@ fn main() {
     let now = Instant::now();
     let songs = db.albums_by_artist("Kendrick Lamar");
     dbg!(now.elapsed());
+    dbg!(&songs);
     dbg!(songs.len());
 }
