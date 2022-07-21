@@ -1,8 +1,7 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_database::{query, Database, State};
-use gonk_player::Player;
-use playlist::{Mode as PlaylistMode, Playlist};
+use gonk_player::{Index, Player};
+// use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
@@ -17,7 +16,7 @@ use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
 mod log;
-mod playlist;
+// mod playlist;
 mod queue;
 mod search;
 mod settings;
@@ -62,8 +61,6 @@ fn main() {
     gonk_database::init();
     log::init();
 
-    let mut db = Database::default();
-
     {
         let args: Vec<String> = std::env::args().skip(1).collect();
         if !args.is_empty() {
@@ -75,7 +72,7 @@ fn main() {
 
                     let path = args[1..].join(" ");
                     if Path::new(&path).exists() {
-                        db.add_path(&path);
+                        // db.add_path(&path);
                     } else {
                         return println!("Invalid path.");
                     }
@@ -88,21 +85,24 @@ fn main() {
                     }
 
                     let path = args[1..].join(" ");
-                    match query::remove_folder(&path) {
-                        Ok(_) => return println!("Deleted path: {}", path),
-                        Err(e) => return println!("{e}"),
-                    };
+                    panic!();
+                    // match gonk_database::remove_folder(&path) {
+                    //     Ok(_) => return println!("Deleted path: {}", path),
+                    //     Err(e) => return println!("{e}"),
+                    // };
                 }
                 "list" => {
-                    return for path in query::folders() {
-                        println!("{path}");
-                    };
+                    panic!();
+                    // return for path in gonk_database::folders() {
+                    //     println!("{path}");
+                    // };
                 }
                 "reset" => {
-                    return match gonk_database::reset() {
-                        Ok(_) => println!("Files reset!"),
-                        Err(e) => println!("{}", e),
-                    }
+                    panic!();
+                    // return match gonk_database::reset() {
+                    //     Ok(_) => println!("Files reset!"),
+                    //     Err(e) => println!("{}", e),
+                    // }
                 }
                 "help" | "--help" => {
                     println!("Usage");
@@ -138,31 +138,19 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    //443 us
-    let (songs, elapsed) = query::get_queue();
-    let volume = query::volume();
+    // let (songs, elapsed) = gonk_database::get_queue();
+    // let volume = gonk_database::volume();
 
-    let device = query::playback_device();
+    // let device = gonk_database::playback_device();
 
-    //40ms
-    let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
+    // let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
+    let player = thread::spawn(move || Player::new(String::new(), 15, Index::default(), 0.0));
 
-    //3ms
     let mut browser = Browser::new();
-
-    //300 ns
     let mut queue = Queue::new();
-
-    //200 ns
     let mut status_bar = StatusBar::new();
-
-    //68 us
-    let mut playlist = Playlist::new();
-
-    //6.1ms
+    // let mut playlist = Playlist::new();
     let mut settings = Settings::new();
-
-    //5.5ms
     let mut search = Search::new();
 
     let mut mode = Mode::Browser;
@@ -178,15 +166,15 @@ fn main() {
     }
 
     loop {
-        match db.state() {
-            State::Busy => busy = true,
-            State::Idle => busy = false,
-            State::NeedsUpdate => {
-                browser::refresh(&mut browser);
-                search::refresh_cache(&mut search);
-                search::refresh_results(&mut search);
-            }
-        }
+        // match db.state() {
+        //     State::Busy => busy = true,
+        //     State::Idle => busy = false,
+        //     State::NeedsUpdate => {
+        //         browser::refresh(&mut browser);
+        //         search::refresh_cache(&mut search);
+        //         search::refresh_results(&mut search);
+        //     }
+        // }
 
         if last_tick.elapsed() >= Duration::from_millis(200) {
             //Update the status_bar at a constant rate.
@@ -218,7 +206,8 @@ fn main() {
                     Mode::Browser => browser::draw(&browser, top, f),
                     Mode::Queue => queue::draw(&mut queue, &mut player, f, None),
                     Mode::Search => search::draw(&mut search, top, f),
-                    Mode::Playlist => playlist::draw(&mut playlist, top, f),
+                    // Mode::Playlist => playlist::draw(&mut playlist, top, f),
+                    Mode::Playlist => (),
                     Mode::Settings => settings::draw(&mut settings, top, f),
                 };
 
@@ -231,13 +220,15 @@ fn main() {
             .unwrap();
 
         let input_search = search.mode == SearchMode::Search && mode == Mode::Search;
-        let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
+        // let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
+        let input_playlist = false;
 
         let input = match mode {
             Mode::Browser => &mut browser as &mut dyn Input,
             Mode::Queue => &mut queue as &mut dyn Input,
             Mode::Search => &mut search as &mut dyn Input,
-            Mode::Playlist => &mut playlist as &mut dyn Input,
+            // Mode::Playlist => &mut playlist as &mut dyn Input,
+            Mode::Playlist => &mut browser as &mut dyn Input,
             Mode::Settings => &mut settings as &mut dyn Input,
         };
 
@@ -254,17 +245,17 @@ fn main() {
                             if control && c == 'w' {
                                 search::on_backspace(&mut search, true);
                             } else {
-                                search.query_changed = true;
-                                search.query.push(c);
+                                search.gonk_database_changed = true;
+                                search.gonk_database.push(c);
                             }
                         }
                         KeyCode::Char(c) if input_playlist => {
-                            if control && c == 'w' {
-                                playlist::on_backspace(&mut playlist, true);
-                            } else {
-                                playlist.changed = true;
-                                playlist.search.push(c);
-                            }
+                            // if control && c == 'w' {
+                            // playlist::on_backspace(&mut playlist, true);
+                            // } else {
+                            // playlist.changed = true;
+                            // playlist.search.push(c);
+                            // }
                         }
                         KeyCode::Char(' ') => match player.toggle_playback() {
                             Ok(_) => (),
@@ -280,10 +271,10 @@ fn main() {
                         }
                         KeyCode::Char('x') => match mode {
                             Mode::Queue => queue::delete(&mut queue, &mut player),
-                            Mode::Playlist => playlist::delete(&mut playlist),
+                            // Mode::Playlist => playlist::delete(&mut playlist),
                             _ => (),
                         },
-                        KeyCode::Char('u') if mode == Mode::Browser => db.refresh(),
+                        // KeyCode::Char('u') if mode == Mode::Browser => db.refresh(),
                         KeyCode::Char('q') => match player.seek_by(-10.0) {
                             Ok(_) => (),
                             Err(e) => log!("{}", e),
@@ -302,11 +293,11 @@ fn main() {
                         },
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            query::set_volume(player.volume);
+                            // gonk_database::set_volume(player.volume);
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            query::set_volume(player.volume);
+                            // gonk_database::set_volume(player.volume);
                         }
                         //TODO: Rework mode changing buttons
                         KeyCode::Char('`') => {
@@ -335,24 +326,24 @@ fn main() {
                                 search::on_escape(&mut search, &mut mode);
                             }
                             Mode::Settings => mode = Mode::Queue,
-                            Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
+                            // Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
                             _ => (),
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                playlist::add_to_playlist(&mut playlist, &songs);
+                                // playlist::add_to_playlist(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
                             Mode::Queue => {
                                 if let Some(song) = player.songs.selected() {
-                                    playlist::add_to_playlist(&mut playlist, &[song.clone()]);
+                                    // playlist::add_to_playlist(&mut playlist, &[song.clone()]);
                                     mode = Mode::Playlist;
                                 }
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    playlist::add_to_playlist(&mut playlist, &songs);
+                                    // playlist::add_to_playlist(&mut playlist, &songs);
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -387,11 +378,12 @@ fn main() {
                                 }
                             }
                             Mode::Settings => settings::on_enter(&mut settings, &mut player),
-                            Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
+                            // Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
+                            _ => (),
                         },
                         KeyCode::Backspace => match mode {
                             Mode::Search => search::on_backspace(&mut search, control),
-                            Mode::Playlist => playlist::on_backspace(&mut playlist, control),
+                            // Mode::Playlist => playlist::on_backspace(&mut playlist, control),
                             _ => (),
                         },
                         KeyCode::Up => input.up(),
@@ -446,16 +438,16 @@ fn main() {
 }
 
 fn save_queue(player: &Player) {
-    let ids: Vec<usize> = player
-        .songs
-        .data
-        .iter()
-        .filter_map(|song| song.id)
-        .collect();
+    // let ids: Vec<usize> = player
+    //     .songs
+    //     .data
+    //     .iter()
+    //     .filter_map(|song| song.id)
+    //     .collect();
 
-    query::save_queue(
-        &ids,
-        player.songs.index().unwrap_or(0),
-        player.elapsed().as_secs_f32(),
-    );
+    // gonk_database::save_queue(
+    //     &ids,
+    //     player.songs.index().unwrap_or(0),
+    //     player.elapsed().as_secs_f32(),
+    // );
 }

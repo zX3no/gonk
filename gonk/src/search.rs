@@ -1,7 +1,6 @@
 use super::Mode as AppMode;
 use crate::widgets::*;
 use crate::*;
-use gonk_database::query;
 use gonk_player::{Index, Song};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
@@ -47,8 +46,8 @@ pub enum Mode {
 }
 
 pub struct Search {
-    pub query: String,
-    pub query_changed: bool,
+    pub gonk_database: String,
+    pub gonk_database_changed: bool,
     pub mode: Mode,
     pub results: Index<Item>,
     pub cache: Vec<Item>,
@@ -58,8 +57,8 @@ impl Search {
     pub fn new() -> Self {
         let mut search = Self {
             cache: Vec::new(),
-            query: String::new(),
-            query_changed: false,
+            gonk_database: String::new(),
+            gonk_database_changed: false,
             mode: Mode::Search,
             results: Index::default(),
         };
@@ -87,9 +86,9 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
     match search.mode {
         Mode::Search => {
             if shift {
-                search.query.clear();
+                search.gonk_database.clear();
             } else {
-                search.query.pop();
+                search.gonk_database.pop();
             }
         }
         Mode::Select => {
@@ -103,7 +102,7 @@ pub fn on_escape(search: &mut Search, mode: &mut AppMode) {
     match search.mode {
         Mode::Search => {
             if let Mode::Search = search.mode {
-                search.query.clear();
+                search.gonk_database.clear();
                 *mode = AppMode::Queue;
             }
         }
@@ -124,9 +123,9 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
             None
         }
         Mode::Select => search.results.selected().map(|item| match item {
-            Item::Song(song) => query::songs_from_ids(&[song.id]),
-            Item::Album(album) => query::songs_from_album(&album.name, &album.artist),
-            Item::Artist(artist) => query::songs_by_artist(&artist.name),
+            Item::Song(song) => gonk_database::ids(&[song.id]),
+            Item::Album(album) => gonk_database::songs_from_album(&album.name, &album.artist),
+            Item::Artist(artist) => gonk_database::songs_by_artist(&artist.name),
         }),
     }
 }
@@ -135,36 +134,38 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    for song in query::songs() {
+    for song in gonk_database::songs() {
         search.cache.push(Item::Song(MinSong {
             name: song.name,
             album: song.album,
             artist: song.artist,
-            id: song.id.unwrap(),
+            id: song.id,
         }));
     }
 
-    for (name, artist) in query::albums() {
+    for (name, artist) in gonk_database::albums() {
         search.cache.push(Item::Album(Album { name, artist }));
     }
 
-    for name in query::artists() {
+    for name in gonk_database::artists() {
         search.cache.push(Item::Artist(Artist { name }));
     }
 }
 
 pub fn refresh_results(search: &mut Search) {
-    let query = &search.query.to_lowercase();
+    let gonk_database = &search.gonk_database.to_lowercase();
 
     let get_accuary = |item: &Item| -> f64 {
         match item {
-            Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-            Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
-            Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
+            Item::Song(song) => strsim::jaro_winkler(gonk_database, &song.name.to_lowercase()),
+            Item::Album(album) => strsim::jaro_winkler(gonk_database, &album.name.to_lowercase()),
+            Item::Artist(artist) => {
+                strsim::jaro_winkler(gonk_database, &artist.name.to_lowercase())
+            }
         }
     };
 
-    let mut results: Vec<_> = if query.is_empty() {
+    let mut results: Vec<_> = if gonk_database.is_empty() {
         //If there user has not asked to search anything
         //populate the list with 40 results.
         search
@@ -220,7 +221,7 @@ pub fn refresh_results(search: &mut Search) {
 }
 
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
-    if search.query_changed {
+    if search.gonk_database_changed {
         refresh_results(search);
     }
 
@@ -257,7 +258,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
                 artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
-                let albums = query::albums_by_artist(&artist.name);
+                let albums = gonk_database::albums_by_artist(&artist.name);
 
                 search::artist(f, &artist.name, h[0]);
 
@@ -281,10 +282,10 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
 
     //Move the cursor position when typing
     if let Mode::Search = search.mode {
-        if search.results.index().is_none() && search.query.is_empty() {
+        if search.results.index().is_none() && search.gonk_database.is_empty() {
             f.set_cursor(1, 1);
         } else {
-            let len = search.query.len() as u16;
+            let len = search.gonk_database.len() as u16;
             let max_width = area.width.saturating_sub(2);
             if len >= max_width {
                 f.set_cursor(max_width, 1);
@@ -320,7 +321,7 @@ fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<Row> = query::songs_from_album(album, artist)
+    let cells: Vec<Row> = gonk_database::songs_from_album(album, artist)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
         .collect();
@@ -345,7 +346,7 @@ fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
 }
 
 fn artist(f: &mut Frame, artist: &str, area: Rect) {
-    let albums = query::albums_by_artist(artist);
+    let albums = gonk_database::albums_by_artist(artist);
     let cells: Vec<_> = albums
         .iter()
         .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -380,7 +381,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 
         match item {
             Item::Song(song) => {
-                let song = query::songs_from_ids(&[song.id])[0].clone();
+                let song = gonk_database::get(song.id).unwrap();
                 Row::new(vec![
                     selected_cell,
                     Cell::from(song.name).style(Style::default().fg(COLORS.name)),
@@ -469,13 +470,13 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 }
 
 fn draw_textbox(search: &Search, f: &mut Frame, area: Rect) {
-    let len = search.query.len() as u16;
+    let len = search.gonk_database.len() as u16;
     //Search box is a little smaller than the max width
     let width = area.width.saturating_sub(1);
     let offset_x = if len < width { 0 } else { len - width + 1 };
 
     f.render_widget(
-        Paragraph::new(search.query.as_str())
+        Paragraph::new(search.gonk_database.as_str())
             .block(
                 Block::default()
                     .borders(Borders::ALL)

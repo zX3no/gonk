@@ -1,6 +1,4 @@
 use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
-use gonk_database::playlist::PlaylistSong;
-use gonk_database::{playlist, query};
 use gonk_player::{Index, Player, Song};
 use tui::style::Style;
 use tui::text::Span;
@@ -93,7 +91,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
     match playlist.mode {
         Mode::Playlist => {
             let ids: Vec<usize> = playlist.songs.data.iter().map(|song| song.id).collect();
-            let songs = query::songs_from_ids(&ids);
+            let songs = gonk_database::songs_from_ids(&ids);
             match player.add_songs(&songs) {
                 Ok(_) => (),
                 Err(e) => log!("{}", e),
@@ -103,7 +101,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         }
         Mode::Song => {
             if let Some(item) = playlist.songs.selected() {
-                let song = query::songs_from_ids(&[item.id]).remove(0);
+                let song = gonk_database::songs_from_ids(&[item.id]).remove(0);
                 match player.add_songs(&[song]) {
                     Ok(_) => (),
                     Err(e) => log!("{}", e),
@@ -115,11 +113,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
             //Select an existing playlist or create a new one.
             let name = playlist.search.trim().to_string();
 
-            let ids: Vec<usize> = playlist
-                .song_buffer
-                .iter()
-                .map(|song| song.id.unwrap())
-                .collect();
+            let ids: Vec<usize> = playlist.song_buffer.iter().map(|song| song.id).collect();
 
             playlist::add(&name, &ids);
 

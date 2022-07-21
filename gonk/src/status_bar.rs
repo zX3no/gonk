@@ -1,5 +1,4 @@
 use crate::{Frame, COLORS};
-use gonk_database::query;
 use gonk_player::Player;
 use std::time::{Duration, Instant};
 use tui::{
@@ -81,7 +80,7 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, p
             status_bar.scan_timer = None;
             status_bar.scan_message = format!(
                 "Finished adding {} files in {:.2} seconds.",
-                query::total_songs(),
+                gonk_database::len(),
                 scan_time.elapsed().as_secs_f32(),
             );
         }

@@ -19,11 +19,10 @@ use symphonia::{
 };
 
 pub use cpal::{traits::DeviceTrait, Device};
+pub use gonk_database::Song;
 pub use index::Index;
-pub use song::Song;
 
 mod index;
-mod song;
 
 #[inline]
 const fn gcd(a: usize, b: usize) -> usize {
