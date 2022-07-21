@@ -292,6 +292,7 @@ pub fn init() {
     if !db_exists {
         let mut writer = BufWriter::new(&file);
 
+        //TODO: How do we handle paths in the new database?
         let paths: Vec<DirEntry> = walkdir::WalkDir::new("D:\\OneDrive\\Music")
             .into_iter()
             .flatten()
@@ -436,7 +437,7 @@ pub fn albums_by_artist(gonk_database: &str) -> Vec<String> {
         }
         i += SONG_LEN;
     }
-    albums.sort_unstable();
+    albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
     albums.dedup();
     albums
 }
@@ -456,7 +457,7 @@ pub fn par_albums_by_artist(gonk_database: &str) -> Vec<String> {
             }
         })
         .collect();
-    albums.sort_unstable();
+    albums.par_sort_unstable_by_key(|album| album.to_ascii_lowercase());
     albums.dedup();
     albums
 }
@@ -527,7 +528,7 @@ pub fn artists() -> Vec<String> {
         artists.push(artist(text).to_string());
         i += SONG_LEN;
     }
-    artists.sort_unstable();
+    artists.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
     artists.dedup();
     artists
 }
@@ -542,7 +543,7 @@ pub fn par_artists() -> Vec<String> {
             artist(text).to_string()
         })
         .collect();
-    artists.par_sort_unstable();
+    artists.par_sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
     artists.dedup();
     artists
 }
