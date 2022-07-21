@@ -87,7 +87,7 @@ pub fn path(text: &[u8; TEXT_LEN]) -> &str {
     unreachable!();
 }
 
-#[derive(PartialEq, PartialOrd, Eq, Ord, Clone, Debug)]
+#[derive(PartialEq, PartialOrd, Eq, Ord, Clone)]
 struct Song {
     //Name, album, artist, path are all crammed into this space.
     text: [u8; TEXT_LEN],
@@ -126,6 +126,22 @@ impl Song {
         song[SONG_LEN - 2] = self.number;
         song[SONG_LEN - 1] = self.disc;
         song
+    }
+}
+impl Debug for Song {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = name(&self.text);
+        let album = album(&self.text);
+        let artist = artist(&self.text);
+        let path = path(&self.text);
+        f.debug_struct("Song")
+            .field("name", &name)
+            .field("album", &album)
+            .field("artist", &artist)
+            .field("path", &path)
+            .field("number", &self.number)
+            .field("disc", &self.disc)
+            .finish()
     }
 }
 
@@ -232,6 +248,33 @@ impl Database {
         let bytes = self.mmap.get(start..start + SONG_LEN)?;
         Some(Song::from(bytes))
     }
+    pub fn names_from_album(&self, query: &str) -> Vec<String> {
+        let mut songs = Vec::new();
+        let mut i = 0;
+        while let Some(text) = self.mmap.get(i..i + TEXT_LEN) {
+            let album = album(text.try_into().unwrap());
+            if album == query {
+                songs.push(name(text.try_into().unwrap()).to_string());
+            }
+            i += SONG_LEN;
+        }
+        songs
+    }
+    pub fn par_names_from_album(&self, query: &str) -> Vec<String> {
+        (0..self.len())
+            .into_par_iter()
+            .filter_map(|i| {
+                let pos = i * SONG_LEN;
+                let text = &self.mmap[pos..pos + TEXT_LEN];
+                let album = album(text.try_into().unwrap());
+                if album == query {
+                    Some(name(text.try_into().unwrap()).to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
     pub fn albums_by_artist(&self, query: &str) -> Vec<String> {
         let mut albums = Vec::new();
         let mut i = 0;
@@ -253,6 +296,22 @@ impl Database {
                 let artist = artist(text.try_into().unwrap());
                 if artist == query {
                     Some(album(text.try_into().unwrap()).to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+    pub fn par_songs_by_artist(&self, query: &str) -> Vec<Song> {
+        (0..self.len())
+            .into_par_iter()
+            .filter_map(|i| {
+                let pos = i * SONG_LEN;
+                let text = &self.mmap[pos..pos + TEXT_LEN];
+                let artist = artist(text.try_into().unwrap());
+                if artist == query {
+                    let song_bytes = &self.mmap[pos..pos + SONG_LEN];
+                    Some(Song::from(song_bytes))
                 } else {
                     None
                 }
@@ -340,6 +399,7 @@ fn create_test_db() {
 }
 
 fn main() {
+    // create_db();
     let db = Database::new();
 
     // let song = Song::new(
@@ -351,8 +411,6 @@ fn main() {
     //     1,
     // );
 
-    let now = Instant::now();
-    let albums = db.par_albums_by_artist("joe");
-    dbg!(now.elapsed());
-    dbg!(albums.len());
+    let songs = db.par_songs_by_artist("Iglooghost");
+    dbg!(songs);
 }
