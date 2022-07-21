@@ -34,14 +34,11 @@ const TEXT_LEN: usize = 510;
 const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() * 2;
 
 pub fn name(text: &[u8; TEXT_LEN]) -> &str {
-    let now = Instant::now();
     let end = text.iter().position(|&c| c == b'\0').unwrap();
-    dbg!(now.elapsed());
     unsafe { from_utf8_unchecked(&text[..end]) }
 }
 
 pub fn album(text: &[u8; TEXT_LEN]) -> &str {
-    let now = Instant::now();
     let mut start = 0;
 
     for (i, c) in text.iter().enumerate() {
@@ -49,15 +46,14 @@ pub fn album(text: &[u8; TEXT_LEN]) -> &str {
             if start == 0 {
                 start = i + 1;
             } else {
-                dbg!(now.elapsed());
                 return unsafe { from_utf8_unchecked(&text[start..i]) };
             }
         }
     }
     unreachable!();
 }
+
 pub fn artist(text: &[u8; TEXT_LEN]) -> &str {
-    let now = Instant::now();
     let mut pos = [None; 2];
     for (i, c) in text.iter().enumerate() {
         if c == &b'\0' {
@@ -66,7 +62,6 @@ pub fn artist(text: &[u8; TEXT_LEN]) -> &str {
             } else if pos[1].is_none() {
                 pos[1] = Some(i);
             } else {
-                dbg!(now.elapsed());
                 return unsafe { from_utf8_unchecked(&text[pos[1].unwrap() + 1..i]) };
             }
         }
@@ -75,7 +70,6 @@ pub fn artist(text: &[u8; TEXT_LEN]) -> &str {
 }
 
 pub fn path(text: &[u8; TEXT_LEN]) -> &str {
-    let now = Instant::now();
     let mut pos = [None; 3];
     for (i, c) in text.iter().enumerate() {
         if c == &b'\0' {
@@ -86,7 +80,6 @@ pub fn path(text: &[u8; TEXT_LEN]) -> &str {
             } else if pos[2].is_none() {
                 pos[2] = Some(i);
             } else {
-                dbg!(now.elapsed());
                 return unsafe { from_utf8_unchecked(&text[pos[2].unwrap() + 1..i]) };
             }
         }
@@ -239,6 +232,33 @@ impl Database {
         let bytes = self.mmap.get(start..start + SONG_LEN)?;
         Some(Song::from(bytes))
     }
+    pub fn albums_by_artist(&self, query: &str) -> Vec<String> {
+        let mut albums = Vec::new();
+        let mut i = 0;
+        while let Some(text) = self.mmap.get(i..i + TEXT_LEN) {
+            let artist = artist(text.try_into().unwrap());
+            if artist == query {
+                albums.push(album(text.try_into().unwrap()).to_string());
+            }
+            i += SONG_LEN;
+        }
+        albums
+    }
+    pub fn par_albums_by_artist(&self, query: &str) -> Vec<String> {
+        (0..self.len())
+            .into_par_iter()
+            .filter_map(|i| {
+                let pos = i * SONG_LEN;
+                let text = &self.mmap[pos..pos + TEXT_LEN];
+                let artist = artist(text.try_into().unwrap());
+                if artist == query {
+                    Some(album(text.try_into().unwrap()).to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
     pub fn artists(&self) -> Vec<String> {
         let mut artists = Vec::new();
         let mut i = 0;
@@ -320,21 +340,19 @@ fn create_test_db() {
 }
 
 fn main() {
-    // let db = Database::new();
-    // let song = db.get(102).unwrap();
+    let db = Database::new();
 
-    let song = Song::new(
-        "joe's songa;d ask;ld ja;d lkasjd ;akld jsa;l dkjasd ;lsakd jas;d lkasjd ;aslkds;al kdj;l",
-        "joe's albumasd ;aslkdj as;dlk jas;d laskjd ;aslkd jas;ld kaj;al kdjas; lkasjd; laskdj as; ldkj",
-        "joeasd;alks jas;dl kjas;d lkasjd; alskd jas;ld kajsd; laskjd asldk jas;d laskjd;alskd jas;dl kjasd; laskj",
-        "D:\\OneDrive\\Joe\\joe's song.flac",
-        2,
-        1,
-    );
+    // let song = Song::new(
+    //     "joe's songa;d ask;ld ja;d lkasjd ;akld jsa;l dkjasd ;lsakd jas;d lkasjd ;aslkds;al kdj;l",
+    //     "joe's albumasd ;aslkdj as;dlk jas;d laskjd ;aslkd jas;ld kaj;al kdjas; lkasjd; laskdj as; ldkj",
+    //     "joeasd;alks jas;dl kjas;d lkasjd; alskd jas;ld kajsd; laskjd asldk jas;d laskjd;alskd jas;dl kjasd; laskj",
+    //     "D:\\OneDrive\\Joe\\joe's song.flac",
+    //     2,
+    //     1,
+    // );
 
-    dbg!(name(&song.text));
-    // let result = album(&song.text);
-    // dbg!(result);
-    // let artists = db.artists();
-    // dbg!(&artists[10000]);
+    let now = Instant::now();
+    let albums = db.par_albums_by_artist("joe");
+    dbg!(now.elapsed());
+    dbg!(albums.len());
 }
