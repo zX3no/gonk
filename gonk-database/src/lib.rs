@@ -70,17 +70,15 @@ pub fn artist(text: &[u8]) -> &str {
 
 pub fn path(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut pos = [None; 3];
+    let mut found = 0;
+    let mut start = 0;
     for (i, c) in text.iter().enumerate() {
         if c == &b'\0' {
-            if pos[0].is_none() {
-                pos[0] = Some(i);
-            } else if pos[1].is_none() {
-                pos[1] = Some(i);
-            } else if pos[2].is_none() {
-                pos[2] = Some(i);
-            } else {
-                return unsafe { from_utf8_unchecked(&text[pos[2].unwrap_unchecked() + 1..i]) };
+            found += 1;
+            if found == 3 {
+                start = i;
+            } else if found == 4 {
+                return unsafe { from_utf8_unchecked(&text[start + 1..i]) };
             }
         }
     }
@@ -105,7 +103,7 @@ pub struct Song {
 }
 
 impl Song {
-    fn from(bytes: &[u8], id: usize) -> Self {
+    pub fn from(bytes: &[u8], id: usize) -> Self {
         let text = &bytes[..TEXT_LEN];
         Self {
             name: name(text).to_string(),
@@ -385,7 +383,7 @@ pub fn par_songs_from_album(al: &str, ar: &str) -> Vec<Song> {
             let album = album(text);
             let artist = artist(text);
             if album == al && artist == ar {
-                Some(Song::from(&mmap[pos..pos + SONG_LEN], i / SONG_LEN))
+                Some(Song::from(&mmap[pos..pos + SONG_LEN], i))
             } else {
                 None
             }
@@ -487,7 +485,7 @@ pub fn par_songs_by_artist(gonk_database: &str) -> Vec<Song> {
             let artist = artist(text);
             if artist == gonk_database {
                 let song_bytes = &mmap[pos..pos + SONG_LEN];
-                Some(Song::from(song_bytes, i / SONG_LEN))
+                Some(Song::from(song_bytes, i))
             } else {
                 None
             }
@@ -506,6 +504,18 @@ pub fn songs() -> Vec<Song> {
     songs
 }
 
+pub fn par_songs() -> Vec<Song> {
+    let mmap = mmap();
+    (0..len())
+        .into_par_iter()
+        .map(|i| {
+            let pos = i * SONG_LEN;
+            let bytes = &mmap[pos..pos + SONG_LEN];
+            Song::from(bytes, i)
+        })
+        .collect()
+}
+
 ///(Album, Artist)
 pub fn albums() -> Vec<(String, String)> {
     let mmap = mmap();
@@ -515,7 +525,23 @@ pub fn albums() -> Vec<(String, String)> {
         albums.push((album(text).to_string(), artist(text).to_string()));
         i += SONG_LEN;
     }
-    albums.sort_unstable();
+    albums.sort_unstable_by_key(|(_, artist)| artist.to_ascii_lowercase());
+    albums.dedup();
+    albums
+}
+
+///(Album, Artist)
+pub fn par_albums() -> Vec<(String, String)> {
+    let mmap = mmap();
+    let mut albums: Vec<(String, String)> = (0..len())
+        .into_par_iter()
+        .map(|i| {
+            let pos = i * SONG_LEN;
+            let text = &mmap[pos..pos + TEXT_LEN];
+            (album(text).to_string(), artist(text).to_string())
+        })
+        .collect();
+    albums.par_sort_unstable_by_key(|(_, artist)| artist.to_ascii_lowercase());
     albums.dedup();
     albums
 }
@@ -554,9 +580,22 @@ pub fn len() -> usize {
 
 pub fn bench<F>(func: F)
 where
-    F: FnOnce(),
+    F: Fn(),
 {
     let now = Instant::now();
-    func();
-    println!("{:?}", now.elapsed());
+    for _ in 0..100_000 {
+        func();
+    }
+    println!("{:?}", now.elapsed() / 100_000);
+}
+
+pub fn bench_slow<F>(func: F)
+where
+    F: Fn(),
+{
+    let now = Instant::now();
+    for _ in 0..4000 {
+        func();
+    }
+    println!("{:?}", now.elapsed() / 4000);
 }
