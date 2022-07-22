@@ -1,3 +1,4 @@
+#![feature(portable_simd)]
 use memmap2::Mmap;
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
@@ -10,6 +11,7 @@ use std::{
     io::{BufWriter, Write},
     mem::size_of,
     path::{Path, PathBuf},
+    simd::{u8x8, Simd, ToBitMask},
     str::from_utf8_unchecked,
     time::Instant,
 };
@@ -27,6 +29,32 @@ use walkdir::DirEntry;
 const TEXT_LEN: usize = 510;
 const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() * 2;
 
+pub fn find_zeroes(bytes: &[u8]) -> Option<usize> {
+    const LANE_SIZE: usize = 8;
+    const ZERO: Simd<u8, LANE_SIZE> = u8x8::splat(b'\0');
+
+    let buf = u8x8::from_slice(&bytes[..LANE_SIZE]);
+    let result = buf.lanes_eq(ZERO);
+    if result.any() {
+        let bitmask = result.to_bitmask();
+        let index = (LANE_SIZE as i32 - 1) - bitmask.leading_zeros() as i32;
+        if index != -1 {
+            return Some(index as usize);
+        }
+    }
+    None
+}
+
+pub fn scan_text(text: &[u8]) -> [Option<usize>; 4] {
+    let mut nulls = [None; 4];
+
+    nulls[0] = find_zeroes(&text[..8]);
+    nulls[1] = find_zeroes(&text[8..16]);
+    nulls[2] = find_zeroes(&text[16..24]);
+    nulls[3] = find_zeroes(&text[24..32]);
+    nulls
+}
+
 pub fn name(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
@@ -38,7 +66,6 @@ pub fn name(text: &[u8]) -> &str {
 pub fn album(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     let mut start = 0;
-
     for (i, c) in text.iter().enumerate() {
         if c == &b'\0' {
             if start == 0 {
@@ -53,15 +80,15 @@ pub fn album(text: &[u8]) -> &str {
 
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut pos = [None; 2];
+    let mut found = 0;
+    let mut start = 0;
     for (i, c) in text.iter().enumerate() {
         if c == &b'\0' {
-            if pos[0].is_none() {
-                pos[0] = Some(i);
-            } else if pos[1].is_none() {
-                pos[1] = Some(i);
-            } else {
-                return unsafe { from_utf8_unchecked(&text[pos[1].unwrap_unchecked() + 1..i]) };
+            found += 1;
+            if found == 2 {
+                start = i + 1;
+            } else if found == 3 {
+                return unsafe { from_utf8_unchecked(&text[start..i]) };
             }
         }
     }
@@ -120,9 +147,9 @@ impl Song {
 
 pub struct RawSong {
     //Name, album, artist, path are all crammed into this space.
-    text: [u8; TEXT_LEN],
-    number: u8,
-    disc: u8,
+    pub text: [u8; TEXT_LEN],
+    pub number: u8,
+    pub disc: u8,
 }
 
 impl RawSong {
