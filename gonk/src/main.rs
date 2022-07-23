@@ -65,6 +65,7 @@ fn main() {
     gonk_database::init();
     log::init();
     // optick::start_capture();
+    let mut handle = None;
 
     {
         let args: Vec<String> = std::env::args().skip(1).collect();
@@ -77,30 +78,11 @@ fn main() {
 
                     let path = args[1..].join(" ");
                     if Path::new(&path).exists() {
+                        handle = Some(gonk_database::scan(path));
                         // db.add_path(&path);
                     } else {
                         return println!("Invalid path.");
                     }
-                }
-                //TODO: Add numbers to each path
-                //so users can just write: gonk rm 3
-                "rm" => {
-                    if args.len() == 1 {
-                        return println!("Usage: gonk rm <path>");
-                    }
-
-                    let path = args[1..].join(" ");
-                    panic!();
-                    // match gonk_database::remove_folder(&path) {
-                    //     Ok(_) => return println!("Deleted path: {}", path),
-                    //     Err(e) => return println!("{e}"),
-                    // };
-                }
-                "list" => {
-                    panic!();
-                    // return for path in gonk_database::folders() {
-                    //     println!("{path}");
-                    // };
                 }
                 "reset" => {
                     panic!();
@@ -171,15 +153,18 @@ fn main() {
     }
 
     loop {
-        // match db.state() {
-        //     State::Busy => busy = true,
-        //     State::Idle => busy = false,
-        //     State::NeedsUpdate => {
-        //         browser::refresh(&mut browser);
-        //         search::refresh_cache(&mut search);
-        //         search::refresh_results(&mut search);
-        //     }
-        // }
+        if let Some(h) = &handle {
+            if h.is_finished() {
+                browser::refresh(&mut browser);
+                search::refresh_cache(&mut search);
+                search::refresh_results(&mut search);
+                handle = None;
+            } else {
+                busy = true;
+            }
+        } else {
+            busy = false;
+        }
 
         if last_tick.elapsed() >= Duration::from_millis(200) {
             //Update the status_bar at a constant rate.

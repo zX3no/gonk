@@ -1,3 +1,4 @@
+#![allow(unused)]
 use gonk_database::*;
 
 fn main() {
@@ -12,7 +13,17 @@ fn main() {
         1,
         0.01,
     );
+    let songs = songs_from_album(
+        "Various Artists",
+        "The Legend of Zelda: Breath of the Wild Original Soundtrack",
+    );
+    let ids: Vec<usize> = songs.iter().map(|song| song.id).collect();
 
-    let songs = songs_from_album("Arca", "Xen");
-    dbg!(songs);
+    bench_slow(|| {
+        let _songs = albums_by_artist("Death Grips");
+    });
+
+    bench_slow(|| {
+        let _songs = albums_by_artist("Death Grips");
+    });
 }

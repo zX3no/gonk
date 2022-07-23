@@ -134,7 +134,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    for song in gonk_database::songs() {
+    for song in gonk_database::par_songs() {
         search.cache.push(Item::Song(MinSong {
             name: song.title,
             album: song.album,
@@ -143,7 +143,7 @@ pub fn refresh_cache(search: &mut Search) {
         }));
     }
 
-    for (name, artist) in gonk_database::albums() {
+    for (artist, name) in gonk_database::albums() {
         search.cache.push(Item::Album(Album { name, artist }));
     }
 

@@ -14,7 +14,7 @@ pub enum Mode {
     Song,
 }
 
-pub struct BrowserSong {
+pub struct Item {
     name: String,
     id: usize,
 }
@@ -22,7 +22,7 @@ pub struct BrowserSong {
 pub struct Browser {
     artists: Index<String>,
     albums: Index<String>,
-    songs: Index<BrowserSong>,
+    songs: Index<Item>,
     pub mode: Mode,
 }
 
@@ -36,7 +36,7 @@ impl Browser {
             if let Some(first_album) = albums.selected() {
                 let songs = gonk_database::songs_from_album(first_artist, first_album)
                     .into_iter()
-                    .map(|song| BrowserSong {
+                    .map(|song| Item {
                         name: format!("{}. {}", song.number, song.title),
                         id: song.id,
                     })
@@ -125,7 +125,7 @@ pub fn update_songs(browser: &mut Browser) {
         if let Some(album) = browser.albums.selected() {
             let songs = gonk_database::songs_from_album(artist, album)
                 .into_iter()
-                .map(|song| BrowserSong {
+                .map(|song| Item {
                     name: format!("{}. {}", song.number, song.title),
                     id: song.id,
                 })
