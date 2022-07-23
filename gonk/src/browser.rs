@@ -141,7 +141,7 @@ pub fn get_selected(browser: &Browser) -> Vec<Song> {
             if let Some(song) = browser.songs.selected() {
                 return match browser.mode {
                     Mode::Artist => gonk_database::songs_by_artist(artist),
-                    Mode::Album => gonk_database::songs_from_album(album, artist),
+                    Mode::Album => gonk_database::songs_from_album(artist, album),
                     Mode::Song => gonk_database::ids(&[song.id]),
                 };
             }

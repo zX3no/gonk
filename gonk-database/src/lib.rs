@@ -8,7 +8,7 @@ use std::{
     fmt::Debug,
     fs::{self, File, OpenOptions},
     io::{BufWriter, Write},
-    mem::size_of,
+    ops::Range,
     path::{Path, PathBuf},
     str::from_utf8_unchecked,
     time::Instant,
@@ -24,8 +24,13 @@ use symphonia::{
 };
 use walkdir::DirEntry;
 
-const TEXT_LEN: usize = 510;
-const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() * 2;
+/// 2 bytes for number and disc, 4 bytes for gain
+pub const SONG_LEN: usize = TEXT_LEN + 2 + 4;
+pub const TEXT_LEN: usize = 522;
+
+pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
+pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
+pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
@@ -106,10 +111,10 @@ pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
     unreachable!();
 }
 
-// #[inline]
-// fn db_to_amplitude(db: f32) -> f32 {
-//     10.0_f32.powf(db / 20.0)
-// }
+#[inline]
+fn db_to_amplitude(db: f32) -> f32 {
+    10.0_f32.powf(db / 20.0)
+}
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Song {
@@ -135,9 +140,9 @@ impl Song {
             album: album(text).to_string(),
             title: title(text).to_string(),
             path: path(text).to_string(),
-            number: bytes[SONG_LEN - 2],
-            disc: bytes[SONG_LEN - 1],
-            gain: 0.0,
+            number: bytes[NUMBER_POS],
+            disc: bytes[DISC_POS],
+            gain: unsafe { f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked()) },
             id,
         }
     }
@@ -150,10 +155,19 @@ pub struct RawSong {
     pub text: [u8; TEXT_LEN],
     pub number: u8,
     pub disc: u8,
+    pub gain: f32,
 }
 
 impl RawSong {
-    pub fn new(artist: &str, album: &str, title: &str, path: &str, number: u8, disc: u8) -> Self {
+    pub fn new(
+        artist: &str,
+        album: &str,
+        title: &str,
+        path: &str,
+        number: u8,
+        disc: u8,
+        gain: f32,
+    ) -> Self {
         optick::event!();
         let artist = artist.replace('\0', "");
         let album = album.replace('\0', "");
@@ -181,14 +195,20 @@ impl RawSong {
             text[album_pos..title_pos].copy_from_slice(&title);
             text[title_pos..path_pos].copy_from_slice(&path);
 
-            Self { text, number, disc }
+            Self {
+                text,
+                number,
+                disc,
+                gain,
+            }
         }
     }
     pub fn into_bytes(self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
         song[0..TEXT_LEN].copy_from_slice(&self.text);
-        song[SONG_LEN - 2] = self.number;
-        song[SONG_LEN - 1] = self.disc;
+        song[NUMBER_POS] = self.number;
+        song[DISC_POS] = self.disc;
+        song[GAIN_POS].copy_from_slice(&self.gain.to_le_bytes());
         song
     }
     pub fn artist(&self) -> &str {
@@ -218,6 +238,7 @@ impl Debug for RawSong {
             .field("path", &path)
             .field("number", &self.number)
             .field("disc", &self.disc)
+            .field("gain", &self.gain)
             .finish()
     }
 }
@@ -225,11 +246,20 @@ impl Debug for RawSong {
 impl From<&'_ [u8]> for RawSong {
     fn from(bytes: &[u8]) -> Self {
         optick::event!();
-        Self {
-            text: bytes[..TEXT_LEN].try_into().unwrap(),
-            number: bytes[SONG_LEN - 2],
-            disc: bytes[SONG_LEN - 1],
+        unsafe {
+            Self {
+                text: bytes[..TEXT_LEN].try_into().unwrap_unchecked(),
+                number: bytes[NUMBER_POS],
+                disc: bytes[DISC_POS],
+                gain: f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked()),
+            }
         }
+    }
+}
+
+impl From<[u8; SONG_LEN]> for RawSong {
+    fn from(bytes: [u8; SONG_LEN]) -> Self {
+        RawSong::from(bytes.as_slice())
     }
 }
 
@@ -254,6 +284,7 @@ impl From<&'_ Path> for RawSong {
         let mut artist = String::from("Unknown Artist");
         let mut number = 1;
         let mut disc = 1;
+        let mut gain = 0.0;
 
         let mut update_metadata = |metadata: &MetadataRevision| {
             for tag in metadata.tags() {
@@ -281,18 +312,23 @@ impl From<&'_ Path> for RawSong {
                                 disc = num.parse().unwrap_or(1);
                             }
                         }
+                        StandardTagKey::ReplayGainTrackGain => {
+                            let db = tag
+                                .value
+                                .to_string()
+                                .split(' ')
+                                .next()
+                                .unwrap()
+                                .parse()
+                                .unwrap_or(0.0);
+                            gain = db_to_amplitude(db);
+                        }
                         _ => (),
                     }
                 }
             }
         };
 
-        //Why are there two different ways to get metadata?
-        // if let Some(mut metadata) = probe.metadata.get() {
-        //     if let Some(current) = metadata.skip_to_latest() {
-        //         update_metadata(current);
-        //     }
-        // } else
         if let Some(metadata) = probe.format.metadata().skip_to_latest() {
             update_metadata(metadata);
         } else {
@@ -308,6 +344,7 @@ impl From<&'_ Path> for RawSong {
             &path.to_string_lossy(),
             number,
             disc,
+            gain,
         )
     }
 }
