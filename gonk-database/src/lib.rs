@@ -7,7 +7,6 @@ use std::{
     io::{BufWriter, Write},
     ops::Range,
     path::{Path, PathBuf},
-    str::from_utf8_unchecked,
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -30,88 +29,81 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
 pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
 pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
-pub fn artist(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
+pub mod query;
+pub mod settings;
+pub use query::*;
+
+static mut MMAP: Option<Mmap> = None;
+
+fn mmap() -> Option<&'static Mmap> {
+    unsafe { MMAP.as_ref() }
+}
+
+fn db_path() -> PathBuf {
+    let gonk = if cfg!(windows) {
+        PathBuf::from(&env::var("APPDATA").unwrap())
+    } else {
+        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
+    }
+    .join("gonk");
+
+    if !gonk.exists() {
+        fs::create_dir_all(&gonk).unwrap();
+    }
+
+    gonk.join("gonk_new.db")
+}
+
+pub fn init() {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&db_path())
+        .unwrap();
+
+    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+}
+
+pub fn scan(path: String) -> JoinHandle<()> {
     unsafe {
-        let end = text.iter().position(|&c| c == b'\0').unwrap();
-        from_utf8_unchecked(&text[..end])
+        let mmap = MMAP.take().unwrap();
+        drop(mmap);
+        debug_assert!(MMAP.is_none());
     }
-}
 
-pub fn album(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut start = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            if start == 0 {
-                start = i + 1;
-            } else {
-                return unsafe { from_utf8_unchecked(&text[start..i]) };
-            }
+    thread::spawn(|| {
+        let file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .truncate(true)
+            .open(&db_path())
+            .unwrap();
+        let mut writer = BufWriter::new(&file);
+
+        let paths: Vec<DirEntry> = walkdir::WalkDir::new(path)
+            .into_iter()
+            .flatten()
+            .filter(|path| match path.path().extension() {
+                Some(ex) => {
+                    matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
+                }
+                None => false,
+            })
+            .collect();
+
+        let songs: Vec<RawSong> = paths
+            .into_par_iter()
+            .map(|path| RawSong::from(path.path()))
+            .collect();
+
+        for song in songs {
+            writer.write_all(&song.into_bytes()).unwrap();
         }
-    }
-    unreachable!();
-}
 
-pub fn title(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut found = 0;
-    let mut start = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            found += 1;
-            if found == 2 {
-                start = i + 1;
-            } else if found == 3 {
-                return unsafe { from_utf8_unchecked(&text[start..i]) };
-            }
-        }
-    }
-    unreachable!();
-}
-
-pub fn path(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut found = 0;
-    let mut start = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            found += 1;
-            if found == 3 {
-                start = i;
-            } else if found == 4 {
-                return unsafe { from_utf8_unchecked(&text[start + 1..i]) };
-            }
-        }
-    }
-    unreachable!();
-}
-
-pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut found = 0;
-    let mut end_artist = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            found += 1;
-            if found == 1 {
-                end_artist = i;
-            } else if found == 2 {
-                return unsafe {
-                    (
-                        from_utf8_unchecked(&text[..end_artist]),
-                        from_utf8_unchecked(&text[end_artist + 1..i]),
-                    )
-                };
-            }
-        }
-    }
-    unreachable!();
-}
-
-#[inline]
-fn db_to_amplitude(db: f32) -> f32 {
-    10.0_f32.powf(db / 20.0)
+        writer.flush().unwrap();
+        unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -148,6 +140,7 @@ impl Song {
 
 //TODO: Remove Song
 //I want to see if songs can be stored on the stack.
+#[derive(Clone)]
 pub struct RawSong {
     /// Text holds the artist, album, title and path.
     pub text: [u8; TEXT_LEN],
@@ -259,6 +252,11 @@ impl From<[u8; SONG_LEN]> for RawSong {
     }
 }
 
+#[inline]
+pub fn db_to_amplitude(db: f32) -> f32 {
+    10.0_f32.powf(db / 20.0)
+}
+
 impl From<&'_ Path> for RawSong {
     fn from(path: &'_ Path) -> Self {
         optick::event!();
@@ -317,6 +315,7 @@ impl From<&'_ Path> for RawSong {
                                 .unwrap()
                                 .parse()
                                 .unwrap_or(0.0);
+
                             gain = db_to_amplitude(db);
                         }
                         _ => (),
@@ -342,233 +341,6 @@ impl From<&'_ Path> for RawSong {
             disc,
             gain,
         )
-    }
-}
-
-static mut MMAP: Option<Mmap> = None;
-
-fn mmap() -> Option<&'static Mmap> {
-    unsafe { MMAP.as_ref() }
-}
-
-fn file_path() -> PathBuf {
-    let gonk = if cfg!(windows) {
-        PathBuf::from(&env::var("APPDATA").unwrap())
-    } else {
-        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
-    }
-    .join("gonk");
-
-    if !gonk.exists() {
-        fs::create_dir_all(&gonk).unwrap();
-    }
-
-    gonk.join("gonk_new.db")
-}
-
-pub fn init() {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&file_path())
-        .unwrap();
-
-    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
-}
-
-pub fn scan(path: String) -> JoinHandle<()> {
-    unsafe {
-        let mmap = MMAP.take().unwrap();
-        drop(mmap);
-        assert!(MMAP.is_none());
-    }
-
-    thread::spawn(|| {
-        let file = OpenOptions::new()
-            .write(true)
-            .read(true)
-            .truncate(true)
-            .open(&file_path())
-            .unwrap();
-        let mut writer = BufWriter::new(&file);
-
-        let paths: Vec<DirEntry> = walkdir::WalkDir::new(path)
-            .into_iter()
-            .flatten()
-            .filter(|path| match path.path().extension() {
-                Some(ex) => {
-                    matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
-                }
-                None => false,
-            })
-            .collect();
-
-        let songs: Vec<RawSong> = paths
-            .into_par_iter()
-            .map(|path| RawSong::from(path.path()))
-            .collect();
-
-        for song in songs {
-            writer.write_all(&song.into_bytes()).unwrap();
-        }
-
-        writer.flush().unwrap();
-        unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
-    })
-}
-
-pub fn get(index: usize) -> Option<Song> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let start = SONG_LEN * index;
-        let bytes = mmap.get(start..start + SONG_LEN)?;
-        Some(Song::from(bytes, index))
-    } else {
-        None
-    }
-}
-
-pub fn ids(ids: &[usize]) -> Vec<Song> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut songs = Vec::new();
-        for id in ids {
-            let start = SONG_LEN * id;
-            let bytes = &mmap[start..start + SONG_LEN];
-            songs.push(Song::from(bytes, *id));
-        }
-        songs
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut songs = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            let (artist, album) = artist_and_album(text);
-            if artist == ar && album == al {
-                songs.push(Song::from(&mmap[i..i + SONG_LEN], i / SONG_LEN));
-            }
-            i += SONG_LEN;
-        }
-        songs
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn albums_by_artist(ar: &str) -> Vec<String> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut albums = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            let artist = artist(text);
-            if artist == ar {
-                albums.push(album(text).to_string());
-            }
-            i += SONG_LEN;
-        }
-        albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
-        albums.dedup();
-        albums
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn songs_by_artist(ar: &str) -> Vec<Song> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut songs = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            let artist = artist(text);
-            if artist == ar {
-                let song_bytes = &mmap[i..i + SONG_LEN];
-                songs.push(Song::from(song_bytes, i / SONG_LEN));
-            }
-            i += SONG_LEN;
-        }
-        songs
-    } else {
-        Vec::new()
-    }
-}
-
-// pub fn songs() -> Vec<Song> {
-//     optick::event!();
-//         if let Some(mmap) = mmap() {
-//     let mut songs = Vec::new();
-//     let mut i = 0;
-//     while let Some(bytes) = mmap.get(i..i + SONG_LEN) {
-//         songs.push(Song::from(bytes, i / SONG_LEN));
-//         i += SONG_LEN;
-//     }
-//     songs
-// }
-
-pub fn par_songs() -> Vec<Song> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        (0..len())
-            .into_par_iter()
-            .map(|i| {
-                let pos = i * SONG_LEN;
-                let bytes = &mmap[pos..pos + SONG_LEN];
-                Song::from(bytes, i)
-            })
-            .collect()
-    } else {
-        Vec::new()
-    }
-}
-
-///(Artist, Album)
-pub fn albums() -> Vec<(String, String)> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut albums = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            albums.push((artist(text).to_string(), album(text).to_string()));
-            i += SONG_LEN;
-        }
-        albums.sort_unstable_by_key(|(_, artist)| artist.to_ascii_lowercase());
-        albums.dedup();
-        albums
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn artists() -> Vec<String> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut artists = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            artists.push(artist(text).to_string());
-            i += SONG_LEN;
-        }
-        artists.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
-        artists.dedup();
-        artists
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn len() -> usize {
-    if let Some(mmap) = mmap() {
-        mmap.len() / SONG_LEN
-    } else {
-        0
     }
 }
 
