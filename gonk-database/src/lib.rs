@@ -143,6 +143,8 @@ impl Song {
     }
 }
 
+//TODO: Remove Song
+//I want to see if songs can be stored on the stack.
 pub struct RawSong {
     /// Text holds the artist, album, title and path.
     pub text: [u8; TEXT_LEN],
@@ -188,6 +190,18 @@ impl RawSong {
         song[SONG_LEN - 2] = self.number;
         song[SONG_LEN - 1] = self.disc;
         song
+    }
+    pub fn artist(&self) -> &str {
+        artist(&self.text)
+    }
+    pub fn album(&self) -> &str {
+        album(&self.text)
+    }
+    pub fn title(&self) -> &str {
+        title(&self.text)
+    }
+    pub fn path(&self) -> &str {
+        path(&self.text)
     }
 }
 

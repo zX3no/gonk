@@ -99,7 +99,7 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, p
             Span::raw(" "),
             Span::styled(song.number.to_string(), Style::default().fg(COLORS.number)),
             Span::raw(" ｜ "),
-            Span::styled(song.name.as_str(), Style::default().fg(COLORS.name)),
+            Span::styled(song.title.as_str(), Style::default().fg(COLORS.name)),
             Span::raw(" ｜ "),
             Span::styled(song.album.as_str(), Style::default().fg(COLORS.album)),
             Span::raw(" ｜ "),

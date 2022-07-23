@@ -57,9 +57,14 @@ pub trait Input {
     fn right(&mut self);
 }
 
+fn end() {
+    // optick::stop_capture("gonk_trace");
+}
+
 fn main() {
     gonk_database::init();
     log::init();
+    // optick::start_capture();
 
     {
         let args: Vec<String> = std::env::args().skip(1).collect();
@@ -435,6 +440,8 @@ fn main() {
         DisableMouseCapture
     )
     .unwrap();
+
+    end();
 }
 
 fn save_queue(player: &Player) {

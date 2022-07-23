@@ -124,7 +124,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
         }
         Mode::Select => search.results.selected().map(|item| match item {
             Item::Song(song) => gonk_database::ids(&[song.id]),
-            Item::Album(album) => gonk_database::songs_from_album(&album.name, &album.artist),
+            Item::Album(album) => gonk_database::songs_from_album(&album.artist, &album.name),
             Item::Artist(artist) => gonk_database::songs_by_artist(&artist.name),
         }),
     }
@@ -136,7 +136,7 @@ pub fn refresh_cache(search: &mut Search) {
 
     for song in gonk_database::songs() {
         search.cache.push(Item::Song(MinSong {
-            name: song.name,
+            name: song.title,
             album: song.album,
             artist: song.artist,
             id: song.id,
@@ -321,9 +321,9 @@ fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<Row> = gonk_database::songs_from_album(album, artist)
+    let cells: Vec<Row> = gonk_database::songs_from_album(artist, album)
         .iter()
-        .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
+        .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.title))]))
         .collect();
 
     let table = Table::new(&cells)
@@ -384,7 +384,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
                 let song = gonk_database::get(song.id).unwrap();
                 Row::new(vec![
                     selected_cell,
-                    Cell::from(song.name).style(Style::default().fg(COLORS.name)),
+                    Cell::from(song.title).style(Style::default().fg(COLORS.name)),
                     Cell::from(song.album).style(Style::default().fg(COLORS.album)),
                     Cell::from(song.artist).style(Style::default().fg(COLORS.artist)),
                 ])

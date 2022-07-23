@@ -34,10 +34,10 @@ impl Browser {
             let albums = Index::new(gonk_database::albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = gonk_database::songs_from_album(first_album, first_artist)
+                let songs = gonk_database::songs_from_album(first_artist, first_album)
                     .into_iter()
                     .map(|song| BrowserSong {
-                        name: format!("{}. {}", song.number, song.name),
+                        name: format!("{}. {}", song.number, song.title),
                         id: song.id,
                     })
                     .collect();
@@ -123,10 +123,10 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs = gonk_database::songs_from_album(album, artist)
+            let songs = gonk_database::songs_from_album(artist, album)
                 .into_iter()
                 .map(|song| BrowserSong {
-                    name: format!("{}. {}", song.number, song.name),
+                    name: format!("{}. {}", song.number, song.title),
                     id: song.id,
                 })
                 .collect();
