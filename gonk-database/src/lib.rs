@@ -1,4 +1,3 @@
-#![feature(portable_simd)]
 use memmap2::Mmap;
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
@@ -11,7 +10,6 @@ use std::{
     io::{BufWriter, Write},
     mem::size_of,
     path::{Path, PathBuf},
-    simd::{u8x8, Simd, ToBitMask},
     str::from_utf8_unchecked,
     time::Instant,
 };
@@ -29,33 +27,7 @@ use walkdir::DirEntry;
 const TEXT_LEN: usize = 510;
 const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() * 2;
 
-pub fn find_zeroes(bytes: &[u8]) -> Option<usize> {
-    const LANE_SIZE: usize = 8;
-    const ZERO: Simd<u8, LANE_SIZE> = u8x8::splat(b'\0');
-
-    let buf = u8x8::from_slice(&bytes[..LANE_SIZE]);
-    let result = buf.lanes_eq(ZERO);
-    if result.any() {
-        let bitmask = result.to_bitmask();
-        let index = (LANE_SIZE as i32 - 1) - bitmask.leading_zeros() as i32;
-        if index != -1 {
-            return Some(index as usize);
-        }
-    }
-    None
-}
-
-pub fn scan_text(text: &[u8]) -> [Option<usize>; 4] {
-    let mut nulls = [None; 4];
-
-    nulls[0] = find_zeroes(&text[..8]);
-    nulls[1] = find_zeroes(&text[8..16]);
-    nulls[2] = find_zeroes(&text[16..24]);
-    nulls[3] = find_zeroes(&text[24..32]);
-    nulls
-}
-
-pub fn name(text: &[u8]) -> &str {
+pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
         let end = text.iter().position(|&c| c == b'\0').unwrap_unchecked();
@@ -78,7 +50,7 @@ pub fn album(text: &[u8]) -> &str {
     unreachable!();
 }
 
-pub fn artist(text: &[u8]) -> &str {
+pub fn title(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     let mut found = 0;
     let mut start = 0;
@@ -112,6 +84,28 @@ pub fn path(text: &[u8]) -> &str {
     unreachable!();
 }
 
+pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
+    debug_assert_eq!(text.len(), TEXT_LEN);
+    let mut found = 0;
+    let mut end_artist = 0;
+    for (i, c) in text.iter().enumerate() {
+        if c == &b'\0' {
+            found += 1;
+            if found == 1 {
+                end_artist = i;
+            } else if found == 2 {
+                return unsafe {
+                    (
+                        from_utf8_unchecked(&text[..end_artist]),
+                        from_utf8_unchecked(&text[end_artist + 1..i]),
+                    )
+                };
+            }
+        }
+    }
+    unreachable!();
+}
+
 // #[inline]
 // fn db_to_amplitude(db: f32) -> f32 {
 //     10.0_f32.powf(db / 20.0)
@@ -119,9 +113,12 @@ pub fn path(text: &[u8]) -> &str {
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Song {
-    pub name: String,
-    pub album: String,
+    /// The order is very important
+    /// Artist queries are most common
+    /// followed by albums, names then paths.
     pub artist: String,
+    pub album: String,
+    pub title: String,
     pub path: String,
     pub number: u8,
     pub disc: u8,
@@ -131,11 +128,12 @@ pub struct Song {
 
 impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
+        optick::event!();
         let text = &bytes[..TEXT_LEN];
         Self {
-            name: name(text).to_string(),
-            album: album(text).to_string(),
             artist: artist(text).to_string(),
+            album: album(text).to_string(),
+            title: title(text).to_string(),
             path: path(text).to_string(),
             number: bytes[SONG_LEN - 2],
             disc: bytes[SONG_LEN - 1],
@@ -146,33 +144,40 @@ impl Song {
 }
 
 pub struct RawSong {
-    //Name, album, artist, path are all crammed into this space.
+    /// Text holds the artist, album, title and path.
     pub text: [u8; TEXT_LEN],
     pub number: u8,
     pub disc: u8,
 }
 
 impl RawSong {
-    pub fn new(name: &str, album: &str, artist: &str, path: &str, number: u8, disc: u8) -> Self {
-        let len = name.len() + album.len() + artist.len() + path.len();
+    pub fn new(artist: &str, album: &str, title: &str, path: &str, number: u8, disc: u8) -> Self {
+        optick::event!();
+        let artist = artist.replace('\0', "");
+        let album = album.replace('\0', "");
+        let title = title.replace('\0', "");
+        let path = path.replace('\0', "");
+
+        let len = title.len() + album.len() + artist.len() + path.len();
         if len > TEXT_LEN {
             panic!("Text is '{}' bytes to many!", len - TEXT_LEN);
         } else {
-            let name = [name.as_bytes(), &[b'\0']].concat();
-            let album = [album.as_bytes(), &[b'\0']].concat();
             let artist = [artist.as_bytes(), &[b'\0']].concat();
+            let album = [album.as_bytes(), &[b'\0']].concat();
+            let title = [title.as_bytes(), &[b'\0']].concat();
             let path = [path.as_bytes(), &[b'\0']].concat();
 
             let mut text = [0u8; TEXT_LEN];
-            let name_pos = name.len();
-            let album_pos = name_pos + album.len();
-            let artist_pos = album_pos + artist.len();
-            let path_pos = artist_pos + path.len();
 
-            text[..name_pos].copy_from_slice(&name);
-            text[name_pos..album_pos].copy_from_slice(&album);
-            text[album_pos..artist_pos].copy_from_slice(&artist);
-            text[artist_pos..path_pos].copy_from_slice(&path);
+            let artist_pos = artist.len();
+            let album_pos = artist_pos + album.len();
+            let title_pos = album_pos + title.len();
+            let path_pos = title_pos + path.len();
+
+            text[..artist_pos].copy_from_slice(&artist);
+            text[artist_pos..album_pos].copy_from_slice(&album);
+            text[album_pos..title_pos].copy_from_slice(&title);
+            text[title_pos..path_pos].copy_from_slice(&path);
 
             Self { text, number, disc }
         }
@@ -188,14 +193,14 @@ impl RawSong {
 
 impl Debug for RawSong {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = name(&self.text);
+        let title = title(&self.text);
         let album = album(&self.text);
         let artist = artist(&self.text);
         let path = path(&self.text);
         f.debug_struct("Song")
-            .field("name", &name)
-            .field("album", &album)
             .field("artist", &artist)
+            .field("album", &album)
+            .field("title", &title)
             .field("path", &path)
             .field("number", &self.number)
             .field("disc", &self.disc)
@@ -205,6 +210,7 @@ impl Debug for RawSong {
 
 impl From<&'_ [u8]> for RawSong {
     fn from(bytes: &[u8]) -> Self {
+        optick::event!();
         Self {
             text: bytes[..TEXT_LEN].try_into().unwrap(),
             number: bytes[SONG_LEN - 2],
@@ -215,6 +221,7 @@ impl From<&'_ [u8]> for RawSong {
 
 impl From<&'_ Path> for RawSong {
     fn from(path: &'_ Path) -> Self {
+        optick::event!();
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
 
@@ -228,7 +235,7 @@ impl From<&'_ Path> for RawSong {
             Err(_) => panic!("{:?}", path),
         };
 
-        let mut name = String::from("Unknown Title");
+        let mut title = String::from("Unknown Title");
         let mut album = String::from("Unknown Album");
         let mut artist = String::from("Unknown Artist");
         let mut number = 1;
@@ -243,7 +250,7 @@ impl From<&'_ Path> for RawSong {
                             artist = tag.value.to_string()
                         }
                         StandardTagKey::Album => album = tag.value.to_string(),
-                        StandardTagKey::TrackTitle => name = tag.value.to_string(),
+                        StandardTagKey::TrackTitle => title = tag.value.to_string(),
                         StandardTagKey::TrackNumber => {
                             let num = tag.value.to_string();
                             if let Some((num, _)) = num.split_once('/') {
@@ -267,18 +274,23 @@ impl From<&'_ Path> for RawSong {
         };
 
         //Why are there two different ways to get metadata?
-        if let Some(metadata) = probe.metadata.get() {
-            if let Some(current) = metadata.current() {
-                update_metadata(current);
-            }
-        } else if let Some(metadata) = probe.format.metadata().current() {
+        // if let Some(mut metadata) = probe.metadata.get() {
+        //     if let Some(current) = metadata.skip_to_latest() {
+        //         update_metadata(current);
+        //     }
+        // } else
+        if let Some(metadata) = probe.format.metadata().skip_to_latest() {
+            update_metadata(metadata);
+        } else {
+            let mut metadata = probe.metadata.get().unwrap();
+            let metadata = metadata.skip_to_latest().unwrap();
             update_metadata(metadata);
         }
 
         RawSong::new(
-            &name,
-            &album,
             &artist,
+            &album,
+            &title,
             &path.to_string_lossy(),
             number,
             disc,
@@ -293,6 +305,7 @@ fn mmap() -> &'static Mmap {
 }
 
 pub fn init() {
+    optick::event!();
     let gonk = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())
     } else {
@@ -358,12 +371,14 @@ pub fn init() {
 }
 
 pub fn get(index: usize) -> Option<Song> {
+    optick::event!();
     let start = SONG_LEN * index;
     let bytes = mmap().get(start..start + SONG_LEN)?;
     Some(Song::from(bytes, index))
 }
 
 pub fn ids(ids: &[usize]) -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     let mut songs = Vec::new();
     for id in ids {
@@ -375,6 +390,7 @@ pub fn ids(ids: &[usize]) -> Vec<Song> {
 }
 
 pub fn par_ids(ids: &[usize]) -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     ids.par_iter()
         .map(|id| {
@@ -385,14 +401,14 @@ pub fn par_ids(ids: &[usize]) -> Vec<Song> {
         .collect()
 }
 
-pub fn songs_from_album(al: &str, ar: &str) -> Vec<Song> {
+pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
+    // optick::event!();
     let mmap = mmap();
     let mut songs = Vec::new();
     let mut i = 0;
     while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-        let album = album(text);
-        let artist = artist(text);
-        if album == al && artist == ar {
+        let (artist, album) = artist_and_album(text);
+        if artist == ar && album == al {
             songs.push(Song::from(&mmap[i..i + SONG_LEN], i / SONG_LEN));
         }
         i += SONG_LEN;
@@ -400,16 +416,16 @@ pub fn songs_from_album(al: &str, ar: &str) -> Vec<Song> {
     songs
 }
 
-pub fn par_songs_from_album(al: &str, ar: &str) -> Vec<Song> {
+pub fn par_songs_from_album(ar: &str, al: &str) -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     (0..len())
         .into_par_iter()
         .filter_map(|i| {
             let pos = i * SONG_LEN;
             let text = &mmap[pos..pos + TEXT_LEN];
-            let album = album(text);
-            let artist = artist(text);
-            if album == al && artist == ar {
+            let (artist, album) = artist_and_album(text);
+            if artist == ar && album == al {
                 Some(Song::from(&mmap[pos..pos + SONG_LEN], i))
             } else {
                 None
@@ -419,6 +435,7 @@ pub fn par_songs_from_album(al: &str, ar: &str) -> Vec<Song> {
 }
 
 pub fn names_from_album(gonk_database: &str) -> Vec<String> {
+    optick::event!();
     let mmap = mmap();
     let mut songs = Vec::new();
     let mut i = 0;
@@ -426,7 +443,7 @@ pub fn names_from_album(gonk_database: &str) -> Vec<String> {
         let album = album(text);
         if album == gonk_database {
             let number = mmap[i + SONG_LEN - 2];
-            songs.push(format!("{}. {}", number, name(text)));
+            songs.push(format!("{}. {}", number, title(text)));
         }
         i += SONG_LEN;
     }
@@ -434,6 +451,7 @@ pub fn names_from_album(gonk_database: &str) -> Vec<String> {
 }
 
 pub fn par_names_from_album(gonk_database: &str) -> Vec<String> {
+    optick::event!();
     let mmap = mmap();
     (0..len())
         .into_par_iter()
@@ -443,7 +461,7 @@ pub fn par_names_from_album(gonk_database: &str) -> Vec<String> {
             let album = album(text);
             if album == gonk_database {
                 let number = &mmap[pos + SONG_LEN - 2];
-                Some(format!("{}. {}", number, name(text)))
+                Some(format!("{}. {}", number, title(text)))
             } else {
                 None
             }
@@ -452,6 +470,7 @@ pub fn par_names_from_album(gonk_database: &str) -> Vec<String> {
 }
 
 pub fn albums_by_artist(gonk_database: &str) -> Vec<String> {
+    optick::event!();
     let mmap = mmap();
     let mut albums = Vec::new();
     let mut i = 0;
@@ -468,6 +487,7 @@ pub fn albums_by_artist(gonk_database: &str) -> Vec<String> {
 }
 
 pub fn par_albums_by_artist(gonk_database: &str) -> Vec<String> {
+    optick::event!();
     let mmap = mmap();
     let mut albums: Vec<String> = (0..len())
         .into_par_iter()
@@ -488,6 +508,7 @@ pub fn par_albums_by_artist(gonk_database: &str) -> Vec<String> {
 }
 
 pub fn songs_by_artist(gonk_database: &str) -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     let mut songs = Vec::new();
     let mut i = 0;
@@ -503,6 +524,7 @@ pub fn songs_by_artist(gonk_database: &str) -> Vec<Song> {
 }
 
 pub fn par_songs_by_artist(gonk_database: &str) -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     (0..len())
         .into_par_iter()
@@ -521,6 +543,7 @@ pub fn par_songs_by_artist(gonk_database: &str) -> Vec<Song> {
 }
 
 pub fn songs() -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     let mut songs = Vec::new();
     let mut i = 0;
@@ -532,6 +555,7 @@ pub fn songs() -> Vec<Song> {
 }
 
 pub fn par_songs() -> Vec<Song> {
+    optick::event!();
     let mmap = mmap();
     (0..len())
         .into_par_iter()
@@ -545,6 +569,7 @@ pub fn par_songs() -> Vec<Song> {
 
 ///(Album, Artist)
 pub fn albums() -> Vec<(String, String)> {
+    optick::event!();
     let mmap = mmap();
     let mut albums = Vec::new();
     let mut i = 0;
@@ -559,6 +584,7 @@ pub fn albums() -> Vec<(String, String)> {
 
 ///(Album, Artist)
 pub fn par_albums() -> Vec<(String, String)> {
+    optick::event!();
     let mmap = mmap();
     let mut albums: Vec<(String, String)> = (0..len())
         .into_par_iter()
@@ -574,6 +600,7 @@ pub fn par_albums() -> Vec<(String, String)> {
 }
 
 pub fn artists() -> Vec<String> {
+    optick::event!();
     let mmap = mmap();
     let mut artists = Vec::new();
     let mut i = 0;
@@ -587,6 +614,7 @@ pub fn artists() -> Vec<String> {
 }
 
 pub fn par_artists() -> Vec<String> {
+    optick::event!();
     let mmap = mmap();
     let mut artists: Vec<String> = (0..len())
         .into_par_iter()
