@@ -40,7 +40,7 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 
 static mut RESAMPLER: Option<Resampler> = None;
 
-const VOLUME_STEP: u16 = 5;
+const VOLUME_STEP: u8 = 5;
 const VOLUME_REDUCTION: f32 = 600.0;
 const MAX_DECODE_ERRORS: usize = 3;
 
@@ -73,7 +73,7 @@ pub struct Resampler {
 }
 
 impl Resampler {
-    pub fn new(output: usize, file: File, volume: u16, gain: f32) -> Self {
+    pub fn new(output: usize, file: File, volume: u8, gain: f32) -> Self {
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let mut probed = get_probe()
@@ -274,7 +274,7 @@ impl Resampler {
         }
     }
 
-    pub fn set_volume(&mut self, volume: u16) {
+    pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume as f32 / VOLUME_REDUCTION;
     }
 }
@@ -291,11 +291,11 @@ pub struct Player {
     pub sample_rate: usize,
     pub state: State,
     pub songs: Index<Song>,
-    pub volume: u16,
+    pub volume: u8,
 }
 
 impl Player {
-    pub fn new(wanted_device: String, volume: u16, songs: Index<Song>, elapsed: f32) -> Self {
+    pub fn new(wanted_device: String, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         #[cfg(unix)]
         let _gag = gag::Gag::stderr().unwrap();
 

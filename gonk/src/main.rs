@@ -125,13 +125,11 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    // let (songs, elapsed) = gonk_database::get_queue();
-    // let volume = gonk_database::volume();
-
+    let (songs, index, elapsed) = gonk_database::get_queue();
+    let songs = Index::new(songs, index);
+    let volume = gonk_database::volume();
     // let device = gonk_database::playback_device();
-
-    // let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
-    let player = thread::spawn(move || Player::new(String::new(), 15, Index::default(), 0.0));
+    let player = thread::spawn(move || Player::new(String::new(), volume, songs, elapsed));
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -283,11 +281,11 @@ fn main() {
                         },
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            // gonk_database::set_volume(player.volume);
+                            gonk_database::update_volume(player.volume);
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            // gonk_database::set_volume(player.volume);
+                            gonk_database::update_volume(player.volume);
                         }
                         //TODO: Rework mode changing buttons
                         KeyCode::Char('`') => {
@@ -430,16 +428,9 @@ fn main() {
 }
 
 fn save_queue(player: &Player) {
-    // let ids: Vec<usize> = player
-    //     .songs
-    //     .data
-    //     .iter()
-    //     .filter_map(|song| song.id)
-    //     .collect();
-
-    // gonk_database::save_queue(
-    //     &ids,
-    //     player.songs.index().unwrap_or(0),
-    //     player.elapsed().as_secs_f32(),
-    // );
+    gonk_database::save_queue(
+        &player.songs.data,
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
 }

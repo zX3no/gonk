@@ -30,10 +30,141 @@ pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
 pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
 pub mod query;
-pub mod settings;
 pub use query::*;
 
-static mut MMAP: Option<Mmap> = None;
+pub static mut MMAP: Option<Mmap> = None;
+pub static mut SETTINGS: Settings = Settings::default();
+
+pub fn init() {
+    //Settings
+    {
+        let bytes = fs::read(&settings_path()).unwrap();
+        if !bytes.is_empty() {
+            unsafe { SETTINGS = Settings::from(bytes) };
+        } else {
+            //Write the default configuration if nothing is found.
+            save_settings();
+        }
+    }
+
+    //Database
+    {
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&db_path())
+            .unwrap();
+
+        unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+    }
+}
+
+#[derive(Debug)]
+pub struct Settings {
+    ///Data
+    pub volume: u8,
+    pub index: u16,
+    pub elapsed: f32,
+    pub queue: Vec<RawSong>,
+}
+
+impl Settings {
+    pub const fn default() -> Self {
+        Self {
+            volume: 0,
+            index: 0,
+            elapsed: 0.0,
+            queue: Vec::new(),
+        }
+    }
+    pub fn into_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.push(self.volume);
+        bytes.extend(self.index.to_le_bytes());
+        bytes.extend(self.elapsed.to_le_bytes());
+        for song in &self.queue {
+            bytes.extend(song.clone().into_bytes());
+        }
+        bytes
+    }
+    pub fn from(bytes: Vec<u8>) -> Self {
+        let volume = bytes[0];
+        let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
+        let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
+
+        let mut queue = Vec::new();
+        let mut i = 7;
+        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+            queue.push(RawSong::from(bytes));
+            i += SONG_LEN;
+        }
+
+        Self {
+            index,
+            volume,
+            elapsed,
+            queue,
+        }
+    }
+}
+
+pub fn save_settings() {
+    unsafe {
+        //Delete the contents of the file and overwrite with new settings.
+        let file = File::create(settings_path()).unwrap();
+        let mut writer = BufWriter::new(file);
+        let bytes = SETTINGS.into_bytes();
+        writer.write_all(&bytes).unwrap();
+        writer.flush().unwrap();
+    }
+}
+
+pub fn update_volume(new_volume: u8) {
+    unsafe {
+        SETTINGS.volume = new_volume;
+        save_settings();
+    }
+}
+
+pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
+    unsafe {
+        SETTINGS.queue = queue.iter().map(RawSong::from).collect();
+        SETTINGS.index = index;
+        SETTINGS.elapsed = elapsed;
+        save_settings();
+    }
+}
+
+pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
+    unsafe {
+        let index = if SETTINGS.queue.is_empty() {
+            None
+        } else {
+            Some(SETTINGS.index as usize)
+        };
+        (
+            SETTINGS
+                .queue
+                .iter()
+                .map(|song| Song::from(&song.clone().into_bytes(), 0))
+                .collect(),
+            index,
+            SETTINGS.elapsed,
+        )
+    }
+}
+
+fn settings_path() -> PathBuf {
+    let mut path = db_path();
+    path.pop();
+    path.push("settings.db");
+    path
+}
+
+pub fn volume() -> u8 {
+    unsafe { SETTINGS.volume }
+}
 
 fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
@@ -52,17 +183,6 @@ fn db_path() -> PathBuf {
     }
 
     gonk.join("gonk_new.db")
-}
-
-pub fn init() {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&db_path())
-        .unwrap();
-
-    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
 }
 
 pub fn scan(path: String) -> JoinHandle<()> {
@@ -249,6 +369,20 @@ impl From<&'_ [u8]> for RawSong {
 impl From<[u8; SONG_LEN]> for RawSong {
     fn from(bytes: [u8; SONG_LEN]) -> Self {
         RawSong::from(bytes.as_slice())
+    }
+}
+
+impl From<&Song> for RawSong {
+    fn from(song: &Song) -> Self {
+        RawSong::new(
+            &song.artist,
+            &song.album,
+            &song.title,
+            &song.path,
+            song.number,
+            song.disc,
+            song.gain,
+        )
     }
 }
 
