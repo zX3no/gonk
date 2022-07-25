@@ -62,6 +62,7 @@ pub struct Settings {
     pub index: u16,
     pub elapsed: f32,
     pub output_device: String,
+    pub music_folder: String,
     pub queue: Vec<RawSong>,
 }
 
@@ -72,6 +73,7 @@ impl Settings {
             index: 0,
             elapsed: 0.0,
             output_device: String::new(),
+            music_folder: String::new(),
             queue: Vec::new(),
         }
     }
@@ -81,6 +83,8 @@ impl Settings {
         bytes.extend(self.index.to_le_bytes());
         bytes.extend(self.elapsed.to_le_bytes());
         bytes.extend(self.output_device.replace('\0', "").as_bytes());
+        bytes.push(b'\0');
+        bytes.extend(self.music_folder.replace('\0', "").as_bytes());
         bytes.push(b'\0');
         for song in &self.queue {
             bytes.extend(song.into_bytes());
@@ -93,6 +97,9 @@ impl Settings {
         let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
         let end = bytes[7..].iter().position(|&c| c == b'\0').unwrap() + 7;
         let output_device = unsafe { from_utf8_unchecked(&bytes[7..end]).to_string() };
+        let old_end = end + 1;
+        let end = bytes[old_end..].iter().position(|&c| c == b'\0').unwrap() + old_end;
+        let music_folder = unsafe { from_utf8_unchecked(&bytes[old_end..end]).to_string() };
 
         let mut queue = Vec::new();
         //Skip the null terminator
@@ -106,6 +113,7 @@ impl Settings {
             index,
             volume,
             output_device,
+            music_folder,
             elapsed,
             queue,
         }
@@ -146,6 +154,13 @@ pub fn update_output_device(device: &str) {
     }
 }
 
+pub fn update_music_folder(folder: &str) {
+    unsafe {
+        SETTINGS.music_folder = folder.replace('\\', "/");
+        save_settings();
+    }
+}
+
 pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
     unsafe {
         let index = if SETTINGS.queue.is_empty() {
@@ -166,7 +181,11 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
 }
 
 pub fn get_output_device() -> &'static str {
-    unsafe { SETTINGS.output_device.as_str() }
+    unsafe { &SETTINGS.output_device }
+}
+
+pub fn get_music_folder() -> &'static str {
+    unsafe { &SETTINGS.music_folder }
 }
 
 pub fn volume() -> u8 {

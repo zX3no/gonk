@@ -78,6 +78,7 @@ fn main() {
                     }
                     let path = args[1..].join(" ");
                     if Path::new(&path).exists() {
+                        gonk_database::update_music_folder(path.as_str());
                         handle = Some(gonk_database::scan(path));
                     } else {
                         return println!("Invalid path.");
@@ -260,7 +261,10 @@ fn main() {
                             // Mode::Playlist => playlist::delete(&mut playlist),
                             _ => (),
                         },
-                        // KeyCode::Char('u') if mode == Mode::Browser => db.refresh(),
+                        KeyCode::Char('u') if mode == Mode::Browser => {
+                            let folder = gonk_database::get_music_folder().to_string();
+                            handle = Some(gonk_database::scan(folder));
+                        }
                         KeyCode::Char('q') => match player.seek_by(-10.0) {
                             Ok(_) => (),
                             Err(e) => log!("{}", e),
