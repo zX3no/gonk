@@ -130,7 +130,7 @@ fn main() {
     let songs = Index::new(songs, index);
     let volume = gonk_database::volume();
     // let device = gonk_database::playback_device();
-    // let player = thread::spawn(move || Player::new(String::new(), volume, songs, elapsed));
+    let player = thread::spawn(move || Player::new(String::new(), volume, songs, elapsed));
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -144,9 +144,7 @@ fn main() {
     let mut busy = false;
 
     //TODO: Re-time if using another thread is faster after the rework.
-    // let mut player = player.join().unwrap();
-
-    let mut player = Player::new(String::new(), volume, songs, elapsed);
+    let mut player = player.join().unwrap();
 
     //If there are songs in the queue, display the queue.
     if !player.songs.is_empty() {

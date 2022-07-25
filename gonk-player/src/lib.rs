@@ -296,7 +296,7 @@ pub struct Player {
 
 impl Player {
     pub fn new(wanted_device: String, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-    optick::event!();
+        optick::event!();
         #[cfg(unix)]
         let _gag = gag::Gag::stderr().unwrap();
 
@@ -315,8 +315,10 @@ impl Player {
         };
 
         let config = device.default_output_config().unwrap().config();
+        if config.channels != 2 {
+            panic!("TODO: Support downmixing multiple channels")
+        }
         let stream = create_output_stream(&device, &config).unwrap();
-        stream.play().unwrap();
 
         let mut s = Self {
             sample_rate: config.sample_rate.0 as usize,
@@ -325,13 +327,27 @@ impl Player {
             state: State::Stopped,
             songs,
         };
-        if s.play_selected().is_ok() && s.seek_to(elapsed).is_ok() {
-            s.pause();
+
+        //Force update the playback position when restoring the queue.
+        if let Some(song) = s.songs.selected() {
+            let file = match File::open(&song.path) {
+                Ok(file) => file,
+                Err(_) => return s,
+            };
+            let elapsed = Duration::from_secs_f32(elapsed);
+
+            let mut resampler = Resampler::new(s.sample_rate, file, s.volume, song.gain as f32);
             //Elapsed will not update while paused so force update it.
-            if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                resampler.elapsed = Duration::from_secs_f32(elapsed);
+            resampler.elapsed = elapsed;
+
+            unsafe {
+                RESAMPLER = Some(resampler);
             }
+
+            s.state = State::Paused;
+            s.seek(elapsed).unwrap();
         }
+
         s
     }
 
@@ -543,7 +559,10 @@ impl Player {
         //Seeking at under 0.5 seconds causes an unexpected EOF.
         //Could be because of the coarse seek.
         let time = Duration::from_secs_f32(time.clamp(0.5, f32::MAX));
+        self.seek(time)
+    }
 
+    pub fn seek(&mut self, time: Duration) -> Result<(), String> {
         unsafe {
             match RESAMPLER.as_mut().unwrap().probed.format.seek(
                 SeekMode::Coarse,
