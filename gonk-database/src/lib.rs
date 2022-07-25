@@ -4,10 +4,10 @@ use std::{
     env,
     fmt::Debug,
     fs::{self, File, OpenOptions},
-    io::{BufWriter, Write},
+    io::{self, BufWriter, Write},
     ops::Range,
     path::{Path, PathBuf},
-    str::{from_utf8, from_utf8_unchecked},
+    str::from_utf8_unchecked,
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -512,4 +512,13 @@ where
         func();
     }
     println!("{:?}", now.elapsed() / 4000);
+}
+
+pub fn reset() -> io::Result<()> {
+    unsafe {
+        let mmap = MMAP.take().unwrap();
+        drop(mmap);
+    }
+    fs::remove_file(settings_path())?;
+    fs::remove_file(db_path())
 }

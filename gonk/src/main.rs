@@ -76,21 +76,18 @@ fn main() {
                     if args.len() == 1 {
                         return println!("Usage: gonk add <path>");
                     }
-
                     let path = args[1..].join(" ");
                     if Path::new(&path).exists() {
                         handle = Some(gonk_database::scan(path));
-                        // db.add_path(&path);
                     } else {
                         return println!("Invalid path.");
                     }
                 }
                 "reset" => {
-                    panic!();
-                    // return match gonk_database::reset() {
-                    //     Ok(_) => println!("Files reset!"),
-                    //     Err(e) => println!("{}", e),
-                    // }
+                    return match gonk_database::reset() {
+                        Ok(_) => println!("Files reset!"),
+                        Err(e) => println!("Failed to reset database! {}", e),
+                    };
                 }
                 "help" | "--help" => {
                     println!("Usage");
