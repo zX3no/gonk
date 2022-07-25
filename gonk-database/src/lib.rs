@@ -83,7 +83,7 @@ impl Settings {
         bytes.extend(self.output_device.replace('\0', "").as_bytes());
         bytes.push(b'\0');
         for song in &self.queue {
-            bytes.extend(song.clone().into_bytes());
+            bytes.extend(song.into_bytes());
         }
         bytes
     }
@@ -157,7 +157,7 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
             SETTINGS
                 .queue
                 .iter()
-                .map(|song| Song::from(&song.clone().into_bytes(), 0))
+                .map(|song| Song::from(&song.into_bytes(), 0))
                 .collect(),
             index,
             SETTINGS.elapsed,
@@ -242,9 +242,6 @@ pub fn scan(path: String) -> JoinHandle<()> {
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Song {
-    /// The order is very important
-    /// Artist queries are most common
-    /// followed by albums, names then paths.
     pub artist: String,
     pub album: String,
     pub title: String,
@@ -272,9 +269,6 @@ impl Song {
     }
 }
 
-//TODO: Remove Song
-//I want to see if songs can be stored on the stack.
-#[derive(Clone)]
 pub struct RawSong {
     /// Text holds the artist, album, title and path.
     pub text: [u8; TEXT_LEN],
@@ -328,7 +322,7 @@ impl RawSong {
             }
         }
     }
-    pub fn into_bytes(self) -> [u8; SONG_LEN] {
+    pub fn into_bytes(&self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
         song[0..TEXT_LEN].copy_from_slice(&self.text);
         song[NUMBER_POS] = self.number;
@@ -380,12 +374,6 @@ impl From<&'_ [u8]> for RawSong {
     }
 }
 
-impl From<[u8; SONG_LEN]> for RawSong {
-    fn from(bytes: [u8; SONG_LEN]) -> Self {
-        RawSong::from(bytes.as_slice())
-    }
-}
-
 impl From<&Song> for RawSong {
     fn from(song: &Song) -> Self {
         RawSong::new(
@@ -398,11 +386,6 @@ impl From<&Song> for RawSong {
             song.gain,
         )
     }
-}
-
-#[inline]
-pub fn db_to_amplitude(db: f32) -> f32 {
-    10.0_f32.powf(db / 20.0)
 }
 
 impl From<&'_ Path> for RawSong {
@@ -464,7 +447,7 @@ impl From<&'_ Path> for RawSong {
                                 .parse()
                                 .unwrap_or(0.0);
 
-                            gain = db_to_amplitude(db);
+                            gain = 10.0f32.powf(db / 20.0);
                         }
                         _ => (),
                     }

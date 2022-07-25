@@ -3,9 +3,9 @@ use std::str::from_utf8_unchecked;
 
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    unsafe {
-        let end = text.iter().position(|&c| c == b'\0').unwrap();
-        from_utf8_unchecked(&text[..end])
+    match text.iter().position(|&c| c == b'\0') {
+        Some(end) => unsafe { from_utf8_unchecked(&text[..end]) },
+        None => unreachable!(),
     }
 }
 
@@ -55,7 +55,7 @@ pub fn path(text: &[u8]) -> &str {
             }
         }
     }
-    unreachable!();
+    unsafe { from_utf8_unchecked(&text[start + 1..text.len()]) }
 }
 
 pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
@@ -162,18 +162,6 @@ pub fn songs_by_artist(ar: &str) -> Vec<Song> {
         Vec::new()
     }
 }
-
-// pub fn songs() -> Vec<Song> {
-//     optick::event!();
-//         if let Some(mmap) = mmap() {
-//     let mut songs = Vec::new();
-//     let mut i = 0;
-//     while let Some(bytes) = mmap.get(i..i + SONG_LEN) {
-//         songs.push(Song::from(bytes, i / SONG_LEN));
-//         i += SONG_LEN;
-//     }
-//     songs
-// }
 
 pub fn par_songs() -> Vec<Song> {
     optick::event!();
