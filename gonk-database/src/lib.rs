@@ -7,6 +7,7 @@ use std::{
     io::{BufWriter, Write},
     ops::Range,
     path::{Path, PathBuf},
+    str::{from_utf8, from_utf8_unchecked},
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -37,27 +38,21 @@ pub static mut SETTINGS: Settings = Settings::default();
 
 pub fn init() {
     //Settings
-    {
-        let bytes = fs::read(&settings_path()).unwrap();
-        if !bytes.is_empty() {
-            unsafe { SETTINGS = Settings::from(bytes) };
-        } else {
-            //Write the default configuration if nothing is found.
-            save_settings();
-        }
+    match fs::read(&settings_path()) {
+        Ok(bytes) if !bytes.is_empty() => unsafe { SETTINGS = Settings::from(bytes) },
+        //Write the default configuration if nothing is found.
+        _ => save_settings(),
     }
 
     //Database
-    {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(&db_path())
-            .unwrap();
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&db_path())
+        .unwrap();
 
-        unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
-    }
+    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
 }
 
 #[derive(Debug)]
@@ -66,15 +61,17 @@ pub struct Settings {
     pub volume: u8,
     pub index: u16,
     pub elapsed: f32,
+    pub output_device: String,
     pub queue: Vec<RawSong>,
 }
 
 impl Settings {
     pub const fn default() -> Self {
         Self {
-            volume: 0,
+            volume: 15,
             index: 0,
             elapsed: 0.0,
+            output_device: String::new(),
             queue: Vec::new(),
         }
     }
@@ -83,6 +80,8 @@ impl Settings {
         bytes.push(self.volume);
         bytes.extend(self.index.to_le_bytes());
         bytes.extend(self.elapsed.to_le_bytes());
+        bytes.extend(self.output_device.replace('\0', "").as_bytes());
+        bytes.push(b'\0');
         for song in &self.queue {
             bytes.extend(song.clone().into_bytes());
         }
@@ -92,9 +91,12 @@ impl Settings {
         let volume = bytes[0];
         let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
         let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
+        let end = bytes[7..].iter().position(|&c| c == b'\0').unwrap() + 7;
+        let output_device = unsafe { from_utf8_unchecked(&bytes[7..end]).to_string() };
 
         let mut queue = Vec::new();
-        let mut i = 7;
+        //Skip the null terminator
+        let mut i = end + 1;
         while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
             queue.push(RawSong::from(bytes));
             i += SONG_LEN;
@@ -103,6 +105,7 @@ impl Settings {
         Self {
             index,
             volume,
+            output_device,
             elapsed,
             queue,
         }
@@ -127,11 +130,18 @@ pub fn update_volume(new_volume: u8) {
     }
 }
 
-pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
+pub fn update_queue(queue: &[Song], index: u16, elapsed: f32) {
     unsafe {
         SETTINGS.queue = queue.iter().map(RawSong::from).collect();
         SETTINGS.index = index;
         SETTINGS.elapsed = elapsed;
+        save_settings();
+    }
+}
+
+pub fn update_output_device(device: &str) {
+    unsafe {
+        SETTINGS.output_device = device.to_string();
         save_settings();
     }
 }
@@ -155,15 +165,19 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
     }
 }
 
+pub fn get_output_device() -> &'static str {
+    unsafe { SETTINGS.output_device.as_str() }
+}
+
+pub fn volume() -> u8 {
+    unsafe { SETTINGS.volume }
+}
+
 fn settings_path() -> PathBuf {
     let mut path = db_path();
     path.pop();
     path.push("settings.db");
     path
-}
-
-pub fn volume() -> u8 {
-    unsafe { SETTINGS.volume }
 }
 
 fn mmap() -> Option<&'static Mmap> {

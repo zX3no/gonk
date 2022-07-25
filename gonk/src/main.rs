@@ -129,8 +129,8 @@ fn main() {
     let (songs, index, elapsed) = gonk_database::get_queue();
     let songs = Index::new(songs, index);
     let volume = gonk_database::volume();
-    // let device = gonk_database::playback_device();
-    let player = thread::spawn(move || Player::new(String::new(), volume, songs, elapsed));
+    let device = gonk_database::get_output_device();
+    let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -429,7 +429,7 @@ fn main() {
 }
 
 fn save_queue(player: &Player) {
-    gonk_database::save_queue(
+    gonk_database::update_queue(
         &player.songs.data,
         player.songs.index().unwrap_or(0) as u16,
         player.elapsed().as_secs_f32(),

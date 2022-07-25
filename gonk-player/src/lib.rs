@@ -295,7 +295,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(wanted_device: String, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
+    pub fn new(wanted_device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         optick::event!();
         #[cfg(unix)]
         let _gag = gag::Gag::stderr().unwrap();
@@ -542,17 +542,24 @@ impl Player {
     }
 
     pub fn seek_by(&mut self, time: f32) -> Result<(), String> {
-        unsafe {
-            if RESAMPLER.is_none() || self.state != State::Playing {
-                return Ok(());
-            }
+        if self.state != State::Playing {
+            return Ok(());
+        }
 
-            self.seek_to(RESAMPLER.as_ref().unwrap().elapsed.as_secs_f32() + time)
+        if let Some(resampler) = unsafe { &RESAMPLER } {
+            let time = resampler.elapsed.as_secs_f32() + time;
+            if time > self.duration().as_secs_f32() {
+                self.next()
+            } else {
+                self.seek_to(time)
+            }
+        } else {
+            Ok(())
         }
     }
 
     pub fn seek_to(&mut self, time: f32) -> Result<(), String> {
-        if unsafe { RESAMPLER.is_none() } || self.state != State::Playing {
+        if self.state != State::Playing {
             return Ok(());
         }
 
@@ -563,8 +570,8 @@ impl Player {
     }
 
     pub fn seek(&mut self, time: Duration) -> Result<(), String> {
-        unsafe {
-            match RESAMPLER.as_mut().unwrap().probed.format.seek(
+        if let Some(resampler) = unsafe { &mut RESAMPLER } {
+            match resampler.probed.format.seek(
                 SeekMode::Coarse,
                 SeekTo::Time {
                     time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / 1_000_000_000.0),
@@ -574,12 +581,14 @@ impl Player {
                 Ok(_) => Ok(()),
                 Err(e) => match e {
                     Error::SeekError(e) => match e {
-                        SeekErrorKind::OutOfRange => self.next(),
+                        SeekErrorKind::OutOfRange => Err(String::from("Seek out of range!")),
                         _ => panic!("{:?}", e),
                     },
                     _ => panic!("{}", e),
                 },
             }
+        } else {
+            Ok(())
         }
     }
 

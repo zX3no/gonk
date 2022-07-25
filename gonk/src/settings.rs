@@ -13,29 +13,27 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
-    optick::event!();
-        // let default_device = gonk_player::default_device();
-        // let wanted_device = gonk_database::playback_device();
+        optick::event!();
+        let default_device = gonk_player::default_device();
+        let wanted_device = gonk_database::get_output_device();
 
-        // let devices = gonk_player::audio_devices();
+        let devices = gonk_player::audio_devices();
 
-        // let current_device = if devices
-        //     .iter()
-        //     .flat_map(DeviceTrait::name)
-        //     .any(|x| x == wanted_device)
-        // {
-        //     wanted_device
-        // } else {
-        //     let name = default_device.name().unwrap();
-        //     gonk_database::set_playback_device(&name);
-        //     name
-        // };
+        let current_device = if devices
+            .iter()
+            .flat_map(DeviceTrait::name)
+            .any(|x| x == wanted_device)
+        {
+            wanted_device.to_string()
+        } else {
+            let name = default_device.name().unwrap();
+            gonk_database::update_output_device(&name);
+            name
+        };
 
         Self {
-            // devices: Index::new(devices, Some(0)),
-            // current_device,
-            devices: Index::default(),
-            current_device: String::new(),
+            devices: Index::new(devices, Some(0)),
+            current_device,
         }
     }
 }
