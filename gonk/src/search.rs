@@ -46,8 +46,8 @@ pub enum Mode {
 }
 
 pub struct Search {
-    pub gonk_database: String,
-    pub gonk_database_changed: bool,
+    pub query: String,
+    pub query_changed: bool,
     pub mode: Mode,
     pub results: Index<Item>,
     pub cache: Vec<Item>,
@@ -55,10 +55,11 @@ pub struct Search {
 
 impl Search {
     pub fn new() -> Self {
+    optick::event!();
         let mut search = Self {
             cache: Vec::new(),
-            gonk_database: String::new(),
-            gonk_database_changed: false,
+            query: String::new(),
+            query_changed: false,
             mode: Mode::Search,
             results: Index::default(),
         };
@@ -86,9 +87,9 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
     match search.mode {
         Mode::Search => {
             if shift {
-                search.gonk_database.clear();
+                search.query.clear();
             } else {
-                search.gonk_database.pop();
+                search.query.pop();
             }
         }
         Mode::Select => {
@@ -102,7 +103,7 @@ pub fn on_escape(search: &mut Search, mode: &mut AppMode) {
     match search.mode {
         Mode::Search => {
             if let Mode::Search = search.mode {
-                search.gonk_database.clear();
+                search.query.clear();
                 *mode = AppMode::Queue;
             }
         }
@@ -153,7 +154,7 @@ pub fn refresh_cache(search: &mut Search) {
 }
 
 pub fn refresh_results(search: &mut Search) {
-    let gonk_database = &search.gonk_database.to_lowercase();
+    let gonk_database = &search.query.to_lowercase();
 
     let get_accuary = |item: &Item| -> f64 {
         match item {
@@ -221,7 +222,7 @@ pub fn refresh_results(search: &mut Search) {
 }
 
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
-    if search.gonk_database_changed {
+    if search.query_changed {
         refresh_results(search);
     }
 
@@ -282,10 +283,10 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
 
     //Move the cursor position when typing
     if let Mode::Search = search.mode {
-        if search.results.index().is_none() && search.gonk_database.is_empty() {
+        if search.results.index().is_none() && search.query.is_empty() {
             f.set_cursor(1, 1);
         } else {
-            let len = search.gonk_database.len() as u16;
+            let len = search.query.len() as u16;
             let max_width = area.width.saturating_sub(2);
             if len >= max_width {
                 f.set_cursor(max_width, 1);
@@ -470,13 +471,13 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 }
 
 fn draw_textbox(search: &Search, f: &mut Frame, area: Rect) {
-    let len = search.gonk_database.len() as u16;
+    let len = search.query.len() as u16;
     //Search box is a little smaller than the max width
     let width = area.width.saturating_sub(1);
     let offset_x = if len < width { 0 } else { len - width + 1 };
 
     f.render_widget(
-        Paragraph::new(search.gonk_database.as_str())
+        Paragraph::new(search.query.as_str())
             .block(
                 Block::default()
                     .borders(Borders::ALL)

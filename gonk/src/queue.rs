@@ -16,6 +16,7 @@ pub struct Queue {
 
 impl Queue {
     pub fn new() -> Self {
+    optick::event!();
         Self {
             ui: Index::new(Vec::new(), Some(0)),
             constraint: [6, 37, 31, 26],

@@ -13,6 +13,7 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
+    optick::event!();
         // let default_device = gonk_player::default_device();
         // let wanted_device = gonk_database::playback_device();
 

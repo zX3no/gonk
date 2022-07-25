@@ -198,7 +198,8 @@ pub fn albums() -> Vec<(String, String)> {
         let mut albums = Vec::new();
         let mut i = 0;
         while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            albums.push((artist(text).to_string(), album(text).to_string()));
+            let (artist, album) = artist_and_album(text);
+            albums.push((artist.to_string(), album.to_string()));
             i += SONG_LEN;
         }
         albums.sort_unstable_by_key(|(_, artist)| artist.to_ascii_lowercase());

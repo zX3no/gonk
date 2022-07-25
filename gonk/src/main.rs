@@ -62,9 +62,10 @@ fn end() {
 }
 
 fn main() {
+    // optick::start_capture();
+
     gonk_database::init();
     log::init();
-    // optick::start_capture();
     let mut handle = None;
 
     {
@@ -129,7 +130,7 @@ fn main() {
     let songs = Index::new(songs, index);
     let volume = gonk_database::volume();
     // let device = gonk_database::playback_device();
-    let player = thread::spawn(move || Player::new(String::new(), volume, songs, elapsed));
+    // let player = thread::spawn(move || Player::new(String::new(), volume, songs, elapsed));
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -143,7 +144,9 @@ fn main() {
     let mut busy = false;
 
     //TODO: Re-time if using another thread is faster after the rework.
-    let mut player = player.join().unwrap();
+    // let mut player = player.join().unwrap();
+
+    let mut player = Player::new(String::new(), volume, songs, elapsed);
 
     //If there are songs in the queue, display the queue.
     if !player.songs.is_empty() {
@@ -233,8 +236,8 @@ fn main() {
                             if control && c == 'w' {
                                 search::on_backspace(&mut search, true);
                             } else {
-                                search.gonk_database_changed = true;
-                                search.gonk_database.push(c);
+                                search.query_changed = true;
+                                search.query.push(c);
                             }
                         }
                         KeyCode::Char(c) if input_playlist => {

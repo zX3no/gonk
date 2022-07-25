@@ -2,8 +2,9 @@
 use gonk_database::*;
 
 fn main() {
-    unsafe {
-        init();
-        dbg!(&SETTINGS);
-    }
+    init();
+
+    bench_slow(|| {
+        let _items = albums();
+    })
 }

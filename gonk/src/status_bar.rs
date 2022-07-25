@@ -21,6 +21,7 @@ pub struct StatusBar {
 
 impl StatusBar {
     pub fn new() -> Self {
+    optick::event!();
         Self {
             dots: 1,
             busy: false,
