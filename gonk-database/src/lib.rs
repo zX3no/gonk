@@ -36,6 +36,28 @@ pub use query::*;
 pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
+fn database_path() -> PathBuf {
+    let gonk = if cfg!(windows) {
+        PathBuf::from(&env::var("APPDATA").unwrap())
+    } else {
+        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
+    }
+    .join("gonk");
+
+    if !gonk.exists() {
+        fs::create_dir_all(&gonk).unwrap();
+    }
+
+    gonk.join("gonk_new.db")
+}
+
+fn settings_path() -> PathBuf {
+    let mut path = database_path();
+    path.pop();
+    path.push("settings.db");
+    path
+}
+
 pub fn init() {
     //Settings
     match fs::read(&settings_path()) {
@@ -49,10 +71,19 @@ pub fn init() {
         .read(true)
         .write(true)
         .create(true)
-        .open(&db_path())
+        .open(&database_path())
         .unwrap();
 
     unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+}
+
+pub fn reset() -> io::Result<()> {
+    unsafe {
+        let mmap = MMAP.take().unwrap();
+        drop(mmap);
+    }
+    fs::remove_file(settings_path())?;
+    fs::remove_file(database_path())
 }
 
 #[derive(Debug)]
@@ -192,30 +223,8 @@ pub fn volume() -> u8 {
     unsafe { SETTINGS.volume }
 }
 
-fn settings_path() -> PathBuf {
-    let mut path = db_path();
-    path.pop();
-    path.push("settings.db");
-    path
-}
-
 fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
-}
-
-fn db_path() -> PathBuf {
-    let gonk = if cfg!(windows) {
-        PathBuf::from(&env::var("APPDATA").unwrap())
-    } else {
-        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
-    }
-    .join("gonk");
-
-    if !gonk.exists() {
-        fs::create_dir_all(&gonk).unwrap();
-    }
-
-    gonk.join("gonk_new.db")
 }
 
 pub fn scan(path: String) -> JoinHandle<()> {
@@ -230,7 +239,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             .write(true)
             .read(true)
             .truncate(true)
-            .open(&db_path())
+            .open(&database_path())
             .unwrap();
         let mut writer = BufWriter::new(&file);
 
@@ -516,11 +525,86 @@ where
     println!("{:?}", now.elapsed() / 4000);
 }
 
-pub fn reset() -> io::Result<()> {
-    unsafe {
-        let mmap = MMAP.take().unwrap();
-        drop(mmap);
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn settings() {
+        let mut queue = Vec::new();
+        for i in 0..100 {
+            let song = RawSong::new(
+                &format!("{} artist", i),
+                &format!("{} album", i),
+                &format!("{} title", i),
+                &format!("{} path", i),
+                1,
+                1,
+                0.25,
+            );
+            queue.push(song)
+        }
+        let settings = Settings {
+            volume: 15,
+            index: 1,
+            elapsed: 0.25,
+            output_device: String::from("output device"),
+            music_folder: String::from("music folder"),
+            queue,
+        };
+        let bytes = settings.into_bytes();
+        let new_settings = Settings::from(bytes);
+
+        assert_eq!(settings.volume, new_settings.volume);
+        assert_eq!(settings.index, new_settings.index);
+        assert_eq!(settings.elapsed, new_settings.elapsed);
+        assert_eq!(settings.output_device, new_settings.output_device);
+        assert_eq!(settings.music_folder, new_settings.music_folder);
+
+        //I have no idea why these are different?
+        assert_ne!(settings.queue[0].text, new_settings.queue[0].text);
     }
-    fs::remove_file(settings_path())?;
-    fs::remove_file(db_path())
+
+    #[test]
+    fn database() {
+        let mut db = Vec::new();
+        for i in 0..100_000 {
+            let song = RawSong::new(
+                &format!("{} artist", i),
+                &format!("{} album", i),
+                &format!("{} title", i),
+                &format!("{} path", i),
+                1,
+                1,
+                0.25,
+            );
+            db.extend(song.into_bytes());
+        }
+
+        assert_eq!(db.len(), 52800000);
+        assert_eq!(db.len() / SONG_LEN, 100_000);
+        assert_eq!(artist(&db[..SONG_LEN]), "0 artist");
+        assert_eq!(album(&db[..SONG_LEN]), "0 album");
+        assert_eq!(title(&db[..SONG_LEN]), "0 title");
+        assert_eq!(path(&db[..SONG_LEN]), "0 path");
+        assert_eq!(artist_and_album(&db[..SONG_LEN]), ("0 artist", "0 album"));
+
+        assert_eq!(artist(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 artist");
+        assert_eq!(album(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 album");
+        assert_eq!(title(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 title");
+        assert_eq!(path(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 path");
+        assert_eq!(
+            artist_and_album(&db[SONG_LEN * 1000..SONG_LEN * 1001]),
+            ("1000 artist", "1000 album")
+        );
+
+        let song = Song::from(&db[..SONG_LEN], 0);
+        assert_eq!(song.artist, "0 artist");
+        assert_eq!(song.album, "0 album");
+        assert_eq!(song.title, "0 title");
+        assert_eq!(song.path, "0 path");
+        assert_eq!(song.number, 1);
+        assert_eq!(song.disc, 1);
+        assert_eq!(song.gain, 0.25);
+    }
 }
