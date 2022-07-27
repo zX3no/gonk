@@ -316,38 +316,47 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         optick::event!();
-        let artist = artist.replace('\0', "");
-        let album = album.replace('\0', "");
-        let title = title.replace('\0', "");
+        let mut artist = artist.replace('\0', "");
+        let mut album = album.replace('\0', "");
+        let mut title = title.replace('\0', "");
         let path = path.replace('\0', "");
 
-        let len = title.len() + album.len() + artist.len() + path.len();
-        if len > TEXT_LEN {
-            panic!("Text is '{}' bytes to many!", len - TEXT_LEN);
-        } else {
-            let artist = [artist.as_bytes(), &[b'\0']].concat();
-            let album = [album.as_bytes(), &[b'\0']].concat();
-            let title = [title.as_bytes(), &[b'\0']].concat();
-            let path = [path.as_bytes(), &[b'\0']].concat();
-
-            let mut text = [0u8; TEXT_LEN];
-
-            let artist_pos = artist.len();
-            let album_pos = artist_pos + album.len();
-            let title_pos = album_pos + title.len();
-            let path_pos = title_pos + path.len();
-
-            text[..artist_pos].copy_from_slice(&artist);
-            text[artist_pos..album_pos].copy_from_slice(&album);
-            text[album_pos..title_pos].copy_from_slice(&title);
-            text[title_pos..path_pos].copy_from_slice(&path);
-
-            Self {
-                text,
-                number,
-                disc,
-                gain,
+        //Forcefully fit the artist, album, title and path into 522 bytes.
+        //Make sure to include the 4 null terminators in the text length.
+        let mut i = 0;
+        while artist.len() + album.len() + title.len() + path.len() > TEXT_LEN - 4 {
+            if i % 3 == 0 {
+                artist.pop();
+            } else if i % 3 == 1 {
+                album.pop();
+            } else {
+                title.pop();
             }
+            i += 1;
+        }
+
+        let artist = [artist.as_bytes(), &[b'\0']].concat();
+        let album = [album.as_bytes(), &[b'\0']].concat();
+        let title = [title.as_bytes(), &[b'\0']].concat();
+        let path = [path.as_bytes(), &[b'\0']].concat();
+
+        let mut text = [0u8; TEXT_LEN];
+
+        let artist_pos = artist.len();
+        let album_pos = artist_pos + album.len();
+        let title_pos = album_pos + title.len();
+        let path_pos = title_pos + path.len();
+
+        text[..artist_pos].copy_from_slice(&artist);
+        text[artist_pos..album_pos].copy_from_slice(&album);
+        text[album_pos..title_pos].copy_from_slice(&title);
+        text[title_pos..path_pos].copy_from_slice(&path);
+
+        Self {
+            text,
+            number,
+            disc,
+            gain,
         }
     }
     pub fn into_bytes(&self) -> [u8; SONG_LEN] {
@@ -528,6 +537,24 @@ where
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn clamp_song() {
+        let song = RawSong::new(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            1,
+            1,
+            0.25,
+        );
+        assert_eq!(song.artist().len(), 128);
+        assert_eq!(song.album().len(), 128);
+        assert_eq!(song.title().len(), 128);
+        assert_eq!(song.path().len(), 134);
+        assert_eq!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len(), 134);
+    }
 
     #[test]
     fn settings() {
