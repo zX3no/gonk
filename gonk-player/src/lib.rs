@@ -41,7 +41,7 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 static mut RESAMPLER: Option<Resampler> = None;
 
 const VOLUME_STEP: u8 = 5;
-const VOLUME_REDUCTION: f32 = 600.0;
+const VOLUME_REDUCTION: f32 = 500.0;
 const MAX_DECODE_ERRORS: usize = 3;
 
 pub struct Resampler {
@@ -542,31 +542,25 @@ impl Player {
     }
 
     pub fn seek_by(&mut self, time: f32) -> Result<(), String> {
-        if self.state != State::Playing {
-            return Ok(());
-        }
-
         if let Some(resampler) = unsafe { &RESAMPLER } {
             let time = resampler.elapsed.as_secs_f32() + time;
             if time > self.duration().as_secs_f32() {
-                self.next()
+                self.next()?;
             } else {
-                self.seek_to(time)
+                self.seek_to(time)?;
+                self.play();
             }
-        } else {
-            Ok(())
         }
+        Ok(())
     }
 
     pub fn seek_to(&mut self, time: f32) -> Result<(), String> {
-        if self.state != State::Playing {
-            return Ok(());
-        }
-
         //Seeking at under 0.5 seconds causes an unexpected EOF.
         //Could be because of the coarse seek.
         let time = Duration::from_secs_f32(time.clamp(0.5, f32::MAX));
-        self.seek(time)
+        self.seek(time)?;
+        self.play();
+        Ok(())
     }
 
     pub fn seek(&mut self, time: Duration) -> Result<(), String> {
