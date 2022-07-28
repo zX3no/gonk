@@ -317,16 +317,19 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         optick::event!();
+        if path.len() > TEXT_LEN {
+            panic!("PATH IS TOO LONG! {}", path)
+        }
 
         let mut artist = artist.to_string();
         let mut album = album.to_string();
         let mut title = title.to_string();
 
         //Forcefully fit the artist, album, title and path into 522 bytes.
-        //Make sure to include the 4 null terminators in the text length.
+        //There are 4 u16s included in the text so those are subtracted too.
         let mut i = 0;
         while artist.len() + album.len() + title.len() + path.len()
-            > TEXT_LEN - (2 * size_of::<u16>())
+            > TEXT_LEN - (4 * size_of::<u16>())
         {
             if i % 3 == 0 {
                 artist.pop();
@@ -552,9 +555,9 @@ mod tests {
             1,
             0.25,
         );
-        assert_eq!(song.artist().len(), 128);
-        assert_eq!(song.album().len(), 128);
-        assert_eq!(song.title().len(), 128);
+        assert_eq!(song.artist().len(), 126);
+        assert_eq!(song.album().len(), 127);
+        assert_eq!(song.title().len(), 127);
         assert_eq!(song.path().len(), 134);
         assert_eq!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len(), 134);
     }
