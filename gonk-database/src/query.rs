@@ -1,7 +1,6 @@
 use crate::*;
+use rayon::slice::ParallelSliceMut;
 use std::str::from_utf8_unchecked;
-
-//06artist05album05title04path
 
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
@@ -152,41 +151,6 @@ pub fn songs_by_artist(ar: &str) -> Vec<Song> {
     }
 }
 
-pub fn par_songs() -> Vec<Song> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        (0..len())
-            .into_par_iter()
-            .map(|i| {
-                let pos = i * SONG_LEN;
-                let bytes = &mmap[pos..pos + SONG_LEN];
-                Song::from(bytes, i)
-            })
-            .collect()
-    } else {
-        Vec::new()
-    }
-}
-
-///(Artist, Album)
-pub fn albums() -> Vec<(String, String)> {
-    optick::event!();
-    if let Some(mmap) = mmap() {
-        let mut albums = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            let (artist, album) = artist_and_album(text);
-            albums.push((artist.to_string(), album.to_string()));
-            i += SONG_LEN;
-        }
-        albums.sort_unstable_by_key(|(_, artist)| artist.to_ascii_lowercase());
-        albums.dedup();
-        albums
-    } else {
-        Vec::new()
-    }
-}
-
 pub fn artists() -> Vec<String> {
     optick::event!();
     if let Some(mmap) = mmap() {
@@ -202,6 +166,39 @@ pub fn artists() -> Vec<String> {
     } else {
         Vec::new()
     }
+}
+
+///(Artist, (Artist, Album), Song)
+pub fn artists_albums_and_songs() -> (Vec<String>, Vec<(String, String)>, Vec<Song>) {
+    let mmap = mmap().unwrap();
+
+    let songs: Vec<Song> = (0..len())
+        .into_par_iter()
+        .map(|i| {
+            let pos = i * SONG_LEN;
+            let bytes = &mmap[pos..pos + SONG_LEN];
+            Song::from(bytes, i)
+        })
+        .collect();
+
+    let mut albums: Vec<(&str, &str)> = songs
+        .iter()
+        .map(|song| (song.artist.as_str(), song.album.as_str()))
+        .collect();
+    albums.par_sort_unstable_by_key(|(artist, _album)| artist.to_ascii_lowercase());
+    albums.dedup();
+    let albums: Vec<(String, String)> = albums
+        .into_iter()
+        .map(|(artist, album)| (artist.to_owned(), album.to_owned()))
+        .collect();
+
+    let mut artists: Vec<String> = albums
+        .iter()
+        .map(|(artist, _album)| artist.clone())
+        .collect();
+    artists.dedup();
+
+    (artists, albums, songs)
 }
 
 pub fn len() -> usize {

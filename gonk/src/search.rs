@@ -55,7 +55,7 @@ pub struct Search {
 
 impl Search {
     pub fn new() -> Self {
-    optick::event!();
+        optick::event!();
         let mut search = Self {
             cache: Vec::new(),
             query: String::new(),
@@ -131,11 +131,12 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
     }
 }
 
-//FIXME: Queries take around 5ms total.
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    for song in gonk_database::par_songs() {
+    let (artists, albums, songs) = gonk_database::artists_albums_and_songs();
+
+    for song in songs {
         search.cache.push(Item::Song(MinSong {
             name: song.title,
             album: song.album,
@@ -144,15 +145,20 @@ pub fn refresh_cache(search: &mut Search) {
         }));
     }
 
-    for (artist, name) in gonk_database::albums() {
-        search.cache.push(Item::Album(Album { name, artist }));
+    for (artist, album) in albums {
+        search.cache.push(Item::Album(Album {
+            name: album,
+            artist,
+        }));
     }
 
-    for name in gonk_database::artists() {
-        search.cache.push(Item::Artist(Artist { name }));
+    for artist in artists {
+        search.cache.push(Item::Artist(Artist { name: artist }));
     }
 }
 
+//TODO: Clamp to a maximum of 25 results for everything also increase min accurary.
+//typing 'y' into the search yeilds no results.
 pub fn refresh_results(search: &mut Search) {
     let gonk_database = &search.query.to_lowercase();
 

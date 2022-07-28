@@ -539,6 +539,16 @@ where
     }
     println!("{:?}", now.elapsed() / 4000);
 }
+pub fn bench_super_slow<F>(func: F)
+where
+    F: Fn(),
+{
+    let now = Instant::now();
+    for _ in 0..500 {
+        func();
+    }
+    println!("{:?}", now.elapsed() / 500);
+}
 
 #[cfg(test)]
 mod tests {
