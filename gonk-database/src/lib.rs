@@ -2,13 +2,14 @@ use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
     env,
+    error::Error,
     fmt::Debug,
     fs::{self, File, OpenOptions},
     io::{self, BufWriter, Write},
     mem::size_of,
     ops::Range,
     path::{Path, PathBuf},
-    str::from_utf8_unchecked,
+    str::{from_utf8, from_utf8_unchecked},
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -59,7 +60,7 @@ fn settings_path() -> PathBuf {
     path
 }
 
-pub fn init() {
+pub fn init() -> Result<(), Box<dyn Error>> {
     //Settings
     match fs::read(&settings_path()) {
         Ok(bytes) if !bytes.is_empty() => unsafe { SETTINGS = Settings::from(bytes) },
@@ -75,12 +76,65 @@ pub fn init() {
         .open(&database_path())
         .unwrap();
 
-    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+    let mmap = unsafe { Mmap::map(&file).unwrap() };
+
+    //Reset the database if the first song is invalid.
+    if validate(&mmap).is_err() {
+        //TODO: Maybe return this as a result
+        reset()?;
+    }
+
+    unsafe { MMAP = Some(mmap) };
+    Ok(())
+}
+
+///Try to read the first song.
+fn validate(mmap: &Mmap) -> Result<(), Box<dyn Error>> {
+    let text = &mmap[..TEXT_LEN];
+    let artist_len = u16::from_le_bytes(text[0..2].try_into()?) as usize;
+    if artist_len > TEXT_LEN {
+        Err("Invalid u16")?;
+    }
+    let _artist = from_utf8(&text[2..artist_len + 2])?;
+
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into()?) as usize;
+    if album_len > TEXT_LEN {
+        Err("Invalid u16")?;
+    }
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+    let _album = from_utf8(&text[album])?;
+
+    let title_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2].try_into()?,
+    ) as usize;
+    if title_len > TEXT_LEN {
+        Err("Invalid u16")?;
+    }
+    let title = 2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
+    let _title = from_utf8(&text[title])?;
+
+    let path_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len + 2 + title_len
+            ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
+            .try_into()?,
+    ) as usize;
+    if path_len > TEXT_LEN {
+        Err("Invalid u16")?;
+    }
+    let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
+        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
+    let _path = from_utf8(&text[path])?;
+
+    let _number = mmap[NUMBER_POS];
+    let _disc = mmap[DISC_POS];
+    let _gain = f32::from_le_bytes(mmap[GAIN_POS].try_into()?);
+
+    Ok(())
 }
 
 pub fn reset() -> io::Result<()> {
-    unsafe {
-        let mmap = MMAP.take().unwrap();
+    if let Some(mmap) = unsafe { MMAP.take() } {
         drop(mmap);
     }
     fs::remove_file(settings_path())?;
@@ -89,7 +143,6 @@ pub fn reset() -> io::Result<()> {
 
 #[derive(Debug)]
 pub struct Settings {
-    ///Data
     pub volume: u8,
     pub index: u16,
     pub elapsed: f32,

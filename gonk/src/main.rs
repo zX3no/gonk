@@ -67,44 +67,45 @@ fn save_queue(player: &Player) {
 }
 
 fn main() {
-    gonk_database::init();
+    if gonk_database::init().is_err() {
+        return println!("Database is corrupted! Please close all instances of gonk then relaunch or run `gonk reset`.");
+    }
+
     log::init();
     let mut handle = None;
 
-    {
-        let args: Vec<String> = std::env::args().skip(1).collect();
-        if !args.is_empty() {
-            match args[0].as_str() {
-                "add" => {
-                    if args.len() == 1 {
-                        return println!("Usage: gonk add <path>");
-                    }
-                    let path = args[1..].join(" ");
-                    if Path::new(&path).exists() {
-                        gonk_database::update_music_folder(path.as_str());
-                        handle = Some(gonk_database::scan(path));
-                    } else {
-                        return println!("Invalid path.");
-                    }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if !args.is_empty() {
+        match args[0].as_str() {
+            "add" => {
+                if args.len() == 1 {
+                    return println!("Usage: gonk add <path>");
                 }
-                "reset" => {
-                    return match gonk_database::reset() {
-                        Ok(_) => println!("Files reset!"),
-                        Err(e) => println!("Failed to reset database! {}", e),
-                    };
+                let path = args[1..].join(" ");
+                if Path::new(&path).exists() {
+                    gonk_database::update_music_folder(path.as_str());
+                    handle = Some(gonk_database::scan(path));
+                } else {
+                    return println!("Invalid path.");
                 }
-                "help" | "--help" => {
-                    println!("Usage");
-                    println!("   gonk [<command> <args>]");
-                    println!();
-                    println!("Options");
-                    println!("   add   <path>  Add music to the library");
-                    println!("   reset         Reset the database");
-                    return;
-                }
-                _ if !args.is_empty() => return println!("Invalid command."),
-                _ => (),
             }
+            "reset" => {
+                return match gonk_database::reset() {
+                    Ok(_) => println!("Files reset!"),
+                    Err(e) => println!("Failed to reset database! {}", e),
+                };
+            }
+            "help" | "--help" => {
+                println!("Usage");
+                println!("   gonk [<command> <args>]");
+                println!();
+                println!("Options");
+                println!("   add   <path>  Add music to the library");
+                println!("   reset         Reset the database");
+                return;
+            }
+            _ if !args.is_empty() => return println!("Invalid command."),
+            _ => (),
         }
     }
 
