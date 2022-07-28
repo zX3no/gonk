@@ -5,6 +5,7 @@ use std::{
     fmt::Debug,
     fs::{self, File, OpenOptions},
     io::{self, BufWriter, Write},
+    mem::size_of,
     ops::Range,
     path::{Path, PathBuf},
     str::from_utf8_unchecked,
@@ -316,15 +317,17 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         optick::event!();
-        let mut artist = artist.replace('\0', "");
-        let mut album = album.replace('\0', "");
-        let mut title = title.replace('\0', "");
-        let path = path.replace('\0', "");
+
+        let mut artist = artist.to_string();
+        let mut album = album.to_string();
+        let mut title = title.to_string();
 
         //Forcefully fit the artist, album, title and path into 522 bytes.
         //Make sure to include the 4 null terminators in the text length.
         let mut i = 0;
-        while artist.len() + album.len() + title.len() + path.len() > TEXT_LEN - 4 {
+        while artist.len() + album.len() + title.len() + path.len()
+            > TEXT_LEN - (2 * size_of::<u16>())
+        {
             if i % 3 == 0 {
                 artist.pop();
             } else if i % 3 == 1 {
@@ -335,10 +338,10 @@ impl RawSong {
             i += 1;
         }
 
-        let artist = [artist.as_bytes(), &[b'\0']].concat();
-        let album = [album.as_bytes(), &[b'\0']].concat();
-        let title = [title.as_bytes(), &[b'\0']].concat();
-        let path = [path.as_bytes(), &[b'\0']].concat();
+        let artist = [&(artist.len() as u16).to_le_bytes(), artist.as_bytes()].concat();
+        let album = [&(album.len() as u16).to_le_bytes(), album.as_bytes()].concat();
+        let title = [&(title.len() as u16).to_le_bytes(), title.as_bytes()].concat();
+        let path = [&(path.len() as u16).to_le_bytes(), path.as_bytes()].concat();
 
         let mut text = [0u8; TEXT_LEN];
 
@@ -595,7 +598,7 @@ mod tests {
     #[test]
     fn database() {
         let mut db = Vec::new();
-        for i in 0..100_000 {
+        for i in 0..10_000 {
             let song = RawSong::new(
                 &format!("{} artist", i),
                 &format!("{} album", i),
@@ -608,20 +611,32 @@ mod tests {
             db.extend(song.into_bytes());
         }
 
-        assert_eq!(db.len(), 52800000);
-        assert_eq!(db.len() / SONG_LEN, 100_000);
-        assert_eq!(artist(&db[..SONG_LEN]), "0 artist");
-        assert_eq!(album(&db[..SONG_LEN]), "0 album");
-        assert_eq!(title(&db[..SONG_LEN]), "0 title");
-        assert_eq!(path(&db[..SONG_LEN]), "0 path");
-        assert_eq!(artist_and_album(&db[..SONG_LEN]), ("0 artist", "0 album"));
+        assert_eq!(db.len(), 5280000);
+        assert_eq!(db.len() / SONG_LEN, 10_000);
+        assert_eq!(artist(&db[..TEXT_LEN]), "0 artist");
+        assert_eq!(album(&db[..TEXT_LEN]), "0 album");
+        assert_eq!(title(&db[..TEXT_LEN]), "0 title");
+        assert_eq!(path(&db[..TEXT_LEN]), "0 path");
+        assert_eq!(artist_and_album(&db[..TEXT_LEN]), ("0 artist", "0 album"));
 
-        assert_eq!(artist(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 artist");
-        assert_eq!(album(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 album");
-        assert_eq!(title(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 title");
-        assert_eq!(path(&db[SONG_LEN * 1000..SONG_LEN * 1001]), "1000 path");
         assert_eq!(
-            artist_and_album(&db[SONG_LEN * 1000..SONG_LEN * 1001]),
+            artist(&db[SONG_LEN * 1000..SONG_LEN * 1001 - (SONG_LEN - TEXT_LEN)]),
+            "1000 artist"
+        );
+        assert_eq!(
+            album(&db[SONG_LEN * 1000..SONG_LEN * 1001 - (SONG_LEN - TEXT_LEN)]),
+            "1000 album"
+        );
+        assert_eq!(
+            title(&db[SONG_LEN * 1000..SONG_LEN * 1001 - (SONG_LEN - TEXT_LEN)]),
+            "1000 title"
+        );
+        assert_eq!(
+            path(&db[SONG_LEN * 1000..SONG_LEN * 1001 - (SONG_LEN - TEXT_LEN)]),
+            "1000 path"
+        );
+        assert_eq!(
+            artist_and_album(&db[SONG_LEN * 1000..SONG_LEN * 1001 - (SONG_LEN - TEXT_LEN)]),
             ("1000 artist", "1000 album")
         );
 

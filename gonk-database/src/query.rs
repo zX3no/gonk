@@ -1,85 +1,74 @@
 use crate::*;
 use std::str::from_utf8_unchecked;
 
+//06artist05album05title04path
+
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    match text.iter().position(|&c| c == b'\0') {
-        Some(end) => unsafe { from_utf8_unchecked(&text[..end]) },
-        None => unreachable!(),
-    }
+    let end = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize + 2;
+    unsafe { from_utf8_unchecked(&text[2..end]) }
 }
 
 pub fn album(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut start = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            if start == 0 {
-                start = i + 1;
-            } else {
-                return unsafe { from_utf8_unchecked(&text[start..i]) };
-            }
-        }
-    }
-    unreachable!();
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+    unsafe { from_utf8_unchecked(&text[album]) }
 }
 
 pub fn title(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut found = 0;
-    let mut start = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            found += 1;
-            if found == 2 {
-                start = i + 1;
-            } else if found == 3 {
-                return unsafe { from_utf8_unchecked(&text[start..i]) };
-            }
-        }
-    }
-    unreachable!();
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+
+    let title_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    let title = 2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
+
+    unsafe { from_utf8_unchecked(&text[title]) }
 }
 
 pub fn path(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut found = 0;
-    let mut start = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            found += 1;
-            if found == 3 {
-                start = i;
-            } else if found == 4 {
-                return unsafe { from_utf8_unchecked(&text[start + 1..i]) };
-            }
-        }
-    }
-    unsafe { from_utf8_unchecked(&text[start + 1..text.len()]) }
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+
+    let title_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    let path_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len + 2 + title_len
+            ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
+        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
+
+    unsafe { from_utf8_unchecked(&text[path]) }
 }
 
 pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let mut found = 0;
-    let mut end_artist = 0;
-    for (i, c) in text.iter().enumerate() {
-        if c == &b'\0' {
-            found += 1;
-            if found == 1 {
-                end_artist = i;
-            } else if found == 2 {
-                return unsafe {
-                    (
-                        from_utf8_unchecked(&text[..end_artist]),
-                        from_utf8_unchecked(&text[end_artist + 1..i]),
-                    )
-                };
-            }
-        }
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+    unsafe {
+        (
+            from_utf8_unchecked(&text[2..artist_len + 2]),
+            from_utf8_unchecked(&text[album]),
+        )
     }
-    unreachable!();
 }
-
 pub fn get(index: usize) -> Option<Song> {
     optick::event!();
     if let Some(mmap) = mmap() {
