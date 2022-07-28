@@ -11,7 +11,7 @@ use tui::{
     widgets::{Block, BorderType, Borders, Paragraph},
 };
 
-const MIN_ACCURACY: f64 = 0.75;
+const MIN_ACCURACY: f64 = 0.70;
 
 #[derive(Clone, Debug)]
 pub enum Item {
@@ -157,50 +157,48 @@ pub fn refresh_cache(search: &mut Search) {
     }
 }
 
-//TODO: Clamp to a maximum of 25 results for everything also increase min accurary.
-//typing 'y' into the search yeilds no results.
+pub fn get_item_accuracy(query: &str, item: &Item) -> f64 {
+    match item {
+        Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+        Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
+        Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
+    }
+}
+
 pub fn refresh_results(search: &mut Search) {
-    let gonk_database = &search.query.to_lowercase();
-
-    let get_accuary = |item: &Item| -> f64 {
-        match item {
-            Item::Song(song) => strsim::jaro_winkler(gonk_database, &song.name.to_lowercase()),
-            Item::Album(album) => strsim::jaro_winkler(gonk_database, &album.name.to_lowercase()),
-            Item::Artist(artist) => {
-                strsim::jaro_winkler(gonk_database, &artist.name.to_lowercase())
-            }
-        }
-    };
-
-    let mut results: Vec<_> = if gonk_database.is_empty() {
+    if search.query.is_empty() {
         //If there user has not asked to search anything
         //populate the list with 40 results.
-        search
-            .cache
-            .iter()
-            .take(40)
-            .map(|item| (item, get_accuary(item)))
-            .collect()
-    } else {
-        search
-            .cache
-            .par_iter()
-            .filter_map(|item| {
-                let acc = get_accuary(item);
-                if acc > MIN_ACCURACY {
-                    Some((item, acc))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    };
+        search.results.data = search.cache.iter().take(40).cloned().collect();
+        return;
+    }
+
+    let query = &search.query.to_lowercase();
+
+    //Collect all results that are close to the search query.
+    let mut results: Vec<(&Item, f64)> = search
+        .cache
+        .par_iter()
+        .filter_map(|item| {
+            let acc = get_item_accuracy(query, item);
+            if acc > MIN_ACCURACY {
+                Some((item, acc))
+            } else {
+                None
+            }
+        })
+        .collect();
 
     //Sort results by score.
-    results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+    results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+    if results.len() > 25 {
+        //Remove the less accurate results.
+        results.drain(25..);
+    }
 
     //Sort songs with equal score. Artist > Album > Song.
-    results.sort_by(|(item_1, score_1), (item_2, score_2)| {
+    results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
         if (score_1 - score_2).abs() < f64::EPSILON {
             match item_1 {
                 Item::Artist(_) => match item_2 {
