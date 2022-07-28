@@ -60,6 +60,7 @@ fn settings_path() -> PathBuf {
     path
 }
 
+//TODO: Database is reset without any warning. Should we ask the user to run `gonk reset`.
 pub fn init() -> Result<(), Box<dyn Error>> {
     //Settings
     match fs::read(&settings_path()) {
@@ -76,20 +77,26 @@ pub fn init() -> Result<(), Box<dyn Error>> {
         .open(&database_path())
         .unwrap();
 
-    let mmap = unsafe { Mmap::map(&file).unwrap() };
+    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
 
     //Reset the database if the first song is invalid.
-    if validate(&mmap).is_err() {
+    if validate().is_err() {
         //TODO: Maybe return this as a result
         reset()?;
     }
 
-    unsafe { MMAP = Some(mmap) };
     Ok(())
 }
 
 ///Try to read the first song.
-fn validate(mmap: &Mmap) -> Result<(), Box<dyn Error>> {
+fn validate() -> Result<(), Box<dyn Error>> {
+    let mmap = mmap().unwrap();
+
+    if mmap.is_empty() {
+        return Ok(());
+    } else if mmap.len() < SONG_LEN {
+        return Err("Invalid song")?;
+    }
     let text = &mmap[..TEXT_LEN];
     let artist_len = u16::from_le_bytes(text[0..2].try_into()?) as usize;
     if artist_len > TEXT_LEN {

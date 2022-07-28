@@ -164,35 +164,37 @@ pub fn artists() -> Vec<String> {
 
 ///(Artist, (Artist, Album), Song)
 pub fn artists_albums_and_songs() -> (Vec<String>, Vec<(String, String)>, Vec<Song>) {
-    let mmap = mmap().unwrap();
+    if let Some(mmap) = mmap() {
+        let songs: Vec<Song> = (0..len())
+            .into_par_iter()
+            .map(|i| {
+                let pos = i * SONG_LEN;
+                let bytes = &mmap[pos..pos + SONG_LEN];
+                Song::from(bytes, i)
+            })
+            .collect();
 
-    let songs: Vec<Song> = (0..len())
-        .into_par_iter()
-        .map(|i| {
-            let pos = i * SONG_LEN;
-            let bytes = &mmap[pos..pos + SONG_LEN];
-            Song::from(bytes, i)
-        })
-        .collect();
+        let mut albums: Vec<(&str, &str)> = songs
+            .iter()
+            .map(|song| (song.artist.as_str(), song.album.as_str()))
+            .collect();
+        albums.par_sort_unstable_by_key(|(artist, _album)| artist.to_ascii_lowercase());
+        albums.dedup();
+        let albums: Vec<(String, String)> = albums
+            .into_iter()
+            .map(|(artist, album)| (artist.to_owned(), album.to_owned()))
+            .collect();
 
-    let mut albums: Vec<(&str, &str)> = songs
-        .iter()
-        .map(|song| (song.artist.as_str(), song.album.as_str()))
-        .collect();
-    albums.par_sort_unstable_by_key(|(artist, _album)| artist.to_ascii_lowercase());
-    albums.dedup();
-    let albums: Vec<(String, String)> = albums
-        .into_iter()
-        .map(|(artist, album)| (artist.to_owned(), album.to_owned()))
-        .collect();
+        let mut artists: Vec<String> = albums
+            .iter()
+            .map(|(artist, _album)| artist.clone())
+            .collect();
+        artists.dedup();
 
-    let mut artists: Vec<String> = albums
-        .iter()
-        .map(|(artist, _album)| artist.clone())
-        .collect();
-    artists.dedup();
-
-    (artists, albums, songs)
+        (artists, albums, songs)
+    } else {
+        (Vec::new(), Vec::new(), Vec::new())
+    }
 }
 
 pub fn len() -> usize {
