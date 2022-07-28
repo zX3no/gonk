@@ -296,7 +296,6 @@ pub struct Player {
 
 impl Player {
     pub fn new(wanted_device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-        optick::event!();
         #[cfg(unix)]
         let _gag = gag::Gag::stderr().unwrap();
 

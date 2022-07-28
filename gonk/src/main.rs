@@ -1,3 +1,4 @@
+#![allow(clippy::single_match, unused_variables)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_player::{Index, Player};
@@ -57,13 +58,15 @@ pub trait Input {
     fn right(&mut self);
 }
 
-fn end() {
-    // optick::stop_capture("gonk_trace");
+fn save_queue(player: &Player) {
+    gonk_database::update_queue(
+        &player.songs.data,
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
 }
 
 fn main() {
-    // optick::start_capture();
-
     gonk_database::init();
     log::init();
     let mut handle = None;
@@ -312,10 +315,7 @@ fn main() {
                             };
                         }
                         KeyCode::Esc => match mode {
-                            Mode::Search => {
-                                search::on_escape(&mut search, &mut mode);
-                            }
-                            Mode::Settings => mode = Mode::Queue,
+                            Mode::Search => search::on_escape(&mut search),
                             // Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
                             _ => (),
                         },
@@ -425,14 +425,4 @@ fn main() {
         DisableMouseCapture
     )
     .unwrap();
-
-    end();
-}
-
-fn save_queue(player: &Player) {
-    gonk_database::update_queue(
-        &player.songs.data,
-        player.songs.index().unwrap_or(0) as u16,
-        player.elapsed().as_secs_f32(),
-    );
 }

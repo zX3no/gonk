@@ -69,7 +69,6 @@ pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
     }
 }
 pub fn get(index: usize) -> Option<Song> {
-    optick::event!();
     if let Some(mmap) = mmap() {
         let start = SONG_LEN * index;
         let bytes = mmap.get(start..start + SONG_LEN)?;
@@ -80,7 +79,6 @@ pub fn get(index: usize) -> Option<Song> {
 }
 
 pub fn ids(ids: &[usize]) -> Vec<Song> {
-    optick::event!();
     if let Some(mmap) = mmap() {
         let mut songs = Vec::new();
         for id in ids {
@@ -95,7 +93,6 @@ pub fn ids(ids: &[usize]) -> Vec<Song> {
 }
 
 pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
-    optick::event!();
     if let Some(mmap) = mmap() {
         let mut songs = Vec::new();
         let mut i = 0;
@@ -113,7 +110,6 @@ pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
 }
 
 pub fn albums_by_artist(ar: &str) -> Vec<String> {
-    optick::event!();
     if let Some(mmap) = mmap() {
         let mut albums = Vec::new();
         let mut i = 0;
@@ -133,7 +129,6 @@ pub fn albums_by_artist(ar: &str) -> Vec<String> {
 }
 
 pub fn songs_by_artist(ar: &str) -> Vec<Song> {
-    optick::event!();
     if let Some(mmap) = mmap() {
         let mut songs = Vec::new();
         let mut i = 0;
@@ -152,7 +147,6 @@ pub fn songs_by_artist(ar: &str) -> Vec<Song> {
 }
 
 pub fn artists() -> Vec<String> {
-    optick::event!();
     if let Some(mmap) = mmap() {
         let mut artists = Vec::new();
         let mut i = 0;

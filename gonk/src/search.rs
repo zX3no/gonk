@@ -1,4 +1,3 @@
-use super::Mode as AppMode;
 use crate::widgets::*;
 use crate::*;
 use gonk_player::{Index, Song};
@@ -55,7 +54,6 @@ pub struct Search {
 
 impl Search {
     pub fn new() -> Self {
-        optick::event!();
         let mut search = Self {
             cache: Vec::new(),
             query: String::new(),
@@ -99,12 +97,11 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
     }
 }
 
-pub fn on_escape(search: &mut Search, mode: &mut AppMode) {
+pub fn on_escape(search: &mut Search) {
     match search.mode {
         Mode::Search => {
             if let Mode::Search = search.mode {
                 search.query.clear();
-                *mode = AppMode::Queue;
             }
         }
         Mode::Select => {

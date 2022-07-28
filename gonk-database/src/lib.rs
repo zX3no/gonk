@@ -283,7 +283,6 @@ pub struct Song {
 
 impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
-        optick::event!();
         let text = &bytes[..TEXT_LEN];
         Self {
             artist: artist(text).to_string(),
@@ -316,7 +315,6 @@ impl RawSong {
         disc: u8,
         gain: f32,
     ) -> Self {
-        optick::event!();
         if path.len() > TEXT_LEN {
             panic!("PATH IS TOO LONG! {}", path)
         }
@@ -407,7 +405,6 @@ impl Debug for RawSong {
 
 impl From<&'_ [u8]> for RawSong {
     fn from(bytes: &[u8]) -> Self {
-        optick::event!();
         Self {
             text: bytes[..TEXT_LEN].try_into().unwrap(),
             number: bytes[NUMBER_POS],
@@ -433,7 +430,6 @@ impl From<&Song> for RawSong {
 
 impl From<&'_ Path> for RawSong {
     fn from(path: &'_ Path) -> Self {
-        optick::event!();
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
 

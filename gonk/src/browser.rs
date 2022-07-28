@@ -28,7 +28,6 @@ pub struct Browser {
 
 impl Browser {
     pub fn new() -> Self {
-    optick::event!();
         let artists = Index::new(gonk_database::artists(), Some(0));
 
         let (albums, songs) = if let Some(first_artist) = artists.selected() {
