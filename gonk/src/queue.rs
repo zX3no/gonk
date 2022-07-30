@@ -348,7 +348,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
         duration.trunc() as u32 % 60,
     );
 
-    let ratio = elapsed / duration;
+    let ratio = elapsed.floor() / duration;
     let ratio = if ratio.is_nan() {
         0.0
     } else {
