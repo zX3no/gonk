@@ -1,6 +1,6 @@
 use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
-use gonk_player::{Index, Song};
+use gonk_database::{Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},

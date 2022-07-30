@@ -1,6 +1,7 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_player::{Index, Player};
+use gonk_database::Index;
+use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};

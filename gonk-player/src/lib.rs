@@ -3,6 +3,7 @@ use cpal::{
     traits::{HostTrait, StreamTrait},
     BuildStreamError, Stream, StreamConfig,
 };
+use gonk_database::{Index, Song};
 use std::{fs::File, io::ErrorKind, time::Duration, vec::IntoIter};
 use symphonia::{
     core::{
@@ -19,10 +20,6 @@ use symphonia::{
 };
 
 pub use cpal::{traits::DeviceTrait, Device};
-pub use gonk_database::Song;
-pub use index::Index;
-
-mod index;
 
 #[inline]
 const fn gcd(a: usize, b: usize) -> usize {

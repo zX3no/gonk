@@ -1,6 +1,6 @@
 use crate::widgets::*;
 use crate::*;
-use gonk_player::{Index, Song};
+use gonk_database::Song;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{

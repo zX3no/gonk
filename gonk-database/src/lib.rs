@@ -32,8 +32,11 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
 pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
 pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
+mod index;
 mod playlist;
 mod query;
+
+pub use index::*;
 pub use playlist::*;
 pub use query::*;
 

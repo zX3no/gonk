@@ -1,7 +1,7 @@
 use crate::widgets::*;
 use crate::*;
 use crossterm::event::MouseEvent;
-use gonk_player::{Index, Player};
+use gonk_player::Player;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};

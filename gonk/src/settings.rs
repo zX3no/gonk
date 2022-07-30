@@ -1,5 +1,6 @@
 use crate::{log, widgets::*, Frame, Input};
-use gonk_player::{Device, DeviceTrait, Index, Player};
+use gonk_database::Index;
+use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},

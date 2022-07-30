@@ -1,9 +1,10 @@
 use walkdir::WalkDir;
 
-use crate::{database_path, RawSong, SONG_LEN};
+use crate::{database_path, Index, RawSong, SONG_LEN};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
+    path::{Path, PathBuf},
     str::from_utf8_unchecked,
 };
 //Do i want to store the file handles?
@@ -12,22 +13,6 @@ use std::{
 
 //Open the file in append mode for adding songs on the end.
 //Will I need to use different file handles when appending, deleting or overriding
-pub fn playlist_names() -> Vec<String> {
-    let mut path = database_path();
-    path.pop();
-    WalkDir::new(path)
-        .into_iter()
-        .flatten()
-        .filter(|path| match path.path().extension() {
-            Some(ex) => {
-                matches!(ex.to_str(), Some("playlist"))
-            }
-            None => false,
-        })
-        .map(|entry| entry.file_name().to_string_lossy().replace(".playlist", ""))
-        .collect()
-}
-
 pub fn playlists() -> Vec<RawPlaylist> {
     let mut path = database_path();
     path.pop();
@@ -46,34 +31,39 @@ pub fn playlists() -> Vec<RawPlaylist> {
         .collect()
 }
 
+pub fn remove_playlist(path: &Path) {
+    fs::remove_file(path).unwrap();
+}
+
 #[derive(Debug)]
 pub struct RawPlaylist {
     pub name: String,
-    pub songs: Vec<RawSong>,
+    pub path: PathBuf,
+    pub songs: Index<RawSong>,
 }
 
 impl RawPlaylist {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, data: Vec<RawSong>) -> Self {
+        let mut path = database_path();
+        path.pop();
+        path.push(format!("{}.playlist", name));
+
         Self {
+            path,
             name: name.to_string(),
-            songs: Vec::new(),
+            songs: Index::from(data),
         }
     }
     pub fn save(&self) {
-        //Create path
-        let mut path = database_path();
-        path.pop();
-        path.push(format!("{}.playlist", self.name));
-
         //Delete the contents of the file and overwrite with new settings.
-        let file = File::create(path).unwrap();
+        let file = File::create(&self.path).unwrap();
         let mut writer = BufWriter::new(file);
 
         //Convert to bytes.
         let mut bytes = Vec::new();
         bytes.extend((self.name.len() as u16).to_le_bytes());
         bytes.extend(self.name.as_bytes());
-        for song in &self.songs {
+        for song in &self.songs.data {
             bytes.extend(song.into_bytes());
         }
 
@@ -88,7 +78,7 @@ impl From<&[u8]> for RawPlaylist {
         let name = unsafe { from_utf8_unchecked(&bytes[2..name_len + 2]) };
 
         //TODO: is it +3 or +2?
-        let mut i = name_len + 2 + 1;
+        let mut i = name_len + 2;
         let mut songs = Vec::new();
 
         while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
@@ -96,9 +86,14 @@ impl From<&[u8]> for RawPlaylist {
             i += SONG_LEN;
         }
 
+        let mut path = database_path();
+        path.pop();
+        path.push(format!("{}.playlist", name));
+
         Self {
             name: name.to_string(),
-            songs,
+            path,
+            songs: Index::from(songs),
         }
     }
 }
