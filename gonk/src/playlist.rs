@@ -21,7 +21,7 @@ pub struct Playlist {
     ///Contains the playlist names and songs.
     pub playlists: Index<RawPlaylist>,
 
-    ///Stored that we're requested to be added
+    ///Songs that are queued to be added.
     pub song_buffer: Vec<Song>,
 
     ///The users search query.
@@ -200,14 +200,11 @@ pub fn delete(playlist: &mut Playlist) {
     }
 }
 
-pub fn on_escape(playlist: &mut Playlist, mode: &mut super::Mode) {
-    match playlist.mode {
-        Mode::Popup => {
-            playlist.mode = Mode::Playlist;
-            playlist.search_query = String::new();
-            playlist.changed = true;
-        }
-        _ => *mode = super::Mode::Browser,
+pub fn on_escape(playlist: &mut Playlist) {
+    if let Mode::Popup = playlist.mode {
+        playlist.mode = Mode::Playlist;
+        playlist.search_query = String::new();
+        playlist.changed = true;
     };
 }
 

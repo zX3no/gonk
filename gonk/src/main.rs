@@ -314,7 +314,7 @@ fn main() {
                         }
                         KeyCode::Esc => match mode {
                             Mode::Search => search::on_escape(&mut search),
-                            Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
+                            Mode::Playlist => playlist::on_escape(&mut playlist),
                             _ => (),
                         },
                         KeyCode::Enter if shift => match mode {
