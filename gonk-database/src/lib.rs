@@ -22,7 +22,7 @@ use symphonia::{
     },
     default::get_probe,
 };
-use walkdir::DirEntry;
+use walkdir::{DirEntry, WalkDir};
 
 /// 2 bytes for number and disc, 4 bytes for gain
 pub const SONG_LEN: usize = TEXT_LEN + 2 + 4;
@@ -32,7 +32,9 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
 pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
 pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
+mod playlist;
 mod query;
+pub use playlist::*;
 pub use query::*;
 
 pub static mut MMAP: Option<Mmap> = None;
@@ -213,14 +215,12 @@ impl Settings {
 }
 
 pub fn save_settings() {
-    unsafe {
-        //Delete the contents of the file and overwrite with new settings.
-        let file = File::create(settings_path()).unwrap();
-        let mut writer = BufWriter::new(file);
-        let bytes = SETTINGS.into_bytes();
-        writer.write_all(&bytes).unwrap();
-        writer.flush().unwrap();
-    }
+    //Delete the contents of the file and overwrite with new settings.
+    let file = File::create(settings_path()).unwrap();
+    let mut writer = BufWriter::new(file);
+    let bytes = unsafe { SETTINGS.into_bytes() };
+    writer.write_all(&bytes).unwrap();
+    writer.flush().unwrap();
 }
 
 pub fn update_volume(new_volume: u8) {
@@ -304,7 +304,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             .unwrap();
         let mut writer = BufWriter::new(&file);
 
-        let paths: Vec<DirEntry> = walkdir::WalkDir::new(path)
+        let paths: Vec<DirEntry> = WalkDir::new(path)
             .into_iter()
             .flatten()
             .filter(|path| match path.path().extension() {

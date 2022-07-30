@@ -1,4 +1,5 @@
 use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
+use gonk_database::RawSong;
 use gonk_player::{Index, Player, Song};
 use tui::style::Style;
 use tui::text::Span;
@@ -14,33 +15,50 @@ pub enum Mode {
     Popup,
 }
 
+pub struct PlaylistIndex {
+    pub name: String,
+    pub songs: Index<RawSong>,
+}
+
 pub struct Playlist {
     pub mode: Mode,
-    pub playlists: Index<String>,
-    pub songs: Index<PlaylistSong>,
+
+    ///Contains the playlist names and songs.
+    pub playlists: Index<PlaylistIndex>,
+
+    ///Stored that we're requested to be added
     pub song_buffer: Vec<Song>,
-    pub search: String,
+
+    ///The users search query.
+    pub search_query: String,
+    ///The name of the playlist the user will add to.
     pub search_result: String,
+    ///Has the search changed?
     pub changed: bool,
 }
 
 impl Playlist {
     pub fn new() -> Self {
-        let playlists = playlist::playlists();
-
-        let songs = if let Some(playlist) = playlists.first() {
-            Index::new(playlist::get(playlist), Some(0))
-        } else {
+        let playlists = gonk_database::playlists();
+        let playlists = if playlists.is_empty() {
             Index::new(Vec::new(), Some(0))
+        } else {
+            let test = playlists
+                .into_iter()
+                .map(|playlist| PlaylistIndex {
+                    name: playlist.name,
+                    songs: Index::from(playlist.songs),
+                })
+                .collect();
+            Index::new(test, Some(0))
         };
 
         Self {
             mode: Mode::Playlist,
-            playlists: Index::new(playlists, Some(0)),
-            songs,
+            playlists,
             song_buffer: Vec::new(),
             changed: false,
-            search: String::new(),
+            search_query: String::new(),
             search_result: String::from("Enter a playlist name..."),
         }
     }
@@ -51,10 +69,12 @@ impl Input for Playlist {
         match self.mode {
             Mode::Playlist => {
                 self.playlists.up();
-                let songs = playlist::get(self.playlists.selected().unwrap());
-                self.songs = Index::new(songs, Some(0));
             }
-            Mode::Song => self.songs.up(),
+            Mode::Song => {
+                if let Some(selected) = self.playlists.selected_mut() {
+                    selected.songs.up();
+                }
+            }
             Mode::Popup => (),
         }
     }
@@ -63,10 +83,12 @@ impl Input for Playlist {
         match self.mode {
             Mode::Playlist => {
                 self.playlists.down();
-                let songs = playlist::get(self.playlists.selected().unwrap());
-                self.songs = Index::new(songs, Some(0));
             }
-            Mode::Song => self.songs.down(),
+            Mode::Song => {
+                if let Some(selected) = self.playlists.selected_mut() {
+                    selected.songs.down();
+                }
+            }
             Mode::Popup => (),
         }
     }
@@ -78,8 +100,8 @@ impl Input for Playlist {
     }
 
     fn right(&mut self) {
-        match self.mode {
-            Mode::Playlist if !self.songs.is_empty() => {
+        match self.playlists.selected() {
+            Some(_) if self.mode == Mode::Playlist => {
                 self.mode = Mode::Song;
             }
             _ => (),
@@ -88,55 +110,62 @@ impl Input for Playlist {
 }
 
 pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
-    match playlist.mode {
-        Mode::Playlist => {
-            let ids: Vec<usize> = playlist.songs.data.iter().map(|song| song.id).collect();
-            let songs = gonk_database::songs_from_ids(&ids);
-            match player.add_songs(&songs) {
-                Ok(_) => (),
-                Err(e) => log!("{}", e),
-            }
+    if let Some(selected) = playlist.playlists.selected() {
+        match playlist.mode {
+            Mode::Playlist => {
+                let songs: Vec<Song> = selected
+                    .songs
+                    .data
+                    .iter()
+                    .map(|song| Song::from(&song.into_bytes(), 0))
+                    .collect();
 
-            save_queue(player);
-        }
-        Mode::Song => {
-            if let Some(item) = playlist.songs.selected() {
-                let song = gonk_database::songs_from_ids(&[item.id]).remove(0);
-                match player.add_songs(&[song]) {
+                match player.add_songs(&songs) {
                     Ok(_) => (),
                     Err(e) => log!("{}", e),
                 }
+
                 save_queue(player);
             }
-        }
-        Mode::Popup if !playlist.song_buffer.is_empty() => {
-            //Select an existing playlist or create a new one.
-            let name = playlist.search.trim().to_string();
-
-            let ids: Vec<usize> = playlist.song_buffer.iter().map(|song| song.id).collect();
-
-            playlist::add(&name, &ids);
-
-            playlist.playlists = Index::new(playlist::playlists(), playlist.playlists.index());
-
-            let mut i = Some(0);
-            for (j, playlist) in playlist.playlists.data.iter().enumerate() {
-                if playlist == &name {
-                    i = Some(j);
-                    break;
+            Mode::Song => {
+                if let Some(song) = selected.songs.selected() {
+                    match player.add_songs(&[Song::from(&song.into_bytes(), 0)]) {
+                        Ok(_) => (),
+                        Err(e) => log!("{}", e),
+                    }
+                    save_queue(player);
                 }
             }
+            Mode::Popup if !playlist.song_buffer.is_empty() => {
+                let name = playlist.search_query.trim().to_string();
+                let pos = playlist.playlists.data.iter().position(|p| p.name == name);
+                let songs: Vec<RawSong> = playlist.song_buffer.iter().map(RawSong::from).collect();
 
-            //Select the playlist that was just modified and update the songs.
-            playlist.playlists.select(i);
-            let songs = playlist::get(playlist.playlists.selected().unwrap());
-            playlist.songs = Index::new(songs, Some(0));
+                match pos {
+                    //Playlist exists
+                    Some(pos) => {
+                        let p = &mut playlist.playlists.data[pos];
+                        p.songs.data.extend(songs);
+                        p.songs.select(Some(0));
+                        playlist.playlists.select(Some(pos));
+                    }
+                    //Playlist does not exist.
+                    None => {
+                        let len = playlist.playlists.len();
+                        playlist.playlists.data.push(PlaylistIndex {
+                            name,
+                            songs: Index::from(songs),
+                        });
+                        playlist.playlists.select(Some(len));
+                    }
+                }
 
-            //Reset everything.
-            playlist.search = String::new();
-            playlist.mode = Mode::Playlist;
+                //Reset everything.
+                playlist.search_query = String::new();
+                playlist.mode = Mode::Playlist;
+            }
+            Mode::Popup => (),
         }
-        Mode::Popup => (),
     }
 }
 
@@ -145,9 +174,9 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
         Mode::Popup => {
             playlist.changed = true;
             if control {
-                playlist.search.clear();
+                playlist.search_query.clear();
             } else {
-                playlist.search.pop();
+                playlist.search_query.pop();
             }
         }
         _ => playlist.left(),
@@ -162,33 +191,33 @@ pub fn add_to_playlist(playlist: &mut Playlist, songs: &[Song]) {
 pub fn delete(playlist: &mut Playlist) {
     match playlist.mode {
         Mode::Playlist => {
-            if let Some(index) = playlist.playlists.index() {
-                //TODO: Prompt the user with yes or no.
-                playlist::remove(&playlist.playlists.data[index]);
-                playlist.playlists.remove(index);
+            // if let Some(index) = playlist.names.index() {
+            // //TODO: Prompt the user with yes or no.
+            // playlist::remove(&playlist.names.data[index]);
+            // playlist.names.remove(index);
 
-                if playlist.playlists.is_empty() {
-                    //No more playlists mean no more songs.
-                    playlist.songs = Index::default();
-                } else {
-                    //After removing a playlist the next songs will need to be loaded.
-                    let songs = playlist::get(playlist.playlists.selected().unwrap());
-                    playlist.songs = Index::new(songs, Some(0));
-                }
-            }
+            // if playlist.names.is_empty() {
+            //     //No more playlists mean no more songs.
+            //     playlist.songs = Index::default();
+            // } else {
+            //     //After removing a playlist the next songs will need to be loaded.
+            //     let songs = playlist::get(playlist.names.selected().unwrap());
+            //     playlist.songs = Index::new(songs, Some(0));
+            // }
+            // }
         }
         Mode::Song => {
-            if let Some(song) = playlist.songs.selected() {
-                playlist::remove_id(song.id);
-                let index = playlist.songs.index().unwrap();
-                playlist.songs.remove(index);
+            // if let Some(song) = playlist.songs.selected() {
+            //     playlist::remove_id(song.id);
+            //     let index = playlist.songs.index().unwrap();
+            //     playlist.songs.remove(index);
 
-                //If there are no songs left delete the playlist.
-                if playlist.songs.is_empty() {
-                    let index = playlist.playlists.index().unwrap();
-                    playlist.playlists.remove(index);
-                }
-            }
+            //     //If there are no songs left delete the playlist.
+            //     if playlist.songs.is_empty() {
+            //         let index = playlist.names.index().unwrap();
+            //         playlist.names.remove(index);
+            //     }
+            // }
         }
         Mode::Popup => (),
     }
@@ -198,7 +227,7 @@ pub fn on_escape(playlist: &mut Playlist, mode: &mut super::Mode) {
     match playlist.mode {
         Mode::Popup => {
             playlist.mode = Mode::Playlist;
-            playlist.search = String::new();
+            playlist.search_query = String::new();
             playlist.changed = true;
         }
         _ => *mode = super::Mode::Browser,
@@ -242,12 +271,12 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
         );
 
         //Scroll the playlist name.
-        let len = playlist.search.len() as u16;
+        let len = playlist.search_query.len() as u16;
         let width = v[0].width.saturating_sub(1);
         let offset_x = if len < width { 0 } else { len - width + 1 };
 
         f.render_widget(
-            Paragraph::new(playlist.search.as_str())
+            Paragraph::new(playlist.search_query.as_str())
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -263,13 +292,13 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
                 .playlists
                 .data
                 .iter()
-                .any(|e| e == &playlist.search);
+                .any(|p| p.name == playlist.search_query);
             playlist.search_result = if eq {
-                format!("Add to existing playlist: {}", playlist.search)
-            } else if playlist.search.is_empty() {
+                format!("Add to existing playlist: {}", playlist.search_query)
+            } else if playlist.search_query.is_empty() {
                 String::from("Enter a playlist name...")
             } else {
-                format!("Add to new playlist: {}", playlist.search)
+                format!("Add to new playlist: {}", playlist.search_query)
             }
         }
 
@@ -283,7 +312,7 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
 
         //Draw the cursor.
         let (x, y) = (v[0].x + 1, v[0].y + 1);
-        if playlist.search.is_empty() {
+        if playlist.search_query.is_empty() {
             f.set_cursor(x, y);
         } else {
             let width = v[0].width.saturating_sub(3);
@@ -305,8 +334,8 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
     let items: Vec<ListItem> = playlist
         .playlists
         .data
-        .clone()
-        .into_iter()
+        .iter()
+        .map(|p| p.name.clone())
         .map(ListItem::new)
         .collect();
 
@@ -331,43 +360,45 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
         &mut ListState::new(playlist.playlists.index()),
     );
 
-    let content: Vec<Row> = playlist
-        .songs
-        .data
-        .iter()
-        .map(|song| {
-            Row::new(vec![
-                Span::styled(song.name.as_str(), Style::default().fg(COLORS.name)),
-                Span::styled(song.album.as_str(), Style::default().fg(COLORS.album)),
-                Span::styled(song.artist.as_str(), Style::default().fg(COLORS.artist)),
+    if let Some(selected) = playlist.playlists.selected() {
+        let content: Vec<Row> = selected
+            .songs
+            .data
+            .iter()
+            .map(|song| {
+                Row::new(vec![
+                    Span::styled(song.title(), Style::default().fg(COLORS.name)),
+                    Span::styled(song.album(), Style::default().fg(COLORS.album)),
+                    Span::styled(song.artist(), Style::default().fg(COLORS.artist)),
+                ])
+            })
+            .collect();
+
+        let table = Table::new(&content)
+            .widths(&[
+                Constraint::Percentage(42),
+                Constraint::Percentage(30),
+                Constraint::Percentage(28),
             ])
-        })
-        .collect();
+            .block(
+                Block::default()
+                    .title("─Songs")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            );
 
-    let table = Table::new(&content)
-        .widths(&[
-            Constraint::Percentage(42),
-            Constraint::Percentage(30),
-            Constraint::Percentage(28),
-        ])
-        .block(
-            Block::default()
-                .title("─Songs")
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
+        let table = if let Mode::Song = playlist.mode {
+            table.highlight_symbol(">")
+        } else {
+            table.highlight_symbol("")
+        };
+
+        f.render_stateful_widget(
+            table,
+            horizontal[1],
+            &mut TableState::new(selected.songs.index()),
         );
-
-    let table = if let Mode::Song = playlist.mode {
-        table.highlight_symbol(">")
-    } else {
-        table.highlight_symbol("")
-    };
-
-    f.render_stateful_widget(
-        table,
-        horizontal[1],
-        &mut TableState::new(playlist.songs.index()),
-    );
+    }
 
     if let Mode::Popup = playlist.mode {
         draw_popup(playlist, f);

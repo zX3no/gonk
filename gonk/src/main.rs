@@ -1,8 +1,7 @@
-#![allow(clippy::single_match, unused_variables)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_player::{Index, Player};
-// use playlist::{Mode as PlaylistMode, Playlist};
+use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
@@ -17,7 +16,7 @@ use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
 mod log;
-// mod playlist;
+mod playlist;
 mod queue;
 mod search;
 mod settings;
@@ -137,7 +136,7 @@ fn main() {
     let mut browser = Browser::new();
     let mut queue = Queue::new();
     let mut status_bar = StatusBar::new();
-    // let mut playlist = Playlist::new();
+    let mut playlist = Playlist::new();
     let mut settings = Settings::new();
     let mut search = Search::new();
 
@@ -197,8 +196,7 @@ fn main() {
                     Mode::Browser => browser::draw(&browser, top, f),
                     Mode::Queue => queue::draw(&mut queue, &mut player, f, None),
                     Mode::Search => search::draw(&mut search, top, f),
-                    // Mode::Playlist => playlist::draw(&mut playlist, top, f),
-                    Mode::Playlist => (),
+                    Mode::Playlist => playlist::draw(&mut playlist, top, f),
                     Mode::Settings => settings::draw(&mut settings, top, f),
                 };
 
@@ -211,15 +209,13 @@ fn main() {
             .unwrap();
 
         let input_search = search.mode == SearchMode::Search && mode == Mode::Search;
-        // let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
-        let input_playlist = false;
+        let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
         let input = match mode {
             Mode::Browser => &mut browser as &mut dyn Input,
             Mode::Queue => &mut queue as &mut dyn Input,
             Mode::Search => &mut search as &mut dyn Input,
-            // Mode::Playlist => &mut playlist as &mut dyn Input,
-            Mode::Playlist => &mut browser as &mut dyn Input,
+            Mode::Playlist => &mut playlist as &mut dyn Input,
             Mode::Settings => &mut settings as &mut dyn Input,
         };
 
@@ -241,12 +237,12 @@ fn main() {
                             }
                         }
                         KeyCode::Char(c) if input_playlist => {
-                            // if control && c == 'w' {
-                            // playlist::on_backspace(&mut playlist, true);
-                            // } else {
-                            // playlist.changed = true;
-                            // playlist.search.push(c);
-                            // }
+                            if control && c == 'w' {
+                                playlist::on_backspace(&mut playlist, true);
+                            } else {
+                                playlist.changed = true;
+                                playlist.search_query.push(c);
+                            }
                         }
                         KeyCode::Char(' ') => match player.toggle_playback() {
                             Ok(_) => (),
@@ -262,7 +258,7 @@ fn main() {
                         }
                         KeyCode::Char('x') => match mode {
                             Mode::Queue => queue::delete(&mut queue, &mut player),
-                            // Mode::Playlist => playlist::delete(&mut playlist),
+                            Mode::Playlist => playlist::delete(&mut playlist),
                             _ => (),
                         },
                         KeyCode::Char('u') if mode == Mode::Browser => {
@@ -317,24 +313,24 @@ fn main() {
                         }
                         KeyCode::Esc => match mode {
                             Mode::Search => search::on_escape(&mut search),
-                            // Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
+                            Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
                             _ => (),
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                // playlist::add_to_playlist(&mut playlist, &songs);
+                                playlist::add_to_playlist(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
                             Mode::Queue => {
                                 if let Some(song) = player.songs.selected() {
-                                    // playlist::add_to_playlist(&mut playlist, &[song.clone()]);
+                                    playlist::add_to_playlist(&mut playlist, &[song.clone()]);
                                     mode = Mode::Playlist;
                                 }
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    // playlist::add_to_playlist(&mut playlist, &songs);
+                                    playlist::add_to_playlist(&mut playlist, &songs);
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -369,12 +365,11 @@ fn main() {
                                 }
                             }
                             Mode::Settings => settings::on_enter(&mut settings, &mut player),
-                            // Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
-                            _ => (),
+                            Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
                         },
                         KeyCode::Backspace => match mode {
                             Mode::Search => search::on_backspace(&mut search, control),
-                            // Mode::Playlist => playlist::on_backspace(&mut playlist, control),
+                            Mode::Playlist => playlist::on_backspace(&mut playlist, control),
                             _ => (),
                         },
                         KeyCode::Up => input.up(),
