@@ -232,8 +232,8 @@ fn main() {
                             if control && c == 'w' {
                                 search::on_backspace(&mut search, true);
                             } else {
-                                search.query_changed = true;
                                 search.query.push(c);
+                                search.query_changed = true;
                             }
                         }
                         KeyCode::Char(c) if input_playlist => {

@@ -89,6 +89,7 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
             } else {
                 search.query.pop();
             }
+            search.query_changed = true;
         }
         Mode::Select => {
             search.results.select(None);
@@ -102,6 +103,7 @@ pub fn on_escape(search: &mut Search) {
         Mode::Search => {
             if let Mode::Search = search.mode {
                 search.query.clear();
+                search.query_changed = true;
             }
         }
         Mode::Select => {
@@ -220,10 +222,14 @@ pub fn refresh_results(search: &mut Search) {
     });
 
     search.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
+
+    //TODO: Tell the user how long the search took.
+    // println!(" {:?}", now.elapsed());
 }
 
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
     if search.query_changed {
+        search.query_changed = !search.query_changed;
         refresh_results(search);
     }
 
