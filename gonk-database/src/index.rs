@@ -60,6 +60,14 @@ impl<T> Index<T> {
         }
         None
     }
+    pub fn selected_mut(&mut self) -> Option<&mut T> {
+        if let Some(index) = self.index {
+            if let Some(item) = self.data.get_mut(index) {
+                return Some(item);
+            }
+        }
+        None
+    }
     pub fn index(&self) -> Option<usize> {
         self.index
     }
@@ -87,6 +95,13 @@ impl<T> Index<T> {
                 self.index = None;
             }
         }
+    }
+}
+
+impl<T> From<Vec<T>> for Index<T> {
+    fn from(vec: Vec<T>) -> Self {
+        let index = if vec.is_empty() { None } else { Some(0) };
+        Self::new(vec, index)
     }
 }
 

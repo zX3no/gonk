@@ -1,207 +1,206 @@
-use crate::conn;
-use gonk_player::{Index, Song};
-use rusqlite::*;
-use std::path::PathBuf;
+use crate::*;
+use rayon::slice::ParallelSliceMut;
+use std::str::from_utf8_unchecked;
 
-pub fn save_queue(ids: &[usize], index: usize, elapsed: f32) {
-    let mut conn = conn();
+pub fn artist(text: &[u8]) -> &str {
+    debug_assert_eq!(text.len(), TEXT_LEN);
+    let end = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize + 2;
+    unsafe { from_utf8_unchecked(&text[2..end]) }
+}
 
-    let tx = conn.transaction().unwrap();
-    tx.execute("DELETE FROM queue", []).unwrap();
-    tx.execute("UPDATE settings SET selected = ?", [index])
-        .unwrap();
-    tx.execute("UPDATE settings SET elapsed = ?", [elapsed])
-        .unwrap();
-    {
-        let mut stmt = tx
-            .prepare_cached("INSERT INTO queue (song_id) VALUES (?)")
-            .unwrap();
+pub fn album(text: &[u8]) -> &str {
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+    unsafe { from_utf8_unchecked(&text[album]) }
+}
 
-        for id in ids {
-            stmt.execute([id]).unwrap();
-        }
+pub fn title(text: &[u8]) -> &str {
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+
+    let title_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    let title = 2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
+
+    unsafe { from_utf8_unchecked(&text[title]) }
+}
+
+pub fn path(text: &[u8]) -> &str {
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+
+    let title_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    let path_len = u16::from_le_bytes(
+        text[2 + artist_len + 2 + album_len + 2 + title_len
+            ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+
+    let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
+        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
+
+    unsafe { from_utf8_unchecked(&text[path]) }
+}
+
+pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
+    let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+    let album_len =
+        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap()) as usize;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+    unsafe {
+        (
+            from_utf8_unchecked(&text[2..artist_len + 2]),
+            from_utf8_unchecked(&text[album]),
+        )
     }
-    tx.commit().unwrap();
 }
-
-pub fn get_queue() -> (Index<Song>, f32) {
-    let songs = collect_songs(
-        "SELECT *, rowid FROM song WHERE rowid IN (SELECT song_id FROM queue)",
-        [],
-    );
-
-    let (index, elapsed) = conn()
-        .query_row("SELECT selected, elapsed FROM settings", [], |row| {
-            Ok((row.get(0).unwrap(), row.get(1).unwrap()))
-        })
-        .unwrap();
-
-    (Index::new(songs, Some(index)), elapsed)
-}
-
-pub fn volume() -> u16 {
-    conn()
-        .query_row("SELECT volume FROM settings", [], |row| row.get(0))
-        .unwrap()
-}
-
-pub fn set_volume(vol: u16) {
-    conn()
-        .execute("UPDATE settings SET volume = ?", [vol])
-        .unwrap();
-}
-
-pub fn folders() -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT folder FROM folder").unwrap();
-
-    stmt.query_map([], |row| row.get(0))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-
-pub fn remove_folder(path: &str) -> Result<(), &str> {
-    let path = path.replace('\\', "/");
-    let conn = conn();
-
-    conn.execute("DELETE FROM song WHERE folder = ?", [&path])
-        .unwrap();
-
-    let result = conn
-        .execute("DELETE FROM folder WHERE folder = ?", [path])
-        .unwrap();
-
-    if result == 0 {
-        Err("Invalid path.")
+pub fn get(index: usize) -> Option<Song> {
+    if let Some(mmap) = mmap() {
+        let start = SONG_LEN * index;
+        let bytes = mmap.get(start..start + SONG_LEN)?;
+        Some(Song::from(bytes, index))
     } else {
-        Ok(())
+        None
     }
 }
 
-pub fn total_songs() -> usize {
-    conn()
-        .query_row("SELECT COUNT(*) FROM song", [], |row| row.get(0))
-        .unwrap()
+pub fn ids(ids: &[usize]) -> Vec<Song> {
+    if let Some(mmap) = mmap() {
+        let mut songs = Vec::new();
+        for id in ids {
+            let start = SONG_LEN * id;
+            let bytes = &mmap[start..start + SONG_LEN];
+            songs.push(Song::from(bytes, *id));
+        }
+        songs
+    } else {
+        Vec::new()
+    }
 }
 
-pub fn songs() -> Vec<Song> {
-    collect_songs("SELECT *, rowid FROM song", [])
+pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
+    if let Some(mmap) = mmap() {
+        let mut songs = Vec::new();
+        let mut i = 0;
+        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+            let (artist, album) = artist_and_album(text);
+            if artist == ar && album == al {
+                songs.push(Song::from(&mmap[i..i + SONG_LEN], i / SONG_LEN));
+            }
+            i += SONG_LEN;
+        }
+        songs
+    } else {
+        Vec::new()
+    }
+}
+
+pub fn albums_by_artist(ar: &str) -> Vec<String> {
+    if let Some(mmap) = mmap() {
+        let mut albums = Vec::new();
+        let mut i = 0;
+        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+            let artist = artist(text);
+            if artist == ar {
+                albums.push(album(text).to_string());
+            }
+            i += SONG_LEN;
+        }
+        albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
+        albums.dedup();
+        albums
+    } else {
+        Vec::new()
+    }
+}
+
+pub fn songs_by_artist(ar: &str) -> Vec<Song> {
+    if let Some(mmap) = mmap() {
+        let mut songs = Vec::new();
+        let mut i = 0;
+        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+            let artist = artist(text);
+            if artist == ar {
+                let song_bytes = &mmap[i..i + SONG_LEN];
+                songs.push(Song::from(song_bytes, i / SONG_LEN));
+            }
+            i += SONG_LEN;
+        }
+        songs
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn artists() -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT DISTINCT artist FROM song ORDER BY artist COLLATE NOCASE")
-        .unwrap();
-
-    stmt.query_map([], |row| {
-        let artist: String = row.get(0).unwrap();
-        Ok(artist)
-    })
-    .unwrap()
-    .flatten()
-    .collect()
-}
-
-pub fn albums() -> Vec<(String, String)> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT DISTINCT album, artist FROM song ORDER BY artist COLLATE NOCASE")
-        .unwrap();
-
-    stmt.query_map([], |row| {
-        let album: String = row.get(0).unwrap();
-        let artist: String = row.get(1).unwrap();
-        Ok((album, artist))
-    })
-    .unwrap()
-    .flatten()
-    .collect()
-}
-
-pub fn albums_by_artist(artist: &str) -> Vec<String> {
-    let conn = conn();
-    let mut stmt = conn
-        .prepare("SELECT DISTINCT album FROM song WHERE artist = ? ORDER BY album COLLATE NOCASE")
-        .unwrap();
-
-    stmt.query_map([artist], |row| row.get(0))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-
-pub fn songs_from_album(album: &str, artist: &str) -> Vec<Song> {
-    collect_songs(
-        "SELECT *, rowid FROM song WHERE artist = (?1) AND album = (?2) ORDER BY disc, number",
-        params![artist, album],
-    )
-}
-
-pub fn songs_by_artist(artist: &str) -> Vec<Song> {
-    collect_songs(
-        "SELECT *, rowid FROM song WHERE artist = ? ORDER BY album, disc, number",
-        params![artist],
-    )
-}
-
-pub fn songs_from_ids(ids: &[usize]) -> Vec<Song> {
-    let conn = conn();
-
-    let sql: Vec<String> = ids
-        .iter()
-        .map(|id| format!("SELECT *, rowid FROM song WHERE rowid = {}\nUNION ALL", id))
-        .collect();
-
-    let sql = sql.join("\n");
-    //Remove the last 'UNION ALL'
-    let sql = &sql[..sql.len() - 10];
-
-    let mut stmt = conn.prepare(sql).unwrap();
-
-    stmt.query_map([], |row| Ok(song(row)))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-
-pub fn collect_songs<P>(query: &str, params: P) -> Vec<Song>
-where
-    P: Params,
-{
-    let conn = conn();
-    let mut stmt = conn.prepare(query).expect(query);
-
-    stmt.query_map(params, |row| Ok(song(row)))
-        .unwrap()
-        .flatten()
-        .collect()
-}
-
-pub fn song(row: &Row) -> Song {
-    let path: String = row.get(3).unwrap();
-    Song {
-        name: row.get(0).unwrap(),
-        disc: row.get(1).unwrap(),
-        number: row.get(2).unwrap(),
-        path: PathBuf::from(path),
-        gain: row.get(4).unwrap(),
-        album: row.get(5).unwrap(),
-        artist: row.get(6).unwrap(),
-        // folder: row.get(7).unwrap(),
-        id: row.get(8).unwrap(),
+    if let Some(mmap) = mmap() {
+        let mut artists = Vec::new();
+        let mut i = 0;
+        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+            artists.push(artist(text).to_string());
+            i += SONG_LEN;
+        }
+        artists.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
+        artists.dedup();
+        artists
+    } else {
+        Vec::new()
     }
 }
 
-pub fn playback_device() -> String {
-    let conn = conn();
-    let mut stmt = conn.prepare("SELECT device FROM settings").unwrap();
-    stmt.query_row([], |row| row.get(0)).unwrap()
+///(Artist, (Artist, Album), Song)
+pub fn artists_albums_and_songs() -> (Vec<String>, Vec<(String, String)>, Vec<Song>) {
+    if let Some(mmap) = mmap() {
+        let songs: Vec<Song> = (0..len())
+            .into_par_iter()
+            .map(|i| {
+                let pos = i * SONG_LEN;
+                let bytes = &mmap[pos..pos + SONG_LEN];
+                Song::from(bytes, i)
+            })
+            .collect();
+
+        let mut albums: Vec<(&str, &str)> = songs
+            .iter()
+            .map(|song| (song.artist.as_str(), song.album.as_str()))
+            .collect();
+        albums.par_sort_unstable_by_key(|(artist, _album)| artist.to_ascii_lowercase());
+        albums.dedup();
+        let albums: Vec<(String, String)> = albums
+            .into_iter()
+            .map(|(artist, album)| (artist.to_owned(), album.to_owned()))
+            .collect();
+
+        let mut artists: Vec<String> = albums
+            .iter()
+            .map(|(artist, _album)| artist.clone())
+            .collect();
+        artists.dedup();
+
+        (artists, albums, songs)
+    } else {
+        (Vec::new(), Vec::new(), Vec::new())
+    }
 }
 
-pub fn set_playback_device(name: &str) {
-    conn()
-        .execute("UPDATE settings SET device = ? ", [name])
-        .unwrap();
+pub fn len() -> usize {
+    if let Some(mmap) = mmap() {
+        mmap.len() / SONG_LEN
+    } else {
+        0
+    }
 }

@@ -1,6 +1,6 @@
 use crate::{log, widgets::*, Frame, Input};
-use gonk_database::query;
-use gonk_player::{Device, DeviceTrait, Index, Player};
+use gonk_database::Index;
+use gonk_player::{Device, DeviceTrait, Player};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -15,7 +15,7 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Self {
         let default_device = gonk_player::default_device();
-        let wanted_device = query::playback_device();
+        let wanted_device = gonk_database::get_output_device();
 
         let devices = gonk_player::audio_devices();
 
@@ -24,10 +24,10 @@ impl Settings {
             .flat_map(DeviceTrait::name)
             .any(|x| x == wanted_device)
         {
-            wanted_device
+            wanted_device.to_string()
         } else {
             let name = default_device.name().unwrap();
-            query::set_playback_device(&name);
+            gonk_database::update_output_device(&name);
             name
         };
 

@@ -1,7 +1,7 @@
 use crate::widgets::*;
 use crate::*;
 use crossterm::event::MouseEvent;
-use gonk_player::{Index, Player};
+use gonk_player::Player;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
@@ -157,7 +157,7 @@ fn draw_header(player: &mut Player, f: &mut Frame, area: Rect) {
 
 fn draw_title(player: &mut Player, f: &mut Frame, area: Rect) {
     let title = if let Some(song) = player.songs.selected() {
-        let mut name = song.name.trim_end().to_string();
+        let mut name = song.title.trim_end().to_string();
         let mut album = song.album.trim_end().to_string();
         let mut artist = song.artist.trim_end().to_string();
         let max_width = area.width.saturating_sub(30) as usize;
@@ -223,7 +223,7 @@ fn draw_body(
             Row::new(vec![
                 Cell::from(""),
                 Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.number)),
-                Cell::from(song.name.as_str()).style(Style::default().fg(COLORS.name)),
+                Cell::from(song.title.as_str()).style(Style::default().fg(COLORS.name)),
                 Cell::from(song.album.as_str()).style(Style::default().fg(COLORS.album)),
                 Cell::from(song.artist.as_str()).style(Style::default().fg(COLORS.artist)),
             ])
@@ -243,7 +243,7 @@ fn draw_body(
                         ),
                         Cell::from(song.number.to_string())
                             .style(Style::default().bg(COLORS.number).fg(Color::Black)),
-                        Cell::from(song.name.as_str())
+                        Cell::from(song.title.as_str())
                             .style(Style::default().bg(COLORS.name).fg(Color::Black)),
                         Cell::from(song.album.as_str())
                             .style(Style::default().bg(COLORS.album).fg(Color::Black)),
@@ -259,7 +259,7 @@ fn draw_body(
                         ),
                         Cell::from(song.number.to_string())
                             .style(Style::default().fg(COLORS.number)),
-                        Cell::from(song.name.as_str()).style(Style::default().fg(COLORS.name)),
+                        Cell::from(song.title.as_str()).style(Style::default().fg(COLORS.name)),
                         Cell::from(song.album.as_str()).style(Style::default().fg(COLORS.album)),
                         Cell::from(song.artist.as_str()).style(Style::default().fg(COLORS.artist)),
                     ])
@@ -275,7 +275,7 @@ fn draw_body(
                             Cell::default(),
                             Cell::from(song.number.to_string())
                                 .style(Style::default().bg(COLORS.number)),
-                            Cell::from(song.name.as_str()).style(Style::default().bg(COLORS.name)),
+                            Cell::from(song.title.as_str()).style(Style::default().bg(COLORS.name)),
                             Cell::from(song.album.as_str())
                                 .style(Style::default().bg(COLORS.album)),
                             Cell::from(song.artist.as_str())

@@ -3,6 +3,7 @@ use cpal::{
     traits::{HostTrait, StreamTrait},
     BuildStreamError, Stream, StreamConfig,
 };
+use gonk_database::{Index, Song};
 use std::{fs::File, io::ErrorKind, time::Duration, vec::IntoIter};
 use symphonia::{
     core::{
@@ -19,11 +20,6 @@ use symphonia::{
 };
 
 pub use cpal::{traits::DeviceTrait, Device};
-pub use index::Index;
-pub use song::Song;
-
-mod index;
-mod song;
 
 #[inline]
 const fn gcd(a: usize, b: usize) -> usize {
@@ -41,8 +37,8 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 
 static mut RESAMPLER: Option<Resampler> = None;
 
-const VOLUME_STEP: u16 = 5;
-const VOLUME_REDUCTION: f32 = 600.0;
+const VOLUME_STEP: u8 = 5;
+const VOLUME_REDUCTION: f32 = 500.0;
 const MAX_DECODE_ERRORS: usize = 3;
 
 pub struct Resampler {
@@ -74,7 +70,7 @@ pub struct Resampler {
 }
 
 impl Resampler {
-    pub fn new(output: usize, file: File, volume: u16, gain: f32) -> Self {
+    pub fn new(output: usize, file: File, volume: u8, gain: f32) -> Self {
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let mut probed = get_probe()
@@ -275,7 +271,7 @@ impl Resampler {
         }
     }
 
-    pub fn set_volume(&mut self, volume: u16) {
+    pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume as f32 / VOLUME_REDUCTION;
     }
 }
@@ -292,11 +288,11 @@ pub struct Player {
     pub sample_rate: usize,
     pub state: State,
     pub songs: Index<Song>,
-    pub volume: u16,
+    pub volume: u8,
 }
 
 impl Player {
-    pub fn new(wanted_device: String, volume: u16, songs: Index<Song>, elapsed: f32) -> Self {
+    pub fn new(wanted_device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         #[cfg(unix)]
         let _gag = gag::Gag::stderr().unwrap();
 
@@ -315,8 +311,10 @@ impl Player {
         };
 
         let config = device.default_output_config().unwrap().config();
+        if config.channels != 2 {
+            panic!("TODO: Support downmixing multiple channels")
+        }
         let stream = create_output_stream(&device, &config).unwrap();
-        stream.play().unwrap();
 
         let mut s = Self {
             sample_rate: config.sample_rate.0 as usize,
@@ -325,13 +323,27 @@ impl Player {
             state: State::Stopped,
             songs,
         };
-        if s.play_selected().is_ok() && s.seek_to(elapsed).is_ok() {
-            s.pause();
+
+        //Force update the playback position when restoring the queue.
+        if let Some(song) = s.songs.selected() {
+            let file = match File::open(&song.path) {
+                Ok(file) => file,
+                Err(_) => return s,
+            };
+            let elapsed = Duration::from_secs_f32(elapsed);
+
+            let mut resampler = Resampler::new(s.sample_rate, file, s.volume, song.gain as f32);
             //Elapsed will not update while paused so force update it.
-            if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                resampler.elapsed = Duration::from_secs_f32(elapsed);
+            resampler.elapsed = elapsed;
+
+            unsafe {
+                RESAMPLER = Some(resampler);
             }
+
+            s.state = State::Paused;
+            s.seek(elapsed).unwrap();
         }
+
         s
     }
 
@@ -526,26 +538,30 @@ impl Player {
     }
 
     pub fn seek_by(&mut self, time: f32) -> Result<(), String> {
-        unsafe {
-            if RESAMPLER.is_none() || self.state != State::Playing {
-                return Ok(());
+        if let Some(resampler) = unsafe { &RESAMPLER } {
+            let time = resampler.elapsed.as_secs_f32() + time;
+            if time > self.duration().as_secs_f32() {
+                self.next()?;
+            } else {
+                self.seek_to(time)?;
+                self.play();
             }
-
-            self.seek_to(RESAMPLER.as_ref().unwrap().elapsed.as_secs_f32() + time)
         }
+        Ok(())
     }
 
     pub fn seek_to(&mut self, time: f32) -> Result<(), String> {
-        if unsafe { RESAMPLER.is_none() } || self.state != State::Playing {
-            return Ok(());
-        }
-
         //Seeking at under 0.5 seconds causes an unexpected EOF.
         //Could be because of the coarse seek.
         let time = Duration::from_secs_f32(time.clamp(0.5, f32::MAX));
+        self.seek(time)?;
+        self.play();
+        Ok(())
+    }
 
-        unsafe {
-            match RESAMPLER.as_mut().unwrap().probed.format.seek(
+    pub fn seek(&mut self, time: Duration) -> Result<(), String> {
+        if let Some(resampler) = unsafe { &mut RESAMPLER } {
+            match resampler.probed.format.seek(
                 SeekMode::Coarse,
                 SeekTo::Time {
                     time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / 1_000_000_000.0),
@@ -555,12 +571,14 @@ impl Player {
                 Ok(_) => Ok(()),
                 Err(e) => match e {
                     Error::SeekError(e) => match e {
-                        SeekErrorKind::OutOfRange => self.next(),
+                        SeekErrorKind::OutOfRange => Err(String::from("Seek out of range!")),
                         _ => panic!("{:?}", e),
                     },
                     _ => panic!("{}", e),
                 },
             }
+        } else {
+            Ok(())
         }
     }
 

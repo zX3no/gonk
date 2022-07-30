@@ -1,8 +1,6 @@
-use super::Mode as AppMode;
 use crate::widgets::*;
 use crate::*;
-use gonk_database::query;
-use gonk_player::{Index, Song};
+use gonk_database::Song;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{
@@ -12,7 +10,7 @@ use tui::{
     widgets::{Block, BorderType, Borders, Paragraph},
 };
 
-const MIN_ACCURACY: f64 = 0.75;
+const MIN_ACCURACY: f64 = 0.70;
 
 #[derive(Clone, Debug)]
 pub enum Item {
@@ -91,6 +89,7 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
             } else {
                 search.query.pop();
             }
+            search.query_changed = true;
         }
         Mode::Select => {
             search.results.select(None);
@@ -99,12 +98,12 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
     }
 }
 
-pub fn on_escape(search: &mut Search, mode: &mut AppMode) {
+pub fn on_escape(search: &mut Search) {
     match search.mode {
         Mode::Search => {
             if let Mode::Search = search.mode {
                 search.query.clear();
-                *mode = AppMode::Queue;
+                search.query_changed = true;
             }
         }
         Mode::Select => {
@@ -124,75 +123,81 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
             None
         }
         Mode::Select => search.results.selected().map(|item| match item {
-            Item::Song(song) => query::songs_from_ids(&[song.id]),
-            Item::Album(album) => query::songs_from_album(&album.name, &album.artist),
-            Item::Artist(artist) => query::songs_by_artist(&artist.name),
+            Item::Song(song) => gonk_database::ids(&[song.id]),
+            Item::Album(album) => gonk_database::songs_from_album(&album.artist, &album.name),
+            Item::Artist(artist) => gonk_database::songs_by_artist(&artist.name),
         }),
     }
 }
 
-//FIXME: Queries take around 5ms total.
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    for song in query::songs() {
+    let (artists, albums, songs) = gonk_database::artists_albums_and_songs();
+
+    for song in songs {
         search.cache.push(Item::Song(MinSong {
-            name: song.name,
+            name: song.title,
             album: song.album,
             artist: song.artist,
-            id: song.id.unwrap(),
+            id: song.id,
         }));
     }
 
-    for (name, artist) in query::albums() {
-        search.cache.push(Item::Album(Album { name, artist }));
+    for (artist, album) in albums {
+        search.cache.push(Item::Album(Album {
+            name: album,
+            artist,
+        }));
     }
 
-    for name in query::artists() {
-        search.cache.push(Item::Artist(Artist { name }));
+    for artist in artists {
+        search.cache.push(Item::Artist(Artist { name: artist }));
+    }
+}
+
+pub fn get_item_accuracy(query: &str, item: &Item) -> f64 {
+    match item {
+        Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
+        Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
+        Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
     }
 }
 
 pub fn refresh_results(search: &mut Search) {
-    let query = &search.query.to_lowercase();
-
-    let get_accuary = |item: &Item| -> f64 {
-        match item {
-            Item::Song(song) => strsim::jaro_winkler(query, &song.name.to_lowercase()),
-            Item::Album(album) => strsim::jaro_winkler(query, &album.name.to_lowercase()),
-            Item::Artist(artist) => strsim::jaro_winkler(query, &artist.name.to_lowercase()),
-        }
-    };
-
-    let mut results: Vec<_> = if query.is_empty() {
+    if search.query.is_empty() {
         //If there user has not asked to search anything
         //populate the list with 40 results.
-        search
-            .cache
-            .iter()
-            .take(40)
-            .map(|item| (item, get_accuary(item)))
-            .collect()
-    } else {
-        search
-            .cache
-            .par_iter()
-            .filter_map(|item| {
-                let acc = get_accuary(item);
-                if acc > MIN_ACCURACY {
-                    Some((item, acc))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    };
+        search.results.data = search.cache.iter().take(40).cloned().collect();
+        return;
+    }
+
+    let query = &search.query.to_lowercase();
+
+    //Collect all results that are close to the search query.
+    let mut results: Vec<(&Item, f64)> = search
+        .cache
+        .par_iter()
+        .filter_map(|item| {
+            let acc = get_item_accuracy(query, item);
+            if acc > MIN_ACCURACY {
+                Some((item, acc))
+            } else {
+                None
+            }
+        })
+        .collect();
 
     //Sort results by score.
-    results.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+    results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+    if results.len() > 25 {
+        //Remove the less accurate results.
+        results.drain(25..);
+    }
 
     //Sort songs with equal score. Artist > Album > Song.
-    results.sort_by(|(item_1, score_1), (item_2, score_2)| {
+    results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
         if (score_1 - score_2).abs() < f64::EPSILON {
             match item_1 {
                 Item::Artist(_) => match item_2 {
@@ -217,10 +222,14 @@ pub fn refresh_results(search: &mut Search) {
     });
 
     search.results.data = results.into_iter().map(|(item, _)| item.clone()).collect();
+
+    //TODO: Tell the user how long the search took.
+    // println!(" {:?}", now.elapsed());
 }
 
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
     if search.query_changed {
+        search.query_changed = !search.query_changed;
         refresh_results(search);
     }
 
@@ -257,7 +266,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
                 artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
-                let albums = query::albums_by_artist(&artist.name);
+                let albums = gonk_database::albums_by_artist(&artist.name);
 
                 search::artist(f, &artist.name, h[0]);
 
@@ -320,9 +329,9 @@ fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<Row> = query::songs_from_album(album, artist)
+    let cells: Vec<Row> = gonk_database::songs_from_album(artist, album)
         .iter()
-        .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.name))]))
+        .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.title))]))
         .collect();
 
     let table = Table::new(&cells)
@@ -345,7 +354,7 @@ fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
 }
 
 fn artist(f: &mut Frame, artist: &str, area: Rect) {
-    let albums = query::albums_by_artist(artist);
+    let albums = gonk_database::albums_by_artist(artist);
     let cells: Vec<_> = albums
         .iter()
         .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -380,10 +389,10 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 
         match item {
             Item::Song(song) => {
-                let song = query::songs_from_ids(&[song.id])[0].clone();
+                let song = gonk_database::get(song.id).unwrap();
                 Row::new(vec![
                     selected_cell,
-                    Cell::from(song.name).style(Style::default().fg(COLORS.name)),
+                    Cell::from(song.title).style(Style::default().fg(COLORS.name)),
                     Cell::from(song.album).style(Style::default().fg(COLORS.album)),
                     Cell::from(song.artist).style(Style::default().fg(COLORS.artist)),
                 ])

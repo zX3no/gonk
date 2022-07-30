@@ -1,6 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_database::{query, Database, State};
+use gonk_database::Index;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -58,64 +58,54 @@ pub trait Input {
     fn right(&mut self);
 }
 
+fn save_queue(player: &Player) {
+    gonk_database::update_queue(
+        &player.songs.data,
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
+}
+
 fn main() {
-    gonk_database::init();
+    if gonk_database::init().is_err() {
+        return println!("Database is corrupted! Please close all instances of gonk then relaunch or run `gonk reset`.");
+    }
+
     log::init();
+    let mut handle = None;
 
-    let mut db = Database::default();
-
-    {
-        let args: Vec<String> = std::env::args().skip(1).collect();
-        if !args.is_empty() {
-            match args[0].as_str() {
-                "add" => {
-                    if args.len() == 1 {
-                        return println!("Usage: gonk add <path>");
-                    }
-
-                    let path = args[1..].join(" ");
-                    if Path::new(&path).exists() {
-                        db.add_path(&path);
-                    } else {
-                        return println!("Invalid path.");
-                    }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if !args.is_empty() {
+        match args[0].as_str() {
+            "add" => {
+                if args.len() == 1 {
+                    return println!("Usage: gonk add <path>");
                 }
-                //TODO: Add numbers to each path
-                //so users can just write: gonk rm 3
-                "rm" => {
-                    if args.len() == 1 {
-                        return println!("Usage: gonk rm <path>");
-                    }
-
-                    let path = args[1..].join(" ");
-                    match query::remove_folder(&path) {
-                        Ok(_) => return println!("Deleted path: {}", path),
-                        Err(e) => return println!("{e}"),
-                    };
+                let path = args[1..].join(" ");
+                if Path::new(&path).exists() {
+                    gonk_database::update_music_folder(path.as_str());
+                    handle = Some(gonk_database::scan(path));
+                } else {
+                    return println!("Invalid path.");
                 }
-                "list" => {
-                    return for path in query::folders() {
-                        println!("{path}");
-                    };
-                }
-                "reset" => {
-                    return match gonk_database::reset() {
-                        Ok(_) => println!("Files reset!"),
-                        Err(e) => println!("{}", e),
-                    }
-                }
-                "help" | "--help" => {
-                    println!("Usage");
-                    println!("   gonk [<command> <args>]");
-                    println!();
-                    println!("Options");
-                    println!("   add   <path>  Add music to the library");
-                    println!("   reset         Reset the database");
-                    return;
-                }
-                _ if !args.is_empty() => return println!("Invalid command."),
-                _ => (),
             }
+            "reset" => {
+                return match gonk_database::reset() {
+                    Ok(_) => println!("Files reset!"),
+                    Err(e) => println!("Failed to reset database! {}", e),
+                };
+            }
+            "help" | "--help" => {
+                println!("Usage");
+                println!("   gonk [<command> <args>]");
+                println!();
+                println!("Options");
+                println!("   add   <path>  Add music to the library");
+                println!("   reset         Reset the database");
+                return;
+            }
+            _ if !args.is_empty() => return println!("Invalid command."),
+            _ => (),
         }
     }
 
@@ -138,31 +128,17 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    //443 us
-    let (songs, elapsed) = query::get_queue();
-    let volume = query::volume();
-
-    let device = query::playback_device();
-
-    //40ms
+    let (songs, index, elapsed) = gonk_database::get_queue();
+    let songs = Index::new(songs, index);
+    let volume = gonk_database::volume();
+    let device = gonk_database::get_output_device();
     let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
 
-    //3ms
     let mut browser = Browser::new();
-
-    //300 ns
     let mut queue = Queue::new();
-
-    //200 ns
     let mut status_bar = StatusBar::new();
-
-    //68 us
     let mut playlist = Playlist::new();
-
-    //6.1ms
     let mut settings = Settings::new();
-
-    //5.5ms
     let mut search = Search::new();
 
     let mut mode = Mode::Browser;
@@ -178,14 +154,17 @@ fn main() {
     }
 
     loop {
-        match db.state() {
-            State::Busy => busy = true,
-            State::Idle => busy = false,
-            State::NeedsUpdate => {
+        if let Some(h) = &handle {
+            if h.is_finished() {
                 browser::refresh(&mut browser);
                 search::refresh_cache(&mut search);
                 search::refresh_results(&mut search);
+                handle = None;
+            } else {
+                busy = true;
             }
+        } else {
+            busy = false;
         }
 
         if last_tick.elapsed() >= Duration::from_millis(200) {
@@ -254,8 +233,8 @@ fn main() {
                             if control && c == 'w' {
                                 search::on_backspace(&mut search, true);
                             } else {
-                                search.query_changed = true;
                                 search.query.push(c);
+                                search.query_changed = true;
                             }
                         }
                         KeyCode::Char(c) if input_playlist => {
@@ -263,7 +242,7 @@ fn main() {
                                 playlist::on_backspace(&mut playlist, true);
                             } else {
                                 playlist.changed = true;
-                                playlist.search.push(c);
+                                playlist.search_query.push(c);
                             }
                         }
                         KeyCode::Char(' ') => match player.toggle_playback() {
@@ -283,7 +262,10 @@ fn main() {
                             Mode::Playlist => playlist::delete(&mut playlist),
                             _ => (),
                         },
-                        KeyCode::Char('u') if mode == Mode::Browser => db.refresh(),
+                        KeyCode::Char('u') if mode == Mode::Browser => {
+                            let folder = gonk_database::get_music_folder().to_string();
+                            handle = Some(gonk_database::scan(folder));
+                        }
                         KeyCode::Char('q') => match player.seek_by(-10.0) {
                             Ok(_) => (),
                             Err(e) => log!("{}", e),
@@ -302,11 +284,11 @@ fn main() {
                         },
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            query::set_volume(player.volume);
+                            gonk_database::update_volume(player.volume);
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            query::set_volume(player.volume);
+                            gonk_database::update_volume(player.volume);
                         }
                         //TODO: Rework mode changing buttons
                         KeyCode::Char('`') => {
@@ -331,11 +313,8 @@ fn main() {
                             };
                         }
                         KeyCode::Esc => match mode {
-                            Mode::Search => {
-                                search::on_escape(&mut search, &mut mode);
-                            }
-                            Mode::Settings => mode = Mode::Queue,
-                            Mode::Playlist => playlist::on_escape(&mut playlist, &mut mode),
+                            Mode::Search => search::on_escape(&mut search),
+                            Mode::Playlist => playlist::on_escape(&mut playlist),
                             _ => (),
                         },
                         KeyCode::Enter if shift => match mode {
@@ -443,19 +422,4 @@ fn main() {
         DisableMouseCapture
     )
     .unwrap();
-}
-
-fn save_queue(player: &Player) {
-    let ids: Vec<usize> = player
-        .songs
-        .data
-        .iter()
-        .filter_map(|song| song.id)
-        .collect();
-
-    query::save_queue(
-        &ids,
-        player.songs.index().unwrap_or(0),
-        player.elapsed().as_secs_f32(),
-    );
 }
