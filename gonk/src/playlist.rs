@@ -338,7 +338,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
             .iter()
             .map(|song| {
                 Row::new(vec![
-                    Span::styled(song.title(), Style::default().fg(COLORS.name)),
+                    Span::styled(song.title(), Style::default().fg(COLORS.title)),
                     Span::styled(song.album(), Style::default().fg(COLORS.album)),
                     Span::styled(song.artist(), Style::default().fg(COLORS.artist)),
                 ])

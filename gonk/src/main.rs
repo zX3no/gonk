@@ -28,7 +28,7 @@ type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
 pub struct Colors {
     pub number: Color,
-    pub name: Color,
+    pub title: Color,
     pub album: Color,
     pub artist: Color,
     pub seeker: Color,
@@ -36,7 +36,7 @@ pub struct Colors {
 
 const COLORS: Colors = Colors {
     number: Color::Green,
-    name: Color::Cyan,
+    title: Color::Cyan,
     album: Color::Magenta,
     artist: Color::Blue,
     seeker: Color::White,

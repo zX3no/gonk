@@ -394,7 +394,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
                 let song = gonk_database::get(song.id).unwrap();
                 Row::new(vec![
                     selected_cell,
-                    Cell::from(song.title).style(Style::default().fg(COLORS.name)),
+                    Cell::from(song.title).style(Style::default().fg(COLORS.title)),
                     Cell::from(song.album).style(Style::default().fg(COLORS.album)),
                     Cell::from(song.artist).style(Style::default().fg(COLORS.artist)),
                 ])
@@ -404,12 +404,12 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
                 Cell::from(Spans::from(vec![
                     Span::styled(
                         format!("{} - ", album.name),
-                        Style::default().fg(COLORS.name),
+                        Style::default().fg(COLORS.title),
                     ),
                     Span::styled(
                         "Album",
                         Style::default()
-                            .fg(COLORS.name)
+                            .fg(COLORS.title)
                             .add_modifier(Modifier::ITALIC),
                     ),
                 ])),
@@ -421,12 +421,12 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
                 Cell::from(Spans::from(vec![
                     Span::styled(
                         format!("{} - ", artist.name),
-                        Style::default().fg(COLORS.name),
+                        Style::default().fg(COLORS.title),
                     ),
                     Span::styled(
                         "Artist",
                         Style::default()
-                            .fg(COLORS.name)
+                            .fg(COLORS.title)
                             .add_modifier(Modifier::ITALIC),
                     ),
                 ])),
