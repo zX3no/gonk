@@ -4,10 +4,16 @@ version = "0.1.0"
 edition = "2021"
 default-run = "gonk"
 
+authors = ["Bay"]
+description = "A terminal music player"
+repository = "https://github.com/zX3no/gonk"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+
 [dependencies]
 tui = "0.18.0"
 crossterm = "0.23.2"
 unicode-width = "0.1.9"
 rayon = "1.5.3"
-gonk-player = {path = "../gonk-player"}
-gonk-database = {path = "../gonk-database"}
+gonk-player = {version = "0.1.0", path = "../gonk-player"}
+gonk-database = {version = "0.1.0", path = "../gonk-database"}

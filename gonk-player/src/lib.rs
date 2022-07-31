@@ -1,3 +1,4 @@
+#![recursion_limit = "2048"]
 #![allow(clippy::should_implement_trait, clippy::unnecessary_to_owned)]
 use cpal::{
     traits::{HostTrait, StreamTrait},
@@ -20,6 +21,8 @@ use symphonia::{
 };
 
 pub use cpal::{traits::DeviceTrait, Device};
+
+mod cpal;
 
 #[inline]
 const fn gcd(a: usize, b: usize) -> usize {
