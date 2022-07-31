@@ -21,11 +21,7 @@
 ## 📦 Installation
 > I recommend a font with ligatures for the best experience.
 
-Download the latest version from the [releases section.](https://github.com/zX3no/gonk/releases/latest)
-
-Add `gonk` to your [path](https://en.wikipedia.org/wiki/PATH_(variable)) or open using a terminal.
-
-Add some music with:
+Download the latest [release](https://github.com/zX3no/gonk/releases/latest) and add some music.
 
 ```
 gonk add ~/Music
