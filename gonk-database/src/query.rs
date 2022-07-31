@@ -162,7 +162,6 @@ pub fn artists() -> Vec<String> {
     }
 }
 
-///(Artist, (Artist, Album), Song)
 pub fn artists_albums_and_songs() -> (Vec<String>, Vec<(String, String)>, Vec<Song>) {
     if let Some(mmap) = mmap() {
         let songs: Vec<Song> = (0..len())

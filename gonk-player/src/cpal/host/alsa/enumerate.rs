@@ -4,7 +4,6 @@ use super::alsa;
 use super::{Device, DeviceHandles};
 use crate::cpal::{BackendSpecificError, DevicesError};
 
-/// ALSA's implementation for `Devices`.
 pub struct Devices {
     hint_iter: alsa::device_name::HintIter,
 }

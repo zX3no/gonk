@@ -13,7 +13,6 @@ pub struct Cell<'a> {
 }
 
 impl<'a> Cell<'a> {
-    /// Set the `Style` of this cell.
     pub fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
@@ -71,23 +70,22 @@ impl<'a> Row<'a> {
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table<'a> {
-    /// A block to wrap the widget in
     block: Option<Block<'a>>,
-    /// Base style for the widget
+
     style: Style,
-    /// Width constraints for each column
+
     widths: &'a [Constraint],
-    /// Space between each column
+
     column_spacing: u16,
-    /// Style used to render the selected row
+
     highlight_style: Style,
-    /// Symbol in front of the selected rom
+
     highlight_symbol: Option<&'a str>,
-    /// Optional header
+
     header: Option<Row<'a>>,
-    /// Data to display in each row
+
     rows: &'a [Row<'a>],
-    /// Underline the header
+
     separator: bool,
 }
 

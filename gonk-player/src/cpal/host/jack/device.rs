@@ -16,8 +16,6 @@ pub type SupportedOutputConfigs = std::vec::IntoIter<SupportedStreamConfigRange>
 const DEFAULT_NUM_CHANNELS: u16 = 2;
 const DEFAULT_SUPPORTED_CHANNELS: [u16; 10] = [1, 2, 4, 6, 8, 16, 24, 32, 48, 64];
 
-/// If a device is for input or output.
-/// Until we have duplex stream support JACK clients and CPAL devices for JACK will be either input or output.
 #[derive(Clone, Debug)]
 pub enum DeviceType {
     InputDevice,
@@ -157,16 +155,10 @@ impl DeviceTrait for Device {
         Ok(self.supported_configs().into_iter())
     }
 
-    /// Returns the default input config
-    /// The sample format for JACK audio ports is always "32-bit float mono audio" unless using a custom type.
-    /// The sample rate is set by the JACK server.
     fn default_input_config(&self) -> Result<SupportedStreamConfig, DefaultStreamConfigError> {
         self.default_config()
     }
 
-    /// Returns the default output config
-    /// The sample format for JACK audio ports is always "32-bit float mono audio" unless using a custom type.
-    /// The sample rate is set by the JACK server.
     fn default_output_config(&self) -> Result<SupportedStreamConfig, DefaultStreamConfigError> {
         self.default_config()
     }

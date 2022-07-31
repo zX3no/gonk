@@ -153,8 +153,6 @@ impl Stream {
         }
     }
 
-    /// Connect to the standard system outputs in jack, system:playback_1 and system:playback_2
-    /// This has to be done after the client is activated, doing it just after creating the ports doesn't work.
     pub fn connect_to_system_outputs(&mut self) {
         // Get the system ports
         let system_ports = self.async_client.as_client().ports(
@@ -179,8 +177,6 @@ impl Stream {
         }
     }
 
-    /// Connect to the standard system outputs in jack, system:capture_1 and system:capture_2
-    /// This has to be done after the client is activated, doing it just after creating the ports doesn't work.
     pub fn connect_to_system_inputs(&mut self) {
         // Get the system ports
         let system_ports = self.async_client.as_client().ports(
@@ -219,7 +215,6 @@ impl StreamTrait for Stream {
 }
 
 struct LocalProcessHandler {
-    /// No new ports are allowed to be created after the creation of the LocalProcessHandler as that would invalidate the buffer sizes
     out_ports: Vec<jack::Port<jack::AudioOut>>,
     in_ports: Vec<jack::Port<jack::AudioIn>>,
 
@@ -233,7 +228,7 @@ struct LocalProcessHandler {
     temp_output_buffer: Vec<f32>,
     playing: Arc<AtomicBool>,
     creation_timestamp: std::time::Instant,
-    /// This should not be called on `process`, only on `buffer_size` because it can block.
+
     error_callback_ptr: ErrorCallbackPtr,
 }
 
@@ -411,8 +406,6 @@ fn frames_to_duration(frames: usize, rate: crate::cpal::SampleRate) -> std::time
     std::time::Duration::new(secs, nanos)
 }
 
-/// Receives notifications from the JACK server. It is unclear if this may be run concurrent with itself under JACK2 specs
-/// so it needs to be Sync.
 struct JackNotificationHandler {
     error_callback_ptr: ErrorCallbackPtr,
     init_sample_rate_flag: Arc<AtomicBool>,

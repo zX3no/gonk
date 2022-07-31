@@ -1,38 +1,9 @@
-//! Platform-specific items.
-//!
-//! This module also contains the implementation of the platform's dynamically dispatched `Host`
-//! type and its associated `Device`, `StreamId` and other associated types. These
-//! types are useful in the case that users require switching between audio host APIs at runtime.
-
 #[doc(inline)]
 pub use self::platform_impl::*;
 
-// A macro to assist with implementing a platform's dynamically dispatched `Host` type.
-//
-// These dynamically dispatched types are necessary to allow for users to switch between hosts at
-// runtime.
-//
-// For example the invocation `impl_platform_host(Wasapi wasapi "WASAPI", Asio asio "ASIO")`,
-// this macro should expand to:
-//
-// ```
-// pub enum HostId {
-//     Wasapi,
-//     Asio,
-// }
-//
-// pub enum Host {
-//     Wasapi(crate::cpal::host::wasapi::Host),
-//     Asio(crate::cpal::host::asio::Host),
-// }
-// ```
-//
-// And so on for Device, Devices, Host, StreamId, SupportedInputConfigs,
-// SupportedOutputConfigs and all their necessary trait implementations.
-// ```
 macro_rules! impl_platform_host {
     ($($(#[cfg($feat: meta)])? $HostVariant:ident $host_mod:ident $host_name:literal),*) => {
-        /// All hosts supported by CPAL on this platform.
+
         pub const ALL_HOSTS: &'static [HostId] = &[
             $(
                 $(#[cfg($feat)])?
@@ -40,27 +11,10 @@ macro_rules! impl_platform_host {
             )*
         ];
 
-        /// The platform's dynamically dispatched **Host** type.
-        ///
-        /// An instance of this **Host** type may represent one of the **Host**s available
-        /// on the platform.
-        ///
-        /// Use this type if you require switching between available hosts at runtime.
-        ///
-        /// This type may be constructed via the **host_from_id** function. **HostId**s may
-        /// be acquired via the **ALL_HOSTS** const, and the **available_hosts** function.
         pub struct Host(HostInner);
-
-        /// The **Device** implementation associated with the platform's dynamically dispatched
-        /// **Host** type.
         pub struct Device(DeviceInner);
-
-        /// The **Devices** iterator associated with the platform's dynamically dispatched **Host**
-        /// type.
         pub struct Devices(DevicesInner);
 
-        /// The **Stream** implementation associated with the platform's dynamically dispatched
-        /// **Host** type.
         // Streams cannot be `Send` or `Sync` if we plan to support Android's AAudio API. This is
         // because the stream API is not thread-safe, and the API prohibits calling certain
         // functions within the callback.
@@ -68,15 +22,15 @@ macro_rules! impl_platform_host {
         // TODO: Confirm this and add more specific detail and references.
         pub struct Stream(StreamInner, crate::cpal::platform::NotSendSyncAcrossAllPlatforms);
 
-        /// The **SupportedInputConfigs** iterator associated with the platform's dynamically
-        /// dispatched **Host** type.
+
+
         pub struct SupportedInputConfigs(SupportedInputConfigsInner);
 
-        /// The **SupportedOutputConfigs** iterator associated with the platform's dynamically
-        /// dispatched **Host** type.
+
+
         pub struct SupportedOutputConfigs(SupportedOutputConfigsInner);
 
-        /// Unique identifier for available hosts on the platform.
+
         #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
         pub enum HostId {
             $(
@@ -85,7 +39,7 @@ macro_rules! impl_platform_host {
             )*
         }
 
-        /// Contains a platform specific `Device` implementation.
+
         pub enum DeviceInner {
             $(
                 $(#[cfg($feat)])?
@@ -93,7 +47,7 @@ macro_rules! impl_platform_host {
             )*
         }
 
-        /// Contains a platform specific `Devices` implementation.
+
         pub enum DevicesInner {
             $(
                 $(#[cfg($feat)])?
@@ -101,7 +55,7 @@ macro_rules! impl_platform_host {
             )*
         }
 
-        /// Contains a platform specific `Host` implementation.
+
         pub enum HostInner {
             $(
                 $(#[cfg($feat)])?
@@ -109,7 +63,7 @@ macro_rules! impl_platform_host {
             )*
         }
 
-        /// Contains a platform specific `Stream` implementation.
+
         pub enum StreamInner {
             $(
                 $(#[cfg($feat)])?
@@ -143,45 +97,45 @@ macro_rules! impl_platform_host {
         }
 
         impl Devices {
-            /// Returns a reference to the underlying platform specific implementation of this
-            /// `Devices`.
+
+
             pub fn as_inner(&self) -> &DevicesInner {
                 &self.0
             }
 
-            /// Returns a mutable reference to the underlying platform specific implementation of
-            /// this `Devices`.
+
+
             pub fn as_inner_mut(&mut self) -> &mut DevicesInner {
                 &mut self.0
             }
 
-            /// Returns the underlying platform specific implementation of this `Devices`.
+
             pub fn into_inner(self) -> DevicesInner {
                 self.0
             }
         }
 
         impl Device {
-            /// Returns a reference to the underlying platform specific implementation of this
-            /// `Device`.
+
+
             pub fn as_inner(&self) -> &DeviceInner {
                 &self.0
             }
 
-            /// Returns a mutable reference to the underlying platform specific implementation of
-            /// this `Device`.
+
+
             pub fn as_inner_mut(&mut self) -> &mut DeviceInner {
                 &mut self.0
             }
 
-            /// Returns the underlying platform specific implementation of this `Device`.
+
             pub fn into_inner(self) -> DeviceInner {
                 self.0
             }
         }
 
         impl Host {
-            /// The unique identifier associated with this host.
+
             pub fn id(&self) -> HostId {
                 match self.0 {
                     $(
@@ -191,38 +145,38 @@ macro_rules! impl_platform_host {
                 }
             }
 
-            /// Returns a reference to the underlying platform specific implementation of this
-            /// `Host`.
+
+
             pub fn as_inner(&self) -> &HostInner {
                 &self.0
             }
 
-            /// Returns a mutable reference to the underlying platform specific implementation of
-            /// this `Host`.
+
+
             pub fn as_inner_mut(&mut self) -> &mut HostInner {
                 &mut self.0
             }
 
-            /// Returns the underlying platform specific implementation of this `Host`.
+
             pub fn into_inner(self) -> HostInner {
                 self.0
             }
         }
 
         impl Stream {
-            /// Returns a reference to the underlying platform specific implementation of this
-            /// `Stream`.
+
+
             pub fn as_inner(&self) -> &StreamInner {
                 &self.0
             }
 
-            /// Returns a mutable reference to the underlying platform specific implementation of
-            /// this `Stream`.
+
+
             pub fn as_inner_mut(&mut self) -> &mut StreamInner {
                 &mut self.0
             }
 
-            /// Returns the underlying platform specific implementation of this `Stream`.
+
             pub fn into_inner(self) -> StreamInner {
                 self.0
             }
@@ -533,7 +487,7 @@ macro_rules! impl_platform_host {
             }
         )*
 
-        /// Produces a list of hosts that are currently available on the system.
+
         pub fn available_hosts() -> Vec<HostId> {
             let mut host_ids = vec![];
             $(
@@ -545,7 +499,7 @@ macro_rules! impl_platform_host {
             host_ids
         }
 
-        /// Given a unique host identifier, initialise and produce the host if it is available.
+
         pub fn host_from_id(id: HostId) -> Result<Host, crate::cpal::HostUnavailable> {
             match id {
                 $(
@@ -578,7 +532,6 @@ mod platform_impl {
 
     impl_platform_host!(#[cfg(feature = "jack")] Jack jack "JACK", Alsa alsa "ALSA");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         AlsaHost::new()
             .expect("the default host should always be available")
@@ -596,7 +549,6 @@ mod platform_impl {
 
     impl_platform_host!(CoreAudio coreaudio "CoreAudio");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         CoreAudioHost::new()
             .expect("the default host should always be available")
@@ -614,7 +566,6 @@ mod platform_impl {
 
     impl_platform_host!(Emscripten emscripten "Emscripten");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         EmscriptenHost::new()
             .expect("the default host should always be available")
@@ -632,7 +583,6 @@ mod platform_impl {
 
     impl_platform_host!(WebAudio webaudio "WebAudio");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         WebAudioHost::new()
             .expect("the default host should always be available")
@@ -656,7 +606,6 @@ mod platform_impl {
 
     impl_platform_host!(#[cfg(feature = "asio")] Asio asio "ASIO", Wasapi wasapi "WASAPI");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         WasapiHost::new()
             .expect("the default host should always be available")
@@ -674,7 +623,6 @@ mod platform_impl {
 
     impl_platform_host!(Oboe oboe "Oboe");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         OboeHost::new()
             .expect("the default host should always be available")
@@ -702,7 +650,6 @@ mod platform_impl {
 
     impl_platform_host!(Null null "Null");
 
-    /// The default host for the current compilation target platform.
     pub fn default_host() -> Host {
         NullHost::new()
             .expect("the default host should always be available")

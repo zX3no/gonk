@@ -24,7 +24,6 @@ use symphonia::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-/// 2 bytes for number and disc, 4 bytes for gain
 pub const SONG_LEN: usize = TEXT_LEN + 2 + 4;
 pub const TEXT_LEN: usize = 522;
 
@@ -93,7 +92,6 @@ pub fn init() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-///Try to read the first song.
 fn validate() -> Result<(), Box<dyn Error>> {
     let mmap = mmap().unwrap();
 
@@ -361,7 +359,6 @@ impl Song {
 }
 
 pub struct RawSong {
-    /// Text holds the artist, album, title and path.
     pub text: [u8; TEXT_LEN],
     pub number: u8,
     pub disc: u8,

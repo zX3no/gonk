@@ -56,17 +56,14 @@ const AUDCLNT_SHAREMODE_SHARED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_EVENTCALLBACK: u32 = 0x00040000;
 const AUDCLNT_STREAMFLAGS_LOOPBACK: u32 = 0x00020000;
 
-/// Wrapper because of that stupid decision to remove `Send` and `Sync` from raw pointers.
 #[derive(Copy, Clone)]
 struct IAudioClientWrapper(*mut IAudioClient);
 unsafe impl Send for IAudioClientWrapper {}
 unsafe impl Sync for IAudioClientWrapper {}
 
-/// An opaque type that identifies an end point.
 pub struct Device {
     device: *mut IMMDevice,
-    /// We cache an uninitialized `IAudioClient` so that we can call functions from it without
-    /// having to create/destroy audio clients all the time.
+
     future_audio_client: Arc<Mutex<Option<IAudioClientWrapper>>>, // TODO: add NonZero around the ptr
 }
 
@@ -392,7 +389,6 @@ impl Device {
         }
     }
 
-    /// Ensures that `future_audio_client` contains a `Some` and returns a locked mutex to it.
     fn ensure_future_audio_client(
         &self,
     ) -> Result<MutexGuard<Option<IAudioClientWrapper>>, IoError> {
@@ -421,7 +417,6 @@ impl Device {
         Ok(lock)
     }
 
-    /// Returns an uninitialized `IAudioClient`.
     #[inline]
     pub(crate) fn build_audioclient(&self) -> Result<*mut IAudioClient, IoError> {
         let mut lock = self.ensure_future_audio_client()?;
@@ -968,7 +963,7 @@ impl PartialEq for Device {
         // https://docs.microsoft.com/en-us/windows/desktop/api/mmdeviceapi/nf-mmdeviceapi-immdevice-getid
         unsafe {
             struct IdRAII(LPWSTR);
-            /// RAII for device IDs.
+
             impl Drop for IdRAII {
                 fn drop(&mut self) {
                     unsafe { CoTaskMemFree(self.0 as *mut c_void) }
@@ -1090,7 +1085,6 @@ static ENUMERATOR: Lazy<Enumerator> = Lazy::new(|| {
     }
 });
 
-/// RAII objects around `IMMDeviceEnumerator`.
 struct Enumerator(*mut IMMDeviceEnumerator);
 
 unsafe impl Send for Enumerator {}
@@ -1105,7 +1099,6 @@ impl Drop for Enumerator {
     }
 }
 
-/// WASAPI implementation for `Devices`.
 pub struct Devices {
     collection: *mut IMMDeviceCollection,
     total_count: u32,
@@ -1193,7 +1186,6 @@ pub fn default_output_device() -> Option<Device> {
     default_device(eRender)
 }
 
-/// Get the audio clock used to produce `StreamInstant`s.
 unsafe fn get_audio_clock(
     audio_client: *mut audioclient::IAudioClient,
 ) -> Result<*mut audioclient::IAudioClock, BuildStreamError> {

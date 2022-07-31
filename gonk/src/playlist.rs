@@ -18,17 +18,14 @@ pub enum Mode {
 pub struct Playlist {
     pub mode: Mode,
 
-    ///Contains the playlist names and songs.
     pub playlists: Index<RawPlaylist>,
 
-    ///Songs that are queued to be added.
     pub song_buffer: Vec<Song>,
 
-    ///The users search query.
     pub search_query: String,
-    ///The name of the playlist the user will add to.
+
     pub search_result: String,
-    ///Has the search changed?
+
     pub changed: bool,
 }
 

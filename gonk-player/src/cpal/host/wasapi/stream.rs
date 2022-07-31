@@ -17,10 +17,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
 pub struct Stream {
-    /// The high-priority audio processing thread calling callbacks.
-    /// Option used for moving out in destructor.
-    ///
-    /// TODO: Actually set the thread priority.
     thread: Option<JoinHandle<()>>,
 
     // Commands processed by the `run()` method that is currently running.
@@ -489,7 +485,6 @@ fn process_output(
     ControlFlow::Continue
 }
 
-/// Convert the given duration in frames at the given sample rate to a `std::time::Duration`.
 fn frames_to_duration(frames: u32, rate: crate::cpal::SampleRate) -> std::time::Duration {
     let secsf = frames as f64 / rate.0 as f64;
     let secs = secsf as u64;
@@ -497,9 +492,6 @@ fn frames_to_duration(frames: u32, rate: crate::cpal::SampleRate) -> std::time::
     std::time::Duration::new(secs, nanos)
 }
 
-/// Use the stream's `IAudioClock` to produce the current stream instant.
-///
-/// Uses the QPC position produced via the `GetPosition` method.
 fn stream_instant(stream: &StreamInner) -> Result<crate::cpal::StreamInstant, StreamError> {
     let mut position: UINT64 = 0;
     let mut qpc_position: UINT64 = 0;
@@ -512,11 +504,6 @@ fn stream_instant(stream: &StreamInner) -> Result<crate::cpal::StreamInstant, St
     Ok(instant)
 }
 
-/// Produce the input stream timestamp.
-///
-/// `buffer_qpc_position` is the `qpc_position` returned via the `GetBuffer` call on the capture
-/// client. It represents the instant at which the first sample of the retrieved buffer was
-/// captured.
 fn input_timestamp(
     stream: &StreamInner,
     buffer_qpc_position: UINT64,
@@ -529,16 +516,6 @@ fn input_timestamp(
     Ok(crate::cpal::InputStreamTimestamp { capture, callback })
 }
 
-/// Produce the output stream timestamp.
-///
-/// `frames_available` is the number of frames available for writing as reported by subtracting the
-/// result of `GetCurrentPadding` from the maximum buffer size.
-///
-/// `sample_rate` is the rate at which audio frames are processed by the device.
-///
-/// TODO: The returned `playback` is an estimate that assumes audio is delivered immediately after
-/// `frames_available` are consumed. The reality is that there is likely a tiny amount of latency
-/// after this, but not sure how to determine this.
 fn output_timestamp(
     stream: &StreamInner,
     frames_available: u32,

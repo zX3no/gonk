@@ -15,18 +15,14 @@ pub type SupportedInputConfigs = std::vec::IntoIter<SupportedStreamConfigRange>;
 pub type SupportedOutputConfigs = std::vec::IntoIter<SupportedStreamConfigRange>;
 pub type Devices = std::vec::IntoIter<Device>;
 
-/// The JACK Host type
 #[derive(Debug)]
 pub struct Host {
-    /// The name that the client will have in JACK.
-    /// Until we have duplex streams two clients will be created adding "out" or "in" to the name
-    /// since names have to be unique.
     name: String,
-    /// If ports are to be connected to the system (soundcard) ports automatically (default is true).
+
     connect_ports_automatically: bool,
-    /// If the JACK server should be started automatically if it isn't already when creating a Client (default is false).
+
     start_server_automatically: bool,
-    /// A list of the devices that have been created from this Host.
+
     devices_created: Vec<Device>,
 }
 
@@ -42,13 +38,11 @@ impl Host {
         host.initialize_default_devices();
         Ok(host)
     }
-    /// Set whether the ports should automatically be connected to system
-    /// (default is true)
+
     pub fn set_connect_automatically(&mut self, do_connect: bool) {
         self.connect_ports_automatically = do_connect;
     }
-    /// Set whether a JACK server should be automatically started if it isn't already.
-    /// (default is false)
+
     pub fn set_start_server_automatically(&mut self, do_start_server: bool) {
         self.start_server_automatically = do_start_server;
     }
@@ -95,16 +89,6 @@ impl HostTrait for Host {
     type Devices = Devices;
     type Device = Device;
 
-    /// JACK is available if
-    /// - the jack feature flag is set
-    /// - libjack is installed (wouldn't compile without it)
-    /// - the JACK server can be started
-    ///
-    /// If the code compiles the necessary jack libraries are installed.
-    /// There is no way to know if the user has set up a correct JACK configuration e.g. with qjackctl.
-    /// Users can choose to automatically start the server if it isn't already started when creating a client
-    /// so checking if the server is running could give a false negative in some use cases.
-    /// For these reasons this function should always return true.
     fn is_available() -> bool {
         true
     }

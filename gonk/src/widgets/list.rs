@@ -67,14 +67,14 @@ impl<'a> ListItem<'a> {
 pub struct List<'a> {
     block: Option<Block<'a>>,
     items: &'a [ListItem<'a>],
-    /// Style used as a base style for the widget
+
     style: Style,
     start_corner: Corner,
-    /// Style used to render selected item
+
     highlight_style: Style,
-    /// Symbol in front of the selected item (Shift all items to the right)
+
     highlight_symbol: Option<&'a str>,
-    /// Whether to repeat the highlight symbol for each line of the selected item
+
     repeat_highlight_symbol: bool,
 }
 

@@ -1,6 +1,5 @@
 use std::{error::Error, fmt};
 
-/// The requested host, although supported on this platform, is unavailable.
 #[derive(Clone, Debug)]
 pub struct HostUnavailable;
 
@@ -16,18 +15,6 @@ impl Error for HostUnavailable {
     }
 }
 
-/// Some error has occurred that is specific to the backend from which it was produced.
-///
-/// This error is often used as a catch-all in cases where:
-///
-/// - It is unclear exactly what error might be produced by the backend API.
-/// - It does not make sense to add a variant to the enclosing error type.
-/// - No error was expected to occur at all, but we return an error to avoid the possibility of a
-///   `panic!` caused by some unforeseen or unknown reason.
-///
-/// **Note:** If you notice a `BackendSpecificError` that you believe could be better handled in a
-/// cross-platform manner, please create an issue or submit a pull request with a patch that adds
-/// the necessary error variant to the appropriate error enum.
 #[derive(Clone, Debug)]
 pub struct BackendSpecificError {
     pub description: String,
@@ -49,10 +36,8 @@ impl Error for BackendSpecificError {
     }
 }
 
-/// An error that might occur while attempting to enumerate the available devices on a system.
 #[derive(Debug)]
 pub enum DevicesError {
-    /// See the `BackendSpecificError` docs for more information about this error variant.
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -70,10 +55,8 @@ impl Error for DevicesError {
     }
 }
 
-/// An error that may occur while attempting to retrieve a device name.
 #[derive(Debug)]
 pub enum DeviceNameError {
-    /// See the `BackendSpecificError` docs for more information about this error variant.
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -91,15 +74,12 @@ impl Error for DeviceNameError {
     }
 }
 
-/// Error that can happen when enumerating the list of supported formats.
 #[derive(Debug)]
 pub enum SupportedStreamConfigsError {
-    /// The device no longer exists. This can happen if the device is disconnected while the
-    /// program is running.
     DeviceNotAvailable,
-    /// We called something the C-Layer did not understand
+
     InvalidArgument,
-    /// See the `BackendSpecificError` docs for more information about this error variant.
+
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -122,15 +102,12 @@ impl Error for SupportedStreamConfigsError {
     }
 }
 
-/// May occur when attempting to request the default input or output stream format from a `Device`.
 #[derive(Debug)]
 pub enum DefaultStreamConfigError {
-    /// The device no longer exists. This can happen if the device is disconnected while the
-    /// program is running.
     DeviceNotAvailable,
-    /// Returned if e.g. the default input format was requested on an output-only audio device.
+
     StreamTypeNotSupported,
-    /// See the `BackendSpecificError` docs for more information about this error variant.
+
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -155,22 +132,16 @@ impl Error for DefaultStreamConfigError {
     }
 }
 
-/// Error that can happen when creating a `Stream`.
 #[derive(Debug)]
 pub enum BuildStreamError {
-    /// The device no longer exists. This can happen if the device is disconnected while the
-    /// program is running.
     DeviceNotAvailable,
-    /// The specified stream configuration is not supported.
+
     StreamConfigNotSupported,
-    /// We called something the C-Layer did not understand
-    ///
-    /// On ALSA device functions called with a feature they do not support will yield this. E.g.
-    /// Trying to use capture capabilities on an output only format yields this.
+
     InvalidArgument,
-    /// Occurs if adding a new Stream ID would cause an integer overflow.
+
     StreamIdOverflow,
-    /// See the `BackendSpecificError` docs for more information about this error variant.
+
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -199,16 +170,10 @@ impl Error for BuildStreamError {
     }
 }
 
-/// Errors that might occur when calling `play_stream`.
-///
-/// As of writing this, only macOS may immediately return an error while calling this method. This
-/// is because both the alsa and wasapi backends only enqueue these commands and do not process
-/// them immediately.
 #[derive(Debug)]
 pub enum PlayStreamError {
-    /// The device associated with the stream is no longer available.
     DeviceNotAvailable,
-    /// See the `BackendSpecificError` docs for more information about this error variant.
+
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -230,16 +195,10 @@ impl Error for PlayStreamError {
     }
 }
 
-/// Errors that might occur when calling `pause_stream`.
-///
-/// As of writing this, only macOS may immediately return an error while calling this method. This
-/// is because both the alsa and wasapi backends only enqueue these commands and do not process
-/// them immediately.
 #[derive(Debug)]
 pub enum PauseStreamError {
-    /// The device associated with the stream is no longer available.
     DeviceNotAvailable,
-    /// See the `BackendSpecificError` docs for more information about this error variant.
+
     BackendSpecific { err: BackendSpecificError },
 }
 
@@ -261,13 +220,10 @@ impl Error for PauseStreamError {
     }
 }
 
-/// Errors that might occur while a stream is running.
 #[derive(Debug)]
 pub enum StreamError {
-    /// The device no longer exists. This can happen if the device is disconnected while the
-    /// program is running.
     DeviceNotAvailable,
-    /// See the `BackendSpecificError` docs for more information about this error variant.
+
     BackendSpecific { err: BackendSpecificError },
 }
 

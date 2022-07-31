@@ -1,5 +1,3 @@
-//! Handles COM initialization and cleanup.
-
 use super::IoError;
 use std::marker::PhantomData;
 use std::ptr;
@@ -30,8 +28,6 @@ thread_local!(static COM_INITIALIZED: ComInitialized = {
     }
 });
 
-/// RAII object that guards the fact that COM is initialized.
-///
 // We store a raw pointer because it's the only way at the moment to remove `Send`/`Sync` from the
 // object.
 struct ComInitialized {
@@ -50,7 +46,6 @@ impl Drop for ComInitialized {
     }
 }
 
-/// Ensures that COM is initialized in this thread.
 #[inline]
 pub fn com_initialized() {
     COM_INITIALIZED.with(|_| {});

@@ -24,7 +24,6 @@ pub type SupportedOutputConfigs = VecIntoIter<SupportedStreamConfigRange>;
 
 mod enumerate;
 
-/// The default linux, dragonfly and freebsd host type.
 #[derive(Debug)]
 pub struct Host;
 
@@ -171,8 +170,6 @@ struct DeviceHandles {
 }
 
 impl DeviceHandles {
-    /// Create `DeviceHandles` for `name` and try to open a handle for both
-    /// directions. Returns `Ok` if either direction is opened successfully.
     fn open(name: &str) -> Result<Self, alsa::Error> {
         let mut handles = Self::default();
         let playback_err = handles.try_open(name, alsa::Direction::Playback).err();
@@ -184,10 +181,6 @@ impl DeviceHandles {
         }
     }
 
-    /// Get a mutable reference to the `Option` for a specific `stream_type`.
-    /// If the `Option` is `None`, the `alsa::PCM` will be opened and placed in
-    /// the `Option` before returning. If `handle_mut()` returns `Ok` the contained
-    /// `Option` is guaranteed to be `Some(..)`.
     fn try_open(
         &mut self,
         name: &str,
@@ -205,8 +198,6 @@ impl DeviceHandles {
         Ok(handle)
     }
 
-    /// Get a mutable reference to the `alsa::PCM` handle for a specific `stream_type`.
-    /// If the handle is not yet opened, it will be opened and stored in `self`.
     fn get_mut(
         &mut self,
         name: &str,
@@ -215,8 +206,6 @@ impl DeviceHandles {
         Ok(self.try_open(name, stream_type)?.as_mut().unwrap())
     }
 
-    /// Take ownership of the `alsa::PCM` handle for a specific `stream_type`.
-    /// If the handle is not yet opened, it will be opened and returned.
     fn take(&mut self, name: &str, stream_type: alsa::Direction) -> Result<alsa::PCM, alsa::Error> {
         Ok(self.try_open(name, stream_type)?.take().unwrap())
     }
@@ -544,14 +533,10 @@ enum StreamType {
 }
 
 pub struct Stream {
-    /// The high-priority audio processing thread calling callbacks.
-    /// Option used for moving out in destructor.
     thread: Option<JoinHandle<()>>,
 
-    /// Handle to the underlying stream for playback controls.
     inner: Arc<StreamInner>,
 
-    /// Used to signal to stop processing.
     trigger: TriggerSender,
 }
 

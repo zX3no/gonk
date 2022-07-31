@@ -33,7 +33,6 @@ impl<'a> Gauge<'a> {
         self
     }
 
-    /// Sets ratio ([0.0, 1.0]) directly.
     pub fn ratio(mut self, ratio: f64) -> Gauge<'a> {
         assert!(
             (0.0..=1.0).contains(&ratio),
