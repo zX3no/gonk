@@ -12,48 +12,37 @@
 
 ## ✨ Features
 - Easy to use
-- Cross-platform
+- Windows and Linux support (WASAPI, ALSA, Jack)
 - Plays FLAC, MP3, OGG, M4A and WAV
 - Fuzzy search
 - Vim-style key bindings
 - Mouse support
 
 ## 📦 Installation
+> I recommend a font with ligatures for the best experience.
 
-> I recommend using a font with ligatures for the best experience.
+Download the latest version from the [releases section.](https://github.com/zX3no/gonk/releases/latest)
 
-#### Dependencies
+Add to `gonk` your [path](https://en.wikipedia.org/wiki/PATH_(variable)) or open using a terminal.
 
-Debian:
-
-```
-sudo apt install libasound2-dev pkg-config build-essential libjack-jackd2-dev
-```
-
-Alpine:
+Add your music with:
 
 ```
-apk add pkgconf alsa-lib-dev alpine-sdk
+gonk add ~/Music
 ```
 
-Arch:
+### From Source
+
+Debian: `sudo apt install libasound2-dev pkg-config build-essential libjack-jackd2-dev`
+
+Windows: `Nothing required`
 
 ```
-pacman -S pkgconf alsa-lib base-devel
+git clone https://github.com/zX3no/gonk
+cd gonk
+cargo install --path gonk
+gonk
 ```
-
-#### crates.io
-
-```
-cargo install gonk
-```
-
-Add your music:
-
-```
-gonk add D:/Music
-```
-
 ## ⌨️ Key Bindings
 
 | Command              | Key             |
