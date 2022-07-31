@@ -198,7 +198,7 @@ pub fn refresh_results(search: &mut Search) {
 
     //Sort songs with equal score. Artist > Album > Song.
     results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
-        if (score_1 - score_2).abs() < f64::EPSILON {
+        if score_1 == score_2 {
             match item_1 {
                 Item::Artist(_) => match item_2 {
                     Item::Song(_) => Ordering::Less,
@@ -216,8 +216,10 @@ pub fn refresh_results(search: &mut Search) {
                     Item::Artist(_) => Ordering::Greater,
                 },
             }
-        } else {
+        } else if score_2 > score_1 {
             Ordering::Equal
+        } else {
+            Ordering::Less
         }
     });
 
