@@ -23,9 +23,9 @@
 
 Download the latest version from the [releases section.](https://github.com/zX3no/gonk/releases/latest)
 
-Add to `gonk` your [path](https://en.wikipedia.org/wiki/PATH_(variable)) or open using a terminal.
+Add `gonk` to your [path](https://en.wikipedia.org/wiki/PATH_(variable)) or open using a terminal.
 
-Add your music with:
+Add some music with:
 
 ```
 gonk add ~/Music
