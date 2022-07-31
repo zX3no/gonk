@@ -1,0 +1,82 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+jobs:
+  release:
+    name: Publish to Github Releases
+    outputs:
+      rc: ${{ steps.check-tag.outputs.rc }}
+
+    strategy:
+      matrix:
+        include:
+        - target: x86_64-unknown-linux-gnu
+          os: ubuntu-latest
+        - target: x86_64-pc-windows-msvc
+          os: windows-latest
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install Rust Toolchain Components
+      uses: actions-rs/toolchain@v1
+      with:
+        override: true
+        target: ${{ matrix.target }}
+        toolchain: stable
+        profile: minimal
+        
+    - name: Install dependencies
+      shell: bash
+      run: |
+       if [[ "$RUNNER_OS" != "Windows" ]]; then
+          sudo apt install -y libasound2-dev libjack-jackd2-dev
+       fi
+
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --release --target=${{ matrix.target }}
+
+    - name: Build Archive
+      shell: bash
+      id: package
+      env:
+        target: ${{ matrix.target }}
+        version:  ${{ steps.check-tag.outputs.version }}
+      run: |
+        set -euxo pipefail
+        bin=${GITHUB_REPOSITORY##*/}
+        src=`pwd`
+        dist=$src/dist
+        name=$bin-$version-$target
+        executable=target/$target/release/$bin
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          executable=$executable.exe
+        fi
+        mkdir $dist
+        cp $executable $dist
+        cd $dist
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+            archive=$dist/$name.zip
+            7z a $archive *
+            echo "::set-output name=archive::`pwd -W`/$name.zip"
+        else
+            archive=$dist/$name.tar.gz
+            tar czf $archive *
+            echo "::set-output name=archive::$archive"
+        fi
+
+    - name: Publish Archive
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ steps.package.outputs.archive }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

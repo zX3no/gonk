@@ -3,6 +3,12 @@ name = "gonk-database"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["Bay"]
+description = "Database for gonk"
+repository = "https://github.com/zX3no/gonk"
+readme = "README.md"
+license = "MIT"
+
 [dependencies]
 memmap2 = "0.5.5"
 rayon = "1.5.3"
