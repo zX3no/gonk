@@ -107,30 +107,8 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
     }
 
     match playlist.mode {
-        Mode::Playlist if playlist.delete => {
-            if let Some(index) = playlist.playlists.index() {
-                gonk_database::remove_playlist(&playlist.playlists.data[index].path);
-                playlist.playlists.remove(index);
-                playlist.delete = false;
-            }
-        }
-        Mode::Song if playlist.delete => {
-            if let Some(i) = playlist.playlists.index() {
-                let selected = &mut playlist.playlists.data[i];
-
-                if let Some(j) = selected.songs.index() {
-                    selected.songs.remove(j);
-                    selected.save();
-
-                    //If there are no songs left delete the playlist.
-                    if selected.songs.is_empty() {
-                        gonk_database::remove_playlist(&selected.path);
-                        playlist.playlists.remove(i);
-                    }
-                }
-                playlist.delete = false;
-            }
-        }
+        Mode::Playlist if playlist.delete => delete_playlist(playlist),
+        Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
             if let Some(selected) = playlist.playlists.selected() {
                 let songs: Vec<Song> = selected
@@ -208,8 +186,36 @@ pub fn add_to_playlist(playlist: &mut Playlist, songs: &[Song]) {
     playlist.mode = Mode::Popup;
 }
 
-pub fn delete(playlist: &mut Playlist) {
+fn delete_song(playlist: &mut Playlist) {
+    if let Some(i) = playlist.playlists.index() {
+        let selected = &mut playlist.playlists.data[i];
+
+        if let Some(j) = selected.songs.index() {
+            selected.songs.remove(j);
+            selected.save();
+
+            //If there are no songs left delete the playlist.
+            if selected.songs.is_empty() {
+                gonk_database::remove_playlist(&selected.path);
+                playlist.playlists.remove(i);
+            }
+        }
+        playlist.delete = false;
+    }
+}
+
+fn delete_playlist(playlist: &mut Playlist) {
+    if let Some(index) = playlist.playlists.index() {
+        gonk_database::remove_playlist(&playlist.playlists.data[index].path);
+        playlist.playlists.remove(index);
+        playlist.delete = false;
+    }
+}
+
+pub fn delete(playlist: &mut Playlist, shift: bool) {
     match playlist.mode {
+        Mode::Playlist if shift => delete_playlist(playlist),
+        Mode::Song if shift => delete_song(playlist),
         Mode::Playlist => {
             playlist.delete = true;
         }
@@ -319,9 +325,8 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
     }
 }
 
-//TODO: Shift + X should delete without confirmation.
 pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
-    if let Some(area) = centered_rect(25, 6, f.size()) {
+    if let Some(area) = centered_rect(20, 6, f.size()) {
         let v = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Percentage(90)])

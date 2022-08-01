@@ -187,11 +187,12 @@ fn main() {
                     .constraints([Constraint::Min(2), Constraint::Length(3)])
                     .split(f.size());
 
-                let (top, bottom) = if status_bar.hidden && log::message().is_none() {
-                    (f.size(), Rect::default())
-                } else {
-                    (area[0], area[1])
-                };
+                let (top, bottom) =
+                    if status_bar.hidden || player.songs.is_empty() && log::message().is_none() {
+                        (f.size(), Rect::default())
+                    } else {
+                        (area[0], area[1])
+                    };
 
                 match mode {
                     Mode::Browser => browser::draw(&browser, top, f),
@@ -259,9 +260,14 @@ fn main() {
                         }
                         KeyCode::Char('x') => match mode {
                             Mode::Queue => queue::delete(&mut queue, &mut player),
-                            Mode::Playlist => playlist::delete(&mut playlist),
+                            Mode::Playlist => playlist::delete(&mut playlist, false),
                             _ => (),
                         },
+                        KeyCode::Char('X') => {
+                            if let Mode::Playlist = mode {
+                                playlist::delete(&mut playlist, true)
+                            }
+                        }
                         KeyCode::Char('u') if mode == Mode::Browser => {
                             let folder = gonk_database::get_music_folder().to_string();
                             handle = Some(gonk_database::scan(folder));

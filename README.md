@@ -41,32 +41,33 @@ gonk
 ```
 ## ⌨️ Key Bindings
 
-| Command              | Key             |
-|----------------------|-----------------|
-| Move Up              | `K / Up`        |
-| Move Down            | `J / Down`      |
-| Move Left            | `H / Left`      |
-| Move Right           | `L / Right`     |
-| Volume Up            | `W`             |
-| Volume Up            | `S`             |
-| Play/Pause           | `Space`         |
-| Previous             | `A`             |
-| Next                 | `D`             |
-| Seek -10s            | `Q`             |
-| Seek 10s             | `E`             |
-| Delete Song          | `X`             |
-| Clear Queue          | `C`             |
-| Clear Except Playing | `Shift + C`     |
-| Change Mode          | `Tab`           |
-| Search               | `/`             |
-| Settings             | `.`             |
-| Playlists            | `,`             |
-| Add to playlist      | `Shift + Enter` |
-| Update Database      | `U`             |
-| Quit                 | `Ctrl + C`      |
-| Move Song            | `1 / Shift + 1` |
-| Move Album           | `2 / Shift + 2` |
-| Move Artist          | `3 / Shift + 3` |
+| Command                     | Key             |
+|-----------------------------|-----------------|
+| Move Up                     | `K / Up`        |
+| Move Down                   | `J / Down`      |
+| Move Left                   | `H / Left`      |
+| Move Right                  | `L / Right`     |
+| Volume Up                   | `W`             |
+| Volume Up                   | `S`             |
+| Play/Pause                  | `Space`         |
+| Previous                    | `A`             |
+| Next                        | `D`             |
+| Seek -10s                   | `Q`             |
+| Seek 10s                    | `E`             |
+| Delete                      | `X`             |
+| Delete without confirmation | `Shift + X`     |
+| Clear queue                 | `C`             |
+| Clear except playing        | `Shift + C`     |
+| Change Mode                 | `Tab`           |
+| Search                      | `/`             |
+| Settings                    | `.`             |
+| Playlists                   | `,`             |
+| Add to playlist             | `Shift + Enter` |
+| Update database             | `U`             |
+| Quit                        | `Ctrl + C`      |
+| Move song                   | `1 / Shift + 1` |
+| Move album                  | `2 / Shift + 2` |
+| Move artist                 | `3 / Shift + 3` |
 
 ## ⚒️ Troubleshooting
 
