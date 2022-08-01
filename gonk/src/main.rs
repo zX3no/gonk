@@ -272,6 +272,9 @@ fn main() {
                             let folder = gonk_database::get_music_folder().to_string();
                             handle = Some(gonk_database::scan(folder));
                         }
+                        KeyCode::Char('u') if mode == Mode::Playlist => {
+                            playlist.playlists = Index::from(gonk_database::playlists());
+                        }
                         KeyCode::Char('q') => match player.seek_by(-10.0) {
                             Ok(_) => (),
                             Err(e) => log!("{}", e),
