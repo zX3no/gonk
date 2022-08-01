@@ -1,7 +1,8 @@
 use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
 use gonk_database::{Index, RawPlaylist, RawSong, Song};
 use gonk_player::Player;
-use tui::style::Style;
+use tui::layout::Alignment;
+use tui::style::{Color, Modifier, Style};
 use tui::text::Span;
 use tui::{
     layout::{Constraint, Direction, Layout, Margin, Rect},
@@ -17,16 +18,14 @@ pub enum Mode {
 
 pub struct Playlist {
     pub mode: Mode,
-
     pub playlists: Index<RawPlaylist>,
-
     pub song_buffer: Vec<Song>,
-
     pub search_query: String,
-
     pub search_result: String,
-
     pub changed: bool,
+
+    pub delete: bool,
+    pub yes: bool,
 }
 
 impl Playlist {
@@ -40,57 +39,98 @@ impl Playlist {
             changed: false,
             search_query: String::new(),
             search_result: String::from("Enter a playlist name..."),
+
+            delete: false,
+            yes: true,
         }
     }
 }
 
 impl Input for Playlist {
     fn up(&mut self) {
-        match self.mode {
-            Mode::Playlist => {
-                self.playlists.up();
-            }
-            Mode::Song => {
-                if let Some(selected) = self.playlists.selected_mut() {
-                    selected.songs.up();
+        if !self.delete {
+            match self.mode {
+                Mode::Playlist => {
+                    self.playlists.up();
                 }
+                Mode::Song => {
+                    if let Some(selected) = self.playlists.selected_mut() {
+                        selected.songs.up();
+                    }
+                }
+                _ => (),
             }
-            Mode::Popup => (),
         }
     }
 
     fn down(&mut self) {
-        match self.mode {
-            Mode::Playlist => {
-                self.playlists.down();
-            }
-            Mode::Song => {
-                if let Some(selected) = self.playlists.selected_mut() {
-                    selected.songs.down();
+        if !self.delete {
+            match self.mode {
+                Mode::Playlist => {
+                    self.playlists.down();
                 }
+                Mode::Song => {
+                    if let Some(selected) = self.playlists.selected_mut() {
+                        selected.songs.down();
+                    }
+                }
+                _ => (),
             }
-            Mode::Popup => (),
         }
     }
 
     fn left(&mut self) {
-        if self.mode == Mode::Song {
-            self.mode = Mode::Playlist;
+        if self.delete {
+            self.yes = true;
+        } else if let Mode::Song = self.mode {
+            self.mode = Mode::Playlist
         }
     }
 
     fn right(&mut self) {
-        match self.playlists.selected() {
-            Some(_) if self.mode == Mode::Playlist => {
-                self.mode = Mode::Song;
+        if self.delete {
+            self.yes = false;
+        } else {
+            match self.mode {
+                Mode::Playlist if self.playlists.selected().is_some() => self.mode = Mode::Song,
+                _ => (),
             }
-            _ => (),
         }
     }
 }
 
 pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
+    //No was selected by the user.
+    if playlist.delete && !playlist.yes {
+        playlist.yes = true;
+        return playlist.delete = false;
+    }
+
     match playlist.mode {
+        Mode::Playlist if playlist.delete => {
+            if let Some(index) = playlist.playlists.index() {
+                gonk_database::remove_playlist(&playlist.playlists.data[index].path);
+                playlist.playlists.remove(index);
+                playlist.delete = false;
+            }
+        }
+        Mode::Song if playlist.delete => {
+            if let Some(i) = playlist.playlists.index() {
+                let selected = &mut playlist.playlists.data[i];
+
+                if let Some(j) = selected.songs.index() {
+                    selected.songs.remove(j);
+                    selected.save();
+
+                    //If there are no songs left delete the playlist.
+                    if selected.songs.is_empty() {
+                        gonk_database::remove_playlist(&selected.path);
+                        playlist.playlists.remove(i);
+                    }
+                }
+                playlist.delete = false;
+            }
+        }
         Mode::Playlist => {
             if let Some(selected) = playlist.playlists.selected() {
                 let songs: Vec<Song> = selected
@@ -145,7 +185,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
             playlist.search_query = String::new();
             playlist.mode = Mode::Playlist;
         }
-        Mode::Popup => (),
+        _ => (),
     }
 }
 
@@ -171,38 +211,24 @@ pub fn add_to_playlist(playlist: &mut Playlist, songs: &[Song]) {
 pub fn delete(playlist: &mut Playlist) {
     match playlist.mode {
         Mode::Playlist => {
-            //TODO: Prompt the user with yes or no.
-            if let Some(index) = playlist.playlists.index() {
-                gonk_database::remove_playlist(&playlist.playlists.data[index].path);
-                playlist.playlists.remove(index);
-            }
+            playlist.delete = true;
         }
         Mode::Song => {
-            if let Some(i) = playlist.playlists.index() {
-                let selected = &mut playlist.playlists.data[i];
-
-                if let Some(j) = selected.songs.index() {
-                    selected.songs.remove(j);
-                    selected.save();
-
-                    //If there are no songs left delete the playlist.
-                    if selected.songs.is_empty() {
-                        gonk_database::remove_playlist(&selected.path);
-                        playlist.playlists.remove(i);
-                    }
-                }
-            }
+            playlist.delete = true;
         }
-        Mode::Popup => (),
+        _ => (),
     }
 }
 
 pub fn on_escape(playlist: &mut Playlist) {
-    if let Mode::Popup = playlist.mode {
+    if playlist.delete {
+        playlist.yes = true;
+        playlist.delete = false;
+    } else if let Mode::Popup = playlist.mode {
         playlist.mode = Mode::Playlist;
         playlist.search_query = String::new();
         playlist.changed = true;
-    };
+    }
 }
 
 //TODO: I think I want a different popup.
@@ -221,9 +247,6 @@ pub fn on_escape(playlist: &mut Playlist) {
 //"[name] has been has been added to [playlist name]"
 //or
 //"25 songs have been added to [playlist name]"
-
-//TODO: Prompt the user with yes or no on deletes.
-//TODO: Clear playlist with confirmation.
 pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
     if let Some(area) = centered_rect(45, 6, f.size()) {
         let v = Layout::default()
@@ -293,6 +316,82 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
                 f.set_cursor(x + width, y);
             }
         }
+    }
+}
+
+//TODO: Shift + X should delete without confirmation.
+pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
+    if let Some(area) = centered_rect(25, 6, f.size()) {
+        let v = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Percentage(90)])
+            .split(area);
+
+        let horizontal = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(v[1]);
+
+        let (yes, no) = if playlist.yes {
+            (
+                Style::default(),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+            )
+        } else {
+            (
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM),
+                Style::default(),
+            )
+        };
+
+        f.render_widget(Clear, area);
+
+        let delete_msg = if let Mode::Playlist = playlist.mode {
+            "Delete playlist?"
+        } else {
+            "Delete song?"
+        };
+
+        f.render_widget(
+            Paragraph::new(delete_msg)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded),
+                )
+                .alignment(Alignment::Center),
+            v[0],
+        );
+
+        f.render_widget(
+            Paragraph::new("Yes")
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .style(yes)
+                        .border_type(BorderType::Rounded),
+                )
+                .style(yes)
+                .alignment(Alignment::Center),
+            horizontal[0],
+        );
+
+        f.render_widget(
+            Paragraph::new("No")
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .style(no)
+                        .border_type(BorderType::Rounded),
+                )
+                .style(no)
+                .alignment(Alignment::Center),
+            horizontal[1],
+        );
     }
 }
 
@@ -379,7 +478,9 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
         );
     }
 
-    if let Mode::Popup = playlist.mode {
-        draw_popup(playlist, f);
+    if playlist.delete {
+        draw_delete_popup(playlist, f)
+    } else if let Mode::Popup = playlist.mode {
+        draw_popup(playlist, f)
     }
 }

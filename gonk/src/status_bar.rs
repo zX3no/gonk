@@ -27,7 +27,7 @@ impl StatusBar {
             scan_message: String::new(),
             wait_timer: None,
             scan_timer: None,
-            hidden: true,
+            hidden: false,
         }
     }
 }

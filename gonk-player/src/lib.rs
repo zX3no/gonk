@@ -604,7 +604,6 @@ fn create_output_stream(
                     let smp = if let Some(resampler) = unsafe { &mut RESAMPLER } {
                         //Makes sure that the next sample isn't
                         //read in the middle of changing songs.
-                        //idk reliable this is.
                         if resampler.finished {
                             0.0
                         } else {
