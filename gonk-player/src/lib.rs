@@ -557,8 +557,12 @@ impl Player {
         //Seeking at under 0.5 seconds causes an unexpected EOF.
         //Could be because of the coarse seek.
         let time = Duration::from_secs_f32(time.clamp(0.5, f32::MAX));
-        self.seek(time)?;
-        self.play();
+        if time > self.duration() {
+            self.next()?;
+        } else {
+            self.seek(time)?;
+            self.play();
+        }
         Ok(())
     }
 
