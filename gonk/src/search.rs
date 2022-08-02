@@ -260,29 +260,42 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
     if let Some(item) = item {
         match item {
             Item::Song(song) => {
-                search::song(f, &song.name, &song.album, &song.artist, h[0]);
-                album(f, &song.album, &song.artist, h[1]);
+                search::draw_song(f, &song.name, &song.album, &song.artist, h[0]);
+                draw_album(f, &song.album, &song.artist, h[1]);
             }
             Item::Album(album) => {
-                search::album(f, &album.name, &album.artist, h[0]);
-                artist(f, &album.artist, h[1]);
+                search::draw_album(f, &album.name, &album.artist, h[0]);
+                draw_artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
                 let albums = gonk_database::albums_by_artist(&artist.name);
 
-                search::artist(f, &artist.name, h[0]);
+                search::draw_artist(f, &artist.name, h[0]);
 
-                let h_split = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                    .split(h[1]);
+                if albums.len() > 1 {
+                    let h_split = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                        .split(h[1]);
 
-                //draw the first two albums
-                for (i, area) in h_split.iter().enumerate() {
-                    if let Some(album) = albums.get(i) {
-                        search::album(f, album, &artist.name, *area);
+                    //Draw the first two albums.
+                    for (i, area) in h_split.iter().enumerate() {
+                        if let Some(album) = albums.get(i) {
+                            search::draw_album(f, album, &artist.name, *area);
+                        }
                     }
-                }
+                } else if let Some(album) = albums.get(0) {
+                    //Draw the first album.
+                    search::draw_album(f, album, &artist.name, h[1]);
+                } else {
+                    f.render_widget(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded)
+                            .title("Album"),
+                        h[1],
+                    )
+                };
             }
         }
         draw_results(search, f, v[2]);
@@ -306,7 +319,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
     }
 }
 
-fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
+fn draw_song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
     let rows = [
         Row::new(vec![Spans::from(Span::raw(album))]),
         Row::new(vec![Spans::from(Span::raw(artist))]),
@@ -330,7 +343,7 @@ fn song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
     f.render_widget(song_table, area);
 }
 
-fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
+fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
     let cells: Vec<Row> = gonk_database::songs_from_album(artist, album)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.title))]))
@@ -355,7 +368,7 @@ fn album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
     f.render_widget(table, area);
 }
 
-fn artist(f: &mut Frame, artist: &str, area: Rect) {
+fn draw_artist(f: &mut Frame, artist: &str, area: Rect) {
     let albums = gonk_database::albums_by_artist(artist);
     let cells: Vec<_> = albums
         .iter()
