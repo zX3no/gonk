@@ -351,23 +351,28 @@ impl Player {
         let stream = create_output_stream(&device, &config, resampler.clone()).unwrap();
 
         let mut state = State::Stopped;
+        let sample_rate = config.sample_rate.0 as usize;
 
         //Force update the playback position when restoring the queue.
         if let Some(song) = songs.selected() {
             let file = match File::open(&song.path) {
                 Ok(file) => file,
-                Err(_) => panic!(),
+                Err(_) => {
+                    return Self {
+                        stream,
+                        resampler,
+                        sample_rate,
+                        state,
+                        songs,
+                        volume,
+                    }
+                }
             };
             let elapsed = Duration::from_secs_f32(elapsed);
-
-            let mut r = Resampler::new(
-                config.sample_rate.0 as usize,
-                file,
-                volume,
-                song.gain as f32,
-            );
+            let mut r = Resampler::new(sample_rate, file, volume, song.gain as f32);
             //Elapsed will not update while paused so force update it.
             r.elapsed = elapsed;
+            r.seek(elapsed).unwrap();
             state = State::Paused;
             *resampler.write().unwrap() = Some(r);
         };
