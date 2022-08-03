@@ -5,7 +5,13 @@ use cpal::{
     BuildStreamError, Stream, StreamConfig,
 };
 use gonk_database::{Index, Song};
-use std::{fs::File, io::ErrorKind, time::Duration, vec::IntoIter};
+use std::{
+    fs::File,
+    io::ErrorKind,
+    sync::{Arc, RwLock},
+    time::Duration,
+    vec::IntoIter,
+};
 use symphonia::{
     core::{
         audio::SampleBuffer,
@@ -37,8 +43,6 @@ const fn gcd(a: usize, b: usize) -> usize {
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + t * (b - a)
 }
-
-static mut RESAMPLER: Option<Resampler> = None;
 
 const VOLUME_STEP: u8 = 5;
 const VOLUME_REDUCTION: f32 = 500.0;
@@ -283,6 +287,24 @@ impl Resampler {
     pub fn set_volume(&mut self, volume: u8) {
         self.volume = volume as f32 / VOLUME_REDUCTION;
     }
+    pub fn seek(&mut self, time: Duration) -> Result<(), String> {
+        match self.probed.format.seek(
+            SeekMode::Coarse,
+            SeekTo::Time {
+                time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / 1_000_000_000.0),
+                track_id: None,
+            },
+        ) {
+            Ok(_) => Ok(()),
+            Err(e) => match e {
+                Error::SeekError(e) => match e {
+                    SeekErrorKind::OutOfRange => Err(String::from("Seek out of range!")),
+                    _ => panic!("{:?}", e),
+                },
+                _ => panic!("{}", e),
+            },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -294,6 +316,7 @@ pub enum State {
 
 pub struct Player {
     pub stream: Stream,
+    pub resampler: Arc<RwLock<Option<Resampler>>>,
     pub sample_rate: usize,
     pub state: State,
     pub songs: Index<Song>,
@@ -323,37 +346,40 @@ impl Player {
         if config.channels != 2 {
             panic!("TODO: Support downmixing multiple channels")
         }
-        let stream = create_output_stream(&device, &config).unwrap();
 
-        let mut s = Self {
-            sample_rate: config.sample_rate.0 as usize,
-            stream,
-            volume,
-            state: State::Stopped,
-            songs,
-        };
+        let resampler = Arc::new(RwLock::new(None));
+        let stream = create_output_stream(&device, &config, resampler.clone()).unwrap();
+
+        let mut state = State::Stopped;
 
         //Force update the playback position when restoring the queue.
-        if let Some(song) = s.songs.selected() {
+        if let Some(song) = songs.selected() {
             let file = match File::open(&song.path) {
                 Ok(file) => file,
-                Err(_) => return s,
+                Err(_) => panic!(),
             };
             let elapsed = Duration::from_secs_f32(elapsed);
 
-            let mut resampler = Resampler::new(s.sample_rate, file, s.volume, song.gain as f32);
+            let mut r = Resampler::new(
+                config.sample_rate.0 as usize,
+                file,
+                volume,
+                song.gain as f32,
+            );
             //Elapsed will not update while paused so force update it.
-            resampler.elapsed = elapsed;
+            r.elapsed = elapsed;
+            state = State::Paused;
+            *resampler.write().unwrap() = Some(r);
+        };
 
-            unsafe {
-                RESAMPLER = Some(resampler);
-            }
-
-            s.state = State::Paused;
-            s.seek(elapsed).unwrap();
+        Self {
+            resampler,
+            sample_rate: config.sample_rate.0 as usize,
+            stream,
+            volume,
+            state,
+            songs,
         }
-
-        s
     }
 
     pub fn set_output_device(&mut self, device: &Device) -> Result<(), String> {
@@ -365,12 +391,16 @@ impl Player {
 
         match device.default_output_config() {
             Ok(supported_stream) => {
-                match create_output_stream(device, &supported_stream.config()) {
+                match create_output_stream(
+                    device,
+                    &supported_stream.config(),
+                    self.resampler.clone(),
+                ) {
                     Ok(stream) => {
                         self.stream = stream;
                         self.sample_rate = supported_stream.sample_rate().0 as usize;
 
-                        if let Some(resampler) = unsafe { &mut RESAMPLER } {
+                        if let Some(resampler) = self.resampler.write().unwrap().as_mut() {
                             resampler.update_sample_rate(self.sample_rate);
                         }
 
@@ -388,11 +418,17 @@ impl Player {
     }
 
     pub fn update(&mut self) -> Result<(), String> {
-        if let Some(resampler) = unsafe { RESAMPLER.as_ref() } {
+        let mut next = false;
+        if let Some(resampler) = self.resampler.read().unwrap().as_ref() {
             if resampler.finished {
-                return self.next();
+                next = true;
             }
         }
+
+        if next {
+            self.next()?;
+        }
+
         Ok(())
     }
 
@@ -423,17 +459,15 @@ impl Player {
                 //TODO: Error might be too vague.
                 Err(_) => return Err(format!("Could not open file: {:?}", song.path)),
             };
-            unsafe {
-                if let Some(resampler) = &mut RESAMPLER {
-                    resampler.finished = true;
-                }
-                RESAMPLER = Some(Resampler::new(
-                    self.sample_rate,
-                    file,
-                    self.volume,
-                    song.gain as f32,
-                ));
+            if let Some(resampler) = self.resampler.write().unwrap().as_mut() {
+                resampler.finished = true;
             }
+            *self.resampler.write().unwrap() = Some(Resampler::new(
+                self.sample_rate,
+                file,
+                self.volume,
+                song.gain as f32,
+            ));
             self.play();
         }
         Ok(())
@@ -472,9 +506,7 @@ impl Player {
     pub fn clear(&mut self) {
         self.songs = Index::default();
         self.state = State::Stopped;
-        unsafe {
-            RESAMPLER = None;
-        }
+        *self.resampler.write().unwrap() = None;
     }
 
     pub fn clear_except_playing(&mut self) {
@@ -490,7 +522,7 @@ impl Player {
             self.volume = 100;
         }
 
-        if let Some(resampler) = unsafe { &mut RESAMPLER } {
+        if let Some(resampler) = self.resampler.write().unwrap().as_mut() {
             resampler.set_volume(self.volume);
         }
     }
@@ -500,31 +532,29 @@ impl Player {
             self.volume -= VOLUME_STEP;
         }
 
-        if let Some(resampler) = unsafe { &mut RESAMPLER } {
+        if let Some(resampler) = self.resampler.write().unwrap().as_mut() {
             resampler.set_volume(self.volume);
         }
     }
 
     pub fn duration(&self) -> Duration {
-        unsafe {
-            match RESAMPLER.as_ref() {
-                Some(resampler) => resampler.duration,
-                None => Duration::default(),
-            }
+        if let Some(resampler) = self.resampler.read().unwrap().as_ref() {
+            resampler.duration
+        } else {
+            Duration::default()
         }
     }
 
     pub fn elapsed(&self) -> Duration {
-        unsafe {
-            match RESAMPLER.as_ref() {
-                Some(resampler) => resampler.elapsed,
-                None => Duration::default(),
-            }
+        if let Some(resampler) = self.resampler.read().unwrap().as_ref() {
+            resampler.elapsed
+        } else {
+            Duration::default()
         }
     }
 
     pub fn toggle_playback(&mut self) -> Result<(), String> {
-        if unsafe { RESAMPLER.is_none() } {
+        if self.resampler.read().unwrap().is_none() {
             self.play_selected()
         } else {
             match self.state {
@@ -547,15 +577,19 @@ impl Player {
     }
 
     pub fn seek_by(&mut self, time: f32) -> Result<(), String> {
-        if let Some(resampler) = unsafe { &RESAMPLER } {
-            let time = resampler.elapsed.as_secs_f32() + time;
-            if time > self.duration().as_secs_f32() {
-                self.next()?;
-            } else {
-                self.seek_to(time)?;
-                self.play();
-            }
+        let time = if let Some(resampler) = self.resampler.read().unwrap().as_ref() {
+            resampler.elapsed.as_secs_f32() + time
+        } else {
+            return Ok(());
+        };
+
+        if time > self.duration().as_secs_f32() {
+            self.next()?;
+        } else {
+            self.seek_to(time)?;
+            self.play();
         }
+
         Ok(())
     }
 
@@ -566,33 +600,12 @@ impl Player {
         if time > self.duration() {
             self.next()?;
         } else {
-            self.seek(time)?;
+            if let Some(resampler) = self.resampler.write().unwrap().as_mut() {
+                resampler.seek(time)?;
+            }
             self.play();
         }
         Ok(())
-    }
-
-    pub fn seek(&mut self, time: Duration) -> Result<(), String> {
-        if let Some(resampler) = unsafe { &mut RESAMPLER } {
-            match resampler.probed.format.seek(
-                SeekMode::Coarse,
-                SeekTo::Time {
-                    time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / 1_000_000_000.0),
-                    track_id: None,
-                },
-            ) {
-                Ok(_) => Ok(()),
-                Err(e) => match e {
-                    Error::SeekError(e) => match e {
-                        SeekErrorKind::OutOfRange => Err(String::from("Seek out of range!")),
-                        _ => panic!("{:?}", e),
-                    },
-                    _ => panic!("{}", e),
-                },
-            }
-        } else {
-            Ok(())
-        }
     }
 
     pub fn is_playing(&self) -> bool {
@@ -605,20 +618,15 @@ unsafe impl Send for Player {}
 fn create_output_stream(
     device: &Device,
     config: &StreamConfig,
+    resampler: Arc<RwLock<Option<Resampler>>>,
 ) -> Result<Stream, BuildStreamError> {
     device.build_output_stream(
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             for frame in data.chunks_mut(2) {
                 for sample in frame.iter_mut() {
-                    let smp = if let Some(resampler) = unsafe { &mut RESAMPLER } {
-                        //Makes sure that the next sample isn't
-                        //read in the middle of changing songs.
-                        if resampler.finished {
-                            0.0
-                        } else {
-                            resampler.next()
-                        }
+                    let smp = if let Some(resampler) = resampler.write().unwrap().as_mut() {
+                        resampler.next()
                     } else {
                         0.0
                     };
