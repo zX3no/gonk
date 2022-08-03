@@ -55,10 +55,10 @@ pub struct Resampler {
     buffer: IntoIter<f32>,
 
     current_frame: Vec<f32>,
-    current_frame_pos_in_chunk: usize,
+    current_frame_pos: usize,
 
     next_frame: Vec<f32>,
-    next_output_frame_pos_in_chunk: usize,
+    next_frame_pos: usize,
 
     output_buffer: Option<f32>,
 
@@ -82,7 +82,7 @@ impl Resampler {
                 mss,
                 &FormatOptions {
                     prebuild_seek_index: true,
-                    seek_index_fill_rate: 10,
+                    seek_index_fill_rate: 1,
                     enable_gapless: false,
                 },
                 &MetadataOptions::default(),
@@ -129,8 +129,8 @@ impl Resampler {
             input_real: input,
             input: input / gcd,
             output: output / gcd,
-            current_frame_pos_in_chunk: 0,
-            next_output_frame_pos_in_chunk: 0,
+            current_frame_pos: 0,
+            next_frame_pos: 0,
             current_frame,
             next_frame,
             output_buffer: None,
@@ -190,25 +190,32 @@ impl Resampler {
                                 vec![self.buffer.next().unwrap(), self.buffer.next().unwrap()];
                         }
 
-                        self.current_frame_pos_in_chunk = 0;
-                        self.next_output_frame_pos_in_chunk = 0;
+                        self.current_frame_pos = 0;
+                        self.next_frame_pos = 0;
 
                         debug_assert!(self.output_buffer.is_none());
 
                         return self.next();
                     }
-                    Err(e) => match e {
-                        Error::DecodeError(e) => {
+                    Err(err) => match err {
+                        Error::IoError(err) => match err.kind() {
+                            ErrorKind::UnexpectedEof => {
+                                if self.elapsed + Duration::from_secs(1) > self.duration {
+                                    self.finished = true
+                                } else {
+                                    //Bad things will happen...
+                                }
+                            }
+                            _ => continue,
+                        },
+                        Error::DecodeError(_) => {
                             decode_errors += 1;
                             if decode_errors > MAX_DECODE_ERRORS {
-                                panic!("{:?}", e);
+                                panic!("{:?}", err);
                             }
+                            continue;
                         }
-                        Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
-                            self.finished = true;
-                            return 0.0;
-                        }
-                        _ => panic!("{:?}", e),
+                        _ => panic!("{}", err),
                     },
                 }
             }
@@ -226,7 +233,7 @@ impl Resampler {
             self.next_frame.push(sample);
         }
 
-        self.current_frame_pos_in_chunk += 1;
+        self.current_frame_pos += 1;
     }
 
     fn next_sample(&mut self) -> Option<f32> {
@@ -236,27 +243,26 @@ impl Resampler {
             return Some(sample);
         }
 
-        if self.next_output_frame_pos_in_chunk == self.output {
-            self.next_output_frame_pos_in_chunk = 0;
+        if self.next_frame_pos == self.output {
+            self.next_frame_pos = 0;
 
             self.next_input_frame();
-            while self.current_frame_pos_in_chunk != self.input {
+            while self.current_frame_pos != self.input {
                 self.next_input_frame();
             }
-            self.current_frame_pos_in_chunk = 0;
+            self.current_frame_pos = 0;
         } else {
-            let req_left_sample =
-                (self.input * self.next_output_frame_pos_in_chunk / self.output) % self.input;
+            let req_left_sample = (self.input * self.next_frame_pos / self.output) % self.input;
 
-            while self.current_frame_pos_in_chunk != req_left_sample {
+            while self.current_frame_pos != req_left_sample {
                 self.next_input_frame();
-                debug_assert!(self.current_frame_pos_in_chunk < self.input);
+                debug_assert!(self.current_frame_pos < self.input);
             }
         }
 
-        let numerator = (self.input * self.next_output_frame_pos_in_chunk) % self.output;
+        let numerator = (self.input * self.next_frame_pos) % self.output;
 
-        self.next_output_frame_pos_in_chunk += 1;
+        self.next_frame_pos += 1;
 
         if self.current_frame.is_empty() && self.next_frame.is_empty() {
             return None;
