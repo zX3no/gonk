@@ -171,6 +171,10 @@ impl Resampler {
         } else {
             let mut decode_errors: usize = 0;
             loop {
+                if self.finished {
+                    return 0.0;
+                }
+
                 match self.probed.format.next_packet() {
                     Ok(next_packet) => {
                         let decoded = self.decoder.decode(&next_packet).unwrap();
@@ -204,11 +208,8 @@ impl Resampler {
                     Err(err) => match err {
                         Error::IoError(err) => match err.kind() {
                             ErrorKind::UnexpectedEof => {
-                                if self.elapsed + Duration::from_secs(1) > self.duration {
-                                    self.finished = true
-                                } else {
-                                    //Bad things will happen...
-                                }
+                                self.finished = true;
+                                return 0.0;
                             }
                             _ => continue,
                         },
