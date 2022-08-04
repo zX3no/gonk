@@ -16,7 +16,6 @@ pub struct StatusBar {
     pub scan_message: String,
     pub wait_timer: Option<Instant>,
     pub scan_timer: Option<Instant>,
-    pub hidden: bool,
 }
 
 impl StatusBar {
@@ -27,13 +26,12 @@ impl StatusBar {
             scan_message: String::new(),
             wait_timer: None,
             scan_timer: None,
-            hidden: false,
         }
     }
 }
 
 //Updates the dots in "Scanning for files .."
-pub fn update(status_bar: &mut StatusBar, db_busy: bool, player: &Player) {
+pub fn update(status_bar: &mut StatusBar, db_busy: bool) {
     if db_busy {
         if status_bar.dots < 3 {
             status_bar.dots += 1;
@@ -48,15 +46,6 @@ pub fn update(status_bar: &mut StatusBar, db_busy: bool, player: &Player) {
         if timer.elapsed() >= WAIT_TIME {
             status_bar.wait_timer = None;
             status_bar.busy = false;
-
-            //FIXME: If the queue was not empty
-            //and the status bar was hidden
-            //before triggering an update
-            //the status bar will stay open
-            //without the users permission.
-            if player.songs.is_empty() {
-                status_bar.hidden = true;
-            }
         }
     }
 }
@@ -67,7 +56,6 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, p
         //set the status bar to busy
         if !status_bar.busy {
             status_bar.busy = true;
-            status_bar.hidden = false;
             status_bar.scan_timer = Some(Instant::now());
         }
     } else if status_bar.busy {
@@ -84,10 +72,6 @@ pub fn draw(status_bar: &mut StatusBar, area: Rect, f: &mut Frame, busy: bool, p
                 scan_time.elapsed().as_secs_f32(),
             );
         }
-    }
-
-    if status_bar.hidden {
-        return;
     }
 
     let text = if busy {

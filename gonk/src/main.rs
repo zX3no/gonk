@@ -169,7 +169,7 @@ fn main() {
 
         if last_tick.elapsed() >= Duration::from_millis(200) {
             //Update the status_bar at a constant rate.
-            status_bar::update(&mut status_bar, busy, &player);
+            status_bar::update(&mut status_bar, busy);
             last_tick = Instant::now();
         }
 
@@ -187,12 +187,7 @@ fn main() {
                     .constraints([Constraint::Min(2), Constraint::Length(3)])
                     .split(f.size());
 
-                let (top, bottom) =
-                    if status_bar.hidden || player.songs.is_empty() && log::message().is_none() {
-                        (f.size(), Rect::default())
-                    } else {
-                        (area[0], area[1])
-                    };
+                let (top, bottom) = (area[0], area[1]);
 
                 match mode {
                     Mode::Browser => browser::draw(&browser, top, f),
@@ -298,10 +293,6 @@ fn main() {
                         KeyCode::Char('s') => {
                             player.volume_down();
                             gonk_database::update_volume(player.volume);
-                        }
-                        //TODO: Rework mode changing buttons
-                        KeyCode::Char('`') => {
-                            status_bar.hidden = !status_bar.hidden;
                         }
                         KeyCode::Char(',') => mode = Mode::Playlist,
                         KeyCode::Char('.') => mode = Mode::Settings,

@@ -42,7 +42,7 @@ pub use query::*;
 pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
-fn database_path() -> PathBuf {
+pub fn database_path() -> PathBuf {
     let gonk = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())
     } else {
@@ -57,7 +57,7 @@ fn database_path() -> PathBuf {
     gonk.join("gonk_new.db")
 }
 
-fn settings_path() -> PathBuf {
+pub fn settings_path() -> PathBuf {
     let mut path = database_path();
     path.pop();
     path.push("settings.db");
@@ -151,6 +151,7 @@ pub fn reset() -> io::Result<()> {
     fs::remove_file(database_path())
 }
 
+//TODO: Remove null terminated strings
 #[derive(Debug)]
 pub struct Settings {
     pub volume: u8,
@@ -187,30 +188,32 @@ impl Settings {
         bytes
     }
     pub fn from(bytes: Vec<u8>) -> Self {
-        let volume = bytes[0];
-        let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
-        let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
-        let end = bytes[7..].iter().position(|&c| c == b'\0').unwrap() + 7;
-        let output_device = unsafe { from_utf8_unchecked(&bytes[7..end]).to_string() };
-        let old_end = end + 1;
-        let end = bytes[old_end..].iter().position(|&c| c == b'\0').unwrap() + old_end;
-        let music_folder = unsafe { from_utf8_unchecked(&bytes[old_end..end]).to_string() };
+        unsafe {
+            let volume = bytes[0];
+            let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap_unchecked());
+            let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap_unchecked());
+            let end = bytes[7..].iter().position(|&c| c == b'\0').unwrap() + 7;
+            let output_device = from_utf8_unchecked(&bytes[7..end]).to_string();
+            let old_end = end + 1;
+            let end = bytes[old_end..].iter().position(|&c| c == b'\0').unwrap() + old_end;
+            let music_folder = from_utf8_unchecked(&bytes[old_end..end]).to_string();
 
-        let mut queue = Vec::new();
-        //Skip the null terminator
-        let mut i = end + 1;
-        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            queue.push(RawSong::from(bytes));
-            i += SONG_LEN;
-        }
+            let mut queue = Vec::new();
+            //Skip the null terminator
+            let mut i = end + 1;
+            while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+                queue.push(RawSong::from(bytes));
+                i += SONG_LEN;
+            }
 
-        Self {
-            index,
-            volume,
-            output_device,
-            music_folder,
-            elapsed,
-            queue,
+            Self {
+                index,
+                volume,
+                output_device,
+                music_folder,
+                elapsed,
+                queue,
+            }
         }
     }
 }
@@ -285,7 +288,7 @@ pub fn volume() -> u8 {
     unsafe { SETTINGS.volume }
 }
 
-fn mmap() -> Option<&'static Mmap> {
+pub fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
 }
 
@@ -344,16 +347,52 @@ pub struct Song {
 
 impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
-        let text = &bytes[..TEXT_LEN];
-        Self {
-            artist: artist(text).to_string(),
-            album: album(text).to_string(),
-            title: title(text).to_string(),
-            path: path(text).to_string(),
-            number: bytes[NUMBER_POS],
-            disc: bytes[DISC_POS],
-            gain: f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap()),
-            id,
+        unsafe {
+            let text = &bytes[..TEXT_LEN];
+            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
+            let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
+
+            let album_len = u16::from_le_bytes(
+                text[2 + artist_len..2 + artist_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+            let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+            let album = from_utf8_unchecked(&text[album]);
+
+            let title_len = u16::from_le_bytes(
+                text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+            let title =
+                2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
+            let title = from_utf8_unchecked(&text[title]);
+
+            let path_len = u16::from_le_bytes(
+                text[2 + artist_len + 2 + album_len + 2 + title_len
+                    ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+            let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
+                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
+            let path = from_utf8_unchecked(&text[path]);
+
+            let number = bytes[NUMBER_POS];
+            let disc = bytes[DISC_POS];
+            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked());
+
+            Self {
+                artist: artist.to_string(),
+                album: album.to_string(),
+                title: title.to_string(),
+                path: path.to_string(),
+                number,
+                disc,
+                gain,
+                id,
+            }
         }
     }
 }
@@ -425,7 +464,7 @@ impl RawSong {
     }
     pub fn into_bytes(&self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
-        song[0..TEXT_LEN].copy_from_slice(&self.text);
+        song[..TEXT_LEN].copy_from_slice(&self.text);
         song[NUMBER_POS] = self.number;
         song[DISC_POS] = self.disc;
         song[GAIN_POS].copy_from_slice(&self.gain.to_le_bytes());
@@ -582,7 +621,7 @@ where
     for _ in 0..100_000 {
         func();
     }
-    println!("{:?}", now.elapsed() / 100_000);
+    println!("{:?}", now.elapsed());
 }
 
 pub fn bench_slow<F>(func: F)
@@ -593,8 +632,9 @@ where
     for _ in 0..4000 {
         func();
     }
-    println!("{:?}", now.elapsed() / 4000);
+    println!("{:?}", now.elapsed());
 }
+
 pub fn bench_super_slow<F>(func: F)
 where
     F: Fn(),
@@ -603,7 +643,7 @@ where
     for _ in 0..500 {
         func();
     }
-    println!("{:?}", now.elapsed() / 500);
+    println!("{:?}", now.elapsed());
 }
 
 #[cfg(test)]
