@@ -525,13 +525,9 @@ mod strsim {
             .count();
 
         let jaro_winkler_distance =
-            jaro_distance + (0.1 * prefix_length as f64 * (1.0 - jaro_distance));
+            jaro_distance + (0.2 * prefix_length as f64 * (1.0 - jaro_distance));
 
-        if jaro_winkler_distance <= 1.0 {
-            jaro_winkler_distance
-        } else {
-            1.0
-        }
+        jaro_winkler_distance.clamp(0.0, 1.0)
     }
 
     pub fn generic_jaro(a: &str, b: &str) -> f64 {
