@@ -6,7 +6,6 @@ use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
-use status_bar::StatusBar;
 use std::{
     io::{stdout, Stdout},
     path::Path,
@@ -21,7 +20,6 @@ mod playlist;
 mod queue;
 mod search;
 mod settings;
-mod status_bar;
 mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
@@ -136,7 +134,6 @@ fn main() {
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
-    let mut status_bar = StatusBar::new();
     let mut playlist = Playlist::new();
     let mut settings = Settings::new();
     let mut search = Search::new();
@@ -148,10 +145,13 @@ fn main() {
     //TODO: Re-time if using another thread is faster after the rework.
     let mut player = player.join().unwrap();
 
-    //If there are songs in the queue, display the queue.
-    if !player.songs.is_empty() {
+    //If there are songs in the queue and the database isn't scanning, display the queue.
+    if !player.songs.is_empty() && handle.is_none() {
         mode = Mode::Queue;
     }
+
+    let mut dots: usize = 1;
+    let mut scan_timer: Option<Instant> = None;
 
     loop {
         if let Some(h) = &handle {
@@ -159,17 +159,38 @@ fn main() {
                 browser::refresh(&mut browser);
                 search::refresh_cache(&mut search);
                 search::refresh_results(&mut search);
+
+                if let Some(time) = scan_timer {
+                    log!(
+                        "Finished adding {} files in {:.2} seconds.",
+                        gonk_database::len(),
+                        time.elapsed().as_secs_f32()
+                    );
+                }
+
+                scan_timer = None;
                 handle = None;
             } else {
                 busy = true;
+
+                if scan_timer.is_none() {
+                    scan_timer = Some(Instant::now());
+                    log!("Scanning for files.");
+                }
             }
         } else {
             busy = false;
         }
 
-        if last_tick.elapsed() >= Duration::from_millis(200) {
-            //Update the status_bar at a constant rate.
-            status_bar::update(&mut status_bar, busy);
+        if last_tick.elapsed() >= Duration::from_millis(150) {
+            if busy && scan_timer.is_some() {
+                if dots < 3 {
+                    dots += 1;
+                } else {
+                    dots = 1;
+                }
+                log!("Scanning for files{}", ".".repeat(dots));
+            }
             last_tick = Instant::now();
         }
 
@@ -182,12 +203,16 @@ fn main() {
 
         terminal
             .draw(|f| {
-                let area = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([Constraint::Min(2), Constraint::Length(3)])
-                    .split(f.size());
-
-                let (top, bottom) = (area[0], area[1]);
+                let top = if log::message().is_some() {
+                    let area = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Min(2), Constraint::Length(3)])
+                        .split(f.size());
+                    log::draw(area[1], f);
+                    area[0]
+                } else {
+                    f.size()
+                };
 
                 match mode {
                     Mode::Browser => browser::draw(&browser, top, f),
@@ -196,12 +221,6 @@ fn main() {
                     Mode::Playlist => playlist::draw(&mut playlist, top, f),
                     Mode::Settings => settings::draw(&mut settings, top, f),
                 };
-
-                if log::message().is_some() {
-                    log::draw(bottom, f);
-                } else if mode != Mode::Queue {
-                    status_bar::draw(&mut status_bar, bottom, f, busy, &player);
-                }
             })
             .unwrap();
 
