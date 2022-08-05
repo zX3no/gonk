@@ -333,7 +333,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
     })
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub struct Song {
     pub artist: String,
     pub album: String,
@@ -343,6 +343,45 @@ pub struct Song {
     pub disc: u8,
     pub gain: f32,
     pub id: usize,
+}
+
+impl PartialEq for Song {
+    fn eq(&self, other: &Self) -> bool {
+        self.artist == other.artist
+            && self.album == other.album
+            && self.title == other.title
+            && self.path == other.path
+            && self.number == other.number
+            && self.disc == other.disc
+            && self.gain == other.gain
+            && self.id == other.id
+    }
+}
+
+impl PartialOrd for Song {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.artist == other.artist {
+            if self.album == other.album {
+                if self.disc == other.disc {
+                    self.number.partial_cmp(&other.number)
+                } else {
+                    self.disc.partial_cmp(&other.disc)
+                }
+            } else {
+                self.album.partial_cmp(&other.album)
+            }
+        } else {
+            self.artist.partial_cmp(&other.artist)
+        }
+    }
+}
+
+impl Eq for Song {}
+
+impl Ord for Song {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
 }
 
 impl Song {
