@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 ringbuf = "0.2.8"
 widestring = "1.0.2"
-winapi = { version = "0.3.9", features = ["mmdeviceapi", "combaseapi", "devpkey"] }
+winapi = { version = "0.3.9", features = ["mmdeviceapi", "combaseapi", "devpkey", "audioclient"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.10.0"

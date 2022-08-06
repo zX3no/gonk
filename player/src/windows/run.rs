@@ -10,6 +10,10 @@ use std::thread;
 use wasapi::SampleType;
 use widestring::U16CString;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
+use winapi::shared::mmreg::{
+    WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_EXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT,
+};
+use winapi::um::audioclient::{IAudioClient, IID_IAudioClient};
 use winapi::um::combaseapi::{CoCreateInstance, PropVariantClear, CLSCTX_ALL};
 use winapi::um::mmdeviceapi::{
     eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
@@ -57,7 +61,34 @@ impl Drop for StreamHandle {
     }
 }
 
-pub fn get_default_device() -> (IMMDevice, String, String) {
+const STGM_READ: u32 = 0;
+
+#[inline]
+pub fn check_result(result: i32) {
+    if result != 0 {
+        panic!("{result:#x}")
+    }
+}
+
+#[macro_export]
+macro_rules! DEFINE_GUID {
+    (
+        $name:ident, $l:expr, $w1:expr, $w2:expr,
+        $b1:expr, $b2:expr, $b3:expr, $b4:expr, $b5:expr, $b6:expr, $b7:expr, $b8:expr
+    ) => {
+        pub const $name: winapi::shared::guiddef::GUID = winapi::shared::guiddef::GUID {
+            Data1: $l,
+            Data2: $w1,
+            Data3: $w2,
+            Data4: [$b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8],
+        };
+    };
+}
+
+DEFINE_GUID! {KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
+0x00000003, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}
+
+pub fn get_default_device() -> (&'static IMMDevice, String, String) {
     super::check_init();
 
     unsafe {
@@ -70,10 +101,7 @@ pub fn get_default_device() -> (IMMDevice, String, String) {
             &IMMDeviceEnumerator::uuidof(),
             &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
         );
-
-        if result != 0 {
-            panic!("{result:#x}")
-        }
+        check_result(result);
 
         let mut device: *mut IMMDevice = null_mut();
         let result = (*enumerator).GetDefaultAudioEndpoint(
@@ -81,37 +109,18 @@ pub fn get_default_device() -> (IMMDevice, String, String) {
             eConsole,
             &mut device as *mut *mut IMMDevice,
         );
-
-        if result != 0 {
-            panic!("{result:#x}")
-        }
-
-        let mut test_device: IMMDevice = zeroed();
-        let result = (*enumerator).GetDefaultAudioEndpoint(
-            eRender,
-            eConsole,
-            &mut test_device as *mut IMMDevice as *mut *mut IMMDevice,
-        );
-
-        if result != 0 {
-            panic!("{result:#x}")
-        }
+        check_result(result);
 
         let mut store = null_mut();
-        let result = (*device).OpenPropertyStore(0x00000000, &mut store);
+        let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+        check_result(result);
 
-        if result != 0 {
-            panic!("{result:#x}")
-        }
         let mut value = zeroed();
         let result = (*store).GetValue(
             &DEVPKEY_Device_FriendlyName as *const _ as *const _,
             &mut value,
         );
-
-        if result != 0 {
-            panic!("{result:#x}")
-        }
+        check_result(result);
 
         let ptr_utf16 = *(&value.data as *const _ as *const *const u16);
         let name = U16CString::from_ptr_str(ptr_utf16).to_string().unwrap();
@@ -120,87 +129,142 @@ pub fn get_default_device() -> (IMMDevice, String, String) {
 
         let mut id = null_mut();
         let result = (*device).GetId(&mut id);
-        if result != 0 {
-            panic!("{result:#x}")
-        }
+        check_result(result);
 
         let id = U16CString::from_ptr_str(id).to_string().unwrap();
+        dbg!(&name);
 
-        (test_device, name, id)
+        (&*device, name, id)
+    }
+}
+
+pub fn get_mixformat(client: *mut IAudioClient) {
+    unsafe {
+        let mut format = null_mut();
+        (*client).GetMixFormat(&mut format);
+        let format = &*format;
+
+        // let wavefmt = &*format;
+        // let channels = wavefmt.nChannels;
+        // let sample_rate = wavefmt.nSamplesPerSec;
+        // let bps = wavefmt.wBitsPerSample;
+        // let block_align = wavefmt.nBlockAlign;
+        // let storebits = 8 * block_align as usize / channels as usize;
+
+        let formatex = if format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && format.cbSize == 22 {
+            format as *const _ as *const WAVEFORMATEXTENSIBLE
+        } else {
+            let validbits = format.wBitsPerSample as usize;
+            let blockalign = format.nBlockAlign as usize;
+            let samplerate = format.nSamplesPerSec as usize;
+            let formattag = format.wFormatTag;
+            let channels = format.nChannels as usize;
+
+            if formattag != WAVE_FORMAT_IEEE_FLOAT {
+                panic!("Unsupported format!");
+            }
+
+            let storebits = 8 * blockalign / channels;
+
+            let blockalign = channels * storebits / 8;
+            let byterate = samplerate * blockalign;
+
+            let wave_format = WAVEFORMATEX {
+                cbSize: 22,
+                nAvgBytesPerSec: byterate as u32,
+                nBlockAlign: blockalign as u16,
+                nChannels: channels as u16,
+                nSamplesPerSec: samplerate as u32,
+                wBitsPerSample: storebits as u16,
+                wFormatTag: WAVE_FORMAT_EXTENSIBLE as u16,
+            };
+
+            // let sample = WAVEFORMATEXTENSIBLE_0 {
+            //     wValidBitsPerSample: validbits as u16,
+            // };
+            let sample = validbits as u16;
+
+            let subformat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+            let mut mask = 0;
+            for n in 0..channels {
+                mask += 1 << n;
+            }
+            let fmt = WAVEFORMATEXTENSIBLE {
+                Format: wave_format,
+                Samples: sample,
+                SubFormat: subformat,
+                dwChannelMask: mask,
+            };
+            &fmt as *const WAVEFORMATEXTENSIBLE
+        };
+        dbg!((*formatex).Format.nSamplesPerSec);
+    }
+}
+
+pub fn get_periods(client: *mut IAudioClient) -> i64 {
+    unsafe {
+        let mut def_time = 0;
+        (*client).GetDevicePeriod(&mut def_time, null_mut());
+        def_time
     }
 }
 
 pub fn create_stream() -> Result<StreamHandle, Box<dyn Error>> {
     super::check_init();
 
-    // let (device, name, id) = get_default_device();
-    // let id = Device { id, name };
-    // dbg!(id);
+    let (device, name, id) = get_default_device();
 
-    let (id, device) = match wasapi::get_default_device(&wasapi::Direction::Render) {
-        Ok(device) => {
-            let name = match device.get_friendlyname() {
-                Ok(n) => n,
-                Err(e) => {
-                    eprintln!("Failed to get name of default WASAPI device: {}", e);
-                    return Err("Unknown device name")?;
-                }
-            };
-
-            let id = match device.get_id() {
-                Ok(id) => id,
-                Err(e) => {
-                    eprintln!("Failed to get ID of WASAPI device {}: {}", &name, e);
-                    return Err("Unknown device id")?;
-                }
-            };
-            (Device { name, id }, device)
-        }
-        Err(e) => panic!("{}", e),
+    let audio_client: *mut IAudioClient = unsafe {
+        let mut audio_client = null_mut();
+        let result = device.Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
+        check_result(result);
+        assert!(!audio_client.is_null());
+        audio_client as *mut _
     };
+
+    get_mixformat(audio_client);
+
+    let id = Device { id, name };
+    let device = wasapi::get_default_device(&wasapi::Direction::Render).unwrap();
+
+    //Required sample_type, default_period, bps, vbps, sample_rate, channels
+    //Then get the desired_format
+    //Then the block align
+    //Initialize the audio client
 
     let mut audio_client = device.get_iaudioclient()?;
     let default_format = audio_client.get_mixformat()?;
     let default_sample_type = default_format.get_subformat()?;
     let (default_period, _) = audio_client.get_periods()?;
-    let default_bps = default_format.get_bitspersample();
-    let default_vbps = default_format.get_validbitspersample();
-    let default_sample_rate = default_format.get_samplespersec();
-    let default_num_channels = default_format.get_nchannels();
+    let bps = default_format.get_bitspersample();
+    let vbps = default_format.get_validbitspersample();
+    let sample_rate = default_format.get_samplespersec();
+    let num_channels = default_format.get_nchannels();
 
     if let SampleType::Int = default_sample_type {
         return Err("SampleType::Int is not supported.")?;
     }
 
     // Check that the device has at-least two output channels.
-    if default_num_channels < 2 {
+    if num_channels < 2 {
         return Err("Stereo output not found")?;
     }
-
-    // Check if this device supports running in exclusive mode.
-    let (share_mode, sample_rate, bps, vbps, period) = (
-        wasapi::ShareMode::Shared,
-        default_sample_rate,
-        default_bps,
-        default_vbps,
-        default_period,
-    );
 
     let desired_format = wasapi::WaveFormat::new(
         bps as usize,
         vbps as usize,
         &SampleType::Float,
         sample_rate as usize,
-        default_num_channels as usize,
+        num_channels as usize,
     );
 
     let block_align = desired_format.get_blockalign();
 
     audio_client.initialize_client(
         &desired_format,
-        period,
+        default_period,
         &wasapi::Direction::Render,
-        &share_mode,
+        &wasapi::ShareMode::Shared,
         false,
     )?;
 
@@ -218,7 +282,7 @@ pub fn create_stream() -> Result<StreamHandle, Box<dyn Error>> {
         connected_to_system: true,
         sample_rate,
         buffer_size: AudioBufferStreamInfo::UnfixedWithMaxSize(MAX_BUFFER_SIZE),
-        num_out_channels: default_num_channels as u32,
+        num_out_channels: num_channels as u32,
     };
 
     let audio_thread = AudioThread {
@@ -229,7 +293,7 @@ pub fn create_stream() -> Result<StreamHandle, Box<dyn Error>> {
         render_client,
         block_align: block_align as usize,
         vbps,
-        channels: default_num_channels as usize,
+        channels: num_channels as usize,
         max_frames: MAX_BUFFER_SIZE as usize,
     };
 

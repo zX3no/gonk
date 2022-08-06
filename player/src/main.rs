@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
