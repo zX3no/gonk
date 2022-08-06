@@ -1,4 +1,6 @@
 use std::error::Error;
+use std::mem::{transmute, zeroed};
+use std::ptr::null_mut;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -6,6 +8,13 @@ use std::sync::{
 use std::thread;
 
 use wasapi::SampleType;
+use widestring::U16CString;
+use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
+use winapi::um::combaseapi::{CoCreateInstance, PropVariantClear, CLSCTX_ALL};
+use winapi::um::mmdeviceapi::{
+    eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
+};
+use winapi::Interface;
 
 use crate::Device;
 
@@ -48,8 +57,86 @@ impl Drop for StreamHandle {
     }
 }
 
+pub fn get_default_device() -> (IMMDevice, String, String) {
+    super::check_init();
+
+    unsafe {
+        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+
+        let result = CoCreateInstance(
+            &CLSID_MMDeviceEnumerator,
+            null_mut(),
+            CLSCTX_ALL,
+            &IMMDeviceEnumerator::uuidof(),
+            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+        );
+
+        if result != 0 {
+            panic!("{result:#x}")
+        }
+
+        let mut device: *mut IMMDevice = null_mut();
+        let result = (*enumerator).GetDefaultAudioEndpoint(
+            eRender,
+            eConsole,
+            &mut device as *mut *mut IMMDevice,
+        );
+
+        if result != 0 {
+            panic!("{result:#x}")
+        }
+
+        let mut test_device: IMMDevice = zeroed();
+        let result = (*enumerator).GetDefaultAudioEndpoint(
+            eRender,
+            eConsole,
+            &mut test_device as *mut IMMDevice as *mut *mut IMMDevice,
+        );
+
+        if result != 0 {
+            panic!("{result:#x}")
+        }
+
+        let mut store = null_mut();
+        let result = (*device).OpenPropertyStore(0x00000000, &mut store);
+
+        if result != 0 {
+            panic!("{result:#x}")
+        }
+        let mut value = zeroed();
+        let result = (*store).GetValue(
+            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+            &mut value,
+        );
+
+        if result != 0 {
+            panic!("{result:#x}")
+        }
+
+        let ptr_utf16 = *(&value.data as *const _ as *const *const u16);
+        let name = U16CString::from_ptr_str(ptr_utf16).to_string().unwrap();
+        // Clean up the property.
+        PropVariantClear(&mut value);
+
+        let mut id = null_mut();
+        let result = (*device).GetId(&mut id);
+        if result != 0 {
+            panic!("{result:#x}")
+        }
+
+        let id = U16CString::from_ptr_str(id).to_string().unwrap();
+
+        (test_device, name, id)
+    }
+}
+
 pub fn create_stream() -> Result<StreamHandle, Box<dyn Error>> {
     super::check_init();
+
+    // let (device, name, id) = get_default_device();
+    // let id = Device { id, name };
+    // dbg!(id);
+
     let (id, device) = match wasapi::get_default_device(&wasapi::Direction::Render) {
         Ok(device) => {
             let name = match device.get_friendlyname() {

@@ -74,4 +74,6 @@ fn main() {
     //TODO: Ringbuffer that sends data to the output stream.
     let _handle = create_stream().unwrap();
     thread::park();
+
+    get_default_device();
 }
