@@ -1,5 +1,5 @@
 mod enumeration;
-mod run;
-
 pub use enumeration::*;
+
+mod run;
 pub use run::*;

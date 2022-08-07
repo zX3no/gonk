@@ -1,23 +1,30 @@
+use core::slice;
 use std::error::Error;
 use std::mem::{transmute, zeroed};
-use std::ptr::null_mut;
+use std::ptr::{null, null_mut};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use std::thread;
+use std::{default, thread};
 
-use wasapi::SampleType;
+use wasapi::{BufferFlags, SampleType, WaveFormat};
 use widestring::U16CString;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::mmreg::{
     WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_EXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT,
 };
-use winapi::um::audioclient::{IAudioClient, IID_IAudioClient};
+use winapi::shared::ntdef::HANDLE;
+use winapi::um::audioclient::{
+    IAudioClient, IAudioRenderClient, IID_IAudioClient, AUDCLNT_E_DEVICE_INVALIDATED,
+    AUDCLNT_E_NOT_STOPPED, AUDCLNT_E_UNSUPPORTED_FORMAT,
+};
+use winapi::um::audiosessiontypes::{AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK};
 use winapi::um::combaseapi::{CoCreateInstance, PropVariantClear, CLSCTX_ALL};
 use winapi::um::mmdeviceapi::{
     eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
 };
+use winapi::um::synchapi::{CreateEventA, WaitForSingleObject};
 use winapi::Interface;
 
 use crate::Device;
@@ -25,6 +32,7 @@ use crate::Device;
 const PREALLOC_FRAMES: usize = 48_000;
 const BUFFER_SIZE: u32 = 512;
 const MAX_BUFFER_SIZE: u32 = 1024;
+const WAIT_OBJECT_0: u32 = 0x00000000;
 
 #[derive(Debug, Clone)]
 pub struct StreamInfo {
@@ -64,9 +72,12 @@ impl Drop for StreamHandle {
 const STGM_READ: u32 = 0;
 
 #[inline]
-pub fn check_result(result: i32) {
+#[must_use]
+pub fn check(result: i32) -> Result<(), String> {
     if result != 0 {
-        panic!("{result:#x}")
+        Err(format!("{result:#x}"))
+    } else {
+        Ok(())
     }
 }
 
@@ -101,7 +112,7 @@ pub fn get_default_device() -> (&'static IMMDevice, String, String) {
             &IMMDeviceEnumerator::uuidof(),
             &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
         );
-        check_result(result);
+        check(result).unwrap();
 
         let mut device: *mut IMMDevice = null_mut();
         let result = (*enumerator).GetDefaultAudioEndpoint(
@@ -109,18 +120,18 @@ pub fn get_default_device() -> (&'static IMMDevice, String, String) {
             eConsole,
             &mut device as *mut *mut IMMDevice,
         );
-        check_result(result);
+        check(result).unwrap();
 
         let mut store = null_mut();
         let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-        check_result(result);
+        check(result).unwrap();
 
         let mut value = zeroed();
         let result = (*store).GetValue(
             &DEVPKEY_Device_FriendlyName as *const _ as *const _,
             &mut value,
         );
-        check_result(result);
+        check(result).unwrap();
 
         let ptr_utf16 = *(&value.data as *const _ as *const *const u16);
         let name = U16CString::from_ptr_str(ptr_utf16).to_string().unwrap();
@@ -129,30 +140,34 @@ pub fn get_default_device() -> (&'static IMMDevice, String, String) {
 
         let mut id = null_mut();
         let result = (*device).GetId(&mut id);
-        check_result(result);
+        check(result).unwrap();
 
         let id = U16CString::from_ptr_str(id).to_string().unwrap();
-        dbg!(&name);
 
         (&*device, name, id)
     }
 }
 
-pub fn get_mixformat(client: *mut IAudioClient) {
+pub fn create_stream() -> StreamHandle {
     unsafe {
+        let (device, name, id) = get_default_device();
+        let id = Device { id, name };
+
+        let audio_client: *mut IAudioClient = {
+            let mut audio_client = null_mut();
+            let result =
+                device.Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
+            check(result).unwrap();
+            assert!(!audio_client.is_null());
+            audio_client as *mut _
+        };
+
         let mut format = null_mut();
-        (*client).GetMixFormat(&mut format);
+        (*audio_client).GetMixFormat(&mut format);
         let format = &*format;
 
-        // let wavefmt = &*format;
-        // let channels = wavefmt.nChannels;
-        // let sample_rate = wavefmt.nSamplesPerSec;
-        // let bps = wavefmt.wBitsPerSample;
-        // let block_align = wavefmt.nBlockAlign;
-        // let storebits = 8 * block_align as usize / channels as usize;
-
-        let formatex = if format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && format.cbSize == 22 {
-            format as *const _ as *const WAVEFORMATEXTENSIBLE
+        let format = if format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && format.cbSize == 22 {
+            (format as *const _ as *const WAVEFORMATEXTENSIBLE).read()
         } else {
             let validbits = format.wBitsPerSample as usize;
             let blockalign = format.nBlockAlign as usize;
@@ -179,9 +194,6 @@ pub fn get_mixformat(client: *mut IAudioClient) {
                 wFormatTag: WAVE_FORMAT_EXTENSIBLE as u16,
             };
 
-            // let sample = WAVEFORMATEXTENSIBLE_0 {
-            //     wValidBitsPerSample: validbits as u16,
-            // };
             let sample = validbits as u16;
 
             let subformat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
@@ -189,130 +201,101 @@ pub fn get_mixformat(client: *mut IAudioClient) {
             for n in 0..channels {
                 mask += 1 << n;
             }
-            let fmt = WAVEFORMATEXTENSIBLE {
+            WAVEFORMATEXTENSIBLE {
                 Format: wave_format,
                 Samples: sample,
                 SubFormat: subformat,
                 dwChannelMask: mask,
-            };
-            &fmt as *const WAVEFORMATEXTENSIBLE
+            }
         };
-        dbg!((*formatex).Format.nSamplesPerSec);
+
+        //Required sample_type, default_period, bps, vbps, sample_rate, channels
+        //TODO: Check that the sample type is float
+
+        let mut deafult_period = zeroed();
+        (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
+
+        let bps = format.Format.wBitsPerSample;
+        let vbps = format.Samples;
+        let sample_rate = format.Format.nSamplesPerSec;
+        let channels = format.Format.nChannels;
+
+        if channels < 2 {
+            panic!();
+        }
+
+        let desired_format = wasapi::WaveFormat::new(
+            bps as usize,
+            vbps as usize,
+            &SampleType::Float,
+            sample_rate as usize,
+            channels as usize,
+        );
+        let block_align = desired_format.get_blockalign();
+
+        let result = (*audio_client).Initialize(
+            AUDCLNT_SHAREMODE_SHARED,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+            deafult_period,
+            deafult_period,
+            &desired_format.wave_fmt as *const _ as *const WAVEFORMATEX,
+            null(),
+        );
+        check(result).unwrap();
+
+        let h_event = CreateEventA(null_mut(), 0, 0, null());
+        (*audio_client).SetEventHandle(h_event);
+
+        let mut renderclient_ptr = null_mut();
+        let result =
+            (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
+        check(result).unwrap();
+
+        let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
+
+        (*audio_client).Start();
+
+        let stream_dropped = Arc::new(AtomicBool::new(false));
+        let stream_dropped_clone = Arc::clone(&stream_dropped);
+
+        let stream_info = StreamInfo {
+            id,
+            connected_to_system: true,
+            sample_rate,
+            buffer_size: AudioBufferStreamInfo::UnfixedWithMaxSize(MAX_BUFFER_SIZE),
+            num_out_channels: channels as u32,
+        };
+
+        let audio_thread = AudioThread {
+            stream_info: stream_info.clone(),
+            stream_dropped: stream_dropped_clone,
+            audio_client,
+            h_event,
+            render_client,
+            block_align: block_align as usize,
+            vbps,
+            channels: channels as usize,
+            max_frames: MAX_BUFFER_SIZE as usize,
+        };
+
+        eprintln!("Creating audio thread");
+        thread::spawn(move || {
+            audio_thread.run();
+        });
+
+        StreamHandle {
+            stream_info,
+            stream_dropped,
+        }
     }
-}
-
-pub fn get_periods(client: *mut IAudioClient) -> i64 {
-    unsafe {
-        let mut def_time = 0;
-        (*client).GetDevicePeriod(&mut def_time, null_mut());
-        def_time
-    }
-}
-
-pub fn create_stream() -> Result<StreamHandle, Box<dyn Error>> {
-    super::check_init();
-
-    let (device, name, id) = get_default_device();
-
-    let audio_client: *mut IAudioClient = unsafe {
-        let mut audio_client = null_mut();
-        let result = device.Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
-        check_result(result);
-        assert!(!audio_client.is_null());
-        audio_client as *mut _
-    };
-
-    get_mixformat(audio_client);
-
-    let id = Device { id, name };
-    let device = wasapi::get_default_device(&wasapi::Direction::Render).unwrap();
-
-    //Required sample_type, default_period, bps, vbps, sample_rate, channels
-    //Then get the desired_format
-    //Then the block align
-    //Initialize the audio client
-
-    let mut audio_client = device.get_iaudioclient()?;
-    let default_format = audio_client.get_mixformat()?;
-    let default_sample_type = default_format.get_subformat()?;
-    let (default_period, _) = audio_client.get_periods()?;
-    let bps = default_format.get_bitspersample();
-    let vbps = default_format.get_validbitspersample();
-    let sample_rate = default_format.get_samplespersec();
-    let num_channels = default_format.get_nchannels();
-
-    if let SampleType::Int = default_sample_type {
-        return Err("SampleType::Int is not supported.")?;
-    }
-
-    // Check that the device has at-least two output channels.
-    if num_channels < 2 {
-        return Err("Stereo output not found")?;
-    }
-
-    let desired_format = wasapi::WaveFormat::new(
-        bps as usize,
-        vbps as usize,
-        &SampleType::Float,
-        sample_rate as usize,
-        num_channels as usize,
-    );
-
-    let block_align = desired_format.get_blockalign();
-
-    audio_client.initialize_client(
-        &desired_format,
-        default_period,
-        &wasapi::Direction::Render,
-        &wasapi::ShareMode::Shared,
-        false,
-    )?;
-
-    let h_event = audio_client.set_get_eventhandle()?;
-
-    let render_client = audio_client.get_audiorenderclient()?;
-
-    audio_client.start_stream()?;
-
-    let stream_dropped = Arc::new(AtomicBool::new(false));
-    let stream_dropped_clone = Arc::clone(&stream_dropped);
-
-    let stream_info = StreamInfo {
-        id,
-        connected_to_system: true,
-        sample_rate,
-        buffer_size: AudioBufferStreamInfo::UnfixedWithMaxSize(MAX_BUFFER_SIZE),
-        num_out_channels: num_channels as u32,
-    };
-
-    let audio_thread = AudioThread {
-        stream_info: stream_info.clone(),
-        stream_dropped: stream_dropped_clone,
-        audio_client,
-        h_event,
-        render_client,
-        block_align: block_align as usize,
-        vbps,
-        channels: num_channels as usize,
-        max_frames: MAX_BUFFER_SIZE as usize,
-    };
-
-    thread::spawn(move || {
-        audio_thread.run();
-    });
-
-    Ok(StreamHandle {
-        stream_info,
-        stream_dropped,
-    })
 }
 
 pub struct AudioThread {
     pub stream_info: StreamInfo,
     pub stream_dropped: Arc<AtomicBool>,
-    pub audio_client: wasapi::AudioClient,
-    pub h_event: wasapi::Handle,
-    pub render_client: wasapi::AudioRenderClient,
+    pub audio_client: *mut IAudioClient,
+    pub h_event: HANDLE,
+    pub render_client: *mut IAudioRenderClient,
     pub block_align: usize,
     pub vbps: u16,
     pub channels: usize,
@@ -320,7 +303,7 @@ pub struct AudioThread {
 }
 
 impl AudioThread {
-    pub fn run(self) {
+    pub unsafe fn run(self) {
         let AudioThread {
             stream_info,
             stream_dropped,
@@ -352,16 +335,15 @@ impl AudioThread {
         let step = std::f32::consts::PI * 2.0 * pitch / stream_info.sample_rate as f32;
 
         while !stream_dropped.load(Ordering::Relaxed) {
-            let buffer_frame_count = match audio_client.get_available_space_in_frames() {
-                Ok(f) => f as usize,
-                Err(e) => {
-                    eprintln!(
-                        "Fatal WASAPI stream error getting buffer frame count: {}",
-                        e
-                    );
-                    break;
-                }
-            };
+            let mut padding_count = zeroed();
+            let result = (*audio_client).GetCurrentPadding(&mut padding_count);
+            check(result).unwrap();
+
+            let mut buffer_frame_count = zeroed();
+            let result = (*audio_client).GetBufferSize(&mut buffer_frame_count);
+            check(result).unwrap();
+
+            let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
 
             // Make sure that the device's buffer is large enough. In theory if we pre-allocated
             // enough frames this shouldn't ever actually trigger any allocation.
@@ -427,24 +409,40 @@ impl AudioThread {
             }
 
             // Write the now filled output buffer to the device.
-            if let Err(e) = render_client.write_to_device(
-                buffer_frame_count as usize,
-                block_align,
-                &device_buffer[0..buffer_frame_count * block_align],
-                None,
-            ) {
-                eprintln!("Fatal WASAPI stream error while writing to device: {}", e);
-                break;
-            }
+            let nbr_frames = buffer_frame_count;
+            let byte_per_frame = block_align;
+            let data = &device_buffer[0..buffer_frame_count * block_align];
 
-            if let Err(e) = h_event.wait_for_event(1000) {
-                eprintln!("Fatal WASAPI stream error while waiting for event: {}", e);
+            let nbr_bytes = nbr_frames * byte_per_frame;
+            if nbr_bytes != data.len() {
+                panic!(
+                    "Wrong length of data, got {}, expected {}",
+                    data.len(),
+                    nbr_bytes
+                );
+            }
+            let mut bufferptr = null_mut();
+            let result = (*render_client).GetBuffer(nbr_frames as u32, &mut bufferptr);
+            check(result).unwrap();
+
+            let bufferslice = slice::from_raw_parts_mut(bufferptr, nbr_bytes);
+            bufferslice.copy_from_slice(data);
+            let flags = 0;
+            (*render_client).ReleaseBuffer(nbr_frames as u32, flags);
+            check(result).unwrap();
+            // eprintln!("wrote {} frames", nbr_frames);
+
+            let retval = WaitForSingleObject(h_event, 1000);
+            if retval != WAIT_OBJECT_0 {
+                eprintln!("Fatal WASAPI stream error while waiting for event");
                 break;
             }
         }
 
-        if let Err(e) = audio_client.stop_stream() {
-            eprintln!("Error stopping WASAPI stream: {}", e);
+        let result = (*audio_client).Stop();
+        if result != 0 {
+            eprintln!("Error stopping WASAPI stream");
+            check(result).unwrap();
         }
 
         eprintln!("WASAPI audio thread ended");

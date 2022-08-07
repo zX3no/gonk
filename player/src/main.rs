@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
+#![allow(clippy::not_unsafe_ptr_arg_deref, clippy::missing_safety_doc)]
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
@@ -73,8 +73,6 @@ fn queue() {
 fn main() {
     //TODO: Maybe just return the handle and run the stream on creation
     //TODO: Ringbuffer that sends data to the output stream.
-    let _handle = create_stream().unwrap();
+    let _handle = create_stream();
     thread::park();
-
-    get_default_device();
 }
