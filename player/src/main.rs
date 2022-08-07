@@ -73,6 +73,6 @@ fn queue() {
 fn main() {
     //TODO: Maybe just return the handle and run the stream on creation
     //TODO: Ringbuffer that sends data to the output stream.
-    let _handle = create_stream();
+    let _handle = unsafe { create_stream() };
     thread::park();
 }
