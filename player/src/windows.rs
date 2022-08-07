@@ -56,48 +56,17 @@ pub struct Device {
     pub id: String,
 }
 
-#[derive(Debug)]
-pub struct OutputDeviceConfig {
-    pub sample_rates: Vec<u32>,
-    pub block_sizes: Option<BlockSizeRange>,
-    pub num_out_channels: u16,
-}
-
-/// The range of possible block sizes for an audio device.
-#[derive(Debug)]
-pub struct BlockSizeRange {
-    /// The minimum buffer/block size that can be used (inclusive)
-    pub min: u32,
-
-    /// The maximum buffer/block size that can be used (inclusive)
-    pub max: u32,
-
-    /// The default buffer/block size for this device
-    pub default: u32,
-}
-
 #[derive(Debug, Clone)]
 pub struct StreamInfo {
     /// The id of the audio device.
     pub id: Device,
-    /// If this is `false` then it means the app failed to connect to
-    /// the system device and is using "fake/virtual" empty buffers
-    /// instead which will only input and output silence.
-    pub connected_to_system: bool,
     /// The sample rate of the stream.
     pub sample_rate: u32,
     /// The audio buffer size.
-    pub buffer_size: AudioBufferStreamInfo,
+    pub buffer_size: u32,
     /// The number of audio output channels that will be passed into the
     /// process method.
     pub num_out_channels: u32,
-}
-
-/// The audio buffer size of a stream.
-#[derive(Debug, Clone, Copy)]
-pub enum AudioBufferStreamInfo {
-    FixedSized(u32),
-    UnfixedWithMaxSize(u32),
 }
 
 pub struct StreamHandle {
@@ -328,9 +297,8 @@ pub unsafe fn create_stream() -> StreamHandle {
 
     let stream_info = StreamInfo {
         id,
-        connected_to_system: true,
         sample_rate,
-        buffer_size: AudioBufferStreamInfo::UnfixedWithMaxSize(MAX_BUFFER_SIZE),
+        buffer_size: MAX_BUFFER_SIZE,
         num_out_channels: channels as u32,
     };
 
