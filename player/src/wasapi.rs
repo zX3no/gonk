@@ -42,36 +42,14 @@ const AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY: u32 = 0x08000000;
 
 static INIT: Once = Once::new();
 
-#[macro_export]
-macro_rules! DEFINE_GUID {
-    (
-        $name:ident, $l:expr, $w1:expr, $w2:expr,
-        $b1:expr, $b2:expr, $b3:expr, $b4:expr, $b5:expr, $b6:expr, $b7:expr, $b8:expr
-    ) => {
-        pub const $name: winapi::shared::guiddef::GUID = winapi::shared::guiddef::GUID {
-            Data1: $l,
-            Data2: $w1,
-            Data3: $w2,
-            Data4: [$b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8],
-        };
-    };
-}
+const KSDATAFORMAT_SUBTYPE_IEEE_FLOAT: GUID = GUID {
+    Data1: 0x00000003,
+    Data2: 0x0000,
+    Data3: 0x0010,
+    Data4: [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
+};
 
-DEFINE_GUID! {KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
-0x00000003, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}
-
-const IID_IAudioClockAdjustment: GUID = from_u128(0xf6e4c0a0_46d9_4fb8_be21_57a3ef2b626c);
-pub const fn from_u128(uuid: u128) -> GUID {
-    GUID {
-        Data1: (uuid >> 96) as u32,
-        Data2: (uuid >> 80 & 0xffff) as u16,
-        Data3: (uuid >> 64 & 0xffff) as u16,
-        Data4: (uuid as u64).to_be_bytes(),
-    }
-}
-
-//TODO: Fix uuid
-RIDL! {#[uuid(0xf294acfc, 0x3146, 0x4483, 0xa7, 0xbf, 0xad, 0xdc, 0xa7, 0xc2, 0x60, 0xe2)]
+RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
 interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
    fn SetSampleRate(
         flSampleRate: f32,
@@ -293,13 +271,13 @@ pub unsafe fn create_stream() -> StreamHandle {
     );
     check(result).unwrap();
 
-    // let mut audioclock_ptr = null_mut();
-    // let result = (*audio_client).GetService(&IID_IAudioClockAdjustment, &mut audioclock_ptr);
-    // check(result).unwrap();
-    // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
-    //TODO: What sample rates does this accept
-    // let result = (*audio_clock).SetSampleRate(88_100.0);
-    // check(result).unwrap();
+    let mut audioclock_ptr = null_mut();
+    let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
+    check(result).unwrap();
+    let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
+    // TODO: What sample rates does this accept
+    let result = (*audio_clock).SetSampleRate(88_200.0);
+    check(result).unwrap();
 
     let h_event = CreateEventA(null_mut(), 0, 0, null());
     (*audio_client).SetEventHandle(h_event);
@@ -377,7 +355,7 @@ pub struct AudioThread {
 impl AudioThread {
     pub unsafe fn run(self) {
         let AudioThread {
-            mut queue,
+            queue,
             mut cons,
             stream_dropped,
             audio_client,

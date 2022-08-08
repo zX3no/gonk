@@ -2,7 +2,8 @@
     clippy::not_unsafe_ptr_arg_deref,
     clippy::missing_safety_doc,
     non_upper_case_globals,
-    non_snake_case
+    non_snake_case,
+    unused
 )]
 use std::fs::File;
 
@@ -26,8 +27,8 @@ use symphonia::{
     default::get_probe,
 };
 
-mod windows;
-pub use windows::*;
+mod wasapi;
+pub use wasapi::*;
 
 #[derive(Default)]
 pub struct Queue<T> {
