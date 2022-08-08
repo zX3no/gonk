@@ -6,7 +6,6 @@
     unused
 )]
 use std::fs::File;
-
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
@@ -123,15 +122,12 @@ fn decode() {
 
         for smp in buffer {
             handle.queue.push(smp * 0.03)
-            // while handle.prod.push(smp * 0.03).is_err() {
-            //     //Don't push when the buffer is full
-            // }
         }
     }
 }
 
 fn main() {
-    decode();
+    // decode();
     let mut handle = unsafe { create_stream() };
 
     let mut phase: f32 = 0.0;
@@ -146,8 +142,6 @@ fn main() {
             phase -= std::f32::consts::PI * 2.0
         }
 
-        while handle.prod.push(smp * 0.1).is_err() {
-            //Don't push when the buffer is full
-        }
+        handle.queue.push(smp * 0.03);
     }
 }

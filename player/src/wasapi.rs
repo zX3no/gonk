@@ -1,6 +1,7 @@
 use core::slice;
-use ringbuf::{Consumer, Producer, RingBuffer};
+use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
+use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
 use std::sync::{
@@ -8,7 +9,6 @@ use std::sync::{
     Arc,
 };
 use std::thread;
-use widestring::U16CString;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::guiddef::GUID;
 use winapi::shared::mmreg::{
@@ -83,6 +83,22 @@ pub fn check_init() {
     });
 }
 
+pub fn utf16_string(ptr_utf16: *const u16) -> String {
+    // Find the length of the friendly name.
+    let mut len = 0;
+
+    unsafe {
+        while *ptr_utf16.offset(len) != 0 {
+            len += 1;
+        }
+    }
+
+    // Create the utf16 slice and convert it into a string.
+    let name_slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
+    let name_os_string: OsString = OsStringExt::from_wide(name_slice);
+    name_os_string.to_string_lossy().to_string()
+}
+
 pub unsafe fn devices() -> Vec<(*mut IMMDevice, Device)> {
     check_init();
 
@@ -124,16 +140,14 @@ pub unsafe fn devices() -> Vec<(*mut IMMDevice, Device)> {
         );
         check(result).unwrap();
         let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-        let wide_name = U16CString::from_ptr_str(ptr_utf16);
-        let name = wide_name.to_string_lossy().to_string();
+        let name = utf16_string(ptr_utf16);
         PropVariantClear(&mut prop);
 
         //Get id.
-        let mut id = zeroed();
-        let result = (*device).GetId(&mut id);
+        let mut str_ptr = zeroed();
+        let result = (*device).GetId(&mut str_ptr);
         check(result).unwrap();
-        let wide = U16CString::from_ptr_str(id);
-        let id = wide.to_string_lossy().to_string();
+        let id = utf16_string(str_ptr);
 
         //Get device state.
         let mut state = zeroed();
@@ -276,8 +290,8 @@ pub unsafe fn create_stream() -> StreamHandle {
     check(result).unwrap();
     let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
     // TODO: What sample rates does this accept
-    let result = (*audio_clock).SetSampleRate(88_200.0);
-    check(result).unwrap();
+    // let result = (*audio_clock).SetSampleRate(88_200.0);
+    // check(result).unwrap();
 
     let h_event = CreateEventA(null_mut(), 0, 0, null());
     (*audio_client).SetEventHandle(h_event);
@@ -290,13 +304,10 @@ pub unsafe fn create_stream() -> StreamHandle {
     (*audio_client).Start();
 
     let stream_dropped = Arc::new(AtomicBool::new(false));
-    let rb = RingBuffer::<f32>::new(MAX_BUFFER_SIZE as usize * 4);
-    let (prod, cons) = rb.split();
     let queue = Queue::new(MAX_BUFFER_SIZE as usize * 10);
 
     let audio_thread = AudioThread {
         queue: queue.clone(),
-        cons,
         stream_dropped: Arc::clone(&stream_dropped),
         audio_client,
         h_event,
@@ -318,14 +329,12 @@ pub unsafe fn create_stream() -> StreamHandle {
         sample_rate: desired_format.Format.nSamplesPerSec,
         buffer_size: MAX_BUFFER_SIZE,
         num_out_channels: desired_format.Format.nChannels as u32,
-        prod,
         stream_dropped,
     }
 }
 
 pub struct StreamHandle {
     pub queue: Queue<f32>,
-    pub prod: Producer<f32>,
     pub id: Device,
     pub sample_rate: u32,
     pub buffer_size: u32,
@@ -341,7 +350,6 @@ impl Drop for StreamHandle {
 
 pub struct AudioThread {
     pub queue: Queue<f32>,
-    pub cons: Consumer<f32>,
     pub stream_dropped: Arc<AtomicBool>,
     pub audio_client: *mut IAudioClient,
     pub h_event: HANDLE,
@@ -356,7 +364,6 @@ impl AudioThread {
     pub unsafe fn run(self) {
         let AudioThread {
             queue,
-            mut cons,
             stream_dropped,
             audio_client,
             h_event,
@@ -479,16 +486,12 @@ impl AudioThread {
 
             let retval = WaitForSingleObject(h_event, 1000);
             if retval != WAIT_OBJECT_0 {
-                eprintln!("Fatal WASAPI stream error while waiting for event");
-                break;
+                panic!("Fatal WASAPI stream error while waiting for event");
             }
         }
 
         let result = (*audio_client).Stop();
-        if result != 0 {
-            eprintln!("Error stopping WASAPI stream");
-            check(result).unwrap();
-        }
+        check(result).unwrap();
 
         eprintln!("WASAPI audio thread ended");
     }
