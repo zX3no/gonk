@@ -29,6 +29,8 @@ use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::{Interface, RIDL};
 
+use crate::Queue;
+
 const PREALLOC_FRAMES: usize = 48_000;
 // const BUFFER_SIZE: u32 = 512;
 const MAX_BUFFER_SIZE: u32 = 1024;
@@ -85,7 +87,12 @@ pub struct Device {
 #[inline]
 pub fn check(result: i32) -> Result<(), String> {
     if result != 0 {
-        Err(format!("{result:#x}"))
+        //https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
+        match result {
+            //0x80070057
+            -2147024809 => Err("Invalid argument.".to_string()),
+            _ => Err(format!("{result}")),
+        }
     } else {
         Ok(())
     }
@@ -259,20 +266,17 @@ pub unsafe fn create_stream() -> StreamHandle {
     let mut deafult_period = zeroed();
     (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
 
-    let bps = format.Format.wBitsPerSample;
-    let vbps = format.Samples;
-    let sample_rate = format.Format.nSamplesPerSec;
-    let channels = format.Format.nChannels;
-
-    if channels < 2 {
+    if format.Format.nChannels < 2 {
+        let channels = format.Format.nChannels;
         panic!("Device only has {} channels", channels);
     }
 
     let desired_format = new_wavefmtex(
-        bps as usize,
-        vbps as usize,
-        sample_rate as usize,
-        channels as usize,
+        format.Format.wBitsPerSample as usize,
+        format.Samples as usize,
+        // 192_000,
+        format.Format.nSamplesPerSec as usize,
+        format.Format.nChannels as usize,
     );
     let block_align = desired_format.Format.nBlockAlign as u32;
 
@@ -289,12 +293,13 @@ pub unsafe fn create_stream() -> StreamHandle {
     );
     check(result).unwrap();
 
-    let mut audioclock_ptr = null_mut();
-    let result = (*audio_client).GetService(&IID_IAudioClockAdjustment, &mut audioclock_ptr);
-    check(result).unwrap();
-    let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
+    // let mut audioclock_ptr = null_mut();
+    // let result = (*audio_client).GetService(&IID_IAudioClockAdjustment, &mut audioclock_ptr);
+    // check(result).unwrap();
+    // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
     //TODO: What sample rates does this accept
-    (*audio_clock).SetSampleRate(88_200.0);
+    // let result = (*audio_clock).SetSampleRate(88_100.0);
+    // check(result).unwrap();
 
     let h_event = CreateEventA(null_mut(), 0, 0, null());
     (*audio_client).SetEventHandle(h_event);
@@ -307,18 +312,20 @@ pub unsafe fn create_stream() -> StreamHandle {
     (*audio_client).Start();
 
     let stream_dropped = Arc::new(AtomicBool::new(false));
-    let rb = RingBuffer::<f32>::new(MAX_BUFFER_SIZE as usize);
+    let rb = RingBuffer::<f32>::new(MAX_BUFFER_SIZE as usize * 4);
     let (prod, cons) = rb.split();
+    let queue = Queue::new(MAX_BUFFER_SIZE as usize * 10);
 
     let audio_thread = AudioThread {
+        queue: queue.clone(),
         cons,
         stream_dropped: Arc::clone(&stream_dropped),
         audio_client,
         h_event,
         render_client,
         block_align: block_align as usize,
-        vbps,
-        channels: channels as usize,
+        vbps: desired_format.Samples,
+        channels: desired_format.Format.nChannels as usize,
         max_frames: MAX_BUFFER_SIZE as usize,
     };
 
@@ -328,16 +335,18 @@ pub unsafe fn create_stream() -> StreamHandle {
     });
 
     StreamHandle {
+        queue,
         id,
-        sample_rate,
+        sample_rate: desired_format.Format.nSamplesPerSec,
         buffer_size: MAX_BUFFER_SIZE,
-        num_out_channels: channels as u32,
+        num_out_channels: desired_format.Format.nChannels as u32,
         prod,
         stream_dropped,
     }
 }
 
 pub struct StreamHandle {
+    pub queue: Queue<f32>,
     pub prod: Producer<f32>,
     pub id: Device,
     pub sample_rate: u32,
@@ -353,6 +362,7 @@ impl Drop for StreamHandle {
 }
 
 pub struct AudioThread {
+    pub queue: Queue<f32>,
     pub cons: Consumer<f32>,
     pub stream_dropped: Arc<AtomicBool>,
     pub audio_client: *mut IAudioClient,
@@ -367,6 +377,7 @@ pub struct AudioThread {
 impl AudioThread {
     pub unsafe fn run(self) {
         let AudioThread {
+            mut queue,
             mut cons,
             stream_dropped,
             audio_client,
@@ -430,12 +441,14 @@ impl AudioThread {
                         .min(audio_outputs[1].len());
 
                     for i in 0..frames {
-                        if let Some(smp) = cons.next() {
-                            audio_outputs[0][i] = smp;
-                        }
-                        if let Some(smp) = cons.next() {
-                            audio_outputs[1][i] = smp;
-                        }
+                        audio_outputs[0][i] = queue.pop();
+                        audio_outputs[1][i] = queue.pop();
+                        // if let Some(smp) = cons.next() {
+                        //     audio_outputs[0][i] = smp;
+                        // }
+                        // if let Some(smp) = cons.next() {
+                        //     audio_outputs[1][i] = smp;
+                        // }
                     }
                 }
 
