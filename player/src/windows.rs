@@ -1,4 +1,5 @@
 use core::slice;
+use ringbuf::{Consumer, Producer, RingBuffer};
 use std::mem::{transmute, zeroed};
 use std::ptr::{null, null_mut};
 use std::sync::Once;
@@ -9,26 +10,33 @@ use std::sync::{
 use std::thread;
 use widestring::U16CString;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
+use winapi::shared::guiddef::GUID;
 use winapi::shared::mmreg::{
     WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_EXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT,
 };
 use winapi::shared::ntdef::HANDLE;
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
-use winapi::um::audiosessiontypes::{AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK};
+use winapi::um::audiosessiontypes::{
+    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
+};
 use winapi::um::combaseapi::{CoCreateInstance, CoInitializeEx, PropVariantClear, CLSCTX_ALL};
 use winapi::um::mmdeviceapi::{
     eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
 use winapi::um::synchapi::{CreateEventA, WaitForSingleObject};
-use winapi::Interface;
+use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
+use winapi::um::winnt::HRESULT;
+use winapi::{Interface, RIDL};
 
 const PREALLOC_FRAMES: usize = 48_000;
-const BUFFER_SIZE: u32 = 512;
+// const BUFFER_SIZE: u32 = 512;
 const MAX_BUFFER_SIZE: u32 = 1024;
 const WAIT_OBJECT_0: u32 = 0x00000000;
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
+const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
+const AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY: u32 = 0x08000000;
 
 static INIT: Once = Once::new();
 
@@ -50,34 +58,28 @@ macro_rules! DEFINE_GUID {
 DEFINE_GUID! {KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
 0x00000003, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}
 
+const IID_IAudioClockAdjustment: GUID = from_u128(0xf6e4c0a0_46d9_4fb8_be21_57a3ef2b626c);
+pub const fn from_u128(uuid: u128) -> GUID {
+    GUID {
+        Data1: (uuid >> 96) as u32,
+        Data2: (uuid >> 80 & 0xffff) as u16,
+        Data3: (uuid >> 64 & 0xffff) as u16,
+        Data4: (uuid as u64).to_be_bytes(),
+    }
+}
+
+//TODO: Fix uuid
+RIDL! {#[uuid(0xf294acfc, 0x3146, 0x4483, 0xa7, 0xbf, 0xad, 0xdc, 0xa7, 0xc2, 0x60, 0xe2)]
+interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
+   fn SetSampleRate(
+        flSampleRate: f32,
+    ) -> HRESULT,
+}}
+
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Device {
     pub name: String,
     pub id: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct StreamInfo {
-    /// The id of the audio device.
-    pub id: Device,
-    /// The sample rate of the stream.
-    pub sample_rate: u32,
-    /// The audio buffer size.
-    pub buffer_size: u32,
-    /// The number of audio output channels that will be passed into the
-    /// process method.
-    pub num_out_channels: u32,
-}
-
-pub struct StreamHandle {
-    pub stream_info: StreamInfo,
-    pub stream_dropped: Arc<AtomicBool>,
-}
-
-impl Drop for StreamHandle {
-    fn drop(&mut self) {
-        self.stream_dropped.store(true, Ordering::Relaxed);
-    }
 }
 
 #[inline]
@@ -216,6 +218,27 @@ pub unsafe fn default_device() -> *mut IMMDevice {
     device
 }
 
+pub unsafe fn get_mix_format(audio_client: *mut IAudioClient) -> WAVEFORMATEXTENSIBLE {
+    let mut format = null_mut();
+    (*audio_client).GetMixFormat(&mut format);
+    let format = &*format;
+
+    if format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && format.cbSize == 22 {
+        //TODO: Check that the sample type is float
+        (format as *const _ as *const WAVEFORMATEXTENSIBLE).read()
+    } else {
+        let validbits = format.wBitsPerSample as usize;
+        let blockalign = format.nBlockAlign as usize;
+        let samplerate = format.nSamplesPerSec as usize;
+        let formattag = format.wFormatTag;
+        let channels = format.nChannels as usize;
+        if formattag != WAVE_FORMAT_IEEE_FLOAT {
+            panic!("Unsupported format!");
+        }
+        let storebits = 8 * blockalign / channels;
+        new_wavefmtex(storebits, validbits, samplerate, channels)
+    }
+}
 pub unsafe fn create_stream() -> StreamHandle {
     check_init();
     // let device = default_device();
@@ -231,25 +254,7 @@ pub unsafe fn create_stream() -> StreamHandle {
         audio_client as *mut _
     };
 
-    let mut format = null_mut();
-    (*audio_client).GetMixFormat(&mut format);
-    let format = &*format;
-
-    let format = if format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && format.cbSize == 22 {
-        //TODO: Check that the sample type is float
-        (format as *const _ as *const WAVEFORMATEXTENSIBLE).read()
-    } else {
-        let validbits = format.wBitsPerSample as usize;
-        let blockalign = format.nBlockAlign as usize;
-        let samplerate = format.nSamplesPerSec as usize;
-        let formattag = format.wFormatTag;
-        let channels = format.nChannels as usize;
-        if formattag != WAVE_FORMAT_IEEE_FLOAT {
-            panic!("Unsupported format!");
-        }
-        let storebits = 8 * blockalign / channels;
-        new_wavefmtex(storebits, validbits, samplerate, channels)
-    };
+    let format = get_mix_format(audio_client);
 
     let mut deafult_period = zeroed();
     (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
@@ -273,7 +278,10 @@ pub unsafe fn create_stream() -> StreamHandle {
 
     let result = (*audio_client).Initialize(
         AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+        AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+            | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+            | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
+            | AUDCLNT_STREAMFLAGS_RATEADJUST,
         deafult_period,
         deafult_period,
         &desired_format as *const _ as *const WAVEFORMATEX,
@@ -281,30 +289,30 @@ pub unsafe fn create_stream() -> StreamHandle {
     );
     check(result).unwrap();
 
+    let mut audioclock_ptr = null_mut();
+    let result = (*audio_client).GetService(&IID_IAudioClockAdjustment, &mut audioclock_ptr);
+    check(result).unwrap();
+    let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
+    //TODO: What sample rates does this accept
+    (*audio_clock).SetSampleRate(88_200.0);
+
     let h_event = CreateEventA(null_mut(), 0, 0, null());
     (*audio_client).SetEventHandle(h_event);
 
     let mut renderclient_ptr = null_mut();
     let result = (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
     check(result).unwrap();
-
     let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
 
     (*audio_client).Start();
 
     let stream_dropped = Arc::new(AtomicBool::new(false));
-    let stream_dropped_clone = Arc::clone(&stream_dropped);
-
-    let stream_info = StreamInfo {
-        id,
-        sample_rate,
-        buffer_size: MAX_BUFFER_SIZE,
-        num_out_channels: channels as u32,
-    };
+    let rb = RingBuffer::<f32>::new(MAX_BUFFER_SIZE as usize);
+    let (prod, cons) = rb.split();
 
     let audio_thread = AudioThread {
-        stream_info: stream_info.clone(),
-        stream_dropped: stream_dropped_clone,
+        cons,
+        stream_dropped: Arc::clone(&stream_dropped),
         audio_client,
         h_event,
         render_client,
@@ -320,13 +328,32 @@ pub unsafe fn create_stream() -> StreamHandle {
     });
 
     StreamHandle {
-        stream_info,
+        id,
+        sample_rate,
+        buffer_size: MAX_BUFFER_SIZE,
+        num_out_channels: channels as u32,
+        prod,
         stream_dropped,
     }
 }
 
+pub struct StreamHandle {
+    pub prod: Producer<f32>,
+    pub id: Device,
+    pub sample_rate: u32,
+    pub buffer_size: u32,
+    pub num_out_channels: u32,
+    pub stream_dropped: Arc<AtomicBool>,
+}
+
+impl Drop for StreamHandle {
+    fn drop(&mut self) {
+        self.stream_dropped.store(true, Ordering::Relaxed);
+    }
+}
+
 pub struct AudioThread {
-    pub stream_info: StreamInfo,
+    pub cons: Consumer<f32>,
     pub stream_dropped: Arc<AtomicBool>,
     pub audio_client: *mut IAudioClient,
     pub h_event: HANDLE,
@@ -340,7 +367,7 @@ pub struct AudioThread {
 impl AudioThread {
     pub unsafe fn run(self) {
         let AudioThread {
-            stream_info,
+            mut cons,
             stream_dropped,
             audio_client,
             h_event,
@@ -363,11 +390,6 @@ impl AudioThread {
         let channel_align = block_align / channels;
 
         eprintln!("WASAPI stream bits per sample: {}", vbps);
-
-        let mut phase: f32 = 0.0;
-        let pitch: f32 = 440.0;
-        let gain: f32 = 0.1;
-        let step = std::f32::consts::PI * 2.0 * pitch / stream_info.sample_rate as f32;
 
         while !stream_dropped.load(Ordering::Relaxed) {
             let mut padding_count = zeroed();
@@ -408,15 +430,12 @@ impl AudioThread {
                         .min(audio_outputs[1].len());
 
                     for i in 0..frames {
-                        // generate rudamentary sine wave
-                        let smp = phase.sin() * gain;
-                        phase += step;
-                        if phase >= std::f32::consts::PI * 2.0 {
-                            phase -= std::f32::consts::PI * 2.0
+                        if let Some(smp) = cons.next() {
+                            audio_outputs[0][i] = smp;
                         }
-
-                        audio_outputs[0][i] = smp * 0.1;
-                        audio_outputs[1][i] = smp * 0.1;
+                        if let Some(smp) = cons.next() {
+                            audio_outputs[1][i] = smp;
+                        }
                     }
                 }
 
