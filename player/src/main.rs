@@ -33,7 +33,6 @@ pub use wasapi::*;
 pub struct Queue<T> {
     q: Arc<Mutex<VecDeque<T>>>,
     cv: Arc<Condvar>,
-
     capacity: usize,
 }
 
@@ -106,7 +105,18 @@ fn decode() {
         .make(&track.codec_params, &DecoderOptions::default())
         .unwrap();
 
-    let handle = unsafe { create_stream() };
+    probed.format.seek(
+        SeekMode::Accurate,
+        SeekTo::Time {
+            time: Time {
+                seconds: 95,
+                frac: 0.0,
+            },
+            track_id: None,
+        },
+    );
+
+    let handle = unsafe { create_stream(44100) };
     loop {
         let next_packet = match probed.format.next_packet() {
             Ok(next_packet) => next_packet,
@@ -127,8 +137,8 @@ fn decode() {
 }
 
 fn main() {
-    // decode();
-    let mut handle = unsafe { create_stream() };
+    decode();
+    let mut handle = unsafe { create_stream(44100) };
 
     let mut phase: f32 = 0.0;
     let pitch: f32 = 440.0;

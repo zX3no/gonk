@@ -40,14 +40,18 @@ const COINIT_MULTITHREADED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
 const AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY: u32 = 0x08000000;
 
-static INIT: Once = Once::new();
-
 const KSDATAFORMAT_SUBTYPE_IEEE_FLOAT: GUID = GUID {
     Data1: 0x00000003,
     Data2: 0x0000,
     Data3: 0x0010,
     Data4: [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
 };
+
+const COMMON_SAMPLE_RATES: [u32; 13] = [
+    5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
+];
+
+static INIT: Once = Once::new();
 
 RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
 interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
@@ -69,6 +73,8 @@ pub fn check(result: i32) -> Result<(), String> {
         match result {
             //0x80070057
             -2147024809 => Err("Invalid argument.".to_string()),
+            // 0x80004003
+            -2147467261 => Err("Pointer is not valid".to_string()),
             _ => Err(format!("{result}")),
         }
     } else {
@@ -195,7 +201,7 @@ pub fn new_wavefmtex(
     }
 }
 
-pub unsafe fn default_device() -> *mut IMMDevice {
+pub unsafe fn default_device() -> (*mut IMMDevice, Device) {
     check_init();
     let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
     let result = CoCreateInstance(
@@ -214,7 +220,28 @@ pub unsafe fn default_device() -> *mut IMMDevice {
         &mut device as *mut *mut IMMDevice,
     );
     check(result).unwrap();
-    device
+
+    //Get name.
+    let mut store = null_mut();
+    let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+    check(result).unwrap();
+    let mut prop = zeroed();
+    let result = (*store).GetValue(
+        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+        &mut prop,
+    );
+    check(result).unwrap();
+    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+    let name = utf16_string(ptr_utf16);
+    PropVariantClear(&mut prop);
+
+    //Get id.
+    let mut str_ptr = zeroed();
+    let result = (*device).GetId(&mut str_ptr);
+    check(result).unwrap();
+    let id = utf16_string(str_ptr);
+
+    (device, Device { name, id })
 }
 
 pub unsafe fn get_mix_format(audio_client: *mut IAudioClient) -> WAVEFORMATEXTENSIBLE {
@@ -238,11 +265,31 @@ pub unsafe fn get_mix_format(audio_client: *mut IAudioClient) -> WAVEFORMATEXTEN
         new_wavefmtex(storebits, validbits, samplerate, channels)
     }
 }
-pub unsafe fn create_stream() -> StreamHandle {
+
+pub unsafe fn is_format_supported(
+    format: WAVEFORMATEXTENSIBLE,
+    audio_client: *mut IAudioClient,
+) -> *mut WAVEFORMATEX {
+    let mut new_format = null_mut();
+    let result = (*audio_client).IsFormatSupported(
+        AUDCLNT_SHAREMODE_SHARED,
+        &format as *const _ as *const WAVEFORMATEX,
+        &mut new_format,
+    );
+    if result != 1 {
+        check(result).unwrap();
+    }
+    new_format
+}
+
+pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
     check_init();
-    // let device = default_device();
-    let mut devices = devices();
-    let (device, id) = devices.remove(0);
+
+    if !COMMON_SAMPLE_RATES.contains(&sample_rate) {
+        panic!("Invalid sample rate.");
+    }
+
+    let (device, id) = default_device();
 
     let audio_client: *mut IAudioClient = {
         let mut audio_client = null_mut();
@@ -266,10 +313,10 @@ pub unsafe fn create_stream() -> StreamHandle {
     let desired_format = new_wavefmtex(
         format.Format.wBitsPerSample as usize,
         format.Samples as usize,
-        // 192_000,
-        format.Format.nSamplesPerSec as usize,
+        sample_rate as usize,
         format.Format.nChannels as usize,
     );
+
     let block_align = desired_format.Format.nBlockAlign as u32;
 
     let result = (*audio_client).Initialize(
@@ -318,8 +365,8 @@ pub unsafe fn create_stream() -> StreamHandle {
         max_frames: MAX_BUFFER_SIZE as usize,
     };
 
-    eprintln!("Creating audio thread");
     thread::spawn(move || {
+        eprintln!("Audio thread created!");
         audio_thread.run();
     });
 
@@ -428,12 +475,6 @@ impl AudioThread {
                     for i in 0..frames {
                         audio_outputs[0][i] = queue.pop();
                         audio_outputs[1][i] = queue.pop();
-                        // if let Some(smp) = cons.next() {
-                        //     audio_outputs[0][i] = smp;
-                        // }
-                        // if let Some(smp) = cons.next() {
-                        //     audio_outputs[1][i] = smp;
-                        // }
                     }
                 }
 
@@ -482,7 +523,6 @@ impl AudioThread {
             let flags = 0;
             (*render_client).ReleaseBuffer(nbr_frames as u32, flags);
             check(result).unwrap();
-            // eprintln!("wrote {} frames", nbr_frames);
 
             let retval = WaitForSingleObject(h_event, 1000);
             if retval != WAIT_OBJECT_0 {
