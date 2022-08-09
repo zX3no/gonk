@@ -1,4 +1,5 @@
 use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
+use crossterm::event::MouseEvent;
 use gonk_database::{Index, RawPlaylist, RawSong, Song};
 use gonk_player::Player;
 use tui::layout::Alignment;
@@ -400,11 +401,24 @@ pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
     }
 }
 
-pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame) {
+pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
     let horizontal = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
         .split(area);
+
+    if let Some(event) = event {
+        let rect = Rect {
+            x: event.column,
+            y: event.row,
+            ..Default::default()
+        };
+        if rect.intersects(horizontal[1]) {
+            playlist.mode = Mode::Song;
+        } else if rect.intersects(horizontal[0]) {
+            playlist.mode = Mode::Playlist;
+        }
+    }
 
     let items: Vec<ListItem> = playlist
         .playlists

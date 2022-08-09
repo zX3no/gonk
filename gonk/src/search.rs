@@ -229,7 +229,7 @@ pub fn refresh_results(search: &mut Search) {
     // println!(" {:?}", now.elapsed());
 }
 
-pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
+pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
     if search.query_changed {
         search.query_changed = !search.query_changed;
         refresh_results(search);
@@ -243,6 +243,21 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame) {
             Constraint::Percentage(60),
         ])
         .split(area);
+
+    if let Some(event) = event {
+        let rect = Rect {
+            x: event.column,
+            y: event.row,
+            ..Default::default()
+        };
+        if rect.intersects(v[0]) || rect.intersects(v[1]) {
+            search.mode = Mode::Search;
+            search.results.select(None);
+        } else if rect.intersects(v[2]) && !search.results.is_empty() {
+            search.mode = Mode::Select;
+            search.results.select(Some(0));
+        }
+    }
 
     let h = Layout::default()
         .direction(Direction::Horizontal)
