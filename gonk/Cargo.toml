@@ -2,13 +2,13 @@
 name = "gonk"
 version = "0.1.0"
 edition = "2021"
-default-run = "gonk"
-
 authors = ["Bay"]
 description = "A terminal music player"
 repository = "https://github.com/zX3no/gonk"
 readme = "README.md"
-license = "MIT OR Apache-2.0"
+license = "CC0-1.0"
+
+default-run = "gonk"
 
 [dependencies]
 tui = "0.18.0"
