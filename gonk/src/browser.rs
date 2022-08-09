@@ -1,5 +1,6 @@
 use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
+use crossterm::event::MouseEvent;
 use gonk_database::{Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -150,7 +151,7 @@ pub fn get_selected(browser: &Browser) -> Vec<Song> {
     Vec::new()
 }
 
-pub fn draw(browser: &Browser, area: Rect, f: &mut Frame) {
+pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
     let size = area.width / 3;
     let rem = area.width % 3;
 
@@ -162,6 +163,21 @@ pub fn draw(browser: &Browser, area: Rect, f: &mut Frame) {
             Constraint::Length(size + rem),
         ])
         .split(area);
+
+    if let Some(event) = event {
+        let rect = Rect {
+            x: event.column,
+            y: event.row,
+            ..Default::default()
+        };
+        if rect.intersects(chunks[2]) {
+            browser.mode = Mode::Song
+        } else if rect.intersects(chunks[1]) {
+            browser.mode = Mode::Album
+        } else if rect.intersects(chunks[0]) {
+            browser.mode = Mode::Artist
+        }
+    }
 
     let a: Vec<ListItem> = browser
         .artists

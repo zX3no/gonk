@@ -64,6 +64,19 @@ fn save_queue(player: &Player) {
     );
 }
 
+fn draw_log(f: &mut Frame) -> Rect {
+    if log::message().is_some() {
+        let area = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(2), Constraint::Length(3)])
+            .split(f.size());
+        log::draw(area[1], f);
+        area[0]
+    } else {
+        f.size()
+    }
+}
+
 fn main() {
     if gonk_database::init().is_err() {
         return println!("Database is corrupted! Please close all instances of gonk then relaunch or run `gonk reset`.");
@@ -203,22 +216,12 @@ fn main() {
 
         terminal
             .draw(|f| {
-                let top = if log::message().is_some() {
-                    let area = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Min(2), Constraint::Length(3)])
-                        .split(f.size());
-                    log::draw(area[1], f);
-                    area[0]
-                } else {
-                    f.size()
-                };
-
+                let top = draw_log(f);
                 match mode {
-                    Mode::Browser => browser::draw(&browser, top, f),
+                    Mode::Browser => browser::draw(&mut browser, top, f, None),
                     Mode::Queue => queue::draw(&mut queue, &mut player, f, None),
-                    Mode::Search => search::draw(&mut search, top, f),
-                    Mode::Playlist => playlist::draw(&mut playlist, top, f),
+                    Mode::Search => search::draw(&mut search, top, f, None),
+                    Mode::Playlist => playlist::draw(&mut playlist, top, f, None),
                     Mode::Settings => settings::draw(&mut settings, top, f),
                 };
             })
@@ -418,13 +421,38 @@ fn main() {
                 Event::Mouse(event) => match event.kind {
                     MouseEventKind::ScrollUp => input.up(),
                     MouseEventKind::ScrollDown => input.down(),
-                    MouseEventKind::Down(_) => {
-                        if let Mode::Queue = mode {
+                    MouseEventKind::Down(_) => match mode {
+                        Mode::Browser => {
+                            terminal
+                                .draw(|f| {
+                                    let top = draw_log(f);
+                                    browser::draw(&mut browser, top, f, Some(event));
+                                })
+                                .unwrap();
+                        }
+                        Mode::Queue => {
                             terminal
                                 .draw(|f| queue::draw(&mut queue, &mut player, f, Some(event)))
                                 .unwrap();
                         }
-                    }
+                        Mode::Playlist => {
+                            terminal
+                                .draw(|f| {
+                                    let top = draw_log(f);
+                                    playlist::draw(&mut playlist, top, f, Some(event));
+                                })
+                                .unwrap();
+                        }
+                        Mode::Search => {
+                            terminal
+                                .draw(|f| {
+                                    let top = draw_log(f);
+                                    search::draw(&mut search, top, f, Some(event));
+                                })
+                                .unwrap();
+                        }
+                        _ => (),
+                    },
                     _ => (),
                 },
                 Event::Resize(..) => (),
