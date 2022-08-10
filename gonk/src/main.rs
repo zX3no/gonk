@@ -251,8 +251,19 @@ fn main() {
                             if control && c == 'w' {
                                 search::on_backspace(&mut search, true);
                             } else {
-                                search.query.push(c);
-                                search.query_changed = true;
+                                //Sometimes users will open the search when the meant to open playlist or settings.
+                                //This will cause them to search for ',' or '.'.
+                                //I can't think of any songs that would start with a comma or period so just change modes instead.
+                                //Before you would need to exit from the search with tab or escape and then change to settings/playlist mode.
+                                match c {
+                                    ',' if search.query.is_empty() => mode = Mode::Settings,
+                                    '.' if search.query.is_empty() => mode = Mode::Playlist,
+                                    '/' if search.query.is_empty() => (),
+                                    _ => {
+                                        search.query.push(c);
+                                        search.query_changed = true;
+                                    }
+                                };
                             }
                         }
                         KeyCode::Char(c) if input_playlist => {
@@ -316,8 +327,8 @@ fn main() {
                             player.volume_down();
                             gonk_database::update_volume(player.volume);
                         }
-                        KeyCode::Char(',') => mode = Mode::Playlist,
-                        KeyCode::Char('.') => mode = Mode::Settings,
+                        KeyCode::Char(',') => mode = Mode::Settings,
+                        KeyCode::Char('.') => mode = Mode::Playlist,
                         KeyCode::Char('/') => {
                             if mode == Mode::Search {
                                 if search.mode == SearchMode::Select {

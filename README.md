@@ -59,9 +59,9 @@ gonk
 | Clear queue                 | `C`             |
 | Clear except playing        | `Shift + C`     |
 | Change Mode                 | `Tab`           |
+| Settings                    | `,`             |
+| Playlists                   | `.`             |
 | Search                      | `/`             |
-| Settings                    | `.`             |
-| Playlists                   | `,`             |
 | Add to playlist             | `Shift + Enter` |
 | Update database             | `U`             |
 | Quit                        | `Ctrl + C`      |
