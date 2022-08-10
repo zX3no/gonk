@@ -201,8 +201,7 @@ pub fn refresh_results(search: &mut Search) {
         if score_1 == score_2 {
             match item_1 {
                 Item::Artist(_) => match item_2 {
-                    Item::Song(_) => Ordering::Less,
-                    Item::Album(_) => Ordering::Less,
+                    Item::Song(_) | Item::Album(_) => Ordering::Less,
                     Item::Artist(_) => Ordering::Equal,
                 },
                 Item::Album(_) => match item_2 {
@@ -212,8 +211,7 @@ pub fn refresh_results(search: &mut Search) {
                 },
                 Item::Song(_) => match item_2 {
                     Item::Song(_) => Ordering::Equal,
-                    Item::Album(_) => Ordering::Greater,
-                    Item::Artist(_) => Ordering::Greater,
+                    Item::Album(_) | Item::Artist(_) => Ordering::Greater,
                 },
             }
         } else if score_2 > score_1 {
@@ -309,7 +307,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseE
                             .border_type(BorderType::Rounded)
                             .title("Album"),
                         h[1],
-                    )
+                    );
                 };
             }
         }

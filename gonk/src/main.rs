@@ -1,3 +1,13 @@
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::wildcard_imports,
+    clippy::float_cmp,
+    clippy::cast_lossless,
+    clippy::too_many_lines,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_database::Index;
@@ -83,7 +93,7 @@ fn main() {
     }
 
     log::init();
-    let mut handle = None;
+    let mut scan_handle = None;
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     if !args.is_empty() {
@@ -95,7 +105,7 @@ fn main() {
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
                     gonk_database::update_music_folder(path.as_str());
-                    handle = Some(gonk_database::scan(path));
+                    scan_handle = Some(gonk_database::scan(path));
                 } else {
                     return println!("Invalid path.");
                 }
@@ -143,7 +153,7 @@ fn main() {
     let songs = Index::new(songs, index);
     let volume = gonk_database::volume();
     let device = gonk_database::get_output_device();
-    let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
+    let player_thread = thread::spawn(move || Player::new(device, volume, songs, elapsed));
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -154,20 +164,18 @@ fn main() {
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut busy = false;
-
-    //TODO: Re-time if using another thread is faster after the rework.
-    let mut player = player.join().unwrap();
-
-    //If there are songs in the queue and the database isn't scanning, display the queue.
-    if !player.songs.is_empty() && handle.is_none() {
-        mode = Mode::Queue;
-    }
-
     let mut dots: usize = 1;
     let mut scan_timer: Option<Instant> = None;
 
+    let mut player = player_thread.join().unwrap();
+
+    //If there are songs in the queue and the database isn't scanning, display the queue.
+    if !player.songs.is_empty() && scan_handle.is_none() {
+        mode = Mode::Queue;
+    }
+
     loop {
-        if let Some(h) = &handle {
+        if let Some(h) = &scan_handle {
             if h.is_finished() {
                 browser::refresh(&mut browser);
                 search::refresh_cache(&mut search);
@@ -182,7 +190,7 @@ fn main() {
                 }
 
                 scan_timer = None;
-                handle = None;
+                scan_handle = None;
             } else {
                 busy = true;
 
@@ -293,12 +301,12 @@ fn main() {
                         },
                         KeyCode::Char('X') => {
                             if let Mode::Playlist = mode {
-                                playlist::delete(&mut playlist, true)
+                                playlist::delete(&mut playlist, true);
                             }
                         }
                         KeyCode::Char('u') if mode == Mode::Browser => {
                             let folder = gonk_database::get_music_folder().to_string();
-                            handle = Some(gonk_database::scan(folder));
+                            scan_handle = Some(gonk_database::scan(folder));
                         }
                         KeyCode::Char('u') if mode == Mode::Playlist => {
                             playlist.playlists = Index::from(gonk_database::playlists());
@@ -353,18 +361,18 @@ fn main() {
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                playlist::add_to_playlist(&mut playlist, &songs);
+                                playlist::add(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
                             Mode::Queue => {
                                 if let Some(song) = player.songs.selected() {
-                                    playlist::add_to_playlist(&mut playlist, &[song.clone()]);
+                                    playlist::add(&mut playlist, &[song.clone()]);
                                     mode = Mode::Playlist;
                                 }
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    playlist::add_to_playlist(&mut playlist, &songs);
+                                    playlist::add(&mut playlist, &songs);
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -462,7 +470,7 @@ fn main() {
                                 })
                                 .unwrap();
                         }
-                        _ => (),
+                        Mode::Settings => (),
                     },
                     _ => (),
                 },

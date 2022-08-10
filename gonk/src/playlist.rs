@@ -59,7 +59,7 @@ impl Input for Playlist {
                         selected.songs.up();
                     }
                 }
-                _ => (),
+                Mode::Popup => (),
             }
         }
     }
@@ -75,7 +75,7 @@ impl Input for Playlist {
                         selected.songs.down();
                     }
                 }
-                _ => (),
+                Mode::Popup => (),
             }
         }
     }
@@ -84,7 +84,7 @@ impl Input for Playlist {
         if self.delete {
             self.yes = true;
         } else if let Mode::Song = self.mode {
-            self.mode = Mode::Playlist
+            self.mode = Mode::Playlist;
         }
     }
 
@@ -142,29 +142,24 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
             let pos = playlist.playlists.data.iter().position(|p| p.name == name);
             let songs: Vec<RawSong> = playlist.song_buffer.iter().map(RawSong::from).collect();
 
-            match pos {
-                //Playlist exists
-                Some(pos) => {
-                    let p = &mut playlist.playlists.data[pos];
-                    p.songs.data.extend(songs);
-                    p.songs.select(Some(0));
-                    p.save();
-                    playlist.playlists.select(Some(pos));
-                }
-                //Playlist does not exist.
-                None => {
-                    let len = playlist.playlists.len();
-                    playlist.playlists.data.push(RawPlaylist::new(&name, songs));
-                    playlist.playlists.select(Some(len));
-                    playlist.playlists.data[len].save();
-                }
+            if let Some(pos) = pos {
+                let p = &mut playlist.playlists.data[pos];
+                p.songs.data.extend(songs);
+                p.songs.select(Some(0));
+                p.save();
+                playlist.playlists.select(Some(pos));
+            } else {
+                let len = playlist.playlists.len();
+                playlist.playlists.data.push(RawPlaylist::new(&name, songs));
+                playlist.playlists.select(Some(len));
+                playlist.playlists.data[len].save();
             }
 
             //Reset everything.
             playlist.search_query = String::new();
             playlist.mode = Mode::Playlist;
         }
-        _ => (),
+        Mode::Popup => (),
     }
 }
 
@@ -182,7 +177,7 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
     }
 }
 
-pub fn add_to_playlist(playlist: &mut Playlist, songs: &[Song]) {
+pub fn add(playlist: &mut Playlist, songs: &[Song]) {
     playlist.song_buffer = songs.to_vec();
     playlist.mode = Mode::Popup;
 }
@@ -217,13 +212,10 @@ pub fn delete(playlist: &mut Playlist, shift: bool) {
     match playlist.mode {
         Mode::Playlist if shift => delete_playlist(playlist),
         Mode::Song if shift => delete_song(playlist),
-        Mode::Playlist => {
+        Mode::Playlist | Mode::Song => {
             playlist.delete = true;
         }
-        Mode::Song => {
-            playlist.delete = true;
-        }
-        _ => (),
+        Mode::Popup => (),
     }
 }
 
@@ -498,8 +490,8 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
     }
 
     if playlist.delete {
-        draw_delete_popup(playlist, f)
+        draw_delete_popup(playlist, f);
     } else if let Mode::Popup = playlist.mode {
-        draw_popup(playlist, f)
+        draw_popup(playlist, f);
     }
 }
