@@ -4,6 +4,7 @@
     non_upper_case_globals,
     non_snake_case
 )]
+use gonk_database::{Index, Song};
 use std::fs::File;
 use std::path::Path;
 use std::sync::mpsc::{self, Sender};
@@ -29,6 +30,12 @@ use symphonia::{
 
 mod wasapi;
 pub use wasapi::*;
+
+#[allow(unused)]
+#[inline]
+fn sleep(millis: u64) {
+    thread::sleep(Duration::from_millis(millis));
+}
 
 #[derive(Default)]
 pub struct Queue<T> {
@@ -82,6 +89,7 @@ impl<T> Clone for Queue<T> {
 #[derive(Debug, PartialEq)]
 pub enum Event {
     TogglePlayback,
+    Stop,
     Volume(u8),
     Seek(f64),
     Play(String),
@@ -94,12 +102,14 @@ pub fn calc_volume(volume: u8) -> f32 {
 
 pub struct State {
     pub playing: bool,
+    pub finished: bool,
     pub elapsed: Duration,
     pub duration: Duration,
 }
 
 static mut STATE: State = State {
-    playing: true,
+    playing: false,
+    finished: false,
     elapsed: Duration::from_secs(0),
     duration: Duration::from_secs(0),
 };
@@ -107,17 +117,20 @@ static mut STATE: State = State {
 pub struct Player {
     pub s: Sender<Event>,
     pub volume: u8,
+    pub songs: Index<Song>,
 }
 
 impl Player {
     pub fn new(volume: u8) -> Self {
         let (s, r) = mpsc::channel();
 
+        //TODO: Cleanly drop the stream handle
         thread::spawn(move || {
             let mut decoder: Option<Symphonia> = None;
             let mut sample_rate = 44100;
             let mut handle = unsafe { create_stream(sample_rate) };
-            let mut playing = true;
+            let mut playing = false;
+            let mut finished = false;
             let mut volume = calc_volume(volume);
 
             loop {
@@ -142,19 +155,26 @@ impl Player {
                                 handle = unsafe { create_stream(sample_rate) };
                             }
                             decoder = Some(d);
+                            playing = true;
+                            finished = false;
+                        }
+                        Event::Stop => {
+                            playing = false;
+                            finished = true;
+                            decoder = None;
                         }
                     }
                 }
 
                 if let Some(d) = &mut decoder {
                     //Update the player state.
-                    unsafe {
-                        STATE = State {
-                            playing,
-                            elapsed: d.elapsed(),
-                            duration: d.duration(),
-                        }
-                    }
+                    let state = State {
+                        playing,
+                        finished,
+                        elapsed: d.elapsed(),
+                        duration: d.duration(),
+                    };
+                    unsafe { STATE = state };
 
                     if playing {
                         if let Some(next) = d.next_packet() {
@@ -162,16 +182,20 @@ impl Player {
                                 handle.queue.push(smp * volume)
                             }
                         } else {
-                            println!("Song finished!");
-                            decoder = None;
                             //Song is finished
+                            decoder = None;
+                            finished = true;
                         }
                     }
                 }
             }
         });
 
-        Self { s, volume }
+        Self {
+            s,
+            volume,
+            songs: Index::default(),
+        }
     }
     pub fn volume_up(&mut self) {
         self.volume = (self.volume + 5).clamp(0, 100);
@@ -184,8 +208,15 @@ impl Player {
     pub fn toggle_playback(&self) {
         self.s.send(Event::TogglePlayback).unwrap();
     }
-    pub fn play(&self, path: String) {
-        self.s.send(Event::Play(path)).unwrap();
+    pub fn play(&self, path: &str) {
+        self.s.send(Event::Play(path.to_string())).unwrap();
+    }
+    pub fn seek_by(&self, duration: Duration) {
+        let pos = (self.elapsed() + duration).as_secs_f64();
+        self.s.send(Event::Seek(pos)).unwrap();
+    }
+    pub fn seek_to(&self, position: Duration) {
+        self.s.send(Event::Seek(position.as_secs_f64())).unwrap();
     }
     pub fn elapsed(&self) -> Duration {
         unsafe { STATE.elapsed }
@@ -195,6 +226,46 @@ impl Player {
     }
     pub fn playing(&self) -> bool {
         unsafe { STATE.playing }
+    }
+    pub fn next(&mut self) {
+        self.songs.down();
+        if let Some(song) = self.songs.selected() {
+            self.play(&song.path)
+        }
+    }
+    pub fn prev(&mut self) {
+        self.songs.up();
+        if let Some(song) = self.songs.selected() {
+            self.play(&song.path)
+        }
+    }
+    pub fn clear(&mut self) {
+        self.s.send(Event::Stop).unwrap();
+        self.songs = Index::default();
+    }
+    pub fn clear_except_playing(&mut self) {
+        if let Some(index) = self.songs.index() {
+            let playing = self.songs.data.remove(index);
+            self.songs = Index::new(vec![playing], Some(0));
+        }
+    }
+    pub fn add(&mut self, songs: &[Song]) -> Result<(), String> {
+        self.songs.data.extend(songs.to_vec());
+        if self.songs.selected().is_none() {
+            self.songs.select(Some(0));
+            self.play_selected()?;
+        }
+        Ok(())
+    }
+    pub fn play_selected(&mut self) -> Result<(), String> {
+        if let Some(song) = self.songs.selected() {
+            if Path::new(&song.path).exists() {
+                self.play(&song.path);
+            } else {
+                return Err(format!("Path does not exist: {:?}", song.path));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -295,11 +366,13 @@ impl Symphonia {
 }
 
 fn main() {
-    let player = Player::new(15);
+    let mut player = Player::new(15);
 
     let _path = r"D:\OneDrive\Music\Foxtails\fawn\09. life is a death scene, princess.flac";
     let path = r"D:\OneDrive\Music\Foxtails\fawn\06. gallons of spiders went flying thru the stratosphere.flac";
-    player.play(path.to_string());
+    player.play(path);
+    player.clear();
+    player.play(path);
 
     thread::park();
 }
