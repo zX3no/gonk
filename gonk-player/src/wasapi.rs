@@ -1,3 +1,4 @@
+use crate::Queue;
 use core::slice;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
@@ -29,10 +30,7 @@ use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::{Interface, RIDL};
 
-use crate::Queue;
-
 const PREALLOC_FRAMES: usize = 48_000;
-// const BUFFER_SIZE: u32 = 512;
 const MAX_BUFFER_SIZE: u32 = 1024;
 const WAIT_OBJECT_0: u32 = 0x00000000;
 const STGM_READ: u32 = 0;
@@ -324,6 +322,10 @@ pub unsafe fn create_stream(device: &Device, sample_rate: u32) -> StreamHandle {
         format.Format.nChannels as usize,
     );
 
+    if desired_format.Samples != 32 {
+        panic!("64-bit buffers are not supported!");
+    }
+
     let block_align = desired_format.Format.nBlockAlign as u32;
 
     let result = (*audio_client).Initialize(
@@ -339,11 +341,10 @@ pub unsafe fn create_stream(device: &Device, sample_rate: u32) -> StreamHandle {
     );
     check(result).unwrap();
 
-    let mut audioclock_ptr = null_mut();
-    let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
-    check(result).unwrap();
+    // let mut audioclock_ptr = null_mut();
+    // let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
+    // check(result).unwrap();
     // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
-    // TODO: What sample rates does this accept
     // let result = (*audio_clock).SetSampleRate(88_200.0);
     // check(result).unwrap();
 
@@ -367,7 +368,6 @@ pub unsafe fn create_stream(device: &Device, sample_rate: u32) -> StreamHandle {
         h_event,
         render_client,
         block_align: block_align as usize,
-        vbps: desired_format.Samples,
         channels: desired_format.Format.nChannels as usize,
         max_frames: MAX_BUFFER_SIZE as usize,
     };
@@ -408,7 +408,6 @@ pub struct AudioThread {
     pub h_event: HANDLE,
     pub render_client: *mut IAudioRenderClient,
     pub block_align: usize,
-    pub vbps: u16,
     pub channels: usize,
     pub max_frames: usize,
 }
@@ -422,7 +421,6 @@ impl AudioThread {
             h_event,
             render_client,
             block_align,
-            vbps,
             channels,
             max_frames,
         } = self;
@@ -453,53 +451,39 @@ impl AudioThread {
             // enough frames this shouldn't ever actually trigger any allocation.
             if buffer_frame_count > device_buffer_capacity_frames {
                 device_buffer_capacity_frames = buffer_frame_count;
-                eprintln!("WASAPI wants a buffer of size {}. This may trigger an allocation on the audio thread.", buffer_frame_count);
                 device_buffer.resize(buffer_frame_count as usize * block_align, 0);
             }
 
             let mut frames_written = 0;
             while frames_written < buffer_frame_count {
                 let frames = (buffer_frame_count - frames_written).min(max_frames);
+                //We don't clear old frames because they are always filled with new information.
 
-                // Clear and resize the buffer first. Since we never allow more than
-                // `max_frames`, this will never allocate.
-                for b in proc_owned_buffers.iter_mut() {
-                    b.clear();
-                    b.resize(frames, 0.0);
-                }
+                let audio_outputs = proc_owned_buffers.as_mut_slice();
 
-                //Process audio here:
-                {
-                    let audio_outputs = proc_owned_buffers.as_mut_slice();
+                let frames = frames
+                    .min(audio_outputs[0].len())
+                    .min(audio_outputs[1].len());
 
-                    let frames = frames
-                        .min(audio_outputs[0].len())
-                        .min(audio_outputs[1].len());
-
-                    for i in 0..frames {
-                        audio_outputs[0][i] = queue.pop();
-                        audio_outputs[1][i] = queue.pop();
-                    }
+                for i in 0..frames {
+                    audio_outputs[0][i] = queue.pop();
+                    audio_outputs[1][i] = queue.pop();
                 }
 
                 let device_buffer_part = &mut device_buffer
                     [frames_written * block_align..(frames_written + frames) * block_align];
 
                 // Fill each slice into the device's output buffer
-                if vbps == 32 {
-                    for (frame_i, out_frame) in
-                        device_buffer_part.chunks_exact_mut(block_align).enumerate()
+                for (frame_i, out_frame) in
+                    device_buffer_part.chunks_exact_mut(block_align).enumerate()
+                {
+                    for (ch_i, out_smp_bytes) in
+                        out_frame.chunks_exact_mut(channel_align).enumerate()
                     {
-                        for (ch_i, out_smp_bytes) in
-                            out_frame.chunks_exact_mut(channel_align).enumerate()
-                        {
-                            let smp_bytes = proc_owned_buffers[ch_i][frame_i].to_le_bytes();
+                        let smp_bytes = proc_owned_buffers[ch_i][frame_i].to_le_bytes();
 
-                            out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
-                        }
+                        out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
                     }
-                } else {
-                    todo!("64 bit buffers?");
                 }
 
                 frames_written += frames;
@@ -511,13 +495,8 @@ impl AudioThread {
             let data = &device_buffer[0..buffer_frame_count * block_align];
 
             let nbr_bytes = nbr_frames * byte_per_frame;
-            if nbr_bytes != data.len() {
-                panic!(
-                    "Wrong length of data, got {}, expected {}",
-                    data.len(),
-                    nbr_bytes
-                );
-            }
+            debug_assert_eq!(nbr_bytes, data.len());
+
             let mut bufferptr = null_mut();
             let result = (*render_client).GetBuffer(nbr_frames as u32, &mut bufferptr);
             check(result).unwrap();
@@ -528,17 +507,13 @@ impl AudioThread {
             (*render_client).ReleaseBuffer(nbr_frames as u32, flags);
             check(result).unwrap();
 
-            // let retval = WaitForSingleObject(h_event, 1000);
-            // if retval != WAIT_OBJECT_0 {
-            //     panic!("Fatal WASAPI stream error while waiting for event");
-            // }
-            while WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {}
+            if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {
+                panic!("Fatal WASAPI stream error while waiting for event");
+            }
         }
 
         let result = (*audio_client).Stop();
         check(result).unwrap();
-
-        eprintln!("WASAPI audio thread ended");
     }
 }
 
