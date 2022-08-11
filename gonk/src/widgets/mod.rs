@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![allow(clippy::pedantic)]
 
 mod guage;
 mod list;

@@ -66,7 +66,7 @@ impl Input for Browser {
             Mode::Album => self.albums.up(),
             Mode::Song => self.songs.up(),
         }
-        update_browser(self);
+        update(self);
     }
 
     fn down(&mut self) {
@@ -75,7 +75,7 @@ impl Input for Browser {
             Mode::Album => self.albums.down(),
             Mode::Song => self.songs.down(),
         }
-        update_browser(self);
+        update(self);
     }
 
     fn left(&mut self) {
@@ -105,7 +105,7 @@ pub fn refresh(browser: &mut Browser) {
     update_albums(browser);
 }
 
-pub fn update_browser(browser: &mut Browser) {
+pub fn update(browser: &mut Browser) {
     match browser.mode {
         Mode::Artist => update_albums(browser),
         Mode::Album => update_songs(browser),
@@ -171,11 +171,11 @@ pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<Mous
             ..Default::default()
         };
         if rect.intersects(chunks[2]) {
-            browser.mode = Mode::Song
+            browser.mode = Mode::Song;
         } else if rect.intersects(chunks[1]) {
-            browser.mode = Mode::Album
+            browser.mode = Mode::Album;
         } else if rect.intersects(chunks[0]) {
-            browser.mode = Mode::Artist
+            browser.mode = Mode::Artist;
         }
     }
 
