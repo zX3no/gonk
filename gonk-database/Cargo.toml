@@ -12,4 +12,4 @@ license = "CC0-1.0"
 memmap2 = "0.5.5"
 rayon = "1.5.3"
 walkdir = "2.3.2"
-symphonia = {version = "0.5.1", default-features = false,  features = ["flac", "mp3", "ogg"]}
+symphonia = {version = "0.5.1", default-features = false,  features = ["flac", "mp3", "ogg", "vorbis"]}
