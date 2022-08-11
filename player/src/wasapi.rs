@@ -62,6 +62,7 @@ interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtb
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Device {
+    pub inner: *mut IMMDevice,
     pub name: String,
     pub id: String,
 }
@@ -105,7 +106,7 @@ pub fn utf16_string(ptr_utf16: *const u16) -> String {
     name_os_string.to_string_lossy().to_string()
 }
 
-pub unsafe fn devices() -> Vec<(*mut IMMDevice, Device)> {
+pub unsafe fn devices() -> Vec<Device> {
     check_init();
 
     let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
@@ -163,8 +164,12 @@ pub unsafe fn devices() -> Vec<(*mut IMMDevice, Device)> {
             panic!("Device is disabled?");
         }
 
-        let id = Device { name, id };
-        devices.push((device, id));
+        let device = Device {
+            inner: device,
+            name,
+            id,
+        };
+        devices.push(device);
     }
     devices
 }
@@ -201,7 +206,7 @@ pub fn new_wavefmtex(
     }
 }
 
-pub unsafe fn default_device() -> (*mut IMMDevice, Device) {
+pub unsafe fn default_device() -> Device {
     check_init();
     let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
     let result = CoCreateInstance(
@@ -241,7 +246,11 @@ pub unsafe fn default_device() -> (*mut IMMDevice, Device) {
     check(result).unwrap();
     let id = utf16_string(str_ptr);
 
-    (device, Device { name, id })
+    Device {
+        inner: device,
+        name,
+        id,
+    }
 }
 
 pub unsafe fn get_mix_format(audio_client: *mut IAudioClient) -> WAVEFORMATEXTENSIBLE {
@@ -282,19 +291,17 @@ pub unsafe fn is_format_supported(
     new_format
 }
 
-pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
+pub unsafe fn create_stream(device: &Device, sample_rate: u32) -> StreamHandle {
     check_init();
 
     if !COMMON_SAMPLE_RATES.contains(&sample_rate) {
         panic!("Invalid sample rate.");
     }
 
-    let (device, id) = default_device();
-
     let audio_client: *mut IAudioClient = {
         let mut audio_client = null_mut();
         let result =
-            (*device).Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
+            (*device.inner).Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
         check(result).unwrap();
         assert!(!audio_client.is_null());
         audio_client as *mut _
@@ -371,7 +378,7 @@ pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
 
     StreamHandle {
         queue,
-        id,
+        device: device.clone(),
         sample_rate: desired_format.Format.nSamplesPerSec,
         buffer_size: MAX_BUFFER_SIZE,
         num_out_channels: desired_format.Format.nChannels as u32,
@@ -381,7 +388,7 @@ pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
 
 pub struct StreamHandle {
     pub queue: Queue<f32>,
-    pub id: Device,
+    pub device: Device,
     pub sample_rate: u32,
     pub buffer_size: u32,
     pub num_out_channels: u32,

@@ -93,6 +93,7 @@ pub enum Event {
     Volume(u8),
     Seek(f64),
     Play(String),
+    OutputDevice(String),
 }
 
 #[inline]
@@ -128,7 +129,9 @@ impl Player {
         thread::spawn(move || {
             let mut decoder: Option<Symphonia> = None;
             let mut sample_rate = 44100;
-            let mut handle = unsafe { create_stream(sample_rate) };
+            let devices = unsafe { devices() };
+            let mut device = unsafe { default_device() };
+            let mut handle = unsafe { create_stream(&device, sample_rate) };
             let mut volume = calc_volume(volume);
 
             loop {
@@ -150,7 +153,7 @@ impl Player {
                             let sr = d.sample_rate();
                             if sr != sample_rate {
                                 sample_rate = sr;
-                                handle = unsafe { create_stream(sample_rate) };
+                                handle = unsafe { create_stream(&device, sample_rate) };
                             }
                             unsafe {
                                 STATE.duration = d.duration();
@@ -165,6 +168,13 @@ impl Player {
                                 STATE.playing = true;
                             };
                             decoder = None;
+                        }
+                        Event::OutputDevice(name) => {
+                            let d = devices.iter().find(|device| device.name == name);
+                            if let Some(d) = d {
+                                device = d.clone();
+                                handle = unsafe { create_stream(&device, sample_rate) };
+                            }
                         }
                     }
                 }
@@ -298,6 +308,11 @@ impl Player {
             }
         }
         Ok(())
+    }
+    pub fn set_output_device(&self, device: &str) {
+        self.s
+            .send(Event::OutputDevice(device.to_string()))
+            .unwrap();
     }
 }
 

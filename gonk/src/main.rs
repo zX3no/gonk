@@ -9,7 +9,6 @@ use settings::Settings;
 use std::{
     io::{stdout, Stdout},
     path::Path,
-    thread,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
@@ -139,10 +138,10 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, _elapsed) = gonk_database::get_queue();
-    let _songs = Index::new(songs, index);
+    // let (songs, index, _elapsed) = gonk_database::get_queue();
+    // let _songs = Index::new(songs, index);
     let volume = gonk_database::volume();
-    let _device = gonk_database::get_output_device();
+    // let _device = gonk_database::get_output_device();
     let mut player = Player::new(volume);
 
     let mut browser = Browser::new();
