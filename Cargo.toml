@@ -1,5 +1,5 @@
 [workspace]
-members = ["gonk", "gonk-database", "gonk-player", "player"]
+members = ["gonk", "gonk-database", "player", "gonk-player"]
 
 [profile.release]
 strip = true

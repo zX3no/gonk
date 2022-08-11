@@ -102,12 +102,9 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
         if (size.height - 3 == y || size.height - 2 == y || size.height - 1 == y)
             && size.height > 15
         {
-            let ratio = x as f32 / size.width as f32;
-            let duration = player.duration().as_secs_f32();
-            match player.seek_to(duration * ratio) {
-                Ok(_) => (),
-                Err(e) => log!("{}", e),
-            };
+            let ratio = x as f64 / size.width as f64;
+            let duration = player.duration().as_secs_f64();
+            player.seek_to(duration * ratio);
         }
 
         //Mouse support for the queue.

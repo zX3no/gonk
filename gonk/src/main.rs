@@ -139,11 +139,11 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = gonk_database::get_queue();
-    let songs = Index::new(songs, index);
+    let (songs, index, _elapsed) = gonk_database::get_queue();
+    let _songs = Index::new(songs, index);
     let volume = gonk_database::volume();
-    let device = gonk_database::get_output_device();
-    let player = thread::spawn(move || Player::new(device, volume, songs, elapsed));
+    let _device = gonk_database::get_output_device();
+    let mut player = Player::new(volume);
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -154,9 +154,6 @@ fn main() {
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut busy = false;
-
-    //TODO: Re-time if using another thread is faster after the rework.
-    let mut player = player.join().unwrap();
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && handle.is_none() {
@@ -263,10 +260,7 @@ fn main() {
                                 playlist.search_query.push(c);
                             }
                         }
-                        KeyCode::Char(' ') => match player.toggle_playback() {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
+                        KeyCode::Char(' ') => player.toggle_playback(),
                         KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
@@ -292,22 +286,10 @@ fn main() {
                         KeyCode::Char('u') if mode == Mode::Playlist => {
                             playlist.playlists = Index::from(gonk_database::playlists());
                         }
-                        KeyCode::Char('q') => match player.seek_by(-10.0) {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
-                        KeyCode::Char('e') => match player.seek_by(10.0) {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
-                        KeyCode::Char('a') => match player.previous() {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
-                        KeyCode::Char('d') => match player.next() {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
+                        KeyCode::Char('q') => player.seek_backward(),
+                        KeyCode::Char('e') => player.seek_foward(),
+                        KeyCode::Char('a') => player.prev(),
+                        KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
                             gonk_database::update_volume(player.volume);
@@ -362,7 +344,7 @@ fn main() {
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                match player.add_songs(&songs) {
+                                match player.add(&songs) {
                                     Ok(_) => (),
                                     Err(e) => log!("{}", e),
                                 }
@@ -379,7 +361,7 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    match player.add_songs(&songs) {
+                                    match player.add(&songs) {
                                         Ok(_) => (),
                                         Err(e) => log!("{}", e),
                                     }

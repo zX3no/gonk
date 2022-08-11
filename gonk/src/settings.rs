@@ -1,6 +1,6 @@
 use crate::{log, widgets::*, Frame, Input};
 use gonk_database::Index;
-use gonk_player::{Device, DeviceTrait, Player};
+use gonk_player::Player;
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -8,32 +8,32 @@ use tui::{
 };
 
 pub struct Settings {
-    pub devices: Index<Device>,
+    pub devices: Index<String>,
     pub current_device: String,
 }
 
 impl Settings {
     pub fn new() -> Self {
-        let default_device = gonk_player::default_device();
-        let wanted_device = gonk_database::get_output_device();
+        // let default_device = gonk_player::default_device();
+        // let wanted_device = gonk_database::get_output_device();
 
-        let devices = gonk_player::audio_devices();
+        // let devices = gonk_player::audio_devices();
 
-        let current_device = if devices
-            .iter()
-            .flat_map(DeviceTrait::name)
-            .any(|x| x == wanted_device)
-        {
-            wanted_device.to_string()
-        } else {
-            let name = default_device.name().unwrap();
-            gonk_database::update_output_device(&name);
-            name
-        };
+        // let current_device = if devices
+        //     .iter()
+        //     .flat_map(DeviceTrait::name)
+        //     .any(|x| x == wanted_device)
+        // {
+        //     wanted_device.to_string()
+        // } else {
+        //     let name = default_device.name().unwrap();
+        //     gonk_database::update_output_device(&name);
+        //     name
+        // };
 
         Self {
-            devices: Index::new(devices, Some(0)),
-            current_device,
+            devices: Index::default(),
+            current_device: String::new(),
         }
     }
 }
@@ -53,42 +53,42 @@ impl Input for Settings {
 }
 
 pub fn on_enter(settings: &mut Settings, player: &mut Player) {
-    if let Some(device) = settings.devices.selected() {
-        match player.set_output_device(device) {
-            Ok(_) => settings.current_device = device.name().unwrap(),
-            Err(e) => log!("{}", e),
-        }
-    }
+    // if let Some(device) = settings.devices.selected() {
+    //     match player.set_output_device(device) {
+    //         Ok(_) => settings.current_device = device.name().unwrap(),
+    //         Err(e) => log!("{}", e),
+    //     }
+    // }
 }
 
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
-    let items: Vec<ListItem> = settings
-        .devices
-        .data
-        .iter()
-        .map(|device| {
-            let name = device.name().unwrap();
-            if name == settings.current_device {
-                ListItem::new(name)
-            } else {
-                ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))
-            }
-        })
-        .collect();
+    // let items: Vec<ListItem> = settings
+    //     .devices
+    //     .data
+    //     .iter()
+    //     .map(|device| {
+    //         let name = device.name().unwrap();
+    //         if name == settings.current_device {
+    //             ListItem::new(name)
+    //         } else {
+    //             ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))
+    //         }
+    //     })
+    //     .collect();
 
-    let list = List::new(&items)
-        .block(
-            Block::default()
-                .title("─Output Device")
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
-        .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default())
-        .highlight_symbol("> ");
+    // let list = List::new(&items)
+    //     .block(
+    //         Block::default()
+    //             .title("─Output Device")
+    //             .borders(Borders::ALL)
+    //             .border_type(BorderType::Rounded),
+    //     )
+    //     .style(Style::default().fg(Color::White))
+    //     .highlight_style(Style::default())
+    //     .highlight_symbol("> ");
 
-    let mut state = ListState::default();
-    state.select(settings.devices.index());
+    // let mut state = ListState::default();
+    // state.select(settings.devices.index());
 
-    f.render_stateful_widget(list, area, &mut state);
+    // f.render_stateful_widget(list, area, &mut state);
 }
