@@ -93,11 +93,12 @@ impl<T> Clone for Queue<T> {
 #[derive(Debug, PartialEq)]
 pub enum Event {
     TogglePlayback,
-    Stop,
+    Reset,
     Volume(u8),
     Seek(f64),
     Play(String),
     OutputDevice(String),
+    Initialise((String, f32)),
 }
 
 #[inline]
@@ -114,7 +115,7 @@ pub struct State {
 
 static mut STATE: State = State {
     playing: false,
-    finished: true,
+    finished: false, //This triggers the next song
     elapsed: Duration::from_secs(0),
     duration: Duration::from_secs(0),
 };
@@ -126,21 +127,49 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(volume: u8) -> Self {
+    pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
+        let devices = unsafe { devices() };
+        let d = devices.iter().find(|d| d.name == device);
+        let mut device = if let Some(d) = d {
+            d.clone()
+        } else {
+            unsafe { default_device() }
+        };
+
         let (s, r) = mpsc::channel();
+
+        if let Some(song) = songs.selected() {
+            s.send(Event::Initialise((song.path.clone(), elapsed)))
+                .unwrap();
+        }
 
         //TODO: Cleanly drop the stream handle
         thread::spawn(move || {
             let mut decoder: Option<Symphonia> = None;
             let mut sample_rate = 44100;
-            let devices = unsafe { devices() };
-            let mut device = unsafe { default_device() };
             let mut handle = unsafe { create_stream(&device, sample_rate) };
             let mut volume = calc_volume(volume);
 
             loop {
                 if let Ok(event) = r.try_recv() {
                     match event {
+                        Event::Initialise((path, elapsed)) => {
+                            let mut d = Symphonia::new(path);
+                            let pos = Duration::from_secs_f32(elapsed);
+                            d.seek(pos);
+                            let sr = d.sample_rate();
+                            if sr != sample_rate {
+                                sample_rate = sr;
+                                handle = unsafe { create_stream(&device, sample_rate) };
+                            }
+                            unsafe {
+                                STATE.elapsed = pos;
+                                STATE.duration = d.duration();
+                                STATE.playing = false;
+                                STATE.finished = false;
+                            };
+                            decoder = Some(d);
+                        }
                         Event::TogglePlayback => unsafe { STATE.playing = !STATE.playing },
                         Event::Volume(v) => {
                             let v = v.clamp(0, 100);
@@ -161,15 +190,15 @@ impl Player {
                             }
                             unsafe {
                                 STATE.duration = d.duration();
-                                STATE.finished = false;
                                 STATE.playing = true;
+                                STATE.finished = false;
                             };
                             decoder = Some(d);
                         }
-                        Event::Stop => {
+                        Event::Reset => {
                             unsafe {
+                                STATE.playing = false;
                                 STATE.finished = false;
-                                STATE.playing = true;
                             };
                             decoder = None;
                         }
@@ -184,7 +213,7 @@ impl Player {
                 }
 
                 if let Some(d) = &mut decoder {
-                    if unsafe { STATE.playing } {
+                    if unsafe { STATE.playing && !STATE.finished } {
                         if let Some(next) = d.next_packet() {
                             for smp in next.samples() {
                                 handle.queue.push(smp * volume)
@@ -200,11 +229,7 @@ impl Player {
             }
         });
 
-        Self {
-            s,
-            volume,
-            songs: Index::default(),
-        }
+        Self { s, volume, songs }
     }
     pub fn volume_up(&mut self) {
         self.volume = (self.volume + 5).clamp(0, 100);
@@ -277,7 +302,7 @@ impl Player {
         Ok(())
     }
     pub fn clear(&mut self) {
-        self.s.send(Event::Stop).unwrap();
+        self.s.send(Event::Reset).unwrap();
         self.songs = Index::default();
     }
     pub fn clear_except_playing(&mut self) {

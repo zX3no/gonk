@@ -148,11 +148,11 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    // let (songs, index, _elapsed) = gonk_database::get_queue();
-    // let _songs = Index::new(songs, index);
+    let (songs, index, elapsed) = gonk_database::get_queue();
+    let songs = Index::new(songs, index);
     let volume = gonk_database::volume();
-    // let _device = gonk_database::get_output_device();
-    let mut player = Player::new(volume);
+    let device = gonk_database::get_output_device();
+    let mut player = Player::new(device, volume, songs, elapsed);
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -163,14 +163,13 @@ fn main() {
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut busy = false;
+    let mut dots: usize = 1;
+    let mut scan_timer: Option<Instant> = None;
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && scan_handle.is_none() {
         mode = Mode::Queue;
     }
-
-    let mut dots: usize = 1;
-    let mut scan_timer: Option<Instant> = None;
 
     loop {
         if let Some(h) = &scan_handle {

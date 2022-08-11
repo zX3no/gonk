@@ -65,6 +65,8 @@ pub struct Device {
     pub id: String,
 }
 
+unsafe impl Send for Device {}
+
 #[inline]
 pub fn check(result: i32) -> Result<(), String> {
     if result != 0 {
