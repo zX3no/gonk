@@ -2,11 +2,10 @@
     clippy::not_unsafe_ptr_arg_deref,
     clippy::missing_safety_doc,
     non_upper_case_globals,
-    non_snake_case,
-    unused
+    non_snake_case
 )]
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::mpsc::{self, Sender};
 use std::{
     collections::VecDeque,
@@ -19,12 +18,11 @@ use symphonia::{
     core::{
         audio::SampleBuffer,
         codecs::{Decoder, DecoderOptions},
-        errors::{Error, SeekErrorKind},
         formats::{FormatOptions, SeekMode, SeekTo},
         io::MediaSourceStream,
         meta::MetadataOptions,
-        probe::{Hint, ProbeResult},
-        units::{Time, TimeBase},
+        probe::Hint,
+        units::Time,
     },
     default::get_probe,
 };
@@ -83,30 +81,90 @@ impl<T> Clone for Queue<T> {
 
 #[derive(Debug, PartialEq)]
 pub enum Event {
-    State(State),
-    Volume(u16),
+    TogglePlayback,
+    Volume(u8),
     Seek(f64),
-    Play(PathBuf),
+    Play(String),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum State {
-    Playing,
-    Paused,
+#[inline]
+fn calc_volume(volume: u8) -> f32 {
+    volume as f32 / 500.0
 }
-
-const VOLUME_STEP: u8 = 5;
-const VOLUME_REDUCTION: f32 = 500.0;
 
 struct Player {
-    s: Sender<Event>,
+    pub s: Sender<Event>,
+    pub volume: u8,
 }
 
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(volume: u8) -> Self {
         let (s, r) = mpsc::channel();
 
-        Self { s }
+        thread::spawn(move || {
+            let mut decoder: Option<Symphonia> = None;
+            let mut sample_rate = 44100;
+            let mut handle = unsafe { create_stream(sample_rate) };
+            let mut playing = true;
+            let mut volume = calc_volume(volume);
+
+            loop {
+                if let Ok(event) = r.try_recv() {
+                    match event {
+                        Event::TogglePlayback => playing = !playing,
+                        Event::Volume(v) => {
+                            let v = v.clamp(0, 100);
+                            volume = calc_volume(v);
+                        }
+                        Event::Seek(pos) => {
+                            let pos = Duration::from_secs_f64(pos);
+                            if let Some(decoder) = &mut decoder {
+                                decoder.seek(pos);
+                            }
+                        }
+                        Event::Play(path) => {
+                            let d = Symphonia::new(path);
+                            let sr = d.sample_rate();
+                            if sr != sample_rate {
+                                sample_rate = sr;
+                                handle = unsafe { create_stream(sample_rate) };
+                            }
+                            decoder = Some(d);
+                        }
+                    }
+                }
+
+                if playing {
+                    if let Some(d) = &mut decoder {
+                        if let Some(next) = d.next_packet() {
+                            for smp in next.samples() {
+                                handle.queue.push(smp * volume)
+                            }
+                        } else {
+                            println!("Song finished!");
+                            decoder = None;
+                            //Song is finished
+                        }
+                    }
+                }
+            }
+        });
+
+        Self { s, volume }
+    }
+    pub fn volume_up(&mut self) {
+        self.volume = (self.volume + 5).clamp(0, 100);
+        self.s.send(Event::Volume(self.volume)).unwrap();
+    }
+    pub fn volume_down(&mut self) {
+        self.volume = (self.volume as i8 - 5).clamp(0, 100) as u8;
+        self.s.send(Event::Volume(self.volume)).unwrap();
+    }
+    pub fn toggle_playback(&self) {
+        self.s.send(Event::TogglePlayback).unwrap();
+    }
+    pub fn play(&self, path: String) {
+        self.s.send(Event::Play(path)).unwrap();
     }
 }
 
@@ -122,7 +180,7 @@ impl Symphonia {
         let file = File::open(path).unwrap();
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
-        let mut probed = get_probe()
+        let probed = get_probe()
             .format(
                 &Hint::default(),
                 mss,
@@ -137,7 +195,7 @@ impl Symphonia {
 
         let track = probed.format.default_track().unwrap().to_owned();
 
-        let mut decoder = symphonia::default::get_codecs()
+        let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &DecoderOptions::default())
             .unwrap();
 
@@ -157,12 +215,7 @@ impl Symphonia {
         let tb = self.track.codec_params.time_base.unwrap();
         let n_frames = self.track.codec_params.n_frames.unwrap();
         let dur = self.track.codec_params.start_ts + n_frames;
-        let time = self
-            .track
-            .codec_params
-            .time_base
-            .unwrap()
-            .calc_time(n_frames);
+        let time = tb.calc_time(dur);
         Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
     }
     pub fn sample_rate(&self) -> u32 {
@@ -179,63 +232,45 @@ impl Symphonia {
             )
             .unwrap();
     }
-    pub fn next_packet(&mut self) -> SampleBuffer<f32> {
+    pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
         let next_packet = match self.format_reader.next_packet() {
             Ok(next_packet) => next_packet,
             Err(err) => {
+                if self.elapsed() == self.duration() {
+                    return None;
+                }
                 panic!("{}", err);
             }
         };
 
-        let tb = self.track.codec_params.time_base.unwrap();
         let ts = next_packet.ts();
-        self.elapsed = ts;
+        //This is probably the last packet.
+        if ts < self.elapsed {
+            let n_frames = self.track.codec_params.n_frames.unwrap();
+            let dur = self.track.codec_params.start_ts + n_frames;
+            self.elapsed = dur;
+        } else {
+            self.elapsed = ts;
+        }
 
         let decoded = self.decoder.decode(&next_packet).unwrap();
         let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         buffer.copy_interleaved_ref(decoded);
-        buffer
+        Some(buffer)
     }
 }
 
 fn main() {
-    #[rustfmt::skip]
-    let path = r"D:\OneDrive\Music\Foxtails\fawn\09. life is a death scene, princess.flac";
-    // let path = r"D:\OneDrive\Music\Nirvana\Nevermind (Remastered 2021)\12. Nirvana - Something In The Way (Remastered 2021).flac";
-    let mut decoder = Symphonia::new(path);
+    let mut player = Player::new(15);
 
-    let (s, r) = mpsc::channel();
-
-    thread::spawn(move || {
-        let handle = unsafe { create_stream(decoder.sample_rate()) };
-        let mut state = State::Playing;
-        let mut volume = 15.0 / VOLUME_REDUCTION;
-
-        loop {
-            if let Ok(event) = r.try_recv() {
-                match event {
-                    Event::State(s) => state = s,
-                    Event::Volume(v) => {
-                        volume = v as f32 / VOLUME_REDUCTION;
-                    }
-                    Event::Seek(pos) => {
-                        let pos = Duration::from_secs_f64(pos);
-                        decoder.seek(pos);
-                    }
-                    Event::Play(path) => {}
-                }
-            }
-
-            if state != State::Paused {
-                let next_packet = decoder.next_packet();
-                for smp in next_packet.samples() {
-                    handle.queue.push(smp * volume)
-                }
-            }
-        }
-    });
-
-    s.send(Event::Seek(95.0)).unwrap();
+    let _path = r"D:\OneDrive\Music\Foxtails\fawn\09. life is a death scene, princess.flac";
+    let path = r"D:\OneDrive\Music\Foxtails\fawn\06. gallons of spiders went flying thru the stratosphere.flac";
+    player.play(path.to_string());
+    player.toggle_playback();
+    player.toggle_playback();
+    player.volume_up();
+    player.volume_down();
+    dbg!(player.volume);
 
     thread::park();
 }

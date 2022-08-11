@@ -335,7 +335,7 @@ pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
     let mut audioclock_ptr = null_mut();
     let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
     check(result).unwrap();
-    let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
+    // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
     // TODO: What sample rates does this accept
     // let result = (*audio_clock).SetSampleRate(88_200.0);
     // check(result).unwrap();
