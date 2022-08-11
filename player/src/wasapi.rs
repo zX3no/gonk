@@ -351,7 +351,7 @@ pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
     (*audio_client).Start();
 
     let stream_dropped = Arc::new(AtomicBool::new(false));
-    let queue = Queue::new(MAX_BUFFER_SIZE as usize * 10);
+    let queue = Queue::new(MAX_BUFFER_SIZE as usize);
 
     let audio_thread = AudioThread {
         queue: queue.clone(),
@@ -366,7 +366,6 @@ pub unsafe fn create_stream(sample_rate: u32) -> StreamHandle {
     };
 
     thread::spawn(move || {
-        eprintln!("Audio thread created!");
         audio_thread.run();
     });
 
@@ -431,8 +430,6 @@ impl AudioThread {
             .collect();
 
         let channel_align = block_align / channels;
-
-        eprintln!("WASAPI stream bits per sample: {}", vbps);
 
         while !stream_dropped.load(Ordering::Relaxed) {
             let mut padding_count = zeroed();
@@ -524,10 +521,11 @@ impl AudioThread {
             (*render_client).ReleaseBuffer(nbr_frames as u32, flags);
             check(result).unwrap();
 
-            let retval = WaitForSingleObject(h_event, 1000);
-            if retval != WAIT_OBJECT_0 {
-                panic!("Fatal WASAPI stream error while waiting for event");
-            }
+            // let retval = WaitForSingleObject(h_event, 1000);
+            // if retval != WAIT_OBJECT_0 {
+            //     panic!("Fatal WASAPI stream error while waiting for event");
+            // }
+            while WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {}
         }
 
         let result = (*audio_client).Stop();

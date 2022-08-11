@@ -6,12 +6,15 @@
     unused
 )]
 use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Sender};
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
     thread,
     time::Duration,
 };
+use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{
     core::{
         audio::SampleBuffer,
@@ -78,80 +81,161 @@ impl<T> Clone for Queue<T> {
     }
 }
 
-fn decode() {
-    let file =
-        File::open(r"D:\OneDrive\Music\Foxtails\fawn\09. life is a death scene, princess.flac")
+#[derive(Debug, PartialEq)]
+pub enum Event {
+    State(State),
+    Volume(u16),
+    Seek(f64),
+    Play(PathBuf),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum State {
+    Playing,
+    Paused,
+}
+
+const VOLUME_STEP: u8 = 5;
+const VOLUME_REDUCTION: f32 = 500.0;
+
+struct Player {
+    s: Sender<Event>,
+}
+
+impl Player {
+    pub fn new() -> Self {
+        let (s, r) = mpsc::channel();
+
+        Self { s }
+    }
+}
+
+pub struct Symphonia {
+    format_reader: Box<dyn FormatReader>,
+    decoder: Box<dyn Decoder>,
+    track: Track,
+    elapsed: u64,
+}
+
+impl Symphonia {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        let file = File::open(path).unwrap();
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+        let mut probed = get_probe()
+            .format(
+                &Hint::default(),
+                mss,
+                &FormatOptions {
+                    prebuild_seek_index: true,
+                    seek_index_fill_rate: 1,
+                    enable_gapless: false,
+                },
+                &MetadataOptions::default(),
+            )
             .unwrap();
-    // let file = File::open(r"D:\OneDrive\Music\Nirvana\Nevermind (Remastered 2021)\12. Nirvana - Something In The Way (Remastered 2021).flac").unwrap();
-    let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
-    let mut probed = get_probe()
-        .format(
-            &Hint::default(),
-            mss,
-            &FormatOptions {
-                prebuild_seek_index: true,
-                seek_index_fill_rate: 1,
-                enable_gapless: false,
-            },
-            &MetadataOptions::default(),
-        )
-        .unwrap();
+        let track = probed.format.default_track().unwrap().to_owned();
 
-    let track = probed.format.default_track().unwrap();
-    let _sample_rate = track.codec_params.sample_rate.unwrap() as usize;
+        let mut decoder = symphonia::default::get_codecs()
+            .make(&track.codec_params, &DecoderOptions::default())
+            .unwrap();
 
-    let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default())
-        .unwrap();
-
-    probed.format.seek(
-        SeekMode::Accurate,
-        SeekTo::Time {
-            time: Time {
-                seconds: 95,
-                frac: 0.0,
-            },
-            track_id: None,
-        },
-    );
-
-    let handle = unsafe { create_stream(44100) };
-    loop {
-        let next_packet = match probed.format.next_packet() {
+        Self {
+            format_reader: probed.format,
+            decoder,
+            track,
+            elapsed: 0,
+        }
+    }
+    pub fn elapsed(&self) -> Duration {
+        let tb = self.track.codec_params.time_base.unwrap();
+        let time = tb.calc_time(self.elapsed);
+        Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
+    }
+    pub fn duration(&self) -> Duration {
+        let tb = self.track.codec_params.time_base.unwrap();
+        let n_frames = self.track.codec_params.n_frames.unwrap();
+        let dur = self.track.codec_params.start_ts + n_frames;
+        let time = self
+            .track
+            .codec_params
+            .time_base
+            .unwrap()
+            .calc_time(n_frames);
+        Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
+    }
+    pub fn sample_rate(&self) -> u32 {
+        self.track.codec_params.sample_rate.unwrap()
+    }
+    pub fn seek(&mut self, pos: Duration) {
+        self.format_reader
+            .seek(
+                SeekMode::Coarse,
+                SeekTo::Time {
+                    time: Time::new(pos.as_secs(), pos.subsec_nanos() as f64 / 1_000_000_000.0),
+                    track_id: None,
+                },
+            )
+            .unwrap();
+    }
+    pub fn next_packet(&mut self) -> SampleBuffer<f32> {
+        let next_packet = match self.format_reader.next_packet() {
             Ok(next_packet) => next_packet,
-            Err(_) => {
-                std::thread::park();
-                panic!();
+            Err(err) => {
+                panic!("{}", err);
             }
         };
-        let decoded = decoder.decode(&next_packet).unwrap();
+
+        let tb = self.track.codec_params.time_base.unwrap();
+        let ts = next_packet.ts();
+        self.elapsed = ts;
+
+        let decoded = self.decoder.decode(&next_packet).unwrap();
         let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         buffer.copy_interleaved_ref(decoded);
-        let buffer = buffer.samples().iter();
-
-        for smp in buffer {
-            handle.queue.push(smp * 0.03)
-        }
+        buffer
     }
 }
 
 fn main() {
-    decode();
-    let mut handle = unsafe { create_stream(44100) };
+    #[rustfmt::skip]
+    let path = r"D:\OneDrive\Music\Foxtails\fawn\09. life is a death scene, princess.flac";
+    // let path = r"D:\OneDrive\Music\Nirvana\Nevermind (Remastered 2021)\12. Nirvana - Something In The Way (Remastered 2021).flac";
+    let mut decoder = Symphonia::new(path);
 
-    let mut phase: f32 = 0.0;
-    let pitch: f32 = 440.0;
-    let gain: f32 = 0.1;
-    let step = std::f32::consts::PI * 2.0 * pitch / handle.sample_rate as f32;
+    let (s, r) = mpsc::channel();
 
-    loop {
-        let smp = phase.sin() * gain;
-        phase += step;
-        if phase >= std::f32::consts::PI * 2.0 {
-            phase -= std::f32::consts::PI * 2.0
+    thread::spawn(move || {
+        let handle = unsafe { create_stream(decoder.sample_rate()) };
+        let mut state = State::Playing;
+        let mut volume = 15.0 / VOLUME_REDUCTION;
+
+        loop {
+            if let Ok(event) = r.try_recv() {
+                match event {
+                    Event::State(s) => state = s,
+                    Event::Volume(v) => {
+                        volume = v as f32 / VOLUME_REDUCTION;
+                    }
+                    Event::Seek(pos) => {
+                        let pos = Duration::from_secs_f64(pos);
+                        decoder.seek(pos);
+                    }
+                    Event::Play(path) => {}
+                }
+            }
+
+            if state != State::Paused {
+                let next_packet = decoder.next_packet();
+                for smp in next_packet.samples() {
+                    handle.queue.push(smp * volume)
+                }
+            }
         }
+    });
 
-        handle.queue.push(smp * 0.03);
-    }
+    s.send(Event::Seek(95.0)).unwrap();
+
+    thread::park();
 }
