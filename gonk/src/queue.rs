@@ -338,15 +338,15 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
         return f.render_widget(block, area);
     }
 
-    let elapsed = player.elapsed().as_secs_f32();
-    let duration = player.duration().as_secs_f32();
+    let elapsed = player.elapsed().as_secs_f64();
+    let duration = player.duration().as_secs_f64();
 
     let seeker = format!(
         "{:02}:{:02}/{:02}:{:02}",
         (elapsed / 60.0).floor(),
-        elapsed.trunc() as u32 % 60,
+        (elapsed % 60.0) as u64,
         (duration / 60.0).floor(),
-        duration.trunc() as u32 % 60,
+        (duration % 60.0) as u64,
     );
 
     let ratio = elapsed.floor() / duration;
