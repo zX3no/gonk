@@ -1,6 +1,6 @@
 [package]
 name = "gonk-player"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Bay"]
 description = "Music playback library for gonk"
@@ -10,7 +10,7 @@ license = "CC0-1.0"
 
 [dependencies]
 symphonia = {version = "0.5.1", features = ["mp3", "isomp4", "alac", "aac"] }
-gonk-database = {version = "0.1.0", path = "../gonk-database"}
+gonk-database = {version = "0.1.1", path = "../gonk-database"}
 
 [target.'cfg(unix)'.dependencies]
 gag = "1.0.0"
