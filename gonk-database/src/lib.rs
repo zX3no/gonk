@@ -634,10 +634,11 @@ impl From<&'_ Path> for RawSong {
 
         if let Some(metadata) = probe.format.metadata().skip_to_latest() {
             update_metadata(metadata);
-        } else {
-            let mut metadata = probe.metadata.get().unwrap();
+        } else if let Some(mut metadata) = probe.metadata.get() {
             let metadata = metadata.skip_to_latest().unwrap();
             update_metadata(metadata);
+        } else {
+            //Probably a WAV file that doesn't have metadata.
         }
 
         RawSong::new(
