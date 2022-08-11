@@ -88,11 +88,23 @@ pub enum Event {
 }
 
 #[inline]
-fn calc_volume(volume: u8) -> f32 {
+pub fn calc_volume(volume: u8) -> f32 {
     volume as f32 / 500.0
 }
 
-struct Player {
+pub struct State {
+    pub playing: bool,
+    pub elapsed: Duration,
+    pub duration: Duration,
+}
+
+static mut STATE: State = State {
+    playing: true,
+    elapsed: Duration::from_secs(0),
+    duration: Duration::from_secs(0),
+};
+
+pub struct Player {
     pub s: Sender<Event>,
     pub volume: u8,
 }
@@ -134,8 +146,17 @@ impl Player {
                     }
                 }
 
-                if playing {
-                    if let Some(d) = &mut decoder {
+                if let Some(d) = &mut decoder {
+                    //Update the player state.
+                    unsafe {
+                        STATE = State {
+                            playing,
+                            elapsed: d.elapsed(),
+                            duration: d.duration(),
+                        }
+                    }
+
+                    if playing {
                         if let Some(next) = d.next_packet() {
                             for smp in next.samples() {
                                 handle.queue.push(smp * volume)
@@ -166,6 +187,15 @@ impl Player {
     pub fn play(&self, path: String) {
         self.s.send(Event::Play(path)).unwrap();
     }
+    pub fn elapsed(&self) -> Duration {
+        unsafe { STATE.elapsed }
+    }
+    pub fn duration(&self) -> Duration {
+        unsafe { STATE.duration }
+    }
+    pub fn playing(&self) -> bool {
+        unsafe { STATE.playing }
+    }
 }
 
 pub struct Symphonia {
@@ -173,6 +203,7 @@ pub struct Symphonia {
     decoder: Box<dyn Decoder>,
     track: Track,
     elapsed: u64,
+    duration: Duration,
 }
 
 impl Symphonia {
@@ -199,10 +230,17 @@ impl Symphonia {
             .make(&track.codec_params, &DecoderOptions::default())
             .unwrap();
 
+        let tb = track.codec_params.time_base.unwrap();
+        let n_frames = track.codec_params.n_frames.unwrap();
+        let dur = track.codec_params.start_ts + n_frames;
+        let time = tb.calc_time(dur);
+        let duration = Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac);
+
         Self {
             format_reader: probed.format,
             decoder,
             track,
+            duration,
             elapsed: 0,
         }
     }
@@ -212,11 +250,7 @@ impl Symphonia {
         Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
     }
     pub fn duration(&self) -> Duration {
-        let tb = self.track.codec_params.time_base.unwrap();
-        let n_frames = self.track.codec_params.n_frames.unwrap();
-        let dur = self.track.codec_params.start_ts + n_frames;
-        let time = tb.calc_time(dur);
-        Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
+        self.duration
     }
     pub fn sample_rate(&self) -> u32 {
         self.track.codec_params.sample_rate.unwrap()
@@ -261,16 +295,11 @@ impl Symphonia {
 }
 
 fn main() {
-    let mut player = Player::new(15);
+    let player = Player::new(15);
 
     let _path = r"D:\OneDrive\Music\Foxtails\fawn\09. life is a death scene, princess.flac";
     let path = r"D:\OneDrive\Music\Foxtails\fawn\06. gallons of spiders went flying thru the stratosphere.flac";
     player.play(path.to_string());
-    player.toggle_playback();
-    player.toggle_playback();
-    player.volume_up();
-    player.volume_down();
-    dbg!(player.volume);
 
     thread::park();
 }
