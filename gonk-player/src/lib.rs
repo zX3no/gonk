@@ -98,7 +98,6 @@ pub enum Event {
     Seek(f64),
     Play(String),
     OutputDevice(String),
-    Initialise((String, f32)),
 }
 
 #[inline]
@@ -138,42 +137,40 @@ impl Player {
 
         let (s, r) = mpsc::channel();
 
+        let mut decoder: Option<Symphonia> = None;
+        let mut sample_rate = 44100;
+        let mut handle = unsafe { create_stream(&device, sample_rate) };
+        let mut vol = calc_volume(volume);
+
         if let Some(song) = songs.selected() {
-            s.send(Event::Initialise((song.path.clone(), elapsed)))
-                .unwrap();
+            //This is slow >100ms in a debug build.
+            let mut d = Symphonia::new(&song.path);
+            let pos = Duration::from_secs_f32(elapsed);
+            d.seek(pos);
+
+            let sr = d.sample_rate();
+            if sr != sample_rate {
+                sample_rate = sr;
+                handle = unsafe { create_stream(&device, sample_rate) };
+            }
+            unsafe {
+                STATE.elapsed = pos;
+                STATE.duration = d.duration();
+                STATE.playing = false;
+                STATE.finished = false;
+            };
+            decoder = Some(d);
         }
 
         //TODO: Cleanly drop the stream handle
         thread::spawn(move || {
-            let mut decoder: Option<Symphonia> = None;
-            let mut sample_rate = 44100;
-            let mut handle = unsafe { create_stream(&device, sample_rate) };
-            let mut volume = calc_volume(volume);
-
             loop {
                 if let Ok(event) = r.try_recv() {
                     match event {
-                        Event::Initialise((path, elapsed)) => {
-                            let mut d = Symphonia::new(path);
-                            let pos = Duration::from_secs_f32(elapsed);
-                            d.seek(pos);
-                            let sr = d.sample_rate();
-                            if sr != sample_rate {
-                                sample_rate = sr;
-                                handle = unsafe { create_stream(&device, sample_rate) };
-                            }
-                            unsafe {
-                                STATE.elapsed = pos;
-                                STATE.duration = d.duration();
-                                STATE.playing = false;
-                                STATE.finished = false;
-                            };
-                            decoder = Some(d);
-                        }
                         Event::TogglePlayback => unsafe { STATE.playing = !STATE.playing },
                         Event::Volume(v) => {
                             let v = v.clamp(0, 100);
-                            volume = calc_volume(v);
+                            vol = calc_volume(v);
                         }
                         Event::Seek(pos) => {
                             let pos = Duration::from_secs_f64(pos);
@@ -182,7 +179,7 @@ impl Player {
                             }
                         }
                         Event::Play(path) => {
-                            let d = Symphonia::new(path);
+                            let d = Symphonia::new(&path);
                             let sr = d.sample_rate();
                             if sr != sample_rate {
                                 sample_rate = sr;
@@ -216,7 +213,7 @@ impl Player {
                     if unsafe { STATE.playing && !STATE.finished } {
                         if let Some(next) = d.next_packet() {
                             for smp in next.samples() {
-                                handle.queue.push(smp * volume)
+                                handle.queue.push(smp * vol)
                             }
                         } else {
                             //Song is finished
@@ -355,7 +352,7 @@ pub struct Symphonia {
 }
 
 impl Symphonia {
-    pub fn new(path: impl AsRef<Path>) -> Self {
+    pub fn new(path: &str) -> Self {
         let file = File::open(path).unwrap();
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
