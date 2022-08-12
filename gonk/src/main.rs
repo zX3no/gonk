@@ -73,6 +73,13 @@ fn save_queue(player: &Player) {
     );
 }
 
+fn save_queue_state(player: &Player) {
+    gonk_database::update_queue_state(
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
+}
+
 fn draw_log(f: &mut Frame) -> Rect {
     if log::message().is_some() {
         let area = Layout::default()
@@ -214,10 +221,9 @@ fn main() {
 
         queue.len = player.songs.len();
 
-        match player.update() {
-            Ok(_) => (),
-            Err(e) => log!("{}", e),
-        };
+        if player.update() {
+            save_queue_state(&player);
+        }
 
         terminal
             .draw(|f| {
@@ -307,8 +313,14 @@ fn main() {
                         }
                         KeyCode::Char('q') => player.seek_backward(),
                         KeyCode::Char('e') => player.seek_foward(),
-                        KeyCode::Char('a') => player.prev(),
-                        KeyCode::Char('d') => player.next(),
+                        KeyCode::Char('a') => {
+                            player.prev();
+                            save_queue_state(&player);
+                        }
+                        KeyCode::Char('d') => {
+                            player.next();
+                            save_queue_state(&player);
+                        }
                         KeyCode::Char('w') => {
                             player.volume_up();
                             gonk_database::update_volume(player.volume);

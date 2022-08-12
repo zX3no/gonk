@@ -172,51 +172,46 @@ impl Player {
         }
 
         //TODO: Cleanly drop the stream handle
-        thread::spawn(move || {
-            loop {
-                if let Ok(event) = r.try_recv() {
-                    match event {
-                        Event::Volume(v) => {
-                            let v = v.clamp(0, 100);
-                            vol = calc_volume(v);
+        thread::spawn(move || loop {
+            if let Ok(event) = r.try_recv() {
+                match event {
+                    Event::Volume(v) => {
+                        let v = v.clamp(0, 100);
+                        vol = calc_volume(v);
+                    }
+                    Event::Play(path) => {
+                        let d = Symphonia::new(&path);
+                        let sr = d.sample_rate();
+                        if sr != sample_rate {
+                            sample_rate = sr;
+                            handle = unsafe { create_stream(&device, sample_rate) };
                         }
-                        Event::Play(path) => {
-                            let d = Symphonia::new(&path);
-                            let sr = d.sample_rate();
-                            if sr != sample_rate {
-                                sample_rate = sr;
-                                handle = unsafe { create_stream(&device, sample_rate) };
-                            }
-                            unsafe {
-                                STATE.duration = d.duration();
-                                STATE.playing = true;
-                                STATE.finished = false;
-                                SYMPHONIA = Some(d);
-                            };
-                        }
-                        Event::OutputDevice(name) => {
-                            let d = devices.iter().find(|device| device.name == name);
-                            if let Some(d) = d {
-                                device = d.clone();
-                                handle = unsafe { create_stream(&device, sample_rate) };
-                            }
+                        unsafe {
+                            STATE.duration = d.duration();
+                            STATE.playing = true;
+                            STATE.finished = false;
+                            SYMPHONIA = Some(d);
+                        };
+                    }
+                    Event::OutputDevice(name) => {
+                        let d = devices.iter().find(|device| device.name == name);
+                        if let Some(d) = d {
+                            device = d.clone();
+                            handle = unsafe { create_stream(&device, sample_rate) };
                         }
                     }
                 }
+            }
 
-                unsafe {
-                    if let Some(d) = &mut SYMPHONIA {
-                        if STATE.playing && !STATE.finished {
-                            if let Some(next) = d.next_packet() {
-                                for smp in next.samples() {
-                                    handle.queue.push(smp * vol)
-                                }
-                            } else {
-                                //Song is finished
-                                SYMPHONIA = None;
-                                STATE.finished = true;
-                                STATE.playing = false;
+            unsafe {
+                if let Some(d) = &mut SYMPHONIA {
+                    if STATE.playing && !STATE.finished {
+                        if let Some(next) = d.next_packet() {
+                            for smp in next.samples() {
+                                handle.queue.push(smp * vol)
                             }
+                        } else {
+                            STATE.finished = true;
                         }
                     }
                 }
@@ -240,11 +235,13 @@ impl Player {
         self.s.send(Event::Play(path.to_string())).unwrap();
     }
     pub fn seek_foward(&mut self) {
-        let pos = Duration::from_secs_f64(self.elapsed().as_secs_f64() + 10.0);
+        let pos = (self.elapsed().as_secs_f64() + 10.0).clamp(0.0, f64::MAX);
+        let pos = Duration::from_secs_f64(pos);
         self.seek(pos);
     }
     pub fn seek_backward(&mut self) {
-        let pos = Duration::from_secs_f64(self.elapsed().as_secs_f64() - 10.0);
+        let pos = (self.elapsed().as_secs_f64() - 10.0).clamp(0.0, f64::MAX);
+        let pos = Duration::from_secs_f64(pos);
         self.seek(pos);
     }
     pub fn seek(&mut self, pos: Duration) {
@@ -329,14 +326,16 @@ impl Player {
         }
         Ok(())
     }
-    pub fn update(&mut self) -> Result<(), String> {
+    pub fn update(&mut self) -> bool {
         unsafe {
             if STATE.finished {
                 STATE.finished = false;
                 self.next();
+                true
+            } else {
+                false
             }
         }
-        Ok(())
     }
     pub fn set_output_device(&self, device: &str) {
         self.s
@@ -353,6 +352,8 @@ pub struct Symphonia {
     track: Track,
     elapsed: u64,
     duration: u64,
+
+    error_count: u8,
 }
 
 impl Symphonia {
@@ -388,6 +389,7 @@ impl Symphonia {
             track,
             duration,
             elapsed: 0,
+            error_count: 0,
         }
     }
     pub fn elapsed(&self) -> Duration {
@@ -404,15 +406,18 @@ impl Symphonia {
         self.track.codec_params.sample_rate.unwrap()
     }
     pub fn seek(&mut self, pos: Duration) {
-        self.format_reader
-            .seek(
-                SeekMode::Coarse,
-                SeekTo::Time {
-                    time: Time::new(pos.as_secs(), pos.subsec_nanos() as f64 / 1_000_000_000.0),
-                    track_id: None,
-                },
-            )
-            .unwrap();
+        match self.format_reader.seek(
+            SeekMode::Coarse,
+            SeekTo::Time {
+                time: Time::new(pos.as_secs(), pos.subsec_nanos() as f64 / 1_000_000_000.0),
+                track_id: None,
+            },
+        ) {
+            Ok(_) => (),
+            Err(_) => unsafe {
+                STATE.finished = true;
+            },
+        }
     }
     pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
         let next_packet = match self.format_reader.next_packet() {
@@ -422,13 +427,11 @@ impl Symphonia {
                     std::io::ErrorKind::UnexpectedEof => return None,
                     _ => panic!("{}", err),
                 },
-                //This could be very bad...
-                Error::DecodeError(err) => {
-                    dbg!(err);
-                    return self.next_packet();
-                }
-                Error::SeekError(err) => {
-                    dbg!(err);
+                Error::SeekError(_) | Error::DecodeError(_) => {
+                    self.error_count += 1;
+                    if self.error_count > 2 {
+                        return None;
+                    }
                     return self.next_packet();
                 }
                 _ => panic!("{}", err),

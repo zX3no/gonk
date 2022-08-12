@@ -218,6 +218,7 @@ impl Settings {
     }
 }
 
+//TODO: Profile this. Probably need to save a file handle.
 pub fn save_settings() {
     //Delete the contents of the file and overwrite with new settings.
     let file = File::create(settings_path()).unwrap();
@@ -234,13 +235,23 @@ pub fn update_volume(new_volume: u8) {
     }
 }
 
+//You know it's bad you need to spawn a new thread.
+//What if just the index was updated? Why do you need to write everything again.
 pub fn update_queue(queue: &[Song], index: u16, elapsed: f32) {
-    unsafe {
-        SETTINGS.queue = queue.iter().map(RawSong::from).collect();
+    unsafe { SETTINGS.queue = queue.iter().map(RawSong::from).collect() };
+    std::thread::spawn(move || unsafe {
         SETTINGS.index = index;
         SETTINGS.elapsed = elapsed;
         save_settings();
-    }
+    });
+}
+
+pub fn update_queue_state(index: u16, elapsed: f32) {
+    std::thread::spawn(move || unsafe {
+        SETTINGS.elapsed = elapsed;
+        SETTINGS.index = index;
+        save_settings();
+    });
 }
 
 pub fn update_output_device(device: &str) {
