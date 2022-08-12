@@ -25,7 +25,7 @@ use symphonia::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-pub const SONG_LEN: usize = size_of::<RawSong>();
+pub const SONG_LEN: usize = 522 + 1 + 1 + 4;
 pub const TEXT_LEN: usize = 522;
 
 pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
@@ -509,7 +509,9 @@ impl RawSong {
     }
     pub fn into_bytes(&self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
-        song[..TEXT_LEN].copy_from_slice(&self.text);
+        debug_assert!(self.text.len() <= SONG_LEN);
+
+        song[..self.text.len()].copy_from_slice(&self.text);
         song[NUMBER_POS] = self.number;
         song[DISC_POS] = self.disc;
         song[GAIN_POS].copy_from_slice(&self.gain.to_le_bytes());
