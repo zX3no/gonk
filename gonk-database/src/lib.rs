@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -24,7 +25,7 @@ use symphonia::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-pub const SONG_LEN: usize = TEXT_LEN + 2 + 4;
+pub const SONG_LEN: usize = size_of::<RawSong>();
 pub const TEXT_LEN: usize = 522;
 
 pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
@@ -448,7 +449,7 @@ impl Song {
 }
 
 pub struct RawSong {
-    pub text: [u8; TEXT_LEN],
+    pub text: ArrayVec<u8, TEXT_LEN>,
     pub number: u8,
     pub disc: u8,
     pub gain: f32,
@@ -488,22 +489,16 @@ impl RawSong {
             i += 1;
         }
 
-        let artist = [&(artist.len() as u16).to_le_bytes(), artist.as_bytes()].concat();
-        let album = [&(album.len() as u16).to_le_bytes(), album.as_bytes()].concat();
-        let title = [&(title.len() as u16).to_le_bytes(), title.as_bytes()].concat();
-        let path = [&(path.len() as u16).to_le_bytes(), path.as_bytes()].concat();
+        let mut text = ArrayVec::<u8, TEXT_LEN>::new();
 
-        let mut text = [0u8; TEXT_LEN];
-
-        let artist_pos = artist.len();
-        let album_pos = artist_pos + album.len();
-        let title_pos = album_pos + title.len();
-        let path_pos = title_pos + path.len();
-
-        text[..artist_pos].copy_from_slice(&artist);
-        text[artist_pos..album_pos].copy_from_slice(&album);
-        text[album_pos..title_pos].copy_from_slice(&title);
-        text[title_pos..path_pos].copy_from_slice(&path);
+        text.extend((artist.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(artist.as_bytes());
+        text.extend((album.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(album.as_bytes());
+        text.extend((title.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(title.as_bytes());
+        text.extend((path.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(path.as_bytes());
 
         Self {
             text,
