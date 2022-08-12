@@ -14,6 +14,7 @@ use std::{
     thread,
     time::Duration,
 };
+use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{
     core::{
@@ -30,6 +31,18 @@ use symphonia::{
 
 mod wasapi;
 pub use wasapi::*;
+
+#[macro_export]
+macro_rules! unwrap_or_return {
+    ( $e:expr ) => {
+        unsafe {
+            match &mut $e {
+                Some(x) => x,
+                None => return,
+            }
+        }
+    };
+}
 
 #[allow(unused)]
 #[inline]
@@ -90,19 +103,16 @@ impl<T> Clone for Queue<T> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Event {
-    TogglePlayback,
-    Reset,
     Volume(u8),
-    Seek(f64),
     Play(String),
     OutputDevice(String),
 }
 
 #[inline]
 pub fn calc_volume(volume: u8) -> f32 {
-    volume as f32 / 600.0
+    volume as f32 / 1500.0
 }
 
 pub struct State {
@@ -137,7 +147,6 @@ impl Player {
 
         let (s, r) = mpsc::channel();
 
-        let mut decoder: Option<Symphonia> = None;
         let mut sample_rate = 44100;
         let mut handle = unsafe { create_stream(&device, sample_rate) };
         let mut vol = calc_volume(volume);
@@ -158,8 +167,8 @@ impl Player {
                 STATE.duration = d.duration();
                 STATE.playing = false;
                 STATE.finished = false;
+                SYMPHONIA = Some(d);
             };
-            decoder = Some(d);
         }
 
         //TODO: Cleanly drop the stream handle
@@ -167,16 +176,9 @@ impl Player {
             loop {
                 if let Ok(event) = r.try_recv() {
                     match event {
-                        Event::TogglePlayback => unsafe { STATE.playing = !STATE.playing },
                         Event::Volume(v) => {
                             let v = v.clamp(0, 100);
                             vol = calc_volume(v);
-                        }
-                        Event::Seek(pos) => {
-                            let pos = Duration::from_secs_f64(pos);
-                            if let Some(decoder) = &mut decoder {
-                                decoder.seek(pos);
-                            }
                         }
                         Event::Play(path) => {
                             let d = Symphonia::new(&path);
@@ -189,15 +191,8 @@ impl Player {
                                 STATE.duration = d.duration();
                                 STATE.playing = true;
                                 STATE.finished = false;
+                                SYMPHONIA = Some(d);
                             };
-                            decoder = Some(d);
-                        }
-                        Event::Reset => {
-                            unsafe {
-                                STATE.playing = false;
-                                STATE.finished = false;
-                            };
-                            decoder = None;
                         }
                         Event::OutputDevice(name) => {
                             let d = devices.iter().find(|device| device.name == name);
@@ -209,17 +204,19 @@ impl Player {
                     }
                 }
 
-                if let Some(d) = &mut decoder {
-                    if unsafe { STATE.playing && !STATE.finished } {
-                        if let Some(next) = d.next_packet() {
-                            for smp in next.samples() {
-                                handle.queue.push(smp * vol)
+                unsafe {
+                    if let Some(d) = &mut SYMPHONIA {
+                        if STATE.playing && !STATE.finished {
+                            if let Some(next) = d.next_packet() {
+                                for smp in next.samples() {
+                                    handle.queue.push(smp * vol)
+                                }
+                            } else {
+                                //Song is finished
+                                SYMPHONIA = None;
+                                STATE.finished = true;
+                                STATE.playing = false;
                             }
-                        } else {
-                            //Song is finished
-                            decoder = None;
-                            unsafe { STATE.finished = true };
-                            unsafe { STATE.playing = false };
                         }
                     }
                 }
@@ -237,21 +234,22 @@ impl Player {
         self.s.send(Event::Volume(self.volume)).unwrap();
     }
     pub fn toggle_playback(&self) {
-        self.s.send(Event::TogglePlayback).unwrap();
+        unsafe { STATE.playing = !STATE.playing }
     }
     pub fn play(&self, path: &str) {
         self.s.send(Event::Play(path.to_string())).unwrap();
     }
-    pub fn seek_foward(&self) {
-        let pos = self.elapsed().as_secs_f64() + 10.0;
-        self.s.send(Event::Seek(pos)).unwrap();
+    pub fn seek_foward(&mut self) {
+        let pos = Duration::from_secs_f64(self.elapsed().as_secs_f64() + 10.0);
+        self.seek(pos);
     }
-    pub fn seek_backward(&self) {
-        let pos = self.elapsed().as_secs_f64() - 10.0;
-        self.s.send(Event::Seek(pos)).unwrap();
+    pub fn seek_backward(&mut self) {
+        let pos = Duration::from_secs_f64(self.elapsed().as_secs_f64() - 10.0);
+        self.seek(pos);
     }
-    pub fn seek_to(&self, position: f64) {
-        self.s.send(Event::Seek(position)).unwrap();
+    pub fn seek(&mut self, pos: Duration) {
+        let sym = unwrap_or_return!(SYMPHONIA);
+        sym.seek(pos);
     }
     pub fn elapsed(&self) -> Duration {
         unsafe { STATE.elapsed }
@@ -299,7 +297,11 @@ impl Player {
         Ok(())
     }
     pub fn clear(&mut self) {
-        self.s.send(Event::Reset).unwrap();
+        unsafe {
+            STATE.playing = false;
+            STATE.finished = false;
+            SYMPHONIA = None;
+        };
         self.songs = Index::default();
     }
     pub fn clear_except_playing(&mut self) {
@@ -343,12 +345,14 @@ impl Player {
     }
 }
 
+static mut SYMPHONIA: Option<Symphonia> = None;
+
 pub struct Symphonia {
     format_reader: Box<dyn FormatReader>,
     decoder: Box<dyn Decoder>,
     track: Track,
     elapsed: u64,
-    duration: Duration,
+    duration: u64,
 }
 
 impl Symphonia {
@@ -375,11 +379,8 @@ impl Symphonia {
             .make(&track.codec_params, &DecoderOptions::default())
             .unwrap();
 
-        let tb = track.codec_params.time_base.unwrap();
         let n_frames = track.codec_params.n_frames.unwrap();
-        let dur = track.codec_params.start_ts + n_frames;
-        let time = tb.calc_time(dur);
-        let duration = Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac);
+        let duration = track.codec_params.start_ts + n_frames;
 
         Self {
             format_reader: probed.format,
@@ -395,7 +396,9 @@ impl Symphonia {
         Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
     }
     pub fn duration(&self) -> Duration {
-        self.duration
+        let tb = self.track.codec_params.time_base.unwrap();
+        let time = tb.calc_time(self.duration);
+        Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
     }
     pub fn sample_rate(&self) -> u32 {
         self.track.codec_params.sample_rate.unwrap()
@@ -414,27 +417,25 @@ impl Symphonia {
     pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
         let next_packet = match self.format_reader.next_packet() {
             Ok(next_packet) => next_packet,
-            Err(err) => {
-                if self.elapsed() == self.duration() {
-                    return None;
+            Err(err) => match err {
+                Error::IoError(err) => match err.kind() {
+                    std::io::ErrorKind::UnexpectedEof => return None,
+                    _ => panic!("{}", err),
+                },
+                //This could be very bad...
+                Error::DecodeError(err) => {
+                    dbg!(err);
+                    return self.next_packet();
                 }
-                panic!("{}", err);
-            }
+                Error::SeekError(err) => {
+                    dbg!(err);
+                    return self.next_packet();
+                }
+                _ => panic!("{}", err),
+            },
         };
 
-        let ts = next_packet.ts();
-        if ts < self.elapsed {
-            let n_frames = self.track.codec_params.n_frames.unwrap();
-            let dur = self.track.codec_params.start_ts + n_frames;
-            //This is probably the last packet.
-            if self.elapsed + 10000 >= dur || self.elapsed == dur {
-                self.elapsed = dur;
-            } else {
-                self.elapsed = ts;
-            }
-        } else {
-            self.elapsed = ts;
-        }
+        self.elapsed = next_packet.ts();
 
         unsafe { STATE.elapsed = self.elapsed() };
 

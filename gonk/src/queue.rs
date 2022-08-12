@@ -104,7 +104,7 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
         {
             let ratio = x as f64 / size.width as f64;
             let duration = player.duration().as_secs_f64();
-            player.seek_to(duration * ratio);
+            player.seek(Duration::from_secs_f64(duration * ratio));
         }
 
         //Mouse support for the queue.
