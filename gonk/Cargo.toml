@@ -1,6 +1,6 @@
 [package]
 name = "gonk"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 authors = ["Bay"]
 description = "A terminal music player"
@@ -15,5 +15,5 @@ tui = "0.18.0"
 crossterm = "0.23.2"
 unicode-width = "0.1.9"
 rayon = "1.5.3"
-gonk-player = {version = "0.1.2", path = "../gonk-player"}
-gonk-database = {version = "0.1.2", path = "../gonk-database"}
+gonk-player = {version = "0.2.0", path = "../gonk-player"}
+gonk-database = {version = "0.2.0", path = "../gonk-database"}

@@ -13,7 +13,7 @@
 ## ✨ Features
 - Easy to use
 - Windows and Linux support (WASAPI, ALSA, Jack)
-- Plays FLAC, MP3, OGG, M4A and WAV
+- Plays FLAC, MP3 and OGG
 - Fuzzy search
 - Vim-style key bindings
 - Mouse support

@@ -1,6 +1,6 @@
 [package]
 name = "gonk-database"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 authors = ["Bay"]
 description = "Database for gonk"
@@ -12,4 +12,5 @@ license = "CC0-1.0"
 memmap2 = "0.5.5"
 rayon = "1.5.3"
 walkdir = "2.3.2"
-symphonia = { version = "0.5.1", features = ["mp3", "isomp4", "alac", "aac"] }
+arrayvec = "0.7.2"
+symphonia = {version = "0.5.1", default-features = false,  features = ["flac", "mp3", "ogg", "vorbis"]}

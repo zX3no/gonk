@@ -1,6 +1,6 @@
-use crate::{log, widgets::*, Frame, Input};
+use crate::{widgets::*, Frame, Input};
 use gonk_database::Index;
-use gonk_player::{Device, DeviceTrait, Player};
+use gonk_player::Player;
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -8,31 +8,30 @@ use tui::{
 };
 
 pub struct Settings {
-    pub devices: Index<Device>,
+    pub devices: Index<String>,
     pub current_device: String,
 }
 
 impl Settings {
     pub fn new() -> Self {
-        let default_device = gonk_player::default_device();
         let wanted_device = gonk_database::get_output_device();
 
-        let devices = gonk_player::audio_devices();
+        let devices: Vec<String> = unsafe {
+            gonk_player::devices()
+                .into_iter()
+                .map(|device| device.name)
+                .collect()
+        };
 
-        let current_device = if devices
-            .iter()
-            .flat_map(DeviceTrait::name)
-            .any(|x| x == wanted_device)
-        {
+        let current_device = if devices.iter().any(|name| name == wanted_device) {
             wanted_device.to_string()
         } else {
-            let name = default_device.name().unwrap();
-            gonk_database::update_output_device(&name);
-            name
+            let device = unsafe { gonk_player::default_device() };
+            device.name
         };
 
         Self {
-            devices: Index::new(devices, Some(0)),
+            devices: Index::from(devices),
             current_device,
         }
     }
@@ -54,10 +53,8 @@ impl Input for Settings {
 
 pub fn on_enter(settings: &mut Settings, player: &mut Player) {
     if let Some(device) = settings.devices.selected() {
-        match player.set_output_device(device) {
-            Ok(_) => settings.current_device = device.name().unwrap(),
-            Err(e) => log!("{}", e),
-        }
+        player.set_output_device(device);
+        settings.current_device = device.clone();
     }
 }
 
@@ -66,12 +63,11 @@ pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
         .devices
         .data
         .iter()
-        .map(|device| {
-            let name = device.name().unwrap();
-            if name == settings.current_device {
-                ListItem::new(name)
+        .map(|name| {
+            if name == &settings.current_device {
+                ListItem::new(name.as_str())
             } else {
-                ListItem::new(name).style(Style::default().add_modifier(Modifier::DIM))
+                ListItem::new(name.as_str()).style(Style::default().add_modifier(Modifier::DIM))
             }
         })
         .collect();

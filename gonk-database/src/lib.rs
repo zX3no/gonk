@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -24,7 +25,8 @@ use symphonia::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-pub const SONG_LEN: usize = TEXT_LEN + 2 + 4;
+//522 + 1 + 1 + 4
+pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
 pub const TEXT_LEN: usize = 522;
 
 pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
@@ -173,6 +175,7 @@ impl Settings {
             queue: Vec::new(),
         }
     }
+    //TODO: Can I return a slice instead?
     pub fn into_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.push(self.volume);
@@ -218,6 +221,7 @@ impl Settings {
     }
 }
 
+//TODO: Profile this. Probably need to save a file handle.
 pub fn save_settings() {
     //Delete the contents of the file and overwrite with new settings.
     let file = File::create(settings_path()).unwrap();
@@ -234,13 +238,23 @@ pub fn update_volume(new_volume: u8) {
     }
 }
 
+//You know it's bad you need to spawn a new thread.
+//What if just the index was updated? Why do you need to write everything again.
 pub fn update_queue(queue: &[Song], index: u16, elapsed: f32) {
-    unsafe {
-        SETTINGS.queue = queue.iter().map(RawSong::from).collect();
+    unsafe { SETTINGS.queue = queue.iter().map(RawSong::from).collect() };
+    std::thread::spawn(move || unsafe {
         SETTINGS.index = index;
         SETTINGS.elapsed = elapsed;
         save_settings();
-    }
+    });
+}
+
+pub fn update_queue_state(index: u16, elapsed: f32) {
+    std::thread::spawn(move || unsafe {
+        SETTINGS.elapsed = elapsed;
+        SETTINGS.index = index;
+        save_settings();
+    });
 }
 
 pub fn update_output_device(device: &str) {
@@ -437,7 +451,7 @@ impl Song {
 }
 
 pub struct RawSong {
-    pub text: [u8; TEXT_LEN],
+    pub text: ArrayVec<u8, TEXT_LEN>,
     pub number: u8,
     pub disc: u8,
     pub gain: f32,
@@ -477,22 +491,16 @@ impl RawSong {
             i += 1;
         }
 
-        let artist = [&(artist.len() as u16).to_le_bytes(), artist.as_bytes()].concat();
-        let album = [&(album.len() as u16).to_le_bytes(), album.as_bytes()].concat();
-        let title = [&(title.len() as u16).to_le_bytes(), title.as_bytes()].concat();
-        let path = [&(path.len() as u16).to_le_bytes(), path.as_bytes()].concat();
+        let mut text = ArrayVec::<u8, TEXT_LEN>::new();
 
-        let mut text = [0u8; TEXT_LEN];
-
-        let artist_pos = artist.len();
-        let album_pos = artist_pos + album.len();
-        let title_pos = album_pos + title.len();
-        let path_pos = title_pos + path.len();
-
-        text[..artist_pos].copy_from_slice(&artist);
-        text[artist_pos..album_pos].copy_from_slice(&album);
-        text[album_pos..title_pos].copy_from_slice(&title);
-        text[title_pos..path_pos].copy_from_slice(&path);
+        text.extend((artist.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(artist.as_bytes());
+        text.extend((album.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(album.as_bytes());
+        text.extend((title.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(title.as_bytes());
+        text.extend((path.len() as u16).to_le_bytes());
+        let _ = text.try_extend_from_slice(path.as_bytes());
 
         Self {
             text,
@@ -503,7 +511,9 @@ impl RawSong {
     }
     pub fn into_bytes(&self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
-        song[..TEXT_LEN].copy_from_slice(&self.text);
+        debug_assert!(self.text.len() <= SONG_LEN);
+
+        song[..self.text.len()].copy_from_slice(&self.text);
         song[NUMBER_POS] = self.number;
         song[DISC_POS] = self.disc;
         song[GAIN_POS].copy_from_slice(&self.gain.to_le_bytes());

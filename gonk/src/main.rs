@@ -19,7 +19,6 @@ use settings::Settings;
 use std::{
     io::{stdout, Stdout},
     path::Path,
-    thread,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
@@ -69,6 +68,13 @@ pub trait Input {
 fn save_queue(player: &Player) {
     gonk_database::update_queue(
         &player.songs.data,
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
+}
+
+fn save_queue_state(player: &Player) {
+    gonk_database::update_queue_state(
         player.songs.index().unwrap_or(0) as u16,
         player.elapsed().as_secs_f32(),
     );
@@ -153,7 +159,7 @@ fn main() {
     let songs = Index::new(songs, index);
     let volume = gonk_database::volume();
     let device = gonk_database::get_output_device();
-    let player_thread = thread::spawn(move || Player::new(device, volume, songs, elapsed));
+    let mut player = Player::new(device, volume, songs, elapsed);
 
     let mut browser = Browser::new();
     let mut queue = Queue::new();
@@ -166,8 +172,6 @@ fn main() {
     let mut busy = false;
     let mut dots: usize = 1;
     let mut scan_timer: Option<Instant> = None;
-
-    let mut player = player_thread.join().unwrap();
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && scan_handle.is_none() {
@@ -217,10 +221,9 @@ fn main() {
 
         queue.len = player.songs.len();
 
-        match player.update() {
-            Ok(_) => (),
-            Err(e) => log!("{}", e),
-        };
+        if player.update() {
+            save_queue_state(&player);
+        }
 
         terminal
             .draw(|f| {
@@ -282,10 +285,7 @@ fn main() {
                                 playlist.search_query.push(c);
                             }
                         }
-                        KeyCode::Char(' ') => match player.toggle_playback() {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
+                        KeyCode::Char(' ') => player.toggle_playback(),
                         KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
@@ -309,22 +309,16 @@ fn main() {
                             scan_handle = Some(gonk_database::scan(folder));
                             playlist.playlists = Index::from(gonk_database::playlists());
                         }
-                        KeyCode::Char('q') => match player.seek_by(-10.0) {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
-                        KeyCode::Char('e') => match player.seek_by(10.0) {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
-                        KeyCode::Char('a') => match player.previous() {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
-                        KeyCode::Char('d') => match player.next() {
-                            Ok(_) => (),
-                            Err(e) => log!("{}", e),
-                        },
+                        KeyCode::Char('q') => player.seek_backward(),
+                        KeyCode::Char('e') => player.seek_foward(),
+                        KeyCode::Char('a') => {
+                            player.prev();
+                            save_queue_state(&player);
+                        }
+                        KeyCode::Char('d') => {
+                            player.next();
+                            save_queue_state(&player);
+                        }
                         KeyCode::Char('w') => {
                             player.volume_up();
                             gonk_database::update_volume(player.volume);
@@ -379,7 +373,7 @@ fn main() {
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                match player.add_songs(&songs) {
+                                match player.add(&songs) {
                                     Ok(_) => (),
                                     Err(e) => log!("{}", e),
                                 }
@@ -396,7 +390,7 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    match player.add_songs(&songs) {
+                                    match player.add(&songs) {
                                         Ok(_) => (),
                                         Err(e) => log!("{}", e),
                                     }
