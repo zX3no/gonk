@@ -25,7 +25,8 @@ use symphonia::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-pub const SONG_LEN: usize = 522 + 1 + 1 + 4;
+//522 + 1 + 1 + 4
+pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
 pub const TEXT_LEN: usize = 522;
 
 pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
@@ -174,6 +175,7 @@ impl Settings {
             queue: Vec::new(),
         }
     }
+    //TODO: Can I return a slice instead?
     pub fn into_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.push(self.volume);
