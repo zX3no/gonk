@@ -304,11 +304,9 @@ fn main() {
                                 playlist::delete(&mut playlist, true);
                             }
                         }
-                        KeyCode::Char('u') if mode == Mode::Browser => {
+                        KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                             let folder = gonk_database::get_music_folder().to_string();
                             scan_handle = Some(gonk_database::scan(folder));
-                        }
-                        KeyCode::Char('u') if mode == Mode::Playlist => {
                             playlist.playlists = Index::from(gonk_database::playlists());
                         }
                         KeyCode::Char('q') => player.seek_backward(),

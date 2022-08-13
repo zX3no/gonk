@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Bay"]
 description = "A terminal music player"
 repository = "https://github.com/zX3no/gonk"
-readme = "README.md"
+readme = "../README.md"
 license = "CC0-1.0"
 
 default-run = "gonk"

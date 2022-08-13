@@ -3,7 +3,7 @@
 <h3 align="center">A terminal music player.</h3>
 
 <div align="center" style="display:inline">
-      <img src="media/gonk.gif">
+      <img src="https://raw.githubusercontent.com/zX3no/gonk/main/media/gonk.gif">
 </div>
 
 ## ⚠️ Warning
