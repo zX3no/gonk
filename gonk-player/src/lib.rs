@@ -424,7 +424,10 @@ impl Symphonia {
             Ok(next_packet) => next_packet,
             Err(err) => match err {
                 Error::IoError(err) => match err.kind() {
-                    std::io::ErrorKind::UnexpectedEof => return None,
+                    std::io::ErrorKind::UnexpectedEof => {
+                        self.elapsed = self.duration;
+                        return None;
+                    }
                     _ => panic!("{}", err),
                 },
                 Error::SeekError(_) | Error::DecodeError(_) => {
