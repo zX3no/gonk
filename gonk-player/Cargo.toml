@@ -2,8 +2,12 @@
 name = "gonk-player"
 version = "0.2.0"
 edition = "2021"
+description = "Music playback library for gonk"
+repository = "https://github.com/zX3no/gonk"
+readme = "../README.md"
+license = "CC0-1.0"
 
 [dependencies]
-symphonia = {version = "0.5.1", default-features = false,  features = ["flac", "mp3", "ogg", "vorbis"]}
+symphonia = { version = "0.5.1", default-features = false, features = ["flac", "mp3", "ogg", "vorbis"] }
 winapi = { version = "0.3.9", features = ["mmdeviceapi", "combaseapi", "devpkey", "audioclient", "synchapi"] }
 gonk-core = {version = "0.2.0", path = "../gonk-core"}
