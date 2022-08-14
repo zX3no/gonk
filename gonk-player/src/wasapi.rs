@@ -291,103 +291,6 @@ pub unsafe fn is_format_supported(
     new_format
 }
 
-pub unsafe fn create_stream(device: &Device, sample_rate: u32) -> StreamHandle {
-    check_init();
-
-    if !COMMON_SAMPLE_RATES.contains(&sample_rate) {
-        panic!("Invalid sample rate.");
-    }
-
-    let audio_client: *mut IAudioClient = {
-        let mut audio_client = null_mut();
-        let result =
-            (*device.inner).Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
-        check(result).unwrap();
-        assert!(!audio_client.is_null());
-        audio_client as *mut _
-    };
-
-    let format = get_mix_format(audio_client);
-
-    let mut deafult_period = zeroed();
-    (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
-
-    if format.Format.nChannels < 2 {
-        let channels = format.Format.nChannels;
-        panic!("Device only has {} channels", channels);
-    }
-
-    let desired_format = new_wavefmtex(
-        format.Format.wBitsPerSample as usize,
-        format.Samples as usize,
-        sample_rate as usize,
-        format.Format.nChannels as usize,
-    );
-
-    if desired_format.Samples != 32 {
-        panic!("64-bit buffers are not supported!");
-    }
-
-    let block_align = desired_format.Format.nBlockAlign as u32;
-
-    let result = (*audio_client).Initialize(
-        AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-            | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
-            | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
-            | AUDCLNT_STREAMFLAGS_RATEADJUST,
-        deafult_period,
-        deafult_period,
-        &desired_format as *const _ as *const WAVEFORMATEX,
-        null(),
-    );
-    check(result).unwrap();
-
-    // let mut audioclock_ptr = null_mut();
-    // let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
-    // check(result).unwrap();
-    // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
-    // let result = (*audio_clock).SetSampleRate(88_200.0);
-    // check(result).unwrap();
-
-    let h_event = CreateEventA(null_mut(), 0, 0, null());
-    (*audio_client).SetEventHandle(h_event);
-
-    let mut renderclient_ptr = null_mut();
-    let result = (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
-    check(result).unwrap();
-    let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
-
-    (*audio_client).Start();
-
-    let stream_dropped = Arc::new(AtomicBool::new(false));
-    let queue = Queue::new(MAX_BUFFER_SIZE as usize);
-
-    let audio_thread = AudioThread {
-        queue: queue.clone(),
-        stream_dropped: Arc::clone(&stream_dropped),
-        audio_client,
-        h_event,
-        render_client,
-        block_align: block_align as usize,
-        channels: desired_format.Format.nChannels as usize,
-        max_frames: MAX_BUFFER_SIZE as usize,
-    };
-
-    thread::spawn(move || {
-        audio_thread.run();
-    });
-
-    StreamHandle {
-        queue,
-        device: device.clone(),
-        sample_rate: desired_format.Format.nSamplesPerSec,
-        buffer_size: MAX_BUFFER_SIZE,
-        num_out_channels: desired_format.Format.nChannels as u32,
-        stream_dropped,
-    }
-}
-
 pub struct StreamHandle {
     pub queue: Queue<f32>,
     pub device: Device,
@@ -395,6 +298,109 @@ pub struct StreamHandle {
     pub buffer_size: u32,
     pub num_out_channels: u32,
     pub stream_dropped: Arc<AtomicBool>,
+}
+impl StreamHandle {
+    pub unsafe fn new(device: &Device, sample_rate: u32) -> Self {
+        check_init();
+
+        if !COMMON_SAMPLE_RATES.contains(&sample_rate) {
+            panic!("Invalid sample rate.");
+        }
+
+        let audio_client: *mut IAudioClient = {
+            let mut audio_client = null_mut();
+            let result = (*device.inner).Activate(
+                &IID_IAudioClient,
+                CLSCTX_ALL,
+                null_mut(),
+                &mut audio_client,
+            );
+            check(result).unwrap();
+            assert!(!audio_client.is_null());
+            audio_client as *mut _
+        };
+
+        let format = get_mix_format(audio_client);
+
+        let mut deafult_period = zeroed();
+        (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
+
+        if format.Format.nChannels < 2 {
+            let channels = format.Format.nChannels;
+            panic!("Device only has {} channels", channels);
+        }
+
+        let desired_format = new_wavefmtex(
+            format.Format.wBitsPerSample as usize,
+            format.Samples as usize,
+            sample_rate as usize,
+            format.Format.nChannels as usize,
+        );
+
+        if desired_format.Samples != 32 {
+            panic!("64-bit buffers are not supported!");
+        }
+
+        let block_align = desired_format.Format.nBlockAlign as u32;
+
+        let result = (*audio_client).Initialize(
+            AUDCLNT_SHAREMODE_SHARED,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+                | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
+                | AUDCLNT_STREAMFLAGS_RATEADJUST,
+            deafult_period,
+            deafult_period,
+            &desired_format as *const _ as *const WAVEFORMATEX,
+            null(),
+        );
+        check(result).unwrap();
+
+        // let mut audioclock_ptr = null_mut();
+        // let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
+        // check(result).unwrap();
+        // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
+        // let result = (*audio_clock).SetSampleRate(88_200.0);
+        // check(result).unwrap();
+
+        let h_event = CreateEventA(null_mut(), 0, 0, null());
+        (*audio_client).SetEventHandle(h_event);
+
+        let mut renderclient_ptr = null_mut();
+        let result =
+            (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
+        check(result).unwrap();
+        let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
+
+        (*audio_client).Start();
+
+        let stream_dropped = Arc::new(AtomicBool::new(false));
+        let queue = Queue::new(MAX_BUFFER_SIZE as usize);
+
+        let audio_thread = AudioThread {
+            queue: queue.clone(),
+            stream_dropped: Arc::clone(&stream_dropped),
+            audio_client,
+            h_event,
+            render_client,
+            block_align: block_align as usize,
+            channels: desired_format.Format.nChannels as usize,
+            max_frames: MAX_BUFFER_SIZE as usize,
+        };
+
+        thread::spawn(move || {
+            audio_thread.run();
+        });
+
+        StreamHandle {
+            queue,
+            device: device.clone(),
+            sample_rate: desired_format.Format.nSamplesPerSec,
+            buffer_size: MAX_BUFFER_SIZE,
+            num_out_channels: desired_format.Format.nChannels as u32,
+            stream_dropped,
+        }
+    }
 }
 
 impl Drop for StreamHandle {

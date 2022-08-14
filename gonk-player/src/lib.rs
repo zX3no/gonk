@@ -143,7 +143,7 @@ impl Player {
         let (s, r) = mpsc::channel();
 
         let mut sample_rate = 44100;
-        let mut handle = unsafe { create_stream(&device, sample_rate) };
+        let mut handle = unsafe { StreamHandle::new(&device, sample_rate) };
         let mut vol = calc_volume(volume);
 
         if let Some(song) = songs.selected() {
@@ -156,7 +156,7 @@ impl Player {
                     let sr = sym.sample_rate();
                     if sr != sample_rate {
                         sample_rate = sr;
-                        handle = unsafe { create_stream(&device, sample_rate) };
+                        handle = unsafe { StreamHandle::new(&device, sample_rate) };
                     }
                     unsafe {
                         STATE.elapsed = pos;
@@ -182,7 +182,7 @@ impl Player {
                             let sr = sym.sample_rate();
                             if sr != sample_rate {
                                 sample_rate = sr;
-                                handle = unsafe { create_stream(&device, sample_rate) };
+                                handle = unsafe { StreamHandle::new(&device, sample_rate) };
                             }
                             unsafe {
                                 STATE.duration = sym.duration();
@@ -197,7 +197,7 @@ impl Player {
                         let d = devices.iter().find(|device| device.name == name);
                         if let Some(d) = d {
                             device = d.clone();
-                            handle = unsafe { create_stream(&device, sample_rate) };
+                            handle = unsafe { StreamHandle::new(&device, sample_rate) };
                         }
                     }
                 }
