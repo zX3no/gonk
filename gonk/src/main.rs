@@ -111,7 +111,6 @@ fn main() {
         return println!("Database is corrupted! Please close all instances of gonk then relaunch or run `gonk reset`.");
     }
 
-    gonk_core::log::init();
     let mut scan_handle = None;
 
     let args: Vec<String> = std::env::args().skip(1).collect();

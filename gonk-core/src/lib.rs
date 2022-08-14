@@ -316,36 +316,40 @@ pub fn scan(path: String) -> JoinHandle<()> {
     }
 
     thread::spawn(|| {
-        let file = OpenOptions::new()
+        match OpenOptions::new()
             .write(true)
             .read(true)
             .truncate(true)
             .open(&database_path())
-            .unwrap();
-        let mut writer = BufWriter::new(&file);
+        {
+            Ok(file) => {
+                let mut writer = BufWriter::new(&file);
 
-        let paths: Vec<DirEntry> = WalkDir::new(path)
-            .into_iter()
-            .flatten()
-            .filter(|path| match path.path().extension() {
-                Some(ex) => {
-                    matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
+                let paths: Vec<DirEntry> = WalkDir::new(path)
+                    .into_iter()
+                    .flatten()
+                    .filter(|path| match path.path().extension() {
+                        Some(ex) => {
+                            matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
+                        }
+                        None => false,
+                    })
+                    .collect();
+
+                let songs: Vec<RawSong> = paths
+                    .into_par_iter()
+                    .map(|path| RawSong::from(path.path()))
+                    .collect();
+
+                for song in songs {
+                    writer.write_all(&song.into_bytes()).unwrap();
                 }
-                None => false,
-            })
-            .collect();
 
-        let songs: Vec<RawSong> = paths
-            .into_par_iter()
-            .map(|path| RawSong::from(path.path()))
-            .collect();
-
-        for song in songs {
-            writer.write_all(&song.into_bytes()).unwrap();
+                writer.flush().unwrap();
+                unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+            }
+            Err(_) => log!("Failed to scan folder, database is already open."),
         }
-
-        writer.flush().unwrap();
-        unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
     })
 }
 

@@ -86,10 +86,6 @@ impl<T> Queue<T> {
     pub fn is_empty(&self) -> bool {
         self.q.lock().unwrap().is_empty()
     }
-    //TODO: Might be unneeded.
-    pub fn clear(&mut self) {
-        self.q.lock().unwrap().clear();
-    }
 }
 
 impl<T> Clone for Queue<T> {
@@ -174,7 +170,6 @@ impl Player {
             }
         }
 
-        //TODO: Cleanly drop the stream handle
         thread::spawn(move || loop {
             if let Ok(event) = r.try_recv() {
                 match event {
@@ -353,7 +348,6 @@ pub struct Symphonia {
     track: Track,
     elapsed: u64,
     duration: u64,
-
     error_count: u8,
 }
 
@@ -422,7 +416,10 @@ impl Symphonia {
     }
     pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
         let next_packet = match self.format_reader.next_packet() {
-            Ok(next_packet) => next_packet,
+            Ok(next_packet) => {
+                self.error_count = 0;
+                next_packet
+            }
             Err(err) => match err {
                 Error::IoError(err) => match err.kind() {
                     std::io::ErrorKind::UnexpectedEof => {
@@ -443,7 +440,6 @@ impl Symphonia {
         };
 
         self.elapsed = next_packet.ts();
-
         unsafe { STATE.elapsed = self.elapsed() };
 
         let decoded = self.decoder.decode(&next_packet).unwrap();
