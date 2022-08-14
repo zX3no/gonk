@@ -16,4 +16,4 @@ crossterm = "0.23.2"
 unicode-width = "0.1.9"
 rayon = "1.5.3"
 gonk-player = {version = "0.2.0", path = "../gonk-player"}
-gonk-database = {version = "0.2.0", path = "../gonk-database"}
+gonk-core = {version = "0.2.0", path = "../gonk-core"}

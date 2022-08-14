@@ -1,6 +1,6 @@
 use crate::widgets::*;
 use crate::*;
-use gonk_database::Song;
+use gonk_core::Song;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{
@@ -123,9 +123,9 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
             None
         }
         Mode::Select => search.results.selected().map(|item| match item {
-            Item::Song(song) => gonk_database::ids(&[song.id]),
-            Item::Album(album) => gonk_database::songs_from_album(&album.artist, &album.name),
-            Item::Artist(artist) => gonk_database::songs_by_artist(&artist.name),
+            Item::Song(song) => gonk_core::ids(&[song.id]),
+            Item::Album(album) => gonk_core::songs_from_album(&album.artist, &album.name),
+            Item::Artist(artist) => gonk_core::songs_by_artist(&artist.name),
         }),
     }
 }
@@ -133,7 +133,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    let (artists, albums, songs) = gonk_database::artists_albums_and_songs();
+    let (artists, albums, songs) = gonk_core::artists_albums_and_songs();
 
     for song in songs {
         search.cache.push(Item::Song(MinSong {
@@ -281,7 +281,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseE
                 draw_artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
-                let albums = gonk_database::albums_by_artist(&artist.name);
+                let albums = gonk_core::albums_by_artist(&artist.name);
 
                 search::draw_artist(f, &artist.name, h[0]);
 
@@ -357,7 +357,7 @@ fn draw_song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<Row> = gonk_database::songs_from_album(artist, album)
+    let cells: Vec<Row> = gonk_core::songs_from_album(artist, album)
         .iter()
         .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.title))]))
         .collect();
@@ -382,7 +382,7 @@ fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
 }
 
 fn draw_artist(f: &mut Frame, artist: &str, area: Rect) {
-    let albums = gonk_database::albums_by_artist(artist);
+    let albums = gonk_core::albums_by_artist(artist);
     let cells: Vec<_> = albums
         .iter()
         .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
@@ -417,7 +417,7 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 
         match item {
             Item::Song(song) => {
-                let song = gonk_database::get(song.id).unwrap();
+                let song = gonk_core::get(song.id).unwrap();
                 Row::new(vec![
                     selected_cell,
                     Cell::from(song.title).style(Style::default().fg(COLORS.title)),

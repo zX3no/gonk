@@ -1,7 +1,7 @@
 use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
 use crossterm::event::MouseEvent;
-use gonk_database::{Index, Song};
+use gonk_core::{Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
@@ -29,13 +29,13 @@ pub struct Browser {
 
 impl Browser {
     pub fn new() -> Self {
-        let artists = Index::new(gonk_database::artists(), Some(0));
+        let artists = Index::new(gonk_core::artists(), Some(0));
 
         let (albums, songs) = if let Some(first_artist) = artists.selected() {
-            let albums = Index::new(gonk_database::albums_by_artist(first_artist), Some(0));
+            let albums = Index::new(gonk_core::albums_by_artist(first_artist), Some(0));
 
             if let Some(first_album) = albums.selected() {
-                let songs = gonk_database::songs_from_album(first_artist, first_album)
+                let songs = gonk_core::songs_from_album(first_artist, first_album)
                     .into_iter()
                     .map(|song| Item {
                         name: format!("{}. {}", song.number, song.title),
@@ -98,7 +98,7 @@ impl Input for Browser {
 pub fn refresh(browser: &mut Browser) {
     browser.mode = Mode::Artist;
 
-    browser.artists = Index::new(gonk_database::artists(), Some(0));
+    browser.artists = Index::new(gonk_core::artists(), Some(0));
     browser.albums = Index::default();
     browser.songs = Index::default();
 
@@ -116,7 +116,7 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        browser.albums = Index::new(gonk_database::albums_by_artist(artist), Some(0));
+        browser.albums = Index::new(gonk_core::albums_by_artist(artist), Some(0));
         update_songs(browser);
     }
 }
@@ -124,7 +124,7 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs = gonk_database::songs_from_album(artist, album)
+            let songs = gonk_core::songs_from_album(artist, album)
                 .into_iter()
                 .map(|song| Item {
                     name: format!("{}. {}", song.number, song.title),
@@ -141,9 +141,9 @@ pub fn get_selected(browser: &Browser) -> Vec<Song> {
         if let Some(album) = browser.albums.selected() {
             if let Some(song) = browser.songs.selected() {
                 return match browser.mode {
-                    Mode::Artist => gonk_database::songs_by_artist(artist),
-                    Mode::Album => gonk_database::songs_from_album(artist, album),
-                    Mode::Song => gonk_database::ids(&[song.id]),
+                    Mode::Artist => gonk_core::songs_by_artist(artist),
+                    Mode::Album => gonk_core::songs_from_album(artist, album),
+                    Mode::Song => gonk_core::ids(&[song.id]),
                 };
             }
         }
