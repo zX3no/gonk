@@ -4,9 +4,8 @@
     non_upper_case_globals,
     non_snake_case
 )]
-use gonk_database::{Index, Song};
+use gonk_core::{Index, Song};
 use std::fs::File;
-use std::path::Path;
 use std::sync::mpsc::{self, Sender};
 use std::{
     collections::VecDeque,
@@ -153,22 +152,26 @@ impl Player {
 
         if let Some(song) = songs.selected() {
             //This is slow >100ms in a debug build.
-            let mut d = Symphonia::new(&song.path);
-            let pos = Duration::from_secs_f32(elapsed);
-            d.seek(pos);
+            match Symphonia::new(&song.path) {
+                Ok(mut sym) => {
+                    let pos = Duration::from_secs_f32(elapsed);
+                    sym.seek(pos);
 
-            let sr = d.sample_rate();
-            if sr != sample_rate {
-                sample_rate = sr;
-                handle = unsafe { create_stream(&device, sample_rate) };
+                    let sr = sym.sample_rate();
+                    if sr != sample_rate {
+                        sample_rate = sr;
+                        handle = unsafe { create_stream(&device, sample_rate) };
+                    }
+                    unsafe {
+                        STATE.elapsed = pos;
+                        STATE.duration = sym.duration();
+                        STATE.playing = false;
+                        STATE.finished = false;
+                        SYMPHONIA = Some(sym);
+                    };
+                }
+                Err(err) => gonk_core::log!("Failed to restore queue. {}", err),
             }
-            unsafe {
-                STATE.elapsed = pos;
-                STATE.duration = d.duration();
-                STATE.playing = false;
-                STATE.finished = false;
-                SYMPHONIA = Some(d);
-            };
         }
 
         //TODO: Cleanly drop the stream handle
@@ -179,20 +182,22 @@ impl Player {
                         let v = v.clamp(0, 100);
                         vol = calc_volume(v);
                     }
-                    Event::Play(path) => {
-                        let d = Symphonia::new(&path);
-                        let sr = d.sample_rate();
-                        if sr != sample_rate {
-                            sample_rate = sr;
-                            handle = unsafe { create_stream(&device, sample_rate) };
+                    Event::Play(path) => match Symphonia::new(&path) {
+                        Ok(sym) => {
+                            let sr = sym.sample_rate();
+                            if sr != sample_rate {
+                                sample_rate = sr;
+                                handle = unsafe { create_stream(&device, sample_rate) };
+                            }
+                            unsafe {
+                                STATE.duration = sym.duration();
+                                STATE.playing = true;
+                                STATE.finished = false;
+                                SYMPHONIA = Some(sym);
+                            };
                         }
-                        unsafe {
-                            STATE.duration = d.duration();
-                            STATE.playing = true;
-                            STATE.finished = false;
-                            SYMPHONIA = Some(d);
-                        };
-                    }
+                        Err(err) => gonk_core::log!("Failed to play song. {}", err),
+                    },
                     Event::OutputDevice(name) => {
                         let d = devices.iter().find(|device| device.name == name);
                         if let Some(d) = d {
@@ -318,11 +323,7 @@ impl Player {
     pub fn play_index(&mut self, i: usize) -> Result<(), String> {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            if Path::new(&song.path).exists() {
-                self.play(&song.path);
-            } else {
-                return Err(format!("Path does not exist: {:?}", song.path));
-            }
+            self.play(&song.path);
         }
         Ok(())
     }
@@ -357,8 +358,8 @@ pub struct Symphonia {
 }
 
 impl Symphonia {
-    pub fn new(path: &str) -> Self {
-        let file = File::open(path).unwrap();
+    pub fn new(path: &str) -> std::io::Result<Self> {
+        let file = File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let probed = get_probe()
@@ -383,14 +384,14 @@ impl Symphonia {
         let n_frames = track.codec_params.n_frames.unwrap();
         let duration = track.codec_params.start_ts + n_frames;
 
-        Self {
+        Ok(Self {
             format_reader: probed.format,
             decoder,
             track,
             duration,
             elapsed: 0,
             error_count: 0,
-        }
+        })
     }
     pub fn elapsed(&self) -> Duration {
         let tb = self.track.codec_params.time_base.unwrap();
@@ -424,7 +425,10 @@ impl Symphonia {
             Ok(next_packet) => next_packet,
             Err(err) => match err {
                 Error::IoError(err) => match err.kind() {
-                    std::io::ErrorKind::UnexpectedEof => return None,
+                    std::io::ErrorKind::UnexpectedEof => {
+                        self.elapsed = self.duration;
+                        return None;
+                    }
                     _ => panic!("{}", err),
                 },
                 Error::SeekError(_) | Error::DecodeError(_) => {

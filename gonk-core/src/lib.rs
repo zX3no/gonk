@@ -37,6 +37,8 @@ mod index;
 mod playlist;
 mod query;
 
+pub mod log;
+
 pub use index::*;
 pub use playlist::*;
 pub use query::*;
@@ -327,7 +329,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             .flatten()
             .filter(|path| match path.path().extension() {
                 Some(ex) => {
-                    matches!(ex.to_str(), Some("flac" | "mp3" | "ogg" | "wav" | "m4a"))
+                    matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
                 }
                 None => false,
             })

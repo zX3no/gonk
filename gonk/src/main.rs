@@ -10,7 +10,8 @@
 )]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_database::Index;
+use gonk_core::log;
+use gonk_core::Index;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -21,10 +22,14 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
+use tui::widgets::Block;
+use tui::widgets::BorderType;
+use tui::widgets::Borders;
+use tui::widgets::Paragraph;
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
-mod log;
+// mod log;
 mod playlist;
 mod queue;
 mod search;
@@ -66,7 +71,7 @@ pub trait Input {
 }
 
 fn save_queue(player: &Player) {
-    gonk_database::update_queue(
+    gonk_core::update_queue(
         &player.songs.data,
         player.songs.index().unwrap_or(0) as u16,
         player.elapsed().as_secs_f32(),
@@ -74,19 +79,27 @@ fn save_queue(player: &Player) {
 }
 
 fn save_queue_state(player: &Player) {
-    gonk_database::update_queue_state(
+    gonk_core::update_queue_state(
         player.songs.index().unwrap_or(0) as u16,
         player.elapsed().as_secs_f32(),
     );
 }
 
 fn draw_log(f: &mut Frame) -> Rect {
-    if log::message().is_some() {
+    if let Some(msg) = log::message() {
         let area = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(2), Constraint::Length(3)])
             .split(f.size());
-        log::draw(area[1], f);
+
+        f.render_widget(
+            Paragraph::new(msg).alignment(Alignment::Left).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            ),
+            area[1],
+        );
         area[0]
     } else {
         f.size()
@@ -94,11 +107,11 @@ fn draw_log(f: &mut Frame) -> Rect {
 }
 
 fn main() {
-    if gonk_database::init().is_err() {
+    if gonk_core::init().is_err() {
         return println!("Database is corrupted! Please close all instances of gonk then relaunch or run `gonk reset`.");
     }
 
-    log::init();
+    gonk_core::log::init();
     let mut scan_handle = None;
 
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -110,14 +123,14 @@ fn main() {
                 }
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
-                    gonk_database::update_music_folder(path.as_str());
-                    scan_handle = Some(gonk_database::scan(path));
+                    gonk_core::update_music_folder(path.as_str());
+                    scan_handle = Some(gonk_core::scan(path));
                 } else {
                     return println!("Invalid path.");
                 }
             }
             "reset" => {
-                return match gonk_database::reset() {
+                return match gonk_core::reset() {
                     Ok(_) => println!("Files reset!"),
                     Err(e) => println!("Failed to reset database! {}", e),
                 };
@@ -155,10 +168,10 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = gonk_database::get_queue();
+    let (songs, index, elapsed) = gonk_core::get_queue();
     let songs = Index::new(songs, index);
-    let volume = gonk_database::volume();
-    let device = gonk_database::get_output_device();
+    let volume = gonk_core::volume();
+    let device = gonk_core::get_output_device();
     let mut player = Player::new(device, volume, songs, elapsed);
 
     let mut browser = Browser::new();
@@ -188,7 +201,7 @@ fn main() {
                 if let Some(time) = scan_timer {
                     log!(
                         "Finished adding {} files in {:.2} seconds.",
-                        gonk_database::len(),
+                        gonk_core::len(),
                         time.elapsed().as_secs_f32()
                     );
                 }
@@ -305,9 +318,9 @@ fn main() {
                             }
                         }
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
-                            let folder = gonk_database::get_music_folder().to_string();
-                            scan_handle = Some(gonk_database::scan(folder));
-                            playlist.playlists = Index::from(gonk_database::playlists());
+                            let folder = gonk_core::get_music_folder().to_string();
+                            scan_handle = Some(gonk_core::scan(folder));
+                            playlist.playlists = Index::from(gonk_core::playlists());
                         }
                         KeyCode::Char('q') => player.seek_backward(),
                         KeyCode::Char('e') => player.seek_foward(),
@@ -321,11 +334,11 @@ fn main() {
                         }
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            gonk_database::update_volume(player.volume);
+                            gonk_core::update_volume(player.volume);
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            gonk_database::update_volume(player.volume);
+                            gonk_core::update_volume(player.volume);
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,

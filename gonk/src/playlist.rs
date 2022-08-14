@@ -1,6 +1,6 @@
 use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
 use crossterm::event::MouseEvent;
-use gonk_database::{Index, RawPlaylist, RawSong, Song};
+use gonk_core::{Index, RawPlaylist, RawSong, Song};
 use gonk_player::Player;
 use tui::layout::Alignment;
 use tui::style::{Color, Modifier, Style};
@@ -31,7 +31,7 @@ pub struct Playlist {
 
 impl Playlist {
     pub fn new() -> Self {
-        let playlists = gonk_database::playlists();
+        let playlists = gonk_core::playlists();
 
         Self {
             mode: Mode::Playlist,
@@ -192,7 +192,7 @@ fn delete_song(playlist: &mut Playlist) {
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                gonk_database::remove_playlist(&selected.path);
+                gonk_core::remove_playlist(&selected.path);
                 playlist.playlists.remove(i);
             }
         }
@@ -202,7 +202,7 @@ fn delete_song(playlist: &mut Playlist) {
 
 fn delete_playlist(playlist: &mut Playlist) {
     if let Some(index) = playlist.playlists.index() {
-        gonk_database::remove_playlist(&playlist.playlists.data[index].path);
+        gonk_core::remove_playlist(&playlist.playlists.data[index].path);
         playlist.playlists.remove(index);
         playlist.delete = false;
     }

@@ -1,5 +1,5 @@
 use crate::{widgets::*, Frame, Input};
-use gonk_database::Index;
+use gonk_core::Index;
 use gonk_player::Player;
 use tui::{
     layout::Rect,
@@ -14,7 +14,7 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
-        let wanted_device = gonk_database::get_output_device();
+        let wanted_device = gonk_core::get_output_device();
 
         let devices: Vec<String> = unsafe {
             gonk_player::devices()
