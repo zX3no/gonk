@@ -107,9 +107,7 @@ fn draw_log(f: &mut Frame) -> Rect {
 }
 
 fn main() {
-    if gonk_core::init().is_err() {
-        return println!("Database is corrupted! Please close all instances of gonk then relaunch or run `gonk reset`.");
-    }
+    gonk_core::init();
 
     let mut scan_handle = None;
 

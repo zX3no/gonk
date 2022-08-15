@@ -87,9 +87,7 @@ pub fn database_path() -> PathBuf {
     }
 }
 
-//TODO: Database is reset without any warning. Should we ask the user to run `gonk reset`.
-pub fn init() -> Result<(), Box<dyn Error>> {
-    //Settings
+pub fn init() {
     SETTINGS_FILE.with(|mut file| {
         let mut buffer = Vec::new();
         match file.read_to_end(&mut buffer) {
@@ -102,23 +100,20 @@ pub fn init() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    //Database
-    let file = OpenOptions::new()
+    let db = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .open(&database_path())
         .unwrap();
 
-    unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+    unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
 
     //Reset the database if the first song is invalid.
     if validate().is_err() {
-        //TODO: Maybe return this as a result
-        reset()?;
+        log!("Database is corrupted. Resetting!");
+        reset().unwrap();
     }
-
-    Ok(())
 }
 
 //Delete the settings and overwrite with updated values.
@@ -134,6 +129,7 @@ pub fn reset() -> io::Result<()> {
         drop(mmap);
     }
 
+    unsafe { SETTINGS = Settings::default() };
     fs::remove_file(settings_path())?;
     fs::remove_file(database_path())
 }
@@ -211,34 +207,6 @@ impl Settings {
             queue: Vec::new(),
         }
     }
-    //TODO: Can I return a slice instead?
-    pub fn into_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.push(self.volume);
-        bytes.extend(self.index.to_le_bytes());
-        bytes.extend(self.elapsed.to_le_bytes());
-        bytes.extend(self.output_device.replace('\0', "").as_bytes());
-        bytes.push(b'\0');
-        bytes.extend(self.music_folder.replace('\0', "").as_bytes());
-        bytes.push(b'\0');
-        for song in &self.queue {
-            bytes.extend(song.into_bytes());
-        }
-        bytes
-    }
-    pub fn write(&self, mut writer: BufWriter<&File>) -> io::Result<()> {
-        writer.write_all(&[self.volume])?;
-        writer.write_all(&self.index.to_le_bytes())?;
-        writer.write_all(&self.elapsed.to_le_bytes())?;
-        writer.write_all(self.output_device.replace('\0', "").as_bytes())?;
-        writer.write_all(&[b'\0'])?;
-        writer.write_all(self.music_folder.replace('\0', "").as_bytes())?;
-        writer.write_all(&[b'\0'])?;
-        for song in &self.queue {
-            writer.write_all(&song.into_bytes())?;
-        }
-        Ok(())
-    }
     pub fn from(bytes: Vec<u8>) -> Self {
         unsafe {
             let volume = bytes[0];
@@ -267,6 +235,19 @@ impl Settings {
                 queue,
             }
         }
+    }
+    pub fn write(&self, mut writer: BufWriter<&File>) -> io::Result<()> {
+        writer.write_all(&[self.volume])?;
+        writer.write_all(&self.index.to_le_bytes())?;
+        writer.write_all(&self.elapsed.to_le_bytes())?;
+        writer.write_all(self.output_device.replace('\0', "").as_bytes())?;
+        writer.write_all(&[b'\0'])?;
+        writer.write_all(self.music_folder.replace('\0', "").as_bytes())?;
+        writer.write_all(&[b'\0'])?;
+        for song in &self.queue {
+            writer.write_all(&song.into_bytes())?;
+        }
+        Ok(())
     }
 }
 
@@ -757,42 +738,6 @@ mod tests {
         assert_eq!(song.title().len(), 127);
         assert_eq!(song.path().len(), 134);
         assert_eq!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len(), 134);
-    }
-
-    #[test]
-    fn settings() {
-        let mut queue = Vec::new();
-        for i in 0..100 {
-            let song = RawSong::new(
-                &format!("{} artist", i),
-                &format!("{} album", i),
-                &format!("{} title", i),
-                &format!("{} path", i),
-                1,
-                1,
-                0.25,
-            );
-            queue.push(song)
-        }
-        let settings = Settings {
-            volume: 15,
-            index: 1,
-            elapsed: 0.25,
-            output_device: String::from("output device"),
-            music_folder: String::from("music folder"),
-            queue,
-        };
-        let bytes = settings.into_bytes();
-        let new_settings = Settings::from(bytes);
-
-        assert_eq!(settings.volume, new_settings.volume);
-        assert_eq!(settings.index, new_settings.index);
-        assert_eq!(settings.elapsed, new_settings.elapsed);
-        assert_eq!(settings.output_device, new_settings.output_device);
-        assert_eq!(settings.music_folder, new_settings.music_folder);
-
-        //I have no idea why these are different?
-        assert_ne!(settings.queue[0].text, new_settings.queue[0].text);
     }
 
     #[test]
