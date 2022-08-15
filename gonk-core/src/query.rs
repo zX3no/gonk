@@ -107,7 +107,6 @@ pub fn ids(ids: &[usize]) -> Vec<Song> {
             let bytes = &mmap[start..start + SONG_LEN];
             songs.push(Song::from(bytes, *id));
         }
-        //TODO: Check if songs need to be sorted here.
         songs
     } else {
         Vec::new()

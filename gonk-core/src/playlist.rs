@@ -1,34 +1,11 @@
-use walkdir::WalkDir;
-
 use crate::{database_path, Index, RawSong, SONG_LEN};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::from_utf8_unchecked,
 };
-
-pub fn playlists() -> Vec<RawPlaylist> {
-    let mut path = database_path();
-    path.pop();
-
-    WalkDir::new(path)
-        .into_iter()
-        .flatten()
-        .filter(|path| match path.path().extension() {
-            Some(ex) => {
-                matches!(ex.to_str(), Some("playlist"))
-            }
-            None => false,
-        })
-        .flat_map(|entry| fs::read(entry.path()))
-        .map(|bytes| RawPlaylist::from(bytes.as_slice()))
-        .collect()
-}
-
-pub fn remove_playlist(path: &Path) {
-    fs::remove_file(path).unwrap();
-}
+use walkdir::WalkDir;
 
 #[derive(Debug)]
 pub struct RawPlaylist {
@@ -65,6 +42,9 @@ impl RawPlaylist {
         writer.write_all(&bytes).unwrap();
         writer.flush().unwrap();
     }
+    pub fn delete(&self) {
+        fs::remove_file(&self.path).unwrap();
+    }
 }
 
 impl From<&[u8]> for RawPlaylist {
@@ -92,4 +72,22 @@ impl From<&[u8]> for RawPlaylist {
             }
         }
     }
+}
+
+pub fn playlists() -> Vec<RawPlaylist> {
+    let mut path = database_path();
+    path.pop();
+
+    WalkDir::new(path)
+        .into_iter()
+        .flatten()
+        .filter(|path| match path.path().extension() {
+            Some(ex) => {
+                matches!(ex.to_str(), Some("playlist"))
+            }
+            None => false,
+        })
+        .flat_map(|entry| fs::read(entry.path()))
+        .map(|bytes| RawPlaylist::from(bytes.as_slice()))
+        .collect()
 }

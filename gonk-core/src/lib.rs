@@ -258,8 +258,6 @@ pub fn update_volume(new_volume: u8) {
     }
 }
 
-//You know it's bad you need to spawn a new thread.
-//What if just the index was updated? Why do you need to write everything again.
 pub fn update_queue(queue: &[Song], index: u16, elapsed: f32) {
     unsafe {
         SETTINGS.queue = queue.iter().map(RawSong::from).collect();
@@ -310,11 +308,11 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
     }
 }
 
-pub fn get_output_device() -> &'static str {
+pub fn output_device() -> &'static str {
     unsafe { &SETTINGS.output_device }
 }
 
-pub fn get_music_folder() -> &'static str {
+pub fn music_folder() -> &'static str {
     unsafe { &SETTINGS.music_folder }
 }
 

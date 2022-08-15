@@ -192,7 +192,7 @@ fn delete_song(playlist: &mut Playlist) {
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                gonk_core::remove_playlist(&selected.path);
+                selected.delete();
                 playlist.playlists.remove(i);
             }
         }
@@ -202,7 +202,7 @@ fn delete_song(playlist: &mut Playlist) {
 
 fn delete_playlist(playlist: &mut Playlist) {
     if let Some(index) = playlist.playlists.index() {
-        gonk_core::remove_playlist(&playlist.playlists.data[index].path);
+        playlist.playlists.data[index].delete();
         playlist.playlists.remove(index);
         playlist.delete = false;
     }

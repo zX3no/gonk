@@ -168,7 +168,7 @@ fn main() {
     let (songs, index, elapsed) = gonk_core::get_queue();
     let songs = Index::new(songs, index);
     let volume = gonk_core::volume();
-    let device = gonk_core::get_output_device();
+    let device = gonk_core::output_device();
     let mut player = Player::new(device, volume, songs, elapsed);
 
     let mut browser = Browser::new();
@@ -315,7 +315,7 @@ fn main() {
                             }
                         }
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
-                            let folder = gonk_core::get_music_folder().to_string();
+                            let folder = gonk_core::music_folder().to_string();
                             scan_handle = Some(gonk_core::scan(folder));
                             playlist.playlists = Index::from(gonk_core::playlists());
                         }

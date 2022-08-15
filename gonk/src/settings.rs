@@ -14,7 +14,7 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
-        let wanted_device = gonk_core::get_output_device();
+        let wanted_device = gonk_core::output_device();
 
         let devices: Vec<String> = unsafe {
             gonk_player::devices()
