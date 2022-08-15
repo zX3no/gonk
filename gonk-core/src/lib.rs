@@ -58,7 +58,15 @@ pub fn database_path() -> PathBuf {
         fs::create_dir_all(&gonk).unwrap();
     }
 
-    gonk.join("gonk_new.db")
+    //Backwards compatibility for older versions of gonk
+    let old_db = gonk.join("gonk_new.db");
+    let db = gonk.join("gonk.db");
+
+    if old_db.exists() {
+        old_db
+    } else {
+        db
+    }
 }
 
 pub fn settings_path() -> PathBuf {
