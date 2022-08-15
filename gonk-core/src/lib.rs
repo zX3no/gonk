@@ -6,7 +6,7 @@ use std::{
     error::Error,
     fmt::Debug,
     fs::{self, File, OpenOptions},
-    io::{self, BufWriter, Write},
+    io::{self, BufWriter, Read, Write},
     mem::size_of,
     ops::Range,
     path::{Path, PathBuf},
@@ -46,6 +46,24 @@ pub use query::*;
 pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
+thread_local! {
+    pub static SETTINGS_FILE: File = {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(settings_path())
+            .unwrap()
+    };
+}
+
+pub fn settings_path() -> PathBuf {
+    let mut path = database_path();
+    path.pop();
+    path.push("settings.db");
+    path
+}
+
 pub fn database_path() -> PathBuf {
     let gonk = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())
@@ -69,21 +87,20 @@ pub fn database_path() -> PathBuf {
     }
 }
 
-pub fn settings_path() -> PathBuf {
-    let mut path = database_path();
-    path.pop();
-    path.push("settings.db");
-    path
-}
-
 //TODO: Database is reset without any warning. Should we ask the user to run `gonk reset`.
 pub fn init() -> Result<(), Box<dyn Error>> {
     //Settings
-    match fs::read(&settings_path()) {
-        Ok(bytes) if !bytes.is_empty() => unsafe { SETTINGS = Settings::from(bytes) },
-        //Write the default configuration if nothing is found.
-        _ => save_settings(),
-    }
+    SETTINGS_FILE.with(|mut file| {
+        let mut buffer = Vec::new();
+        match file.read_to_end(&mut buffer) {
+            Ok(_) if !buffer.is_empty() => unsafe { SETTINGS = Settings::from(buffer) },
+            Err(_) => unreachable!("Failed to load settings"),
+            _ => {
+                //Save the default settings if nothing is found.
+                save_settings();
+            }
+        }
+    });
 
     //Database
     let file = OpenOptions::new()
@@ -102,6 +119,23 @@ pub fn init() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+//Delete the settings and overwrite with updated values.
+pub fn save_settings() {
+    SETTINGS_FILE.with(|file| {
+        let writer = BufWriter::new(file);
+        unsafe { SETTINGS.write(writer).unwrap() };
+    });
+}
+
+pub fn reset() -> io::Result<()> {
+    if let Some(mmap) = unsafe { MMAP.take() } {
+        drop(mmap);
+    }
+
+    fs::remove_file(settings_path())?;
+    fs::remove_file(database_path())
 }
 
 fn validate() -> Result<(), Box<dyn Error>> {
@@ -155,14 +189,6 @@ fn validate() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn reset() -> io::Result<()> {
-    if let Some(mmap) = unsafe { MMAP.take() } {
-        drop(mmap);
-    }
-    fs::remove_file(settings_path())?;
-    fs::remove_file(database_path())
-}
-
 //TODO: Remove null terminated strings
 #[derive(Debug)]
 pub struct Settings {
@@ -200,11 +226,24 @@ impl Settings {
         }
         bytes
     }
+    pub fn write(&self, mut writer: BufWriter<&File>) -> io::Result<()> {
+        writer.write_all(&[self.volume])?;
+        writer.write_all(&self.index.to_le_bytes())?;
+        writer.write_all(&self.elapsed.to_le_bytes())?;
+        writer.write_all(self.output_device.replace('\0', "").as_bytes())?;
+        writer.write_all(&[b'\0'])?;
+        writer.write_all(self.music_folder.replace('\0', "").as_bytes())?;
+        writer.write_all(&[b'\0'])?;
+        for song in &self.queue {
+            writer.write_all(&song.into_bytes())?;
+        }
+        Ok(())
+    }
     pub fn from(bytes: Vec<u8>) -> Self {
         unsafe {
             let volume = bytes[0];
-            let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap_unchecked());
-            let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap_unchecked());
+            let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
+            let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
             let end = bytes[7..].iter().position(|&c| c == b'\0').unwrap() + 7;
             let output_device = from_utf8_unchecked(&bytes[7..end]).to_string();
             let old_end = end + 1;
@@ -231,16 +270,6 @@ impl Settings {
     }
 }
 
-//TODO: Profile this. Probably need to save a file handle.
-pub fn save_settings() {
-    //Delete the contents of the file and overwrite with new settings.
-    let file = File::create(settings_path()).unwrap();
-    let mut writer = BufWriter::new(file);
-    let bytes = unsafe { SETTINGS.into_bytes() };
-    writer.write_all(&bytes).unwrap();
-    writer.flush().unwrap();
-}
-
 pub fn update_volume(new_volume: u8) {
     unsafe {
         SETTINGS.volume = new_volume;
@@ -251,20 +280,20 @@ pub fn update_volume(new_volume: u8) {
 //You know it's bad you need to spawn a new thread.
 //What if just the index was updated? Why do you need to write everything again.
 pub fn update_queue(queue: &[Song], index: u16, elapsed: f32) {
-    unsafe { SETTINGS.queue = queue.iter().map(RawSong::from).collect() };
-    std::thread::spawn(move || unsafe {
+    unsafe {
+        SETTINGS.queue = queue.iter().map(RawSong::from).collect();
         SETTINGS.index = index;
         SETTINGS.elapsed = elapsed;
         save_settings();
-    });
+    };
 }
 
 pub fn update_queue_state(index: u16, elapsed: f32) {
-    std::thread::spawn(move || unsafe {
+    unsafe {
         SETTINGS.elapsed = elapsed;
         SETTINGS.index = index;
         save_settings();
-    });
+    }
 }
 
 pub fn update_output_device(device: &str) {
@@ -416,21 +445,19 @@ impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
         unsafe {
             let text = &bytes[..TEXT_LEN];
-            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
+            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
             let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
 
-            let album_len = u16::from_le_bytes(
-                text[2 + artist_len..2 + artist_len + 2]
-                    .try_into()
-                    .unwrap_unchecked(),
-            ) as usize;
+            let album_len =
+                u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
+                    as usize;
             let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
             let album = from_utf8_unchecked(&text[album]);
 
             let title_len = u16::from_le_bytes(
                 text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
                     .try_into()
-                    .unwrap_unchecked(),
+                    .unwrap(),
             ) as usize;
             let title =
                 2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
@@ -440,7 +467,7 @@ impl Song {
                 text[2 + artist_len + 2 + album_len + 2 + title_len
                     ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
                     .try_into()
-                    .unwrap_unchecked(),
+                    .unwrap(),
             ) as usize;
             let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
                 ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
@@ -448,7 +475,7 @@ impl Song {
 
             let number = bytes[NUMBER_POS];
             let disc = bytes[DISC_POS];
-            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked());
+            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap());
 
             Self {
                 artist: artist.to_string(),
@@ -818,6 +845,15 @@ mod tests {
         assert_eq!(song.album, "0 album");
         assert_eq!(song.title, "0 title");
         assert_eq!(song.path, "0 path");
+        assert_eq!(song.number, 1);
+        assert_eq!(song.disc, 1);
+        assert_eq!(song.gain, 0.25);
+
+        let song = Song::from(&db[SONG_LEN * 9999..SONG_LEN * 10000], 9999);
+        assert_eq!(song.artist, "9999 artist");
+        assert_eq!(song.album, "9999 album");
+        assert_eq!(song.title, "9999 title");
+        assert_eq!(song.path, "9999 path");
         assert_eq!(song.number, 1);
         assert_eq!(song.disc, 1);
         assert_eq!(song.gain, 0.25);

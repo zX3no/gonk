@@ -5,7 +5,7 @@ use std::str::from_utf8_unchecked;
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let end = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize + 2;
+        let end = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize + 2;
         from_utf8_unchecked(&text[2..end])
     }
 }
@@ -13,12 +13,10 @@ pub fn artist(text: &[u8]) -> &str {
 pub fn album(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
-        let album_len = u16::from_le_bytes(
-            text[2 + artist_len..2 + artist_len + 2]
-                .try_into()
-                .unwrap_unchecked(),
-        ) as usize;
+        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+        let album_len =
+            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
+                as usize;
         let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
         from_utf8_unchecked(&text[album])
     }
@@ -27,17 +25,15 @@ pub fn album(text: &[u8]) -> &str {
 pub fn title(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
-        let album_len = u16::from_le_bytes(
-            text[2 + artist_len..2 + artist_len + 2]
-                .try_into()
-                .unwrap_unchecked(),
-        ) as usize;
+        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+        let album_len =
+            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
+                as usize;
 
         let title_len = u16::from_le_bytes(
             text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
                 .try_into()
-                .unwrap_unchecked(),
+                .unwrap(),
         ) as usize;
 
         let title =
@@ -50,24 +46,22 @@ pub fn title(text: &[u8]) -> &str {
 pub fn path(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
-        let album_len = u16::from_le_bytes(
-            text[2 + artist_len..2 + artist_len + 2]
-                .try_into()
-                .unwrap_unchecked(),
-        ) as usize;
+        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+        let album_len =
+            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
+                as usize;
 
         let title_len = u16::from_le_bytes(
             text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
                 .try_into()
-                .unwrap_unchecked(),
+                .unwrap(),
         ) as usize;
 
         let path_len = u16::from_le_bytes(
             text[2 + artist_len + 2 + album_len + 2 + title_len
                 ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
                 .try_into()
-                .unwrap_unchecked(),
+                .unwrap(),
         ) as usize;
 
         let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
@@ -80,14 +74,12 @@ pub fn path(text: &[u8]) -> &str {
 pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
+        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
         let artist = 2..artist_len + 2;
 
-        let album_len = u16::from_le_bytes(
-            text[2 + artist_len..2 + artist_len + 2]
-                .try_into()
-                .unwrap_unchecked(),
-        ) as usize;
+        let album_len =
+            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
+                as usize;
         let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
 
         (

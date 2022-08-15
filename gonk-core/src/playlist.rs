@@ -70,7 +70,7 @@ impl RawPlaylist {
 impl From<&[u8]> for RawPlaylist {
     fn from(bytes: &[u8]) -> Self {
         unsafe {
-            let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap_unchecked()) as usize;
+            let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap()) as usize;
             let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
 
             let mut i = name_len + 2;
