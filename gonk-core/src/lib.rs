@@ -1,4 +1,3 @@
-use arrayvec::ArrayVec;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -6,7 +5,7 @@ use std::{
     error::Error,
     fmt::Debug,
     fs::{self, File, OpenOptions},
-    io::{self, BufWriter, Read, Write},
+    io::{self, BufWriter, Write},
     mem::size_of,
     ops::Range,
     path::{Path, PathBuf},
@@ -46,15 +45,27 @@ pub use query::*;
 pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
-thread_local! {
-    pub static SETTINGS_FILE: File = {
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(settings_path())
-            .unwrap()
-    };
+pub fn init() {
+    match fs::read(&settings_path()) {
+        Ok(bytes) if !bytes.is_empty() => unsafe { SETTINGS = Settings::from(bytes) },
+        //Save the default settings if nothing is found.
+        _ => save_settings(),
+    }
+
+    let db = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&database_path())
+        .unwrap();
+
+    let mmap = unsafe { Mmap::map(&db).unwrap() };
+    //Reset the database if the first song is invalid.
+    if validate(&mmap).is_err() {
+        log!("Database is corrupted. Resetting!");
+        reset().unwrap();
+    }
+    unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
 }
 
 pub fn settings_path() -> PathBuf {
@@ -87,41 +98,18 @@ pub fn database_path() -> PathBuf {
     db
 }
 
-pub fn init() {
-    SETTINGS_FILE.with(|mut file| {
-        let mut buffer = Vec::new();
-        match file.read_to_end(&mut buffer) {
-            Ok(_) if !buffer.is_empty() => unsafe { SETTINGS = Settings::from(buffer) },
-            Err(_) => unreachable!("Failed to load settings"),
-            _ => {
-                //Save the default settings if nothing is found.
-                save_settings();
-            }
-        }
-    });
-
-    let db = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&database_path())
-        .unwrap();
-
-    unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
-
-    //Reset the database if the first song is invalid.
-    if validate().is_err() {
-        log!("Database is corrupted. Resetting!");
-        reset().unwrap();
-    }
-}
-
 //Delete the settings and overwrite with updated values.
 pub fn save_settings() {
-    SETTINGS_FILE.with(|file| {
-        let writer = BufWriter::new(file);
-        unsafe { SETTINGS.write(writer).unwrap() };
-    });
+    unsafe {
+        let file = File::options()
+            .write(true)
+            .truncate(true)
+            .open(settings_path())
+            .unwrap();
+
+        let writer = BufWriter::new(&file);
+        SETTINGS.write(writer).unwrap();
+    };
 }
 
 pub fn reset() -> io::Result<()> {
@@ -134,15 +122,13 @@ pub fn reset() -> io::Result<()> {
     fs::remove_file(database_path())
 }
 
-fn validate() -> Result<(), Box<dyn Error>> {
-    let mmap = mmap().unwrap();
-
-    if mmap.is_empty() {
+fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
+    if file.is_empty() {
         return Ok(());
-    } else if mmap.len() < SONG_LEN {
+    } else if file.len() < SONG_LEN {
         return Err("Invalid song")?;
     }
-    let text = &mmap[..TEXT_LEN];
+    let text = &file[..TEXT_LEN];
     let artist_len = u16::from_le_bytes(text[0..2].try_into()?) as usize;
     if artist_len > TEXT_LEN {
         Err("Invalid u16")?;
@@ -178,14 +164,13 @@ fn validate() -> Result<(), Box<dyn Error>> {
         ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
     let _path = from_utf8(&text[path])?;
 
-    let _number = mmap[NUMBER_POS];
-    let _disc = mmap[DISC_POS];
-    let _gain = f32::from_le_bytes(mmap[GAIN_POS].try_into()?);
+    let _number = file[NUMBER_POS];
+    let _disc = file[DISC_POS];
+    let _gain = f32::from_le_bytes(file[GAIN_POS].try_into()?);
 
     Ok(())
 }
 
-//TODO: Remove null terminated strings
 #[derive(Debug)]
 pub struct Settings {
     pub volume: u8,
@@ -212,15 +197,21 @@ impl Settings {
             let volume = bytes[0];
             let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
             let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
-            let end = bytes[7..].iter().position(|&c| c == b'\0').unwrap() + 7;
-            let output_device = from_utf8_unchecked(&bytes[7..end]).to_string();
-            let old_end = end + 1;
-            let end = bytes[old_end..].iter().position(|&c| c == b'\0').unwrap() + old_end;
-            let music_folder = from_utf8_unchecked(&bytes[old_end..end]).to_string();
+
+            let start = 9;
+            let end = u16::from_le_bytes(bytes[7..start].try_into().unwrap()) as usize + start;
+            debug_assert!(end <= bytes.len());
+            let output_device = from_utf8_unchecked(&bytes[start..end]).to_string();
+
+            let start = end + 2;
+            let music_folder_len =
+                u16::from_le_bytes(bytes[end..start].try_into().unwrap()) as usize;
+            debug_assert!(music_folder_len <= bytes.len());
+            let music_folder =
+                from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
 
             let mut queue = Vec::new();
-            //Skip the null terminator
-            let mut i = end + 1;
+            let mut i = start + music_folder_len;
             while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
                 queue.push(RawSong::from(bytes));
                 i += SONG_LEN;
@@ -236,17 +227,38 @@ impl Settings {
             }
         }
     }
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.push(self.volume);
+        bytes.extend(self.index.to_le_bytes());
+        bytes.extend(self.elapsed.to_le_bytes());
+
+        bytes.extend((self.output_device.len() as u16).to_le_bytes());
+        bytes.extend(self.output_device.as_bytes());
+
+        bytes.extend((self.music_folder.len() as u16).to_le_bytes());
+        bytes.extend(self.music_folder.as_bytes());
+
+        for song in &self.queue {
+            bytes.extend(&song.into_bytes());
+        }
+        bytes
+    }
     pub fn write(&self, mut writer: BufWriter<&File>) -> io::Result<()> {
         writer.write_all(&[self.volume])?;
         writer.write_all(&self.index.to_le_bytes())?;
         writer.write_all(&self.elapsed.to_le_bytes())?;
-        writer.write_all(self.output_device.replace('\0', "").as_bytes())?;
-        writer.write_all(&[b'\0'])?;
-        writer.write_all(self.music_folder.replace('\0', "").as_bytes())?;
-        writer.write_all(&[b'\0'])?;
+
+        writer.write_all(&(self.output_device.len() as u16).to_le_bytes())?;
+        writer.write_all(self.output_device.as_bytes())?;
+
+        writer.write_all(&(self.music_folder.len() as u16).to_le_bytes())?;
+        writer.write_all(self.music_folder.as_bytes())?;
+
         for song in &self.queue {
             writer.write_all(&song.into_bytes())?;
         }
+        writer.flush().unwrap();
         Ok(())
     }
 }
@@ -425,11 +437,13 @@ impl Song {
         unsafe {
             let text = &bytes[..TEXT_LEN];
             let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
+            debug_assert!(artist_len <= TEXT_LEN);
             let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
 
             let album_len =
                 u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
                     as usize;
+            debug_assert!(album_len <= TEXT_LEN);
             let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
             let album = from_utf8_unchecked(&text[album]);
 
@@ -438,6 +452,7 @@ impl Song {
                     .try_into()
                     .unwrap(),
             ) as usize;
+            debug_assert!(title_len <= TEXT_LEN);
             let title =
                 2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
             let title = from_utf8_unchecked(&text[title]);
@@ -448,6 +463,7 @@ impl Song {
                     .try_into()
                     .unwrap(),
             ) as usize;
+            debug_assert!(path_len <= TEXT_LEN);
             let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
                 ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
             let path = from_utf8_unchecked(&text[path]);
@@ -471,7 +487,7 @@ impl Song {
 }
 
 pub struct RawSong {
-    pub text: ArrayVec<u8, TEXT_LEN>,
+    pub text: [u8; TEXT_LEN],
     pub number: u8,
     pub disc: u8,
     pub gain: f32,
@@ -511,16 +527,31 @@ impl RawSong {
             i += 1;
         }
 
-        let mut text = ArrayVec::<u8, TEXT_LEN>::new();
+        let mut text = [0; TEXT_LEN];
 
-        text.extend((artist.len() as u16).to_le_bytes());
-        let _ = text.try_extend_from_slice(artist.as_bytes());
-        text.extend((album.len() as u16).to_le_bytes());
-        let _ = text.try_extend_from_slice(album.as_bytes());
-        text.extend((title.len() as u16).to_le_bytes());
-        let _ = text.try_extend_from_slice(title.as_bytes());
-        text.extend((path.len() as u16).to_le_bytes());
-        let _ = text.try_extend_from_slice(path.as_bytes());
+        let len = (artist.len() as u16).to_le_bytes();
+        text[0..2].copy_from_slice(&len);
+        let start = 2;
+        let end = 2 + artist.len();
+        text[start..end].copy_from_slice(artist.as_bytes());
+
+        let len = (album.len() as u16).to_le_bytes();
+        text[end..end + 2].copy_from_slice(&len);
+        let start = end + 2;
+        let end = start + album.len();
+        text[start..end].copy_from_slice(album.as_bytes());
+
+        let len = (title.len() as u16).to_le_bytes();
+        text[end..end + 2].copy_from_slice(&len);
+        let start = end + 2;
+        let end = start + title.len();
+        text[start..end].copy_from_slice(title.as_bytes());
+
+        let len = (path.len() as u16).to_le_bytes();
+        text[end..end + 2].copy_from_slice(&len);
+        let start = end + 2;
+        let end = start + path.len();
+        text[start..end].copy_from_slice(path.as_bytes());
 
         Self {
             text,
@@ -531,7 +562,7 @@ impl RawSong {
     }
     pub fn into_bytes(&self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
-        debug_assert!(self.text.len() <= SONG_LEN);
+        debug_assert!(self.text.len() <= TEXT_LEN);
 
         song[..self.text.len()].copy_from_slice(&self.text);
         song[NUMBER_POS] = self.number;
@@ -550,6 +581,12 @@ impl RawSong {
     }
     pub fn path(&self) -> &str {
         path(&self.text)
+    }
+}
+
+impl Default for RawSong {
+    fn default() -> Self {
+        Self::new("artist", "album", "title", "path", 12, 1, 0.123)
     }
 }
 
@@ -736,6 +773,13 @@ mod tests {
         assert_eq!(song.title().len(), 127);
         assert_eq!(song.path().len(), 134);
         assert_eq!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len(), 134);
+    }
+
+    #[test]
+    fn settings() {
+        let settings = Settings::default();
+        //TODO: add song and check it
+        validate(settings.queue);
     }
 
     #[test]

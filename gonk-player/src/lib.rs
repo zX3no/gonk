@@ -101,7 +101,7 @@ impl<T> Clone for Queue<T> {
 #[derive(Debug)]
 pub enum Event {
     Volume(u8),
-    Play(String),
+    Play((String, f32)),
     OutputDevice(String),
 }
 
@@ -143,6 +143,7 @@ impl Player {
         let (s, r) = mpsc::channel();
 
         let mut sample_rate = 44100;
+        let mut gain = 0.0;
         let mut handle = unsafe { StreamHandle::new(&device, sample_rate) };
         let mut vol = calc_volume(volume);
 
@@ -177,13 +178,14 @@ impl Player {
                         let v = v.clamp(0, 100);
                         vol = calc_volume(v);
                     }
-                    Event::Play(path) => match Symphonia::new(&path) {
+                    Event::Play((path, g)) => match Symphonia::new(&path) {
                         Ok(sym) => {
                             let sr = sym.sample_rate();
                             if sr != sample_rate {
                                 sample_rate = sr;
                                 handle = unsafe { StreamHandle::new(&device, sample_rate) };
                             }
+                            gain = g;
                             unsafe {
                                 STATE.duration = sym.duration();
                                 STATE.playing = true;
@@ -208,7 +210,13 @@ impl Player {
                     if STATE.playing && !STATE.finished {
                         if let Some(next) = d.next_packet() {
                             for smp in next.samples() {
-                                handle.queue.push(smp * vol)
+                                if gain == 0.0 {
+                                    //Reduce the volume a little to match
+                                    //songs with replay gain information.
+                                    handle.queue.push(smp * vol * 0.75);
+                                } else {
+                                    handle.queue.push(smp * vol * gain);
+                                }
                             }
                         } else {
                             STATE.finished = true;
@@ -231,8 +239,8 @@ impl Player {
     pub fn toggle_playback(&self) {
         unsafe { STATE.playing = !STATE.playing }
     }
-    pub fn play(&self, path: &str) {
-        self.s.send(Event::Play(path.to_string())).unwrap();
+    pub fn play(&self, path: &str, gain: f32) {
+        self.s.send(Event::Play((path.to_string(), gain))).unwrap();
     }
     pub fn seek_foward(&mut self) {
         let pos = (self.elapsed().as_secs_f64() + 10.0).clamp(0.0, f64::MAX);
@@ -260,13 +268,13 @@ impl Player {
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
-            self.play(&song.path)
+            self.play(&song.path, song.gain)
         }
     }
     pub fn prev(&mut self) {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
-            self.play(&song.path)
+            self.play(&song.path, song.gain)
         }
     }
     pub fn delete_index(&mut self, i: usize) -> Result<(), String> {
@@ -318,7 +326,7 @@ impl Player {
     pub fn play_index(&mut self, i: usize) -> Result<(), String> {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            self.play(&song.path);
+            self.play(&song.path, song.gain);
         }
         Ok(())
     }
