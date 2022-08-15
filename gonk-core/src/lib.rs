@@ -81,10 +81,10 @@ pub fn database_path() -> PathBuf {
     let db = gonk.join("gonk.db");
 
     if old_db.exists() {
-        old_db
-    } else {
-        db
+        fs::rename(old_db, &db).unwrap();
     }
+
+    db
 }
 
 pub fn init() {
