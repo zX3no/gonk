@@ -106,7 +106,7 @@ pub enum Event {
 
 #[inline]
 pub fn calc_volume(volume: u8) -> f32 {
-    volume as f32 / 1000.0
+    volume as f32 / 600.0
 }
 
 pub struct State {
@@ -164,6 +164,7 @@ impl Player {
                                 handle = StreamHandle::new(&device, sample_rate);
                             }
 
+                            STATE.gain = song.gain;
                             STATE.elapsed = pos;
                             STATE.duration = sym.duration();
                             STATE.playing = false;
