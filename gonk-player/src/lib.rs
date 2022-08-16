@@ -100,7 +100,6 @@ impl<T> Clone for Queue<T> {
 
 #[derive(Debug)]
 pub enum Event {
-    Volume(u8),
     Play((String, f32)),
     OutputDevice(String),
 }
@@ -115,13 +114,18 @@ pub struct State {
     pub finished: bool,
     pub elapsed: Duration,
     pub duration: Duration,
+    pub volume: f32,
+    pub gain: f32,
 }
 
+//Nooooo! You can't use shared mutable state, it...it's too unsafe!
 static mut STATE: State = State {
     playing: false,
     finished: false, //This triggers the next song
     elapsed: Duration::from_secs(0),
     duration: Duration::from_secs(0),
+    volume: 0.01,
+    gain: 0.0,
 };
 
 pub struct Player {
@@ -143,9 +147,7 @@ impl Player {
         let (s, r) = mpsc::channel();
 
         let mut sample_rate = 44100;
-        let mut gain = 0.0;
         let mut handle = unsafe { StreamHandle::new(&device, sample_rate) };
-        let mut vol = calc_volume(volume);
 
         if let Some(song) = songs.selected() {
             //This is slow >100ms in a debug build.
@@ -174,19 +176,15 @@ impl Player {
         thread::spawn(move || loop {
             if let Ok(event) = r.try_recv() {
                 match event {
-                    Event::Volume(v) => {
-                        let v = v.clamp(0, 100);
-                        vol = calc_volume(v);
-                    }
-                    Event::Play((path, g)) => match Symphonia::new(&path) {
+                    Event::Play((path, gain)) => match Symphonia::new(&path) {
                         Ok(sym) => {
                             let sr = sym.sample_rate();
                             if sr != sample_rate {
                                 sample_rate = sr;
                                 handle = unsafe { StreamHandle::new(&device, sample_rate) };
                             }
-                            gain = g;
                             unsafe {
+                                STATE.gain = gain;
                                 STATE.duration = sym.duration();
                                 STATE.playing = true;
                                 STATE.finished = false;
@@ -210,12 +208,12 @@ impl Player {
                     if STATE.playing && !STATE.finished {
                         if let Some(next) = d.next_packet() {
                             for smp in next.samples() {
-                                if gain == 0.0 {
+                                if STATE.gain == 0.0 {
                                     //Reduce the volume a little to match
                                     //songs with replay gain information.
-                                    handle.queue.push(smp * vol * 0.75);
+                                    handle.queue.push(smp * STATE.volume * 0.75);
                                 } else {
-                                    handle.queue.push(smp * vol * gain);
+                                    handle.queue.push(smp * STATE.volume * STATE.gain);
                                 }
                             }
                         } else {
@@ -230,11 +228,15 @@ impl Player {
     }
     pub fn volume_up(&mut self) {
         self.volume = (self.volume + 5).clamp(0, 100);
-        self.s.send(Event::Volume(self.volume)).unwrap();
+        unsafe {
+            STATE.volume = calc_volume(self.volume);
+        }
     }
     pub fn volume_down(&mut self) {
         self.volume = (self.volume as i8 - 5).clamp(0, 100) as u8;
-        self.s.send(Event::Volume(self.volume)).unwrap();
+        unsafe {
+            STATE.volume = calc_volume(self.volume);
+        }
     }
     pub fn toggle_playback(&self) {
         unsafe { STATE.playing = !STATE.playing }
