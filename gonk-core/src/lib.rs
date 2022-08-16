@@ -100,16 +100,20 @@ pub fn database_path() -> PathBuf {
 
 //Delete the settings and overwrite with updated values.
 pub fn save_settings() {
-    unsafe {
-        let file = File::options()
-            .write(true)
-            .truncate(true)
-            .open(settings_path())
-            .unwrap();
+    //Opening a thread takes 47us
+    //Opening the file takes 200us
+    thread::spawn(|| {
+        unsafe {
+            let file = File::options()
+                .write(true)
+                .truncate(true)
+                .open(settings_path())
+                .unwrap();
 
-        let writer = BufWriter::new(&file);
-        SETTINGS.write(writer).unwrap();
-    };
+            let writer = BufWriter::new(&file);
+            SETTINGS.write(writer).unwrap();
+        };
+    });
 }
 
 pub fn reset() -> io::Result<()> {
@@ -258,7 +262,6 @@ impl Settings {
         for song in &self.queue {
             writer.write_all(&song.into_bytes())?;
         }
-        writer.flush().unwrap();
         Ok(())
     }
 }

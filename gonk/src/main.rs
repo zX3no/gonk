@@ -169,10 +169,11 @@ fn main() {
     let songs = Index::new(songs, index);
     let volume = gonk_core::volume();
     let device = gonk_core::output_device();
+    let ui_index = index.unwrap_or(0);
     let mut player = Player::new(device, volume, songs, elapsed);
 
+    let mut queue = Queue::new(ui_index);
     let mut browser = Browser::new();
-    let mut queue = Queue::new();
     let mut playlist = Playlist::new();
     let mut settings = Settings::new();
     let mut search = Search::new();

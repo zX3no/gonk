@@ -15,9 +15,9 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new() -> Self {
+    pub fn new(ui_index: usize) -> Self {
         Self {
-            ui: Index::new(Vec::new(), Some(0)),
+            ui: Index::new(Vec::new(), Some(ui_index)),
             constraint: [6, 37, 31, 26],
             len: 0,
         }
