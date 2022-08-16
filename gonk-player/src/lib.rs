@@ -144,6 +144,10 @@ impl Player {
             unsafe { default_device() }
         };
 
+        unsafe {
+            STATE.volume = calc_volume(volume);
+        }
+
         let (s, r) = mpsc::channel();
 
         let mut sample_rate = 44100;
