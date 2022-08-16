@@ -62,7 +62,6 @@ interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtb
 pub struct Device {
     pub inner: *mut IMMDevice,
     pub name: String,
-    pub id: String,
 }
 
 unsafe impl Send for Device {}
@@ -106,7 +105,7 @@ pub fn utf16_string(ptr_utf16: *const u16) -> String {
     name_os_string.to_string_lossy().to_string()
 }
 
-pub unsafe fn devices() -> Vec<Device> {
+pub unsafe fn devices() -> (Vec<Device>, Device) {
     check_init();
 
     let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
@@ -141,37 +140,61 @@ pub unsafe fn devices() -> Vec<Device> {
         let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
         check(result).unwrap();
         let mut prop = zeroed();
+        //This is slow. Around 250us.
         let result = (*store).GetValue(
             &DEVPKEY_Device_FriendlyName as *const _ as *const _,
             &mut prop,
         );
         check(result).unwrap();
+
         let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
         let name = utf16_string(ptr_utf16);
         PropVariantClear(&mut prop);
 
-        //Get id.
-        let mut str_ptr = zeroed();
-        let result = (*device).GetId(&mut str_ptr);
-        check(result).unwrap();
-        let id = utf16_string(str_ptr);
-
         //Get device state.
-        let mut state = zeroed();
-        let result = (*device).GetState(&mut state);
-        check(result).unwrap();
-        if state != DEVICE_STATE_ACTIVE {
-            panic!("Device is disabled?");
-        }
+        // let mut state = zeroed();
+        // let result = (*device).GetState(&mut state);
+        // check(result).unwrap();
+        // if state != DEVICE_STATE_ACTIVE {
+        //     panic!("Device is disabled?");
+        // }
 
         let device = Device {
             inner: device,
             name,
-            id,
         };
         devices.push(device);
     }
-    devices
+    (devices, default_device(enumerator))
+}
+
+unsafe fn default_device(enumerator: *mut IMMDeviceEnumerator) -> Device {
+    let mut device: *mut IMMDevice = null_mut();
+    let result = (*enumerator).GetDefaultAudioEndpoint(
+        eRender,
+        eConsole,
+        &mut device as *mut *mut IMMDevice,
+    );
+    check(result).unwrap();
+
+    //Get name.
+    let mut store = null_mut();
+    let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+    check(result).unwrap();
+    let mut prop = zeroed();
+    let result = (*store).GetValue(
+        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+        &mut prop,
+    );
+    check(result).unwrap();
+    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+    let name = utf16_string(ptr_utf16);
+    PropVariantClear(&mut prop);
+
+    Device {
+        inner: device,
+        name,
+    }
 }
 
 pub fn new_wavefmtex(
@@ -203,53 +226,6 @@ pub fn new_wavefmtex(
         Samples: sample,
         SubFormat: subformat,
         dwChannelMask: mask,
-    }
-}
-
-pub unsafe fn default_device() -> Device {
-    check_init();
-    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-    let result = CoCreateInstance(
-        &CLSID_MMDeviceEnumerator,
-        null_mut(),
-        CLSCTX_ALL,
-        &IMMDeviceEnumerator::uuidof(),
-        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-    );
-    check(result).unwrap();
-
-    let mut device: *mut IMMDevice = null_mut();
-    let result = (*enumerator).GetDefaultAudioEndpoint(
-        eRender,
-        eConsole,
-        &mut device as *mut *mut IMMDevice,
-    );
-    check(result).unwrap();
-
-    //Get name.
-    let mut store = null_mut();
-    let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-    check(result).unwrap();
-    let mut prop = zeroed();
-    let result = (*store).GetValue(
-        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-        &mut prop,
-    );
-    check(result).unwrap();
-    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-    let name = utf16_string(ptr_utf16);
-    PropVariantClear(&mut prop);
-
-    //Get id.
-    let mut str_ptr = zeroed();
-    let result = (*device).GetId(&mut str_ptr);
-    check(result).unwrap();
-    let id = utf16_string(str_ptr);
-
-    Device {
-        inner: device,
-        name,
-        id,
     }
 }
 

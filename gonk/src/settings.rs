@@ -15,19 +15,14 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Self {
         let wanted_device = gonk_core::output_device();
+        let (devices, default) = unsafe { gonk_player::devices() };
 
-        let devices: Vec<String> = unsafe {
-            gonk_player::devices()
-                .into_iter()
-                .map(|device| device.name)
-                .collect()
-        };
+        let devices: Vec<String> = devices.into_iter().map(|device| device.name).collect();
 
         let current_device = if devices.iter().any(|name| name == wanted_device) {
             wanted_device.to_string()
         } else {
-            let device = unsafe { gonk_player::default_device() };
-            device.name
+            default.name
         };
 
         Self {

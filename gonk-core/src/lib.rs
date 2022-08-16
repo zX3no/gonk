@@ -104,6 +104,7 @@ pub fn save_settings() {
     //Opening the file takes 200us
     thread::spawn(|| {
         unsafe {
+            //Opening the same file twice may cause your computer to explode.
             let file = File::options()
                 .write(true)
                 .truncate(true)
