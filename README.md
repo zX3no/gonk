@@ -27,11 +27,13 @@ Download the latest [release](https://github.com/zX3no/gonk/releases/latest) and
 gonk add ~/Music
 ```
 
-### From Source
+### Building from Source
+
+> Current master branch cannot be built on linux, see [#19](https://github.com/zX3no/gonk/issues/19)
 
 Debian: `sudo apt install libasound2-dev pkg-config build-essential libjack-jackd2-dev`
 
-Windows: `Nothing required`
+Windows: `N/A`
 
 ```
 git clone https://github.com/zX3no/gonk
