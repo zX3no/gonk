@@ -7,6 +7,8 @@ use tui::{
     widgets::{Block, BorderType, Borders},
 };
 
+//TODO: Devices are not refreshed when new ones are connected.
+//TODO: Devices should probably be a global in gonk_core. Getting every device twice is probably too slow.
 pub struct Settings {
     pub devices: Index<String>,
     pub current_device: String,
