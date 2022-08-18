@@ -6,7 +6,7 @@ use tui::{
     widgets::{Block, StatefulWidget, Widget},
 };
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Eq)]
 pub struct Cell<'a> {
     content: Text<'a>,
     style: Style,
@@ -31,7 +31,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Row<'a> {
     cells: Vec<Cell<'a>>,
     height: u16,
@@ -68,7 +68,7 @@ impl<'a> Row<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Table<'a> {
     block: Option<Block<'a>>,
 
