@@ -185,8 +185,6 @@ fn main() {
     let mut dots: usize = 1;
     let mut scan_timer: Option<Instant> = None;
 
-    let mut focused = true;
-
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && scan_handle.is_none() {
         mode = Mode::Queue;
@@ -243,7 +241,7 @@ fn main() {
             .draw(|f| {
                 let top = draw_log(f);
                 match mode {
-                    Mode::Browser => browser::draw(&mut browser, top, f, focused, None),
+                    Mode::Browser => browser::draw(&mut browser, top, f, None),
                     Mode::Queue => queue::draw(&mut queue, &mut player, f, None),
                     Mode::Search => search::draw(&mut search, top, f, None),
                     Mode::Playlist => playlist::draw(&mut playlist, top, f, None),
@@ -451,7 +449,7 @@ fn main() {
                             terminal
                                 .draw(|f| {
                                     let top = draw_log(f);
-                                    browser::draw(&mut browser, top, f, focused, Some(event));
+                                    browser::draw(&mut browser, top, f, Some(event));
                                 })
                                 .unwrap();
                         }
@@ -480,8 +478,6 @@ fn main() {
                     },
                     _ => (),
                 },
-                Event::FocusGained => focused = true,
-                Event::FocusLost => focused = false,
                 _ => (),
             }
         }

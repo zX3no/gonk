@@ -2,10 +2,8 @@ use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
 use crossterm::event::MouseEvent;
 use gonk_core::{Index, Song};
-use tui::style::Modifier;
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::Style,
     widgets::{Block, BorderType, Borders},
 };
 
@@ -152,13 +150,7 @@ pub fn get_selected(browser: &Browser) -> Vec<Song> {
     Vec::new()
 }
 
-pub fn draw(
-    browser: &mut Browser,
-    area: Rect,
-    f: &mut Frame,
-    focused: bool,
-    event: Option<MouseEvent>,
-) {
+pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
     let size = area.width / 3;
     let rem = area.width % 3;
 
@@ -207,9 +199,9 @@ pub fn draw(
         .map(|song| ListItem::new(song.name.as_str()))
         .collect();
 
-    let artists = list("─Aritst", &a, browser.mode == Mode::Artist, focused);
-    let albums = list("─Album", &b, browser.mode == Mode::Album, focused);
-    let songs = list("─Song", &c, browser.mode == Mode::Song, focused);
+    let artists = list("─Aritst", &a, browser.mode == Mode::Artist);
+    let albums = list("─Album", &b, browser.mode == Mode::Album);
+    let songs = list("─Song", &c, browser.mode == Mode::Song);
 
     f.render_stateful_widget(
         artists,
@@ -224,24 +216,13 @@ pub fn draw(
     f.render_stateful_widget(songs, chunks[2], &mut ListState::new(browser.songs.index()));
 }
 
-fn list<'a>(
-    title: &'static str,
-    content: &'a [ListItem],
-    use_symbol: bool,
-    focused: bool,
-) -> List<'a> {
+fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
     let list = List::new(content).block(
         Block::default()
             .title(title)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded),
     );
-
-    let list = if focused {
-        list
-    } else {
-        list.style(Style::default().add_modifier(Modifier::DIM))
-    };
 
     if use_symbol {
         list.highlight_symbol(">")
