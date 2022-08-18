@@ -137,9 +137,12 @@ pub struct Player {
 
 impl Player {
     pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-        let (devices, default) = unsafe { devices() };
+        update_devices();
+
+        let devices = devices();
+        let default = default_device().unwrap();
         let d = devices.iter().find(|d| d.name == device);
-        let mut device = if let Some(d) = d { d.clone() } else { default };
+        let mut device = if let Some(d) = d { d } else { default };
 
         unsafe {
             STATE.volume = calc_volume(volume);
@@ -151,7 +154,7 @@ impl Player {
         thread::spawn(move || {
             unsafe {
                 let mut sample_rate = 44100;
-                let mut handle = StreamHandle::new(&device, sample_rate);
+                let mut handle = StreamHandle::new(device, sample_rate);
 
                 if let Some(song) = &selected {
                     //This is slow >100ms in a debug build.
@@ -162,7 +165,7 @@ impl Player {
 
                             if sym.sample_rate() != sample_rate {
                                 sample_rate = sym.sample_rate();
-                                handle = StreamHandle::new(&device, sample_rate);
+                                handle = StreamHandle::new(device, sample_rate);
                             }
 
                             STATE.gain = song.gain;
@@ -183,7 +186,7 @@ impl Player {
                                 Ok(sym) => {
                                     if sym.sample_rate() != sample_rate {
                                         sample_rate = sym.sample_rate();
-                                        handle = StreamHandle::new(&device, sample_rate);
+                                        handle = StreamHandle::new(device, sample_rate);
                                     }
 
                                     STATE.gain = gain;
@@ -197,8 +200,8 @@ impl Player {
                             Event::OutputDevice(name) => {
                                 let d = devices.iter().find(|device| device.name == name);
                                 if let Some(d) = d {
-                                    device = d.clone();
-                                    handle = StreamHandle::new(&device, sample_rate);
+                                    device = d;
+                                    handle = StreamHandle::new(device, sample_rate);
                                 }
                             }
                         }

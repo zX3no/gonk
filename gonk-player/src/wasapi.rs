@@ -50,6 +50,8 @@ const COMMON_SAMPLE_RATES: [u32; 13] = [
 ];
 
 static INIT: Once = Once::new();
+static mut DEVICES: Vec<Device> = Vec::new();
+static mut DEFAULT_DEVICE: Option<Device> = None;
 
 RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
 interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
@@ -65,6 +67,7 @@ pub struct Device {
 }
 
 unsafe impl Send for Device {}
+unsafe impl Sync for Device {}
 
 #[inline]
 pub fn check(result: i32) -> Result<(), String> {
@@ -82,11 +85,106 @@ pub fn check(result: i32) -> Result<(), String> {
     }
 }
 
-pub fn check_init() {
-    // Initialize this only once.
+pub fn init() {
     INIT.call_once(|| unsafe {
         CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
     });
+}
+
+pub fn update_devices() {
+    init();
+    unsafe {
+        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+        let result = CoCreateInstance(
+            &CLSID_MMDeviceEnumerator,
+            null_mut(),
+            CLSCTX_ALL,
+            &IMMDeviceEnumerator::uuidof(),
+            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+        );
+        check(result).unwrap();
+
+        let mut collection = null_mut();
+        let result =
+            (*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection);
+        check(result).unwrap();
+        let collection = &*collection;
+
+        let mut count: u32 = zeroed();
+        let result = collection.GetCount(&mut count as *mut u32 as *const u32);
+        check(result).unwrap();
+
+        let mut devices = Vec::new();
+
+        for i in 0..count {
+            //Get IMMDevice.
+            let mut device = null_mut();
+            let result = collection.Item(i, &mut device);
+            check(result).unwrap();
+
+            //Get name.
+            let mut store = null_mut();
+            let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+            check(result).unwrap();
+            let mut prop = zeroed();
+            //This is slow. Around 250us.
+            let result = (*store).GetValue(
+                &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+                &mut prop,
+            );
+            check(result).unwrap();
+
+            let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+            let name = utf16_string(ptr_utf16);
+            PropVariantClear(&mut prop);
+
+            let device = Device {
+                inner: device,
+                name,
+            };
+
+            devices.push(device);
+        }
+
+        //Default device
+        let mut device: *mut IMMDevice = null_mut();
+        let result = (*enumerator).GetDefaultAudioEndpoint(
+            eRender,
+            eConsole,
+            &mut device as *mut *mut IMMDevice,
+        );
+        check(result).unwrap();
+
+        //Get name.
+        let mut store = null_mut();
+        let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+        check(result).unwrap();
+        let mut prop = zeroed();
+        let result = (*store).GetValue(
+            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+            &mut prop,
+        );
+        check(result).unwrap();
+        let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+        let name = utf16_string(ptr_utf16);
+        PropVariantClear(&mut prop);
+
+        let default = Device {
+            inner: device,
+            name,
+        };
+
+        DEFAULT_DEVICE = Some(default);
+        DEVICES = devices;
+    }
+}
+
+pub fn devices() -> &'static [Device] {
+    unsafe { &DEVICES }
+}
+
+pub fn default_device() -> Option<&'static Device> {
+    unsafe { DEFAULT_DEVICE.as_ref() }
 }
 
 pub fn utf16_string(ptr_utf16: *const u16) -> String {
@@ -103,98 +201,6 @@ pub fn utf16_string(ptr_utf16: *const u16) -> String {
     let name_slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
     let name_os_string: OsString = OsStringExt::from_wide(name_slice);
     name_os_string.to_string_lossy().to_string()
-}
-
-pub unsafe fn devices() -> (Vec<Device>, Device) {
-    check_init();
-
-    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-    let result = CoCreateInstance(
-        &CLSID_MMDeviceEnumerator,
-        null_mut(),
-        CLSCTX_ALL,
-        &IMMDeviceEnumerator::uuidof(),
-        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-    );
-    check(result).unwrap();
-
-    let mut collection = null_mut();
-    let result = (*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection);
-    check(result).unwrap();
-    let collection = &*collection;
-
-    let mut count: u32 = zeroed();
-    let result = collection.GetCount(&mut count as *mut u32 as *const u32);
-    check(result).unwrap();
-
-    let mut devices = Vec::new();
-
-    for i in 0..count {
-        //Get IMMDevice.
-        let mut device = null_mut();
-        let result = collection.Item(i, &mut device);
-        check(result).unwrap();
-
-        //Get name.
-        let mut store = null_mut();
-        let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-        check(result).unwrap();
-        let mut prop = zeroed();
-        //This is slow. Around 250us.
-        let result = (*store).GetValue(
-            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-            &mut prop,
-        );
-        check(result).unwrap();
-
-        let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-        let name = utf16_string(ptr_utf16);
-        PropVariantClear(&mut prop);
-
-        //Get device state.
-        // let mut state = zeroed();
-        // let result = (*device).GetState(&mut state);
-        // check(result).unwrap();
-        // if state != DEVICE_STATE_ACTIVE {
-        //     panic!("Device is disabled?");
-        // }
-
-        let device = Device {
-            inner: device,
-            name,
-        };
-        devices.push(device);
-    }
-    (devices, default_device(enumerator))
-}
-
-unsafe fn default_device(enumerator: *mut IMMDeviceEnumerator) -> Device {
-    let mut device: *mut IMMDevice = null_mut();
-    let result = (*enumerator).GetDefaultAudioEndpoint(
-        eRender,
-        eConsole,
-        &mut device as *mut *mut IMMDevice,
-    );
-    check(result).unwrap();
-
-    //Get name.
-    let mut store = null_mut();
-    let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-    check(result).unwrap();
-    let mut prop = zeroed();
-    let result = (*store).GetValue(
-        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-        &mut prop,
-    );
-    check(result).unwrap();
-    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-    let name = utf16_string(ptr_utf16);
-    PropVariantClear(&mut prop);
-
-    Device {
-        inner: device,
-        name,
-    }
 }
 
 pub fn new_wavefmtex(
@@ -275,10 +281,10 @@ pub struct StreamHandle {
     pub num_out_channels: u32,
     pub stream_dropped: Arc<AtomicBool>,
 }
+
 impl StreamHandle {
     pub unsafe fn new(device: &Device, sample_rate: u32) -> Self {
-        check_init();
-
+        init();
         if !COMMON_SAMPLE_RATES.contains(&sample_rate) {
             panic!("Invalid sample rate.");
         }

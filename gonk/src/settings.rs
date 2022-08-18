@@ -1,6 +1,6 @@
 use crate::{widgets::*, Frame, Input};
 use gonk_core::Index;
-use gonk_player::Player;
+use gonk_player::{default_device, devices, Player};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -8,7 +8,6 @@ use tui::{
 };
 
 //TODO: Devices are not refreshed when new ones are connected.
-//TODO: Devices should probably be a global in gonk_core. Getting every device twice is probably too slow.
 pub struct Settings {
     pub devices: Index<String>,
     pub current_device: String,
@@ -17,14 +16,15 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Self {
         let wanted_device = gonk_core::output_device();
-        let (devices, default) = unsafe { gonk_player::devices() };
+        let devices = devices();
+        let default = default_device().unwrap();
 
-        let devices: Vec<String> = devices.into_iter().map(|device| device.name).collect();
+        let devices: Vec<String> = devices.iter().map(|device| device.name.clone()).collect();
 
         let current_device = if devices.iter().any(|name| name == wanted_device) {
             wanted_device.to_string()
         } else {
-            default.name
+            default.name.to_string()
         };
 
         Self {

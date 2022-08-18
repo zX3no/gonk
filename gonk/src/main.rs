@@ -30,7 +30,6 @@ use tui::widgets::Paragraph;
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
-// mod log;
 mod playlist;
 mod queue;
 mod search;
