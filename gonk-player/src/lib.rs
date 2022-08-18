@@ -6,6 +6,7 @@
 )]
 use gonk_core::{Index, Song};
 use std::fs::File;
+use std::io::ErrorKind;
 use std::sync::mpsc::{self, Sender};
 use std::{
     collections::VecDeque,
@@ -106,7 +107,7 @@ pub enum Event {
 
 #[inline]
 pub fn calc_volume(volume: u8) -> f32 {
-    volume as f32 / 600.0
+    volume as f32 / 300.0
 }
 
 pub struct State {
@@ -432,7 +433,7 @@ impl Symphonia {
             }
             Err(err) => match err {
                 Error::IoError(err) => match err.kind() {
-                    std::io::ErrorKind::UnexpectedEof => {
+                    ErrorKind::Other if err.to_string() == "EOF" => {
                         self.elapsed = self.duration;
                         return None;
                     }
