@@ -38,21 +38,11 @@ mod widgets;
 
 type Frame<'a> = tui::Frame<'a, CrosstermBackend<Stdout>>;
 
-pub struct Colors {
-    pub number: Color,
-    pub title: Color,
-    pub album: Color,
-    pub artist: Color,
-    pub seeker: Color,
-}
-
-const COLORS: Colors = Colors {
-    number: Color::Green,
-    title: Color::Cyan,
-    album: Color::Magenta,
-    artist: Color::Blue,
-    seeker: Color::White,
-};
+const NUMBER: Color = Color::Green;
+const TITLE: Color = Color::Cyan;
+const ALBUM: Color = Color::Magenta;
+const ARTIST: Color = Color::Blue;
+const SEEKER: Color = Color::White;
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {

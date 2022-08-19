@@ -1,4 +1,4 @@
-use crate::{log, widgets::*, Frame, Input, COLORS};
+use crate::{widgets::*, *};
 use crossterm::event::MouseEvent;
 use gonk_core::{Index, RawPlaylist, RawSong, Song};
 use gonk_player::Player;
@@ -446,9 +446,9 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
             .iter()
             .map(|song| {
                 Row::new(vec![
-                    Span::styled(song.title(), Style::default().fg(COLORS.title)),
-                    Span::styled(song.album(), Style::default().fg(COLORS.album)),
-                    Span::styled(song.artist(), Style::default().fg(COLORS.artist)),
+                    Span::styled(song.title(), Style::default().fg(TITLE)),
+                    Span::styled(song.album(), Style::default().fg(ALBUM)),
+                    Span::styled(song.artist(), Style::default().fg(ARTIST)),
                 ])
             })
             .collect();

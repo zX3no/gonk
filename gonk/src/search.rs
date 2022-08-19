@@ -1,5 +1,4 @@
-use crate::widgets::*;
-use crate::*;
+use crate::{widgets::*, *};
 use gonk_core::Song;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
@@ -420,44 +419,34 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
                 let song = gonk_core::get(song.id).unwrap();
                 Row::new(vec![
                     selected_cell,
-                    Cell::from(song.title).style(Style::default().fg(COLORS.title)),
-                    Cell::from(song.album).style(Style::default().fg(COLORS.album)),
-                    Cell::from(song.artist).style(Style::default().fg(COLORS.artist)),
+                    Cell::from(song.title).style(Style::default().fg(TITLE)),
+                    Cell::from(song.album).style(Style::default().fg(ALBUM)),
+                    Cell::from(song.artist).style(Style::default().fg(ARTIST)),
                 ])
             }
             Item::Album(album) => Row::new(vec![
                 selected_cell,
                 Cell::from(Spans::from(vec![
-                    Span::styled(
-                        format!("{} - ", album.name),
-                        Style::default().fg(COLORS.title),
-                    ),
+                    Span::styled(format!("{} - ", album.name), Style::default().fg(TITLE)),
                     Span::styled(
                         "Album",
-                        Style::default()
-                            .fg(COLORS.title)
-                            .add_modifier(Modifier::ITALIC),
+                        Style::default().fg(TITLE).add_modifier(Modifier::ITALIC),
                     ),
                 ])),
-                Cell::from("").style(Style::default().fg(COLORS.album)),
-                Cell::from(album.artist.clone()).style(Style::default().fg(COLORS.artist)),
+                Cell::from("").style(Style::default().fg(ALBUM)),
+                Cell::from(album.artist.clone()).style(Style::default().fg(ARTIST)),
             ]),
             Item::Artist(artist) => Row::new(vec![
                 selected_cell,
                 Cell::from(Spans::from(vec![
-                    Span::styled(
-                        format!("{} - ", artist.name),
-                        Style::default().fg(COLORS.title),
-                    ),
+                    Span::styled(format!("{} - ", artist.name), Style::default().fg(TITLE)),
                     Span::styled(
                         "Artist",
-                        Style::default()
-                            .fg(COLORS.title)
-                            .add_modifier(Modifier::ITALIC),
+                        Style::default().fg(TITLE).add_modifier(Modifier::ITALIC),
                     ),
                 ])),
-                Cell::from("").style(Style::default().fg(COLORS.album)),
-                Cell::from("").style(Style::default().fg(COLORS.artist)),
+                Cell::from("").style(Style::default().fg(ALBUM)),
+                Cell::from("").style(Style::default().fg(ARTIST)),
             ]),
         }
     };

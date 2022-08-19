@@ -169,12 +169,12 @@ fn draw_title(player: &mut Player, f: &mut Frame, area: Rect) {
         vec![
             Spans::from(vec![
                 Span::raw(format!("─│ {}", pad_front)),
-                Span::styled(artist, Style::default().fg(COLORS.artist)),
+                Span::styled(artist, Style::default().fg(ARTIST)),
                 Span::raw(" ─ "),
-                Span::styled(album, Style::default().fg(COLORS.album)),
+                Span::styled(album, Style::default().fg(ALBUM)),
                 Span::raw(format!("{} │─", pad_back)),
             ]),
-            Spans::from(Span::styled(title, Style::default().fg(COLORS.title))),
+            Spans::from(Span::styled(title, Style::default().fg(TITLE))),
         ]
     } else {
         Vec::new()
@@ -217,10 +217,10 @@ fn draw_body(
         .map(|song| {
             Row::new(vec![
                 Cell::from(""),
-                Cell::from(song.number.to_string()).style(Style::default().fg(COLORS.number)),
-                Cell::from(song.title.as_str()).style(Style::default().fg(COLORS.title)),
-                Cell::from(song.album.as_str()).style(Style::default().fg(COLORS.album)),
-                Cell::from(song.artist.as_str()).style(Style::default().fg(COLORS.artist)),
+                Cell::from(song.number.to_string()).style(Style::default().fg(NUMBER)),
+                Cell::from(song.title.as_str()).style(Style::default().fg(TITLE)),
+                Cell::from(song.album.as_str()).style(Style::default().fg(ALBUM)),
+                Cell::from(song.artist.as_str()).style(Style::default().fg(ARTIST)),
             ])
         })
         .collect();
@@ -237,13 +237,13 @@ fn draw_body(
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
                         Cell::from(song.number.to_string())
-                            .style(Style::default().bg(COLORS.number).fg(Color::Black)),
+                            .style(Style::default().bg(NUMBER).fg(Color::Black)),
                         Cell::from(song.title.as_str())
-                            .style(Style::default().bg(COLORS.title).fg(Color::Black)),
+                            .style(Style::default().bg(TITLE).fg(Color::Black)),
                         Cell::from(song.album.as_str())
-                            .style(Style::default().bg(COLORS.album).fg(Color::Black)),
+                            .style(Style::default().bg(ALBUM).fg(Color::Black)),
                         Cell::from(song.artist.as_str())
-                            .style(Style::default().bg(COLORS.artist).fg(Color::Black)),
+                            .style(Style::default().bg(ARTIST).fg(Color::Black)),
                     ])
                 } else {
                     Row::new(vec![
@@ -252,11 +252,10 @@ fn draw_body(
                                 .fg(Color::White)
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
-                        Cell::from(song.number.to_string())
-                            .style(Style::default().fg(COLORS.number)),
-                        Cell::from(song.title.as_str()).style(Style::default().fg(COLORS.title)),
-                        Cell::from(song.album.as_str()).style(Style::default().fg(COLORS.album)),
-                        Cell::from(song.artist.as_str()).style(Style::default().fg(COLORS.artist)),
+                        Cell::from(song.number.to_string()).style(Style::default().fg(NUMBER)),
+                        Cell::from(song.title.as_str()).style(Style::default().fg(TITLE)),
+                        Cell::from(song.album.as_str()).style(Style::default().fg(ALBUM)),
+                        Cell::from(song.artist.as_str()).style(Style::default().fg(ARTIST)),
                     ])
                 };
 
@@ -268,14 +267,10 @@ fn draw_body(
                     if let Some(song) = songs.get(ui_index) {
                         let row = Row::new(vec![
                             Cell::default(),
-                            Cell::from(song.number.to_string())
-                                .style(Style::default().bg(COLORS.number)),
-                            Cell::from(song.title.as_str())
-                                .style(Style::default().bg(COLORS.title)),
-                            Cell::from(song.album.as_str())
-                                .style(Style::default().bg(COLORS.album)),
-                            Cell::from(song.artist.as_str())
-                                .style(Style::default().bg(COLORS.artist)),
+                            Cell::from(song.number.to_string()).style(Style::default().bg(NUMBER)),
+                            Cell::from(song.title.as_str()).style(Style::default().bg(TITLE)),
+                            Cell::from(song.album.as_str()).style(Style::default().bg(ALBUM)),
+                            Cell::from(song.artist.as_str()).style(Style::default().bg(ARTIST)),
                         ])
                         .style(Style::default().fg(Color::Black));
                         items.remove(ui_index);
@@ -353,7 +348,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
                     .border_type(BorderType::Rounded)
                     .borders(Borders::ALL),
             )
-            .gauge_style(Style::default().fg(COLORS.seeker))
+            .gauge_style(Style::default().fg(SEEKER))
             .ratio(ratio as f64)
             .label(seeker),
         area,
