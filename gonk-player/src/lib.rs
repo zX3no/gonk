@@ -146,32 +146,27 @@ impl Player {
         let d = devices.iter().find(|d| d.name == device);
         let mut device = if let Some(d) = d { d } else { default };
 
-        unsafe {
-            STATE.volume = calc_volume(volume);
-        }
-
         let selected = songs.selected().cloned();
         let (s, r) = mpsc::channel();
 
         thread::spawn(move || {
             unsafe {
+                let elapsed = Duration::from_secs_f32(elapsed);
                 let mut sample_rate = 44100;
-                let mut handle = StreamHandle::new(device, sample_rate);
+
+                STATE.elapsed = elapsed;
+                STATE.volume = calc_volume(volume);
 
                 if let Some(song) = &selected {
-                    //This is slow >100ms in a debug build.
                     match Symphonia::new(&song.path) {
                         Ok(mut sym) => {
-                            let pos = Duration::from_secs_f32(elapsed);
-                            sym.seek(pos);
+                            sym.seek(elapsed);
 
                             if sym.sample_rate() != sample_rate {
                                 sample_rate = sym.sample_rate();
-                                handle = StreamHandle::new(device, sample_rate);
                             }
 
                             STATE.gain = song.gain;
-                            STATE.elapsed = pos;
                             STATE.duration = sym.duration();
                             STATE.playing = false;
                             STATE.finished = false;
@@ -180,6 +175,8 @@ impl Player {
                         Err(err) => gonk_core::log!("Failed to restore queue. {}", err),
                     }
                 }
+
+                let mut handle = StreamHandle::new(device, sample_rate);
 
                 loop {
                     if let Ok(event) = r.try_recv() {
