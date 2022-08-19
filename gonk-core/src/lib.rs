@@ -267,7 +267,7 @@ impl Settings {
     }
 }
 
-pub fn update_volume(new_volume: u8) {
+pub fn save_volume(new_volume: u8) {
     unsafe {
         SETTINGS.volume = new_volume;
         save_settings();

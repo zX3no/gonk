@@ -300,14 +300,22 @@ fn main() {
                         KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
+                            save_queue(&player);
                         }
                         KeyCode::Char('c') => {
                             player.clear();
                             queue.ui.select(Some(0));
+                            save_queue(&player);
                         }
                         KeyCode::Char('x') => match mode {
-                            Mode::Queue => queue::delete(&mut queue, &mut player),
-                            Mode::Playlist => playlist::delete(&mut playlist, false),
+                            Mode::Queue => {
+                                queue::delete(&mut queue, &mut player);
+                                save_queue(&player);
+                            }
+                            Mode::Playlist => {
+                                playlist::delete(&mut playlist, false);
+                                save_queue(&player);
+                            }
                             _ => (),
                         },
                         KeyCode::Char('X') => {
@@ -332,11 +340,11 @@ fn main() {
                         }
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            gonk_core::update_volume(player.volume);
+                            gonk_core::save_volume(player.volume);
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            gonk_core::update_volume(player.volume);
+                            gonk_core::save_volume(player.volume);
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,
