@@ -87,6 +87,9 @@ impl<T> Queue<T> {
     pub fn is_empty(&self) -> bool {
         self.q.lock().unwrap().is_empty()
     }
+    pub fn clear(&mut self) {
+        self.q.lock().unwrap().clear();
+    }
 }
 
 impl<T> Clone for Queue<T> {
@@ -179,6 +182,13 @@ impl Player {
                 let mut handle = StreamHandle::new(device, sample_rate);
 
                 loop {
+                    //Clear the sample buffer if nothing is playing.
+                    //Sometimes old samples would get left over,
+                    //clearing them avoids clicks and pops.
+                    if SYMPHONIA.is_none() && !handle.queue.is_empty() {
+                        handle.queue.clear();
+                    }
+
                     if let Ok(event) = r.try_recv() {
                         match event {
                             Event::Play((path, gain)) => match Symphonia::new(&path) {
