@@ -70,21 +70,6 @@ pub trait Input {
     fn right(&mut self);
 }
 
-fn save_queue(player: &Player) {
-    gonk_core::update_queue(
-        &player.songs.data,
-        player.songs.index().unwrap_or(0) as u16,
-        player.elapsed().as_secs_f32(),
-    );
-}
-
-fn save_queue_state(player: &Player) {
-    gonk_core::update_queue_state(
-        player.songs.index().unwrap_or(0) as u16,
-        player.elapsed().as_secs_f32(),
-    );
-}
-
 fn draw_log(f: &mut Frame) -> Rect {
     if let Some(msg) = log::message() {
         let area = Layout::default()
@@ -171,6 +156,7 @@ fn main() {
     let device = gonk_core::output_device();
     let ui_index = index.unwrap_or(0);
     let mut player = Player::new(device, volume, songs, elapsed);
+    let mut player_clone = player.songs.data.clone();
 
     let mut queue = Queue::new(ui_index);
     let mut browser = Browser::new();
@@ -227,13 +213,28 @@ fn main() {
                 }
                 log!("Scanning for files{}", ".".repeat(dots));
             }
+
+            //Update the time elapsed.
+            gonk_core::update_queue_state(
+                player.songs.index().unwrap_or(0) as u16,
+                player.elapsed().as_secs_f32(),
+            );
+
             last_tick = Instant::now();
         }
 
+        //Update the UI index.
         queue.len = player.songs.len();
 
-        if player.update() {
-            save_queue_state(&player);
+        player.check_next();
+
+        if player.songs.data != player_clone {
+            player_clone = player.songs.data.clone();
+            gonk_core::save_queue(
+                &player.songs.data,
+                player.songs.index().unwrap_or(0) as u16,
+                player.elapsed().as_secs_f32(),
+            );
         }
 
         terminal
@@ -300,21 +301,28 @@ fn main() {
                         KeyCode::Char('C') if shift => {
                             player.clear_except_playing();
                             queue.ui.select(Some(0));
-                            save_queue(&player);
                         }
                         KeyCode::Char('c') => {
                             player.clear();
                             queue.ui.select(Some(0));
-                            save_queue(&player);
                         }
                         KeyCode::Char('x') => match mode {
                             Mode::Queue => {
-                                queue::delete(&mut queue, &mut player);
-                                save_queue(&player);
+                                if let Some(i) = queue.ui.index() {
+                                    match player.delete_index(i) {
+                                        Ok(_) => (),
+                                        Err(e) => log!("{}", e),
+                                    };
+
+                                    //Sync the UI index.
+                                    let len = player.songs.len().saturating_sub(1);
+                                    if i > len {
+                                        queue.ui.select(Some(len));
+                                    }
+                                }
                             }
                             Mode::Playlist => {
                                 playlist::delete(&mut playlist, false);
-                                save_queue(&player);
                             }
                             _ => (),
                         },
@@ -330,14 +338,8 @@ fn main() {
                         }
                         KeyCode::Char('q') => player.seek_backward(),
                         KeyCode::Char('e') => player.seek_foward(),
-                        KeyCode::Char('a') => {
-                            player.prev();
-                            save_queue_state(&player);
-                        }
-                        KeyCode::Char('d') => {
-                            player.next();
-                            save_queue_state(&player);
-                        }
+                        KeyCode::Char('a') => player.prev(),
+                        KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
                             gonk_core::save_volume(player.volume);
@@ -396,8 +398,6 @@ fn main() {
                                     Ok(_) => (),
                                     Err(e) => log!("{}", e),
                                 }
-
-                                save_queue(&player);
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
@@ -413,11 +413,14 @@ fn main() {
                                         Ok(_) => (),
                                         Err(e) => log!("{}", e),
                                     }
-
-                                    save_queue(&player);
                                 }
                             }
-                            Mode::Settings => settings::on_enter(&mut settings, &mut player),
+                            Mode::Settings => {
+                                if let Some(device) = settings.devices.selected() {
+                                    player.set_output_device(device);
+                                    settings.current_device = device.clone();
+                                }
+                            }
                             Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
                         },
                         KeyCode::Backspace => match mode {
@@ -490,7 +493,11 @@ fn main() {
         }
     }
 
-    save_queue(&player);
+    gonk_core::save_queue(
+        &player.songs.data,
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
 
     disable_raw_mode().unwrap();
     execute!(

@@ -274,7 +274,7 @@ pub fn save_volume(new_volume: u8) {
     }
 }
 
-pub fn update_queue(queue: &[Song], index: u16, elapsed: f32) {
+pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
     unsafe {
         SETTINGS.queue = queue.iter().map(RawSong::from).collect();
         SETTINGS.index = index;

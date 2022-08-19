@@ -1,6 +1,6 @@
 use crate::{widgets::*, Frame, Input};
 use gonk_core::Index;
-use gonk_player::{default_device, devices, Player};
+use gonk_player::{default_device, devices};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -46,13 +46,6 @@ impl Input for Settings {
     fn left(&mut self) {}
 
     fn right(&mut self) {}
-}
-
-pub fn on_enter(settings: &mut Settings, player: &mut Player) {
-    if let Some(device) = settings.devices.selected() {
-        player.set_output_device(device);
-        settings.current_device = device.clone();
-    }
 }
 
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {

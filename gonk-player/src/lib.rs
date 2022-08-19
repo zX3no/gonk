@@ -105,9 +105,11 @@ pub enum Event {
     OutputDevice(String),
 }
 
+const VOLUME: f32 = 300.0;
+
 #[inline]
 pub fn calc_volume(volume: u8) -> f32 {
-    volume as f32 / 300.0
+    volume as f32 / VOLUME
 }
 
 pub struct State {
@@ -122,10 +124,10 @@ pub struct State {
 //Nooooo! You can't use shared mutable state, it...it's too unsafe!
 static mut STATE: State = State {
     playing: false,
-    finished: false, //This triggers the next song
+    finished: false,
     elapsed: Duration::from_secs(0),
     duration: Duration::from_secs(0),
-    volume: 0.01,
+    volume: 15.0 / VOLUME,
     gain: 0.0,
 };
 
@@ -336,14 +338,12 @@ impl Player {
         }
         Ok(())
     }
-    pub fn update(&mut self) -> bool {
+    ///Checks if the current song is finished. If yes, the next song is played.
+    pub fn check_next(&mut self) {
         unsafe {
             if STATE.finished {
                 STATE.finished = false;
                 self.next();
-                true
-            } else {
-                false
             }
         }
     }

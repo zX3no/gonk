@@ -56,20 +56,6 @@ pub fn constraint(queue: &mut Queue, row: usize, shift: bool) {
     );
 }
 
-pub fn delete(queue: &mut Queue, player: &mut Player) {
-    if let Some(i) = queue.ui.index() {
-        match player.delete_index(i) {
-            Ok(_) => save_queue(player),
-            Err(e) => log!("{}", e),
-        };
-        //make sure the ui index is in sync
-        let len = player.songs.len().saturating_sub(1);
-        if i > len {
-            queue.ui.select(Some(len));
-        }
-    }
-}
-
 pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option<MouseEvent>) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)

@@ -1,4 +1,4 @@
-use crate::{log, save_queue, widgets::*, Frame, Input, COLORS};
+use crate::{log, widgets::*, Frame, Input, COLORS};
 use crossterm::event::MouseEvent;
 use gonk_core::{Index, RawPlaylist, RawSong, Song};
 use gonk_player::Player;
@@ -123,7 +123,6 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                     Ok(_) => (),
                     Err(e) => log!("{}", e),
                 }
-                save_queue(player);
             }
         }
         Mode::Song => {
@@ -133,7 +132,6 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                         Ok(_) => (),
                         Err(e) => log!("{}", e),
                     }
-                    save_queue(player);
                 }
             }
         }
