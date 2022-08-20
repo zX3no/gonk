@@ -7,7 +7,6 @@
 use gonk_core::{Index, Song};
 use std::fs::File;
 use std::io::ErrorKind;
-use std::sync::mpsc::{self, Sender};
 use std::{
     collections::VecDeque,
     sync::{Arc, Condvar, Mutex},
@@ -47,7 +46,6 @@ pub fn calc_volume(volume: u8) -> f32 {
 
 #[derive(Debug)]
 pub enum Event {
-    Play((String, f32)),
     OutputDevice(String),
 }
 
@@ -108,6 +106,8 @@ pub struct State {
     pub duration: Duration,
     pub volume: f32,
     pub gain: f32,
+    pub path: String,
+    pub device: String,
 }
 
 //Nooooo! You can't use shared mutable state, it...it's too unsafe!
@@ -118,10 +118,11 @@ static mut STATE: State = State {
     duration: Duration::from_secs(0),
     volume: 15.0 / VOLUME,
     gain: 0.0,
+    path: String::new(),
+    device: String::new(),
 };
 
 pub struct Player {
-    pub s: Sender<Event>,
     pub volume: u8,
     pub songs: Index<Song>,
 }
@@ -136,11 +137,11 @@ impl Player {
         let mut device = if let Some(d) = d { d } else { default };
 
         let selected = songs.selected().cloned();
-        let (s, r) = mpsc::channel();
 
         thread::spawn(move || {
             let elapsed = Duration::from_secs_f32(elapsed);
             let mut sample_rate = 44100;
+            let mut path = String::new();
 
             STATE.elapsed = elapsed;
             STATE.volume = calc_volume(volume);
@@ -154,10 +155,12 @@ impl Player {
                             sample_rate = sym.sample_rate();
                         }
 
+                        path = song.path.clone();
                         STATE.gain = song.gain;
                         STATE.duration = sym.duration();
                         STATE.playing = false;
                         STATE.finished = false;
+                        STATE.path = song.path.clone();
                         SYMPHONIA = Some(sym);
                     }
                     Err(err) => gonk_core::log!("Failed to restore queue. {}", err),
@@ -174,32 +177,31 @@ impl Player {
                     handle.queue.clear();
                 }
 
-                if let Ok(event) = r.try_recv() {
-                    match event {
-                        Event::Play((path, gain)) => match Symphonia::new(&path) {
-                            Ok(sym) => {
-                                if sym.sample_rate() != sample_rate {
-                                    sample_rate = sym.sample_rate();
-                                    if handle.set_sample_rate(sample_rate).is_err() {
-                                        handle = StreamHandle::new(device, sample_rate);
-                                    }
+                if path != STATE.path {
+                    path = STATE.path.clone();
+                    match Symphonia::new(&path) {
+                        Ok(sym) => {
+                            if sym.sample_rate() != sample_rate {
+                                sample_rate = sym.sample_rate();
+                                if handle.set_sample_rate(sample_rate).is_err() {
+                                    handle = StreamHandle::new(device, sample_rate);
                                 }
+                            }
 
-                                STATE.gain = gain;
-                                STATE.duration = sym.duration();
-                                STATE.playing = true;
-                                STATE.finished = false;
-                                SYMPHONIA = Some(sym);
-                            }
-                            Err(err) => gonk_core::log!("Failed to play song. {}", err),
-                        },
-                        Event::OutputDevice(name) => {
-                            let d = devices.iter().find(|device| device.name == name);
-                            if let Some(d) = d {
-                                device = d;
-                                handle = StreamHandle::new(device, sample_rate);
-                            }
+                            STATE.duration = sym.duration();
+                            STATE.playing = true;
+                            STATE.finished = false;
+                            SYMPHONIA = Some(sym);
                         }
+                        Err(err) => gonk_core::log!("Failed to play song. {}", err),
+                    }
+                }
+
+                if device.name != STATE.device {
+                    let d = devices.iter().find(|device| device.name == STATE.device);
+                    if let Some(d) = d {
+                        device = d;
+                        handle = StreamHandle::new(device, sample_rate);
                     }
                 }
 
@@ -223,7 +225,7 @@ impl Player {
             }
         });
 
-        Self { s, volume, songs }
+        Self { volume, songs }
     }
     pub fn volume_up(&mut self) {
         self.volume = (self.volume + 5).clamp(0, 100);
@@ -241,7 +243,10 @@ impl Player {
         unsafe { STATE.playing = !STATE.playing };
     }
     pub fn play(&self, path: &str, gain: f32) {
-        self.s.send(Event::Play((path.to_string(), gain))).unwrap();
+        unsafe {
+            STATE.path = path.to_string();
+            STATE.gain = gain;
+        }
     }
     pub fn seek_foward(&mut self) {
         let pos = (self.elapsed().as_secs_f64() + 10.0).clamp(0.0, f64::MAX);
@@ -343,9 +348,9 @@ impl Player {
         }
     }
     pub fn set_output_device(&self, device: &str) {
-        self.s
-            .send(Event::OutputDevice(device.to_string()))
-            .unwrap();
+        unsafe {
+            STATE.device = device.to_string();
+        }
     }
 }
 
