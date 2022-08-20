@@ -359,10 +359,8 @@ impl StreamHandle {
         (*audio_client).Start();
 
         let stream_dropped = Arc::new(AtomicBool::new(false));
-        //4096 samples that can be buffered. I've had a few lag spikes when opening chrome
-        //so I know 1024 isn't enough. Going bigger may cause a delay since we don't actaull stop the stream.
-        //This still isn't big enough.
-        let queue = Queue::new(MAX_BUFFER_SIZE as usize);
+        //The buffer size should be enough to avoid a lag spike.
+        let queue = Queue::new(MAX_BUFFER_SIZE as usize * 4);
 
         let audio_thread = AudioThread {
             queue: queue.clone(),
