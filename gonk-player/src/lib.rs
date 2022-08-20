@@ -179,21 +179,23 @@ impl Player {
 
                 if path != STATE.path {
                     path = STATE.path.clone();
-                    match Symphonia::new(&path) {
-                        Ok(sym) => {
-                            if sym.sample_rate() != sample_rate {
-                                sample_rate = sym.sample_rate();
-                                if handle.set_sample_rate(sample_rate).is_err() {
-                                    handle = StreamHandle::new(device, sample_rate);
+                    if !path.is_empty() {
+                        match Symphonia::new(&path) {
+                            Ok(sym) => {
+                                if sym.sample_rate() != sample_rate {
+                                    sample_rate = sym.sample_rate();
+                                    if handle.set_sample_rate(sample_rate).is_err() {
+                                        handle = StreamHandle::new(device, sample_rate);
+                                    }
                                 }
-                            }
 
-                            STATE.duration = sym.duration();
-                            STATE.playing = true;
-                            STATE.finished = false;
-                            SYMPHONIA = Some(sym);
+                                STATE.duration = sym.duration();
+                                STATE.playing = true;
+                                STATE.finished = false;
+                                SYMPHONIA = Some(sym);
+                            }
+                            Err(err) => gonk_core::log!("Failed to play song. {}", err),
                         }
-                        Err(err) => gonk_core::log!("Failed to play song. {}", err),
                     }
                 }
 
@@ -313,6 +315,7 @@ impl Player {
         unsafe {
             STATE.playing = false;
             STATE.finished = false;
+            STATE.path = String::new();
             SYMPHONIA = None;
         };
         self.songs = Index::default();
