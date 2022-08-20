@@ -193,6 +193,7 @@ impl Player {
                                 STATE.playing = true;
                                 STATE.finished = false;
                                 SYMPHONIA = Some(sym);
+                                handle.queue.clear();
                             }
                             Err(err) => gonk_core::log!("Failed to play song. {}", err),
                         }

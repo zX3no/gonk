@@ -108,6 +108,7 @@ pub fn save_settings() {
             let file = File::options()
                 .write(true)
                 .truncate(true)
+                .create(true)
                 .open(settings_path())
                 .unwrap();
 
