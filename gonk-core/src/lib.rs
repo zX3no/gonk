@@ -342,10 +342,8 @@ pub fn mmap() -> Option<&'static Mmap> {
 }
 
 pub fn scan(path: String) -> JoinHandle<()> {
-    unsafe {
-        let mmap = MMAP.take().unwrap();
+    if let Some(mmap) = unsafe { MMAP.take() } {
         drop(mmap);
-        debug_assert!(MMAP.is_none());
     }
 
     thread::spawn(|| {
