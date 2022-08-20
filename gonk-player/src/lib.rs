@@ -32,74 +32,17 @@ use symphonia::{
 mod wasapi;
 pub use wasapi::*;
 
-#[macro_export]
-macro_rules! unwrap_or_return {
-    ( $e:expr ) => {
-        unsafe {
-            match &mut $e {
-                Some(x) => x,
-                None => return,
-            }
-        }
-    };
-}
+const VOLUME: f32 = 300.0;
 
 #[allow(unused)]
 #[inline]
-fn sleep(millis: u64) {
+pub fn sleep(millis: u64) {
     thread::sleep(Duration::from_millis(millis));
 }
 
-#[derive(Default)]
-pub struct Queue<T> {
-    q: Arc<Mutex<VecDeque<T>>>,
-    cv: Arc<Condvar>,
-    capacity: usize,
-}
-
-impl<T> Queue<T> {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            q: Default::default(),
-            cv: Default::default(),
-            capacity,
-        }
-    }
-    pub fn push(&self, t: T) {
-        let mut lq = self.q.lock().unwrap();
-        while lq.len() > self.capacity {
-            lq = self.cv.wait(lq).unwrap();
-        }
-        lq.push_back(t);
-        self.cv.notify_one();
-    }
-    pub fn pop(&self) -> T {
-        let mut lq = self.q.lock().unwrap();
-        while lq.len() == 0 {
-            lq = self.cv.wait(lq).unwrap();
-        }
-        self.cv.notify_one();
-        lq.pop_front().unwrap()
-    }
-    pub fn len(&self) -> usize {
-        self.q.lock().unwrap().len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.q.lock().unwrap().is_empty()
-    }
-    pub fn clear(&mut self) {
-        self.q.lock().unwrap().clear();
-    }
-}
-
-impl<T> Clone for Queue<T> {
-    fn clone(&self) -> Self {
-        Self {
-            q: self.q.clone(),
-            cv: self.cv.clone(),
-            capacity: self.capacity,
-        }
-    }
+#[inline]
+pub fn calc_volume(volume: u8) -> f32 {
+    volume as f32 / VOLUME
 }
 
 #[derive(Debug)]
@@ -108,11 +51,54 @@ pub enum Event {
     OutputDevice(String),
 }
 
-const VOLUME: f32 = 300.0;
+#[derive(Default)]
+pub struct Queue<T> {
+    data: Arc<Mutex<VecDeque<T>>>,
+    condvar: Arc<Condvar>,
+    capacity: usize,
+}
 
-#[inline]
-pub fn calc_volume(volume: u8) -> f32 {
-    volume as f32 / VOLUME
+impl<T> Queue<T> {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            data: Default::default(),
+            condvar: Default::default(),
+            capacity,
+        }
+    }
+    ///Blocks when the queue is full.
+    pub fn push(&self, t: T) {
+        let mut data = self.data.lock().unwrap();
+        while data.len() > self.capacity {
+            data = self.condvar.wait(data).unwrap();
+        }
+        data.push_back(t);
+        self.condvar.notify_one();
+    }
+    ///Always unblocks the sender.
+    pub fn pop(&self) -> Option<T> {
+        self.condvar.notify_one();
+        self.data.lock().unwrap().pop_front()
+    }
+    pub fn len(&self) -> usize {
+        self.data.lock().unwrap().len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.lock().unwrap().is_empty()
+    }
+    pub fn clear(&mut self) {
+        self.data.lock().unwrap().clear();
+    }
+}
+
+impl<T> Clone for Queue<T> {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            condvar: self.condvar.clone(),
+            capacity: self.capacity,
+        }
+    }
 }
 
 pub struct State {
@@ -141,7 +127,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
+    pub unsafe fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         update_devices();
 
         let devices = devices();
@@ -153,84 +139,84 @@ impl Player {
         let (s, r) = mpsc::channel();
 
         thread::spawn(move || {
-            unsafe {
-                let elapsed = Duration::from_secs_f32(elapsed);
-                let mut sample_rate = 44100;
+            let elapsed = Duration::from_secs_f32(elapsed);
+            let mut sample_rate = 44100;
 
-                STATE.elapsed = elapsed;
-                STATE.volume = calc_volume(volume);
+            STATE.elapsed = elapsed;
+            STATE.volume = calc_volume(volume);
 
-                if let Some(song) = &selected {
-                    match Symphonia::new(&song.path) {
-                        Ok(mut sym) => {
-                            sym.seek(elapsed);
+            if let Some(song) = &selected {
+                match Symphonia::new(&song.path) {
+                    Ok(mut sym) => {
+                        sym.seek(elapsed);
 
-                            if sym.sample_rate() != sample_rate {
-                                sample_rate = sym.sample_rate();
-                            }
-
-                            STATE.gain = song.gain;
-                            STATE.duration = sym.duration();
-                            STATE.playing = false;
-                            STATE.finished = false;
-                            SYMPHONIA = Some(sym);
+                        if sym.sample_rate() != sample_rate {
+                            sample_rate = sym.sample_rate();
                         }
-                        Err(err) => gonk_core::log!("Failed to restore queue. {}", err),
+
+                        STATE.gain = song.gain;
+                        STATE.duration = sym.duration();
+                        STATE.playing = false;
+                        STATE.finished = false;
+                        SYMPHONIA = Some(sym);
+                    }
+                    Err(err) => gonk_core::log!("Failed to restore queue. {}", err),
+                }
+            }
+
+            let mut handle = StreamHandle::new(device, sample_rate);
+
+            loop {
+                //Clear the sample buffer if nothing is playing.
+                //Sometimes old samples would get left over,
+                //clearing them avoids clicks and pops.
+                if SYMPHONIA.is_none() && !handle.queue.is_empty() {
+                    handle.queue.clear();
+                }
+
+                if let Ok(event) = r.try_recv() {
+                    match event {
+                        Event::Play((path, gain)) => match Symphonia::new(&path) {
+                            Ok(sym) => {
+                                if sym.sample_rate() != sample_rate {
+                                    sample_rate = sym.sample_rate();
+                                    if handle.set_sample_rate(sample_rate).is_err() {
+                                        handle = StreamHandle::new(device, sample_rate);
+                                    }
+                                }
+
+                                STATE.gain = gain;
+                                STATE.duration = sym.duration();
+                                STATE.playing = true;
+                                STATE.finished = false;
+                                SYMPHONIA = Some(sym);
+                            }
+                            Err(err) => gonk_core::log!("Failed to play song. {}", err),
+                        },
+                        Event::OutputDevice(name) => {
+                            let d = devices.iter().find(|device| device.name == name);
+                            if let Some(d) = d {
+                                device = d;
+                                handle = StreamHandle::new(device, sample_rate);
+                            }
+                        }
                     }
                 }
 
-                let mut handle = StreamHandle::new(device, sample_rate);
-
-                loop {
-                    //Clear the sample buffer if nothing is playing.
-                    //Sometimes old samples would get left over,
-                    //clearing them avoids clicks and pops.
-                    if SYMPHONIA.is_none() && !handle.queue.is_empty() {
-                        handle.queue.clear();
-                    }
-
-                    if let Ok(event) = r.try_recv() {
-                        match event {
-                            Event::Play((path, gain)) => match Symphonia::new(&path) {
-                                Ok(sym) => {
-                                    if sym.sample_rate() != sample_rate {
-                                        sample_rate = sym.sample_rate();
-                                        handle = StreamHandle::new(device, sample_rate);
-                                    }
-
-                                    STATE.gain = gain;
-                                    STATE.duration = sym.duration();
-                                    STATE.playing = true;
-                                    STATE.finished = false;
-                                    SYMPHONIA = Some(sym);
-                                }
-                                Err(err) => gonk_core::log!("Failed to play song. {}", err),
-                            },
-                            Event::OutputDevice(name) => {
-                                let d = devices.iter().find(|device| device.name == name);
-                                if let Some(d) = d {
-                                    device = d;
-                                    handle = StreamHandle::new(device, sample_rate);
+                if let Some(d) = &mut SYMPHONIA {
+                    if STATE.playing && !STATE.finished {
+                        if let Some(next) = d.next_packet() {
+                            for smp in next.samples() {
+                                if STATE.gain == 0.0 {
+                                    //Reduce the volume a little to match
+                                    //songs with replay gain information.
+                                    handle.queue.push(smp * STATE.volume * 0.75);
+                                } else {
+                                    handle.queue.push(smp * STATE.volume * STATE.gain);
                                 }
                             }
-                        }
-                    }
-
-                    if let Some(d) = &mut SYMPHONIA {
-                        if STATE.playing && !STATE.finished {
-                            if let Some(next) = d.next_packet() {
-                                for smp in next.samples() {
-                                    if STATE.gain == 0.0 {
-                                        //Reduce the volume a little to match
-                                        //songs with replay gain information.
-                                        handle.queue.push(smp * STATE.volume * 0.75);
-                                    } else {
-                                        handle.queue.push(smp * STATE.volume * STATE.gain);
-                                    }
-                                }
-                            } else {
-                                STATE.finished = true;
-                            }
+                        } else {
+                            STATE.finished = true;
                         }
                     }
                 }
@@ -252,7 +238,7 @@ impl Player {
         }
     }
     pub fn toggle_playback(&self) {
-        unsafe { STATE.playing = !STATE.playing }
+        unsafe { STATE.playing = !STATE.playing };
     }
     pub fn play(&self, path: &str, gain: f32) {
         self.s.send(Event::Play((path.to_string(), gain))).unwrap();
@@ -268,8 +254,10 @@ impl Player {
         self.seek(pos);
     }
     pub fn seek(&mut self, pos: Duration) {
-        let sym = unwrap_or_return!(SYMPHONIA);
-        sym.seek(pos);
+        match unsafe { &mut SYMPHONIA } {
+            Some(sym) => sym.seek(pos),
+            None => (),
+        };
     }
     pub fn elapsed(&self) -> Duration {
         unsafe { STATE.elapsed }

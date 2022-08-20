@@ -74,10 +74,12 @@ pub fn check(result: i32) -> Result<(), String> {
     if result != 0 {
         //https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
         match result {
+            1 => Err("AUDCLNT_E_NOT_INITIALIZED".to_string()),
             //0x80070057
             -2147024809 => Err("Invalid argument.".to_string()),
             // 0x80004003
             -2147467261 => Err("Pointer is not valid".to_string()),
+            -2004287483 => Err("AUDCLNT_E_NOT_STOPPED".to_string()),
             _ => Err(format!("{result}")),
         }
     } else {
@@ -275,6 +277,8 @@ pub unsafe fn is_format_supported(
 
 pub struct StreamHandle {
     pub queue: Queue<f32>,
+    pub audio_client: *mut IAudioClient,
+    pub audio_clock_adjust: *mut IAudioClockAdjustment,
     pub device: Device,
     pub sample_rate: u32,
     pub buffer_size: u32,
@@ -338,12 +342,11 @@ impl StreamHandle {
         );
         check(result).unwrap();
 
-        // let mut audioclock_ptr = null_mut();
-        // let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audioclock_ptr);
-        // check(result).unwrap();
-        // let audio_clock: *mut IAudioClockAdjustment = transmute(audioclock_ptr);
-        // let result = (*audio_clock).SetSampleRate(88_200.0);
-        // check(result).unwrap();
+        let mut audio_clock_ptr = null_mut();
+        let result =
+            (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr);
+        check(result).unwrap();
+        let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
 
         let h_event = CreateEventA(null_mut(), 0, 0, null());
         (*audio_client).SetEventHandle(h_event);
@@ -357,7 +360,9 @@ impl StreamHandle {
         (*audio_client).Start();
 
         let stream_dropped = Arc::new(AtomicBool::new(false));
-        let queue = Queue::new(MAX_BUFFER_SIZE as usize);
+        //4096 samples that can be buffered. I've had a few lag spikes when opening chrome
+        //so I know 1024 isn't enough. Going bigger may cause a delay since we don't actaull stop the stream.
+        let queue = Queue::new(MAX_BUFFER_SIZE as usize * 4);
 
         let audio_thread = AudioThread {
             queue: queue.clone(),
@@ -370,17 +375,28 @@ impl StreamHandle {
             max_frames: MAX_BUFFER_SIZE as usize,
         };
 
+        //TODO: Need a way to start/stop the audio thread.
         thread::spawn(move || {
-            audio_thread.run();
+            run(audio_thread);
         });
 
         StreamHandle {
             queue,
+            audio_client,
+            audio_clock_adjust,
             device: device.clone(),
             sample_rate: desired_format.Format.nSamplesPerSec,
             buffer_size: MAX_BUFFER_SIZE,
             num_out_channels: desired_format.Format.nChannels as u32,
             stream_dropped,
+        }
+    }
+    pub fn set_sample_rate(&self, rate: u32) -> Result<(), String> {
+        if COMMON_SAMPLE_RATES.contains(&rate) && rate != 192_000 {
+            let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(rate as f32) };
+            check(result)
+        } else {
+            Err(String::from("Unsupported sample rate."))
         }
     }
 }
@@ -402,109 +418,106 @@ pub struct AudioThread {
     pub max_frames: usize,
 }
 
-impl AudioThread {
-    pub unsafe fn run(self) {
-        let AudioThread {
-            queue,
-            stream_dropped,
-            audio_client,
-            h_event,
-            render_client,
-            block_align,
-            channels,
-            max_frames,
-        } = self;
+unsafe impl Send for AudioThread {}
 
-        // The buffer that is sent to WASAPI. Pre-allocate a reasonably large size.
-        let mut device_buffer = vec![0u8; PREALLOC_FRAMES * block_align];
-        let mut device_buffer_capacity_frames = PREALLOC_FRAMES;
+//TODO: Don't crash when a device disconnects.
+//ie. Recover from check(result).unwrap()
+pub unsafe fn run(thread: AudioThread) {
+    let AudioThread {
+        queue,
+        stream_dropped,
+        audio_client,
+        h_event,
+        render_client,
+        block_align,
+        channels,
+        max_frames,
+    } = thread;
 
-        // The owned buffers whose slices get sent to the process method in chunks.
-        let mut proc_owned_buffers: Vec<Vec<f32>> = (0..channels)
-            .map(|_| vec![0.0; max_frames as usize])
-            .collect();
+    // The buffer that is sent to WASAPI. Pre-allocate a reasonably large size.
+    let mut device_buffer = vec![0u8; PREALLOC_FRAMES * block_align];
+    let mut device_buffer_capacity_frames = PREALLOC_FRAMES;
 
-        let channel_align = block_align / channels;
+    // The owned buffers whose slices get sent to the process method in chunks.
+    let mut proc_owned_buffers: Vec<Vec<f32>> = (0..channels)
+        .map(|_| vec![0.0; max_frames as usize])
+        .collect();
 
-        while !stream_dropped.load(Ordering::Relaxed) {
-            let mut padding_count = zeroed();
-            let result = (*audio_client).GetCurrentPadding(&mut padding_count);
-            check(result).unwrap();
+    let channel_align = block_align / channels;
 
-            let mut buffer_frame_count = zeroed();
-            let result = (*audio_client).GetBufferSize(&mut buffer_frame_count);
-            check(result).unwrap();
+    while !stream_dropped.load(Ordering::Relaxed) {
+        let mut padding_count = zeroed();
+        let result = (*audio_client).GetCurrentPadding(&mut padding_count);
+        check(result).unwrap();
 
-            let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
+        let mut buffer_frame_count = zeroed();
+        let result = (*audio_client).GetBufferSize(&mut buffer_frame_count);
+        check(result).unwrap();
 
-            // Make sure that the device's buffer is large enough. In theory if we pre-allocated
-            // enough frames this shouldn't ever actually trigger any allocation.
-            if buffer_frame_count > device_buffer_capacity_frames {
-                device_buffer_capacity_frames = buffer_frame_count;
-                device_buffer.resize(buffer_frame_count as usize * block_align, 0);
-            }
+        let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
 
-            let mut frames_written = 0;
-            while frames_written < buffer_frame_count {
-                let frames = (buffer_frame_count - frames_written).min(max_frames);
-                //We don't clear old frames because they are always filled with new information.
-
-                let audio_outputs = proc_owned_buffers.as_mut_slice();
-
-                let frames = frames
-                    .min(audio_outputs[0].len())
-                    .min(audio_outputs[1].len());
-
-                for i in 0..frames {
-                    audio_outputs[0][i] = queue.pop();
-                    audio_outputs[1][i] = queue.pop();
-                }
-
-                let device_buffer_part = &mut device_buffer
-                    [frames_written * block_align..(frames_written + frames) * block_align];
-
-                // Fill each slice into the device's output buffer
-                for (frame_i, out_frame) in
-                    device_buffer_part.chunks_exact_mut(block_align).enumerate()
-                {
-                    for (ch_i, out_smp_bytes) in
-                        out_frame.chunks_exact_mut(channel_align).enumerate()
-                    {
-                        let smp_bytes = proc_owned_buffers[ch_i][frame_i].to_le_bytes();
-
-                        out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
-                    }
-                }
-
-                frames_written += frames;
-            }
-
-            // Write the now filled output buffer to the device.
-            let nbr_frames = buffer_frame_count;
-            let byte_per_frame = block_align;
-            let data = &device_buffer[0..buffer_frame_count * block_align];
-
-            let nbr_bytes = nbr_frames * byte_per_frame;
-            debug_assert_eq!(nbr_bytes, data.len());
-
-            let mut bufferptr = null_mut();
-            let result = (*render_client).GetBuffer(nbr_frames as u32, &mut bufferptr);
-            check(result).unwrap();
-
-            let bufferslice = slice::from_raw_parts_mut(bufferptr, nbr_bytes);
-            bufferslice.copy_from_slice(data);
-            let flags = 0;
-            (*render_client).ReleaseBuffer(nbr_frames as u32, flags);
-            check(result).unwrap();
-
-            if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {
-                panic!("Fatal WASAPI stream error while waiting for event");
-            }
+        // Make sure that the device's buffer is large enough. In theory if we pre-allocated
+        // enough frames this shouldn't ever actually trigger any allocation.
+        if buffer_frame_count > device_buffer_capacity_frames {
+            device_buffer_capacity_frames = buffer_frame_count;
+            device_buffer.resize(buffer_frame_count as usize * block_align, 0);
         }
 
-        let result = (*audio_client).Stop();
-        check(result).unwrap();
-    }
-}
+        let mut frames_written = 0;
+        while frames_written < buffer_frame_count {
+            let frames = (buffer_frame_count - frames_written).min(max_frames);
+            //We don't clear old frames because they are always filled with new information.
 
-unsafe impl Send for AudioThread {}
+            let audio_outputs = proc_owned_buffers.as_mut_slice();
+
+            let frames = frames
+                .min(audio_outputs[0].len())
+                .min(audio_outputs[1].len());
+
+            for i in 0..frames {
+                audio_outputs[0][i] = queue.pop().unwrap_or(0.0);
+                audio_outputs[1][i] = queue.pop().unwrap_or(0.0);
+            }
+
+            let device_buffer_part = &mut device_buffer
+                [frames_written * block_align..(frames_written + frames) * block_align];
+
+            // Fill each slice into the device's output buffer
+            for (frame_i, out_frame) in device_buffer_part.chunks_exact_mut(block_align).enumerate()
+            {
+                for (ch_i, out_smp_bytes) in out_frame.chunks_exact_mut(channel_align).enumerate() {
+                    let smp_bytes = proc_owned_buffers[ch_i][frame_i].to_le_bytes();
+
+                    out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
+                }
+            }
+
+            frames_written += frames;
+        }
+
+        // Write the now filled output buffer to the device.
+        let nbr_frames = buffer_frame_count;
+        let byte_per_frame = block_align;
+        let data = &device_buffer[0..buffer_frame_count * block_align];
+
+        let nbr_bytes = nbr_frames * byte_per_frame;
+        debug_assert_eq!(nbr_bytes, data.len());
+
+        let mut buffer_ptr = null_mut();
+        let result = (*render_client).GetBuffer(nbr_frames as u32, &mut buffer_ptr);
+        check(result).unwrap();
+
+        let bufferslice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
+        bufferslice.copy_from_slice(data);
+        let flags = 0;
+        (*render_client).ReleaseBuffer(nbr_frames as u32, flags);
+        check(result).unwrap();
+
+        if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {
+            panic!("Fatal WASAPI stream error while waiting for event");
+        }
+    }
+
+    let result = (*audio_client).Stop();
+    check(result).unwrap();
+}
