@@ -23,7 +23,7 @@ use winapi::um::mmdeviceapi::{
     eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
-use winapi::um::synchapi::{CreateEventA, WaitForSingleObject};
+use winapi::um::synchapi::{CreateEventA, ResetEvent, WaitForSingleObject};
 use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
 use winapi::um::winnt::HRESULT;
 use winapi::{Interface, RIDL};
@@ -265,8 +265,9 @@ impl StreamHandle {
             panic!("Device has less than 2 channels.");
         }
 
-        let mut deafult_period = zeroed();
-        (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
+        let mut default_period = zeroed();
+        let mut _min_period = zeroed();
+        (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
 
         let result = (*audio_client).Initialize(
             AUDCLNT_SHAREMODE_SHARED,
@@ -274,8 +275,8 @@ impl StreamHandle {
                 | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
                 | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
                 | AUDCLNT_STREAMFLAGS_RATEADJUST,
-            deafult_period,
-            deafult_period,
+            default_period,
+            default_period,
             &format as *const _ as *const WAVEFORMATEX,
             null(),
         );
@@ -299,7 +300,7 @@ impl StreamHandle {
         (*audio_client).Start();
 
         let stream_dropped = Arc::new(AtomicBool::new(false));
-        //The buffer size should be enough to avoid a lag spike.
+        //192000hz will not play with a smaller buffer size.
         let queue = Queue::new(MAX_BUFFER_SIZE as usize * 4);
 
         let audio_thread = AudioThread {
@@ -337,6 +338,12 @@ impl StreamHandle {
             Err(String::from("Unsupported sample rate."))
         }
     }
+    pub fn play(&self) {
+        unsafe { PLAYING = true };
+    }
+    pub fn pause(&self) {
+        unsafe { PLAYING = false };
+    }
 }
 
 impl Drop for StreamHandle {
@@ -344,6 +351,8 @@ impl Drop for StreamHandle {
         self.stream_dropped.store(true, Ordering::Relaxed);
     }
 }
+
+static mut PLAYING: bool = true;
 
 pub struct AudioThread {
     pub queue: Queue<f32>,
@@ -373,7 +382,7 @@ pub unsafe fn run(thread: AudioThread) {
     } = thread;
 
     let mut device_buffer = Vec::new();
-
+    let mut playing = true;
     while !stream_dropped.load(Ordering::Relaxed) {
         let channel_align = block_align / channels;
 
@@ -401,7 +410,6 @@ pub unsafe fn run(thread: AudioThread) {
             {
                 for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
                     let smp_bytes = queue.pop().unwrap_or(0.0).to_le_bytes();
-
                     out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
                 }
             }
@@ -424,9 +432,21 @@ pub unsafe fn run(thread: AudioThread) {
         (*render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
         check(result).unwrap();
 
-        if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {
+        if PLAYING != playing {
+            playing = PLAYING;
+            if playing {
+                let result = (*audio_client).Start();
+                check(result).unwrap();
+            } else {
+                let result = (*audio_client).Stop();
+                check(result).unwrap();
+            }
+        }
+
+        if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 && playing {
             panic!("Error occured while waiting for object.");
         }
+        ResetEvent(h_event);
     }
 
     let result = (*audio_client).Stop();

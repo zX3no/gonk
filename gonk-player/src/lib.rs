@@ -7,12 +7,9 @@
 use gonk_core::{Index, Song};
 use std::fs::File;
 use std::io::ErrorKind;
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Condvar, Mutex},
-    thread,
-    time::Duration,
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::RwLock;
+use std::{collections::VecDeque, sync::Arc, thread, time::Duration};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{
@@ -53,41 +50,38 @@ pub enum Event {
 
 #[derive(Default)]
 pub struct Queue<T> {
-    data: Arc<Mutex<VecDeque<T>>>,
-    condvar: Arc<Condvar>,
-    capacity: usize,
+    data: Arc<RwLock<VecDeque<T>>>,
+    capacity: Arc<AtomicUsize>,
 }
 
 impl<T> Queue<T> {
     pub fn new(capacity: usize) -> Self {
         Self {
             data: Default::default(),
-            condvar: Default::default(),
-            capacity,
+            capacity: Arc::new(AtomicUsize::new(capacity)),
         }
     }
     ///Blocks when the queue is full.
     pub fn push(&self, t: T) {
-        let mut data = self.data.lock().unwrap();
-        while data.len() > self.capacity {
-            data = self.condvar.wait(data).unwrap();
+        while self.len() > self.capacity.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_nanos(100));
         }
-        data.push_back(t);
-        self.condvar.notify_one();
+        self.data.write().unwrap().push_back(t);
     }
-    ///Always unblocks the sender.
     pub fn pop(&self) -> Option<T> {
-        self.condvar.notify_one();
-        self.data.lock().unwrap().pop_front()
+        self.data.write().unwrap().pop_front()
     }
     pub fn len(&self) -> usize {
-        self.data.lock().unwrap().len()
+        self.data.read().unwrap().len()
     }
     pub fn is_empty(&self) -> bool {
-        self.data.lock().unwrap().is_empty()
+        self.data.read().unwrap().is_empty()
     }
     pub fn clear(&mut self) {
-        self.data.lock().unwrap().clear();
+        self.data.write().unwrap().clear();
+    }
+    pub fn resize(&mut self, capacity: usize) {
+        self.capacity.store(capacity, Ordering::Relaxed);
     }
 }
 
@@ -95,8 +89,7 @@ impl<T> Clone for Queue<T> {
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
-            condvar: self.condvar.clone(),
-            capacity: self.capacity,
+            capacity: self.capacity.clone(),
         }
     }
 }
@@ -123,6 +116,9 @@ static mut STATE: State = State {
     path: String::new(),
     device: String::new(),
 };
+
+static mut SYMPHONIA: Option<Symphonia> = None;
+static mut STREAM: Option<StreamHandle> = None;
 
 pub struct Player {
     pub volume: u8,
@@ -168,13 +164,10 @@ impl Player {
                 }
             }
 
-            let mut handle = StreamHandle::new(device, sample_rate);
-            loop {
-                //Clear the sample buffer to avoid clicks/pops.
-                if SYMPHONIA.is_none() && !handle.queue.is_empty() {
-                    handle.queue.clear();
-                }
+            STREAM = Some(StreamHandle::new(device, sample_rate));
+            let stream = STREAM.as_mut().unwrap();
 
+            loop {
                 if path != STATE.path {
                     path = STATE.path.clone();
                     if !path.is_empty() {
@@ -182,8 +175,8 @@ impl Player {
                             Ok(sym) => {
                                 if sym.sample_rate() != sample_rate {
                                     sample_rate = sym.sample_rate();
-                                    if handle.set_sample_rate(sample_rate).is_err() {
-                                        handle = StreamHandle::new(device, sample_rate);
+                                    if stream.set_sample_rate(sample_rate).is_err() {
+                                        *stream = StreamHandle::new(device, sample_rate);
                                     }
                                 }
 
@@ -191,7 +184,6 @@ impl Player {
                                 STATE.playing = true;
                                 STATE.finished = false;
                                 SYMPHONIA = Some(sym);
-                                handle.queue.clear();
                             }
                             Err(err) => gonk_core::log!("Failed to play song. {}", err),
                         }
@@ -201,20 +193,18 @@ impl Player {
                 if device.name != STATE.device {
                     if let Some(d) = devices.iter().find(|device| device.name == STATE.device) {
                         device = d;
-                        handle = StreamHandle::new(device, sample_rate);
+                        *stream = StreamHandle::new(device, sample_rate);
                     }
                 }
+
+                //Half the volume to match songs without replay gain information.
+                let gain = if STATE.gain == 0.0 { 0.50 } else { STATE.gain };
 
                 if let Some(sym) = &mut SYMPHONIA {
                     if STATE.playing && !STATE.finished {
                         if let Some(next) = sym.next_packet() {
                             for smp in next.samples() {
-                                if STATE.gain == 0.0 {
-                                    //Half the volume to match songs without replay gain information.
-                                    handle.queue.push(smp * STATE.volume * 0.50);
-                                } else {
-                                    handle.queue.push(smp * STATE.volume * STATE.gain);
-                                }
+                                stream.queue.push(smp * STATE.volume * gain);
                             }
                         } else {
                             STATE.finished = true;
@@ -239,7 +229,16 @@ impl Player {
         }
     }
     pub fn toggle_playback(&self) {
-        unsafe { STATE.playing = !STATE.playing };
+        unsafe {
+            STATE.playing = !STATE.playing;
+            if let Some(stream) = &mut STREAM {
+                if STATE.playing {
+                    stream.play();
+                } else {
+                    stream.pause();
+                }
+            }
+        }
     }
     pub fn play(&self, path: &str, gain: f32) {
         unsafe {
@@ -351,8 +350,6 @@ impl Player {
     }
 }
 
-static mut SYMPHONIA: Option<Symphonia> = None;
-
 pub struct Symphonia {
     format_reader: Box<dyn FormatReader>,
     decoder: Box<dyn Decoder>,
@@ -448,6 +445,9 @@ impl Symphonia {
         unsafe { STATE.elapsed = self.elapsed() };
 
         let decoded = self.decoder.decode(&next_packet).unwrap();
+        if decoded.frames() == 0 {
+            panic!("NO FRAMES!");
+        }
         let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
         buffer.copy_interleaved_ref(decoded);
         Some(buffer)
