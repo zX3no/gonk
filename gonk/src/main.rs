@@ -322,9 +322,11 @@ fn main() {
                             }
                         }
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
-                            let folder = gonk_core::music_folder().to_string();
-                            scan_handle = Some(gonk_core::scan(folder));
-                            playlist.playlists = Index::from(gonk_core::playlists());
+                            if scan_handle.is_none() {
+                                let folder = gonk_core::music_folder().to_string();
+                                scan_handle = Some(gonk_core::scan(folder));
+                                playlist.playlists = Index::from(gonk_core::playlists());
+                            }
                         }
                         KeyCode::Char('q') => player.seek_backward(),
                         KeyCode::Char('e') => player.seek_foward(),
