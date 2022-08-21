@@ -299,10 +299,7 @@ fn main() {
                         KeyCode::Char('x') => match mode {
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
-                                    match player.delete_index(i) {
-                                        Ok(_) => (),
-                                        Err(e) => log!("{}", e),
-                                    };
+                                    player.delete_index(i);
 
                                     //Sync the UI index.
                                     let len = player.songs.len().saturating_sub(1);
@@ -386,25 +383,16 @@ fn main() {
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                match player.add(&songs) {
-                                    Ok(_) => (),
-                                    Err(e) => log!("{}", e),
-                                }
+                                player.add(&songs);
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
-                                    match player.play_index(i) {
-                                        Ok(_) => (),
-                                        Err(e) => log!("{}", e),
-                                    }
+                                    player.play_index(i);
                                 }
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    match player.add(&songs) {
-                                        Ok(_) => (),
-                                        Err(e) => log!("{}", e),
-                                    }
+                                    player.add(&songs);
                                 }
                             }
                             Mode::Settings => {

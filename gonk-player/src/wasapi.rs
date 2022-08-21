@@ -12,9 +12,7 @@ use std::sync::{
 use std::thread;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::guiddef::GUID;
-use winapi::shared::mmreg::{
-    WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_EXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT,
-};
+use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
 use winapi::shared::ntdef::HANDLE;
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
 use winapi::um::audiosessiontypes::{
@@ -79,6 +77,7 @@ pub fn check(result: i32) -> Result<(), String> {
             // 0x80004003
             -2147467261 => Err("Pointer is not valid".to_string()),
             -2004287483 => Err("AUDCLNT_E_NOT_STOPPED".to_string()),
+            -2004287480 => Err("AUDCLNT_E_UNSUPPORTED_FORMAT".to_string()),
             _ => Err(format!("{result}")),
         }
     } else {
@@ -204,76 +203,6 @@ pub fn utf16_string(ptr_utf16: *const u16) -> String {
     name_os_string.to_string_lossy().to_string()
 }
 
-pub fn new_wavefmtex(
-    storebits: usize,
-    validbits: usize,
-    samplerate: usize,
-    channels: usize,
-) -> WAVEFORMATEXTENSIBLE {
-    let blockalign = channels * storebits / 8;
-    let byterate = samplerate * blockalign;
-
-    let wave_format = WAVEFORMATEX {
-        cbSize: 22,
-        nAvgBytesPerSec: byterate as u32,
-        nBlockAlign: blockalign as u16,
-        nChannels: channels as u16,
-        nSamplesPerSec: samplerate as u32,
-        wBitsPerSample: storebits as u16,
-        wFormatTag: WAVE_FORMAT_EXTENSIBLE as u16,
-    };
-    let sample = validbits as u16;
-    let subformat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-    let mut mask = 0;
-    for n in 0..channels {
-        mask += 1 << n;
-    }
-    WAVEFORMATEXTENSIBLE {
-        Format: wave_format,
-        Samples: sample,
-        SubFormat: subformat,
-        dwChannelMask: mask,
-    }
-}
-
-pub unsafe fn get_mix_format(audio_client: *mut IAudioClient) -> WAVEFORMATEXTENSIBLE {
-    let mut format = null_mut();
-    (*audio_client).GetMixFormat(&mut format);
-    let format = &*format;
-
-    if format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && format.cbSize == 22 {
-        //TODO: Check that the sample type is float
-        (format as *const _ as *const WAVEFORMATEXTENSIBLE).read()
-    } else {
-        let validbits = format.wBitsPerSample as usize;
-        let blockalign = format.nBlockAlign as usize;
-        let samplerate = format.nSamplesPerSec as usize;
-        let formattag = format.wFormatTag;
-        let channels = format.nChannels as usize;
-        if formattag != WAVE_FORMAT_IEEE_FLOAT {
-            panic!("Unsupported format!");
-        }
-        let storebits = 8 * blockalign / channels;
-        new_wavefmtex(storebits, validbits, samplerate, channels)
-    }
-}
-
-pub unsafe fn is_format_supported(
-    format: WAVEFORMATEXTENSIBLE,
-    audio_client: *mut IAudioClient,
-) -> *mut WAVEFORMATEX {
-    let mut new_format = null_mut();
-    let result = (*audio_client).IsFormatSupported(
-        AUDCLNT_SHAREMODE_SHARED,
-        &format as *const _ as *const WAVEFORMATEX,
-        &mut new_format,
-    );
-    if result != 1 {
-        check(result).unwrap();
-    }
-    new_format
-}
-
 pub struct StreamHandle {
     pub queue: Queue<f32>,
     pub audio_client: *mut IAudioClient,
@@ -288,9 +217,8 @@ pub struct StreamHandle {
 impl StreamHandle {
     pub unsafe fn new(device: &Device, sample_rate: u32) -> Self {
         init();
-        if !COMMON_SAMPLE_RATES.contains(&sample_rate) {
-            panic!("Invalid sample rate.");
-        }
+
+        assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
 
         let audio_client: *mut IAudioClient = {
             let mut audio_client = null_mut();
@@ -305,28 +233,40 @@ impl StreamHandle {
             audio_client as *mut _
         };
 
-        let format = get_mix_format(audio_client);
+        let mut format = null_mut();
+        (*audio_client).GetMixFormat(&mut format);
+        let format = &mut *format;
+        format.nSamplesPerSec = sample_rate;
+        format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+
+        if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
+            let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
+            if format.SubFormat.Data1 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data1
+                || format.SubFormat.Data2 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data2
+                || format.SubFormat.Data3 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data3
+                || format.SubFormat.Data4 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data4
+            {
+                panic!("Unsupported sample format!");
+            }
+        }
+
+        let mut mask = 0;
+        for n in 0..format.nChannels {
+            mask += 1 << n;
+        }
+        let format = WAVEFORMATEXTENSIBLE {
+            Format: *format,
+            Samples: format.wBitsPerSample as u16,
+            SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
+            dwChannelMask: mask,
+        };
+
+        if format.Format.nChannels < 2 {
+            panic!("Device has less than 2 channels.");
+        }
 
         let mut deafult_period = zeroed();
         (*audio_client).GetDevicePeriod(&mut deafult_period, null_mut());
-
-        if format.Format.nChannels < 2 {
-            let channels = format.Format.nChannels;
-            panic!("Device only has {} channels", channels);
-        }
-
-        let desired_format = new_wavefmtex(
-            format.Format.wBitsPerSample as usize,
-            format.Samples as usize,
-            sample_rate as usize,
-            format.Format.nChannels as usize,
-        );
-
-        if desired_format.Samples != 32 {
-            panic!("64-bit buffers are not supported!");
-        }
-
-        let block_align = desired_format.Format.nBlockAlign as u32;
 
         let result = (*audio_client).Initialize(
             AUDCLNT_SHAREMODE_SHARED,
@@ -336,7 +276,7 @@ impl StreamHandle {
                 | AUDCLNT_STREAMFLAGS_RATEADJUST,
             deafult_period,
             deafult_period,
-            &desired_format as *const _ as *const WAVEFORMATEX,
+            &format as *const _ as *const WAVEFORMATEX,
             null(),
         );
         check(result).unwrap();
@@ -368,8 +308,8 @@ impl StreamHandle {
             audio_client,
             h_event,
             render_client,
-            block_align: block_align as usize,
-            channels: desired_format.Format.nChannels as usize,
+            block_align: format.Format.nBlockAlign as usize,
+            channels: format.Format.nChannels as usize,
             max_frames: MAX_BUFFER_SIZE as usize,
         };
 
@@ -383,9 +323,9 @@ impl StreamHandle {
             audio_client,
             audio_clock_adjust,
             device: device.clone(),
-            sample_rate: desired_format.Format.nSamplesPerSec,
+            sample_rate: format.Format.nSamplesPerSec,
             buffer_size: MAX_BUFFER_SIZE,
-            num_out_channels: desired_format.Format.nChannels as u32,
+            num_out_channels: format.Format.nChannels as u32,
             stream_dropped,
         }
     }
@@ -485,7 +425,7 @@ pub unsafe fn run(thread: AudioThread) {
         check(result).unwrap();
 
         if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {
-            panic!("Fatal WASAPI stream error while waiting for event");
+            panic!("Error occured while waiting for object.");
         }
     }
 

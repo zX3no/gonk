@@ -27,9 +27,11 @@ use symphonia::{
     },
     default::get_probe,
 };
+use wasapi::*;
+
+pub use wasapi::{default_device, devices};
 
 mod wasapi;
-pub use wasapi::*;
 
 const VOLUME: f32 = 300.0;
 
@@ -135,7 +137,6 @@ impl Player {
         let default = default_device().unwrap();
         let d = devices.iter().find(|d| d.name == device);
         let mut device = if let Some(d) = d { d } else { default };
-
         let selected = songs.selected().cloned();
 
         thread::spawn(move || {
@@ -168,11 +169,8 @@ impl Player {
             }
 
             let mut handle = StreamHandle::new(device, sample_rate);
-
             loop {
-                //Clear the sample buffer if nothing is playing.
-                //Sometimes old samples would get left over,
-                //clearing them avoids clicks and pops.
+                //Clear the sample buffer to avoid clicks/pops.
                 if SYMPHONIA.is_none() && !handle.queue.is_empty() {
                     handle.queue.clear();
                 }
@@ -201,21 +199,19 @@ impl Player {
                 }
 
                 if device.name != STATE.device {
-                    let d = devices.iter().find(|device| device.name == STATE.device);
-                    if let Some(d) = d {
+                    if let Some(d) = devices.iter().find(|device| device.name == STATE.device) {
                         device = d;
                         handle = StreamHandle::new(device, sample_rate);
                     }
                 }
 
-                if let Some(d) = &mut SYMPHONIA {
+                if let Some(sym) = &mut SYMPHONIA {
                     if STATE.playing && !STATE.finished {
-                        if let Some(next) = d.next_packet() {
+                        if let Some(next) = sym.next_packet() {
                             for smp in next.samples() {
                                 if STATE.gain == 0.0 {
-                                    //Reduce the volume a little to match
-                                    //songs with replay gain information.
-                                    handle.queue.push(smp * STATE.volume * 0.75);
+                                    //Half the volume to match songs without replay gain information.
+                                    handle.queue.push(smp * STATE.volume * 0.50);
                                 } else {
                                     handle.queue.push(smp * STATE.volume * STATE.gain);
                                 }
@@ -288,29 +284,28 @@ impl Player {
             self.play(&song.path, song.gain)
         }
     }
-    pub fn delete_index(&mut self, i: usize) -> Result<(), String> {
+    pub fn delete_index(&mut self, i: usize) {
         if self.songs.is_empty() {
-            return Ok(());
+            return;
         }
+
         self.songs.data.remove(i);
 
         if let Some(playing) = self.songs.index() {
             let len = self.songs.len();
-
             if len == 0 {
                 self.clear();
             } else if i == playing && i == 0 {
                 if i == 0 {
                     self.songs.select(Some(0));
                 }
-                return self.play_index(self.songs.index().unwrap());
+                self.play_index(self.songs.index().unwrap());
             } else if i == playing && i == len {
                 self.songs.select(Some(len - 1));
             } else if i < playing {
                 self.songs.select(Some(playing - 1));
             }
         };
-        Ok(())
     }
     pub fn clear(&mut self) {
         unsafe {
@@ -327,20 +322,18 @@ impl Player {
             self.songs = Index::new(vec![playing], Some(0));
         }
     }
-    pub fn add(&mut self, songs: &[Song]) -> Result<(), String> {
+    pub fn add(&mut self, songs: &[Song]) {
         self.songs.data.extend(songs.to_vec());
         if self.songs.selected().is_none() {
             self.songs.select(Some(0));
-            self.play_index(0)?;
+            self.play_index(0);
         }
-        Ok(())
     }
-    pub fn play_index(&mut self, i: usize) -> Result<(), String> {
+    pub fn play_index(&mut self, i: usize) {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
             self.play(&song.path, song.gain);
         }
-        Ok(())
     }
     ///Checks if the current song is finished. If yes, the next song is played.
     pub fn check_next(&mut self) {
@@ -370,31 +363,25 @@ pub struct Symphonia {
 }
 
 impl Symphonia {
-    pub fn new(path: &str) -> std::io::Result<Self> {
+    pub fn new(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let file = File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
+        let probed = get_probe().format(
+            &Hint::default(),
+            mss,
+            &FormatOptions {
+                prebuild_seek_index: true,
+                seek_index_fill_rate: 1,
+                enable_gapless: false,
+            },
+            &MetadataOptions::default(),
+        )?;
 
-        let probed = get_probe()
-            .format(
-                &Hint::default(),
-                mss,
-                &FormatOptions {
-                    prebuild_seek_index: true,
-                    seek_index_fill_rate: 1,
-                    enable_gapless: false,
-                },
-                &MetadataOptions::default(),
-            )
-            .unwrap();
-
-        let track = probed.format.default_track().unwrap().to_owned();
-
-        let decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
-            .unwrap();
-
-        let n_frames = track.codec_params.n_frames.unwrap();
+        let track = probed.format.default_track().ok_or("")?.to_owned();
+        let n_frames = track.codec_params.n_frames.ok_or("")?;
         let duration = track.codec_params.start_ts + n_frames;
+        let decoder = symphonia::default::get_codecs()
+            .make(&track.codec_params, &DecoderOptions::default())?;
 
         Ok(Self {
             format_reader: probed.format,

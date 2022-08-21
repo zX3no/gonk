@@ -119,19 +119,13 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                     .map(|song| Song::from(&song.into_bytes(), 0))
                     .collect();
 
-                match player.add(&songs) {
-                    Ok(_) => (),
-                    Err(e) => log!("{}", e),
-                }
+                player.add(&songs);
             }
         }
         Mode::Song => {
             if let Some(selected) = playlist.playlists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    match player.add(&[Song::from(&song.into_bytes(), 0)]) {
-                        Ok(_) => (),
-                        Err(e) => log!("{}", e),
-                    }
+                    player.add(&[Song::from(&song.into_bytes(), 0)]);
                 }
             }
         }
