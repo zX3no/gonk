@@ -60,7 +60,7 @@ gonk
 | Delete without confirmation | `Shift + X`     |
 | Clear queue                 | `C`             |
 | Clear except playing        | `Shift + C`     |
-| Change Mode                 | `Tab`           |
+| Toggle Browser/Queue        | `Tab`           |
 | Settings                    | `,`             |
 | Playlists                   | `.`             |
 | Search                      | `/`             |
