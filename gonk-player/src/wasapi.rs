@@ -301,7 +301,7 @@ impl StreamHandle {
 
         let stream_dropped = Arc::new(AtomicBool::new(false));
         //192000hz will not play with a smaller buffer size.
-        let queue = Queue::new(MAX_BUFFER_SIZE as usize * 4);
+        let queue = Queue::new(MAX_BUFFER_SIZE as usize * 8);
 
         let audio_thread = AudioThread {
             queue: queue.clone(),
@@ -402,6 +402,7 @@ pub unsafe fn run(thread: AudioThread) {
 
         let mut frames_written = 0;
         while frames_written < buffer_frame_count {
+            //This can range from 441 to 1024. I haven't see it go over MAX_FRAMES.
             let frames = (buffer_frame_count - frames_written).min(max_frames);
 
             for out_frame in &mut device_buffer
