@@ -367,9 +367,11 @@ fn main() {
                                 mode = Mode::Playlist;
                             }
                             Mode::Queue => {
-                                if let Some(song) = player.songs.selected() {
-                                    playlist::add(&mut playlist, &[song.clone()]);
-                                    mode = Mode::Playlist;
+                                if let Some(index) = queue.ui.index() {
+                                    if let Some(song) = player.songs.data.get(index) {
+                                        playlist::add(&mut playlist, &[song.clone()]);
+                                        mode = Mode::Playlist;
+                                    }
                                 }
                             }
                             Mode::Search => {
