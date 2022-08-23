@@ -10,6 +10,7 @@ use std::sync::{
     Arc,
 };
 use std::thread;
+use std::time::Duration;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::guiddef::GUID;
 use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
@@ -384,6 +385,23 @@ pub unsafe fn run(thread: AudioThread) {
     let mut device_buffer = Vec::new();
     let mut playing = true;
     while !stream_dropped.load(Ordering::Relaxed) {
+        if PLAYING != playing {
+            playing = PLAYING;
+            if playing {
+                let result = (*audio_client).Start();
+                check(result).unwrap();
+            } else {
+                let result = (*audio_client).Stop();
+                check(result).unwrap();
+
+                //Wait until the player is running again
+                //Samples are still in the buffer so this seems to work?
+                while !PLAYING {
+                    thread::sleep(Duration::from_millis(1));
+                }
+            }
+        }
+
         let channel_align = block_align / channels;
 
         let mut padding_count = zeroed();
@@ -432,17 +450,6 @@ pub unsafe fn run(thread: AudioThread) {
         buffer_slice.copy_from_slice(data);
         (*render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
         check(result).unwrap();
-
-        if PLAYING != playing {
-            playing = PLAYING;
-            if playing {
-                let result = (*audio_client).Start();
-                check(result).unwrap();
-            } else {
-                let result = (*audio_client).Stop();
-                check(result).unwrap();
-            }
-        }
 
         if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 && playing {
             panic!("Error occured while waiting for object.");
