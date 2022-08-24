@@ -52,6 +52,7 @@ pub fn init() {
         _ => save_settings(),
     }
 
+    //We only need write access to create the file.
     let db = OpenOptions::new()
         .read(true)
         .write(true)
@@ -347,6 +348,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
     }
 
     thread::spawn(|| {
+        //Open and truncate the database.
         match OpenOptions::new()
             .write(true)
             .read(true)
@@ -379,7 +381,16 @@ pub fn scan(path: String) -> JoinHandle<()> {
                 writer.flush().unwrap();
                 unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
             }
-            Err(_) => log!("Failed to scan folder, database is already open."),
+            Err(_) => {
+                //Re-open the database as read only.
+                let db = OpenOptions::new()
+                    .read(true)
+                    .open(&database_path())
+                    .unwrap();
+                unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
+
+                log!("Failed to scan folder, database is already open.");
+            }
         }
     })
 }
