@@ -24,11 +24,18 @@ use symphonia::{
     },
     default::get_probe,
 };
-use wasapi::*;
 
-pub use wasapi::{default_device, devices};
-
+#[cfg(windows)]
 mod wasapi;
+
+#[cfg(windows)]
+pub use wasapi::*;
+
+#[cfg(unix)]
+mod pipewire;
+
+#[cfg(unix)]
+pub use pipewire::*;
 
 const VOLUME: f32 = 300.0;
 

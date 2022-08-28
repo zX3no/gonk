@@ -8,6 +8,8 @@ readme = "../README.md"
 license = "CC0-1.0"
 
 [dependencies]
-symphonia = { version = "0.5.1", git = "https://github.com/zX3no/Symphonia", default-features = false, features = ["flac", "mp3", "ogg", "vorbis"] }
-winapi = { version = "0.3.9", features = ["mmdeviceapi", "combaseapi", "devpkey", "audioclient", "synchapi"] }
 gonk-core = {version = "0.2.0", path = "../gonk-core"}
+symphonia = { version = "0.5.1", git = "https://github.com/zX3no/Symphonia", default-features = false, features = ["flac", "mp3", "ogg", "vorbis"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3.9", features = ["mmdeviceapi", "combaseapi", "devpkey", "audioclient", "synchapi"] }
