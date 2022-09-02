@@ -251,6 +251,7 @@ impl Player {
         unsafe {
             STATE.path = path.to_string();
             STATE.gain = gain;
+            STATE.elapsed = Duration::default();
         }
     }
     pub fn seek_foward(&mut self) {
