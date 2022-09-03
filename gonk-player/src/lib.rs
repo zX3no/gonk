@@ -110,6 +110,7 @@ pub struct State {
     pub gain: f32,
     pub path: String,
     pub device: String,
+    pub sample_rate: u32,
 }
 
 //Nooooo! You can't use shared mutable state, it...it's too unsafe!
@@ -122,6 +123,7 @@ static mut STATE: State = State {
     gain: 0.0,
     path: String::new(),
     device: String::new(),
+    sample_rate: 44100,
 };
 
 static mut SYMPHONIA: Option<Symphonia> = None;
@@ -133,6 +135,7 @@ pub struct Player {
 }
 
 impl Player {
+    //TODO: This is probably a good example of why you shouldn't use global state.
     pub unsafe fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         update_devices();
 
@@ -145,7 +148,6 @@ impl Player {
         thread::spawn(move || {
             let elapsed = Duration::from_secs_f32(elapsed);
             let mut sample_rate = 44100;
-            let mut path = String::new();
 
             STATE.elapsed = elapsed;
             STATE.volume = calc_volume(volume);
@@ -159,7 +161,6 @@ impl Player {
                             sample_rate = sym.sample_rate();
                         }
 
-                        path = song.path.clone();
                         STATE.gain = song.gain;
                         STATE.duration = sym.duration();
                         STATE.playing = false;
@@ -175,31 +176,16 @@ impl Player {
             let stream = STREAM.as_mut().unwrap();
 
             loop {
-                if path != STATE.path {
-                    path = STATE.path.clone();
-                    if !path.is_empty() {
-                        match Symphonia::new(&path) {
-                            Ok(sym) => {
-                                if sym.sample_rate() != sample_rate {
-                                    sample_rate = sym.sample_rate();
-                                    if stream.set_sample_rate(sample_rate).is_err() {
-                                        *stream = StreamHandle::new(device, sample_rate);
-                                    }
-                                }
-
-                                STATE.duration = sym.duration();
-                                STATE.playing = true;
-                                STATE.finished = false;
-                                SYMPHONIA = Some(sym);
-                            }
-                            Err(err) => gonk_core::log!("Failed to play song. {}", err),
-                        }
-                    }
-                }
-
                 if device.name != STATE.device {
                     if let Some(d) = devices.iter().find(|device| device.name == STATE.device) {
                         device = d;
+                        *stream = StreamHandle::new(device, sample_rate);
+                    }
+                }
+
+                if STATE.sample_rate != sample_rate {
+                    sample_rate = STATE.sample_rate;
+                    if stream.set_sample_rate(sample_rate).is_err() {
                         *stream = StreamHandle::new(device, sample_rate);
                     }
                 }
@@ -252,6 +238,21 @@ impl Player {
             STATE.path = path.to_string();
             STATE.gain = gain;
             STATE.elapsed = Duration::default();
+
+            match Symphonia::new(path) {
+                Ok(sym) => {
+                    STATE.sample_rate = sym.sample_rate();
+                    STATE.duration = sym.duration();
+                    STATE.finished = false;
+                    SYMPHONIA = Some(sym);
+
+                    //TODO: This get's rid of the lag but causes clicking.
+                    if let Some(stream) = &mut STREAM {
+                        stream.queue.clear();
+                    }
+                }
+                Err(err) => gonk_core::log!("Failed to play song. {}", err),
+            }
         }
     }
     pub fn seek_foward(&mut self) {
