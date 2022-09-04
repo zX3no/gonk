@@ -459,12 +459,22 @@ impl Symphonia {
         self.elapsed = next_packet.ts();
         unsafe { STATE.elapsed = self.elapsed() };
 
-        let decoded = self.decoder.decode(&next_packet).unwrap();
-        if decoded.frames() == 0 {
-            panic!("NO FRAMES!");
+        match self.decoder.decode(&next_packet) {
+            Ok(decoded) => {
+                let mut buffer =
+                    SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
+                buffer.copy_interleaved_ref(decoded);
+                Some(buffer)
+            }
+            _ => {
+                self.error_count += 1;
+
+                if self.error_count > 2 {
+                    None
+                } else {
+                    self.next_packet()
+                }
+            }
         }
-        let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
-        buffer.copy_interleaved_ref(decoded);
-        Some(buffer)
     }
 }
