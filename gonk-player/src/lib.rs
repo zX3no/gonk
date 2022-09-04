@@ -432,27 +432,25 @@ impl Symphonia {
         }
     }
     pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
+        if self.error_count > 2 {
+            return None;
+        }
+
         let next_packet = match self.format_reader.next_packet() {
             Ok(next_packet) => {
                 self.error_count = 0;
                 next_packet
             }
             Err(err) => match err {
-                Error::IoError(err) => match err.kind() {
-                    ErrorKind::Other if err.to_string() == "EOF" => {
-                        self.elapsed = self.duration;
-                        return None;
-                    }
-                    _ => panic!("{}", err),
-                },
-                Error::SeekError(_) | Error::DecodeError(_) => {
+                Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
+                    self.elapsed = self.duration;
+                    return None;
+                }
+                _ => {
+                    gonk_core::log!("{}", err);
                     self.error_count += 1;
-                    if self.error_count > 2 {
-                        return None;
-                    }
                     return self.next_packet();
                 }
-                _ => panic!("{}", err),
             },
         };
 
@@ -466,14 +464,10 @@ impl Symphonia {
                 buffer.copy_interleaved_ref(decoded);
                 Some(buffer)
             }
-            _ => {
+            Err(err) => {
+                gonk_core::log!("{}", err);
                 self.error_count += 1;
-
-                if self.error_count > 2 {
-                    None
-                } else {
-                    self.next_packet()
-                }
+                self.next_packet()
             }
         }
     }
