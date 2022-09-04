@@ -233,7 +233,7 @@ impl Player {
             }
         }
     }
-    pub fn play(&self, path: &str, gain: f32) {
+    pub fn play_song(&self, path: &str, gain: f32) {
         unsafe {
             STATE.path = path.to_string();
             STATE.gain = gain;
@@ -249,6 +249,12 @@ impl Player {
                     //TODO: This get's rid of the lag but causes clicking.
                     if let Some(stream) = &mut STREAM {
                         stream.queue.clear();
+
+                        //Play if paused.
+                        if !STATE.playing {
+                            STATE.playing = true;
+                            stream.play();
+                        }
                     }
                 }
                 Err(err) => gonk_core::log!("Failed to play song. {}", err),
@@ -283,13 +289,13 @@ impl Player {
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
-            self.play(&song.path, song.gain)
+            self.play_song(&song.path, song.gain)
         }
     }
     pub fn prev(&mut self) {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
-            self.play(&song.path, song.gain)
+            self.play_song(&song.path, song.gain)
         }
     }
     pub fn delete_index(&mut self, i: usize) {
@@ -340,7 +346,7 @@ impl Player {
     pub fn play_index(&mut self, i: usize) {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            self.play(&song.path, song.gain);
+            self.play_song(&song.path, song.gain);
         }
     }
     ///Checks if the current song is finished. If yes, the next song is played.

@@ -247,7 +247,7 @@ impl Settings {
         bytes.extend(self.music_folder.as_bytes());
 
         for song in &self.queue {
-            bytes.extend(&song.into_bytes());
+            bytes.extend(song.into_bytes());
         }
         bytes
     }
