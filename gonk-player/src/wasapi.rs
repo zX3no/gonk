@@ -325,7 +325,6 @@ impl Wasapi {
 
         let mut frames_written = 0;
         while frames_written < buffer_frame_count {
-            //This can range from 441 to 1024. I haven't see it go over MAX_FRAMES.
             let frames = (buffer_frame_count - frames_written).min(max_frames);
 
             for out_frame in &mut buffer
@@ -378,8 +377,8 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
     loop {
         if let Ok(event) = r.try_recv() {
             match event {
-                Event::PlaySong((path, s, g)) => {
-                    STATE = s;
+                Event::PlaySong((path, g)) => {
+                    STATE = State::Playing;
                     gain = g;
                     match Symphonia::new(&path) {
                         Ok(sym) => {
@@ -390,6 +389,24 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                                 wasapi.update_sample_rate(new);
                                 sample_rate = new;
                             }
+                            decoder = Some(sym);
+                        }
+                        Err(err) => panic!("{}", err),
+                    }
+                }
+                Event::RestoreSong((path, g, elapsed)) => {
+                    STATE = State::Paused;
+                    gain = g;
+                    match Symphonia::new(&path) {
+                        Ok(mut sym) => {
+                            DURATION = sym.duration();
+                            ELAPSED = Duration::from_secs_f32(elapsed);
+                            let new = sym.sample_rate();
+                            if sample_rate != new {
+                                wasapi.update_sample_rate(new);
+                                sample_rate = new;
+                            }
+                            sym.seek(elapsed);
                             decoder = Some(sym);
                         }
                         Err(err) => panic!("{}", err),
@@ -422,8 +439,10 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 
 #[derive(Debug)]
 pub enum Event {
-    ///Sometimes I want to queue a song but not play it.
-    PlaySong((String, State, f32)),
+    /// Path, Gain
+    PlaySong((String, f32)),
+    /// Path, Gain, Elapsed
+    RestoreSong((String, f32, f32)),
     Play,
     Pause,
     Stop,

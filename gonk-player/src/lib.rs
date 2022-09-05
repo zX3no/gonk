@@ -45,17 +45,27 @@ pub struct Player {
 
 impl Player {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         update_devices();
+
+        let devices = devices();
+        let default = default_device().unwrap();
+        let d = devices.iter().find(|d| d.name == device);
+        let device = if let Some(d) = d { d } else { default };
+
         let (s, r) = bounded::<Event>(5);
         thread::spawn(move || unsafe {
-            let device = default_device().unwrap();
             new(device, r);
         });
-        Self {
-            s,
-            songs: Index::default(),
+
+        //Restore previous queue state.
+        unsafe { VOLUME = volume as f32 / VOLUME_REDUCTION };
+        if let Some(song) = songs.selected().cloned() {
+            s.send(Event::RestoreSong((song.path.clone(), song.gain, elapsed)))
+                .unwrap();
         }
+
+        Self { s, songs }
     }
     pub fn play(&self) {
         self.s.send(Event::Play).unwrap();
@@ -91,11 +101,7 @@ impl Player {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
             self.s
-                .send(Event::PlaySong((
-                    song.path.clone(),
-                    State::Playing,
-                    song.gain,
-                )))
+                .send(Event::PlaySong((song.path.clone(), song.gain)))
                 .unwrap();
         }
     }
@@ -103,11 +109,7 @@ impl Player {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
             self.s
-                .send(Event::PlaySong((
-                    song.path.clone(),
-                    State::Playing,
-                    song.gain,
-                )))
+                .send(Event::PlaySong((song.path.clone(), song.gain)))
                 .unwrap();
         }
     }
@@ -155,11 +157,7 @@ impl Player {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
             self.s
-                .send(Event::PlaySong((
-                    song.path.clone(),
-                    State::Playing,
-                    song.gain,
-                )))
+                .send(Event::PlaySong((song.path.clone(), song.gain)))
                 .unwrap();
         }
     }
