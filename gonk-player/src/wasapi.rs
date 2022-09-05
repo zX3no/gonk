@@ -202,7 +202,7 @@ pub fn utf16_string(ptr_utf16: *const u16) -> String {
     name_os_string.to_string_lossy().to_string()
 }
 
-pub unsafe fn audio_client(device: &Device) {
+pub unsafe fn audio_client(_device: &Device) {
     todo!();
 }
 
@@ -289,13 +289,11 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 
     let mut decoder: Option<Symphonia> = None;
 
-    let mut state = State::Stopped;
     loop {
         if let Ok(event) = r.try_recv() {
-            println!("{:?}", event);
             match event {
                 Event::PlaySong((path, s)) => {
-                    state = s;
+                    STATE = s;
                     //TODO: Handle different sample rates.
                     match Symphonia::new(&path) {
                         Ok(sym) => {
@@ -316,7 +314,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                             }
                             decoder = Some(sym);
                         }
-                        Err(err) => println!("{}", err),
+                        Err(err) => panic!("{}", err),
                     }
                 }
                 Event::Seek(pos) => {
@@ -324,15 +322,16 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                         decoder.seek(pos);
                     }
                 }
-                Event::Play => state = State::Playing,
-                Event::Pause => state = State::Paused,
-                Event::Stop => state = State::Stopped,
+                Event::Play => STATE = State::Playing,
+                Event::Pause => STATE = State::Paused,
+                Event::Stop => STATE = State::Stopped,
             }
         }
 
-        match state {
+        match STATE {
             State::Stopped => decoder = None,
             State::Paused => (),
+            State::Finished => (),
             State::Playing => {
                 if let Some(decoder) = &mut decoder {
                     ELAPSED = decoder.elapsed();
@@ -412,13 +411,15 @@ pub enum Event {
     Seek(f32),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum State {
     Stopped,
     Paused,
     Playing,
+    Finished,
 }
 
+pub static mut STATE: State = State::Stopped;
 pub static mut ELAPSED: Duration = Duration::from_secs(0);
 pub static mut DURATION: Duration = Duration::from_secs(0);
 pub static mut GAIN: f32 = 0.0;

@@ -5,6 +5,7 @@
     non_snake_case
 )]
 use crossbeam_channel::{bounded, Sender};
+use gonk_core::{Index, Song};
 use std::fs::File;
 use std::io::ErrorKind;
 use std::{collections::VecDeque, thread, time::Duration};
@@ -39,6 +40,7 @@ const VOLUME_REDUCTION: f32 = 300.0;
 
 pub struct Player {
     s: Sender<Event>,
+    pub songs: Index<Song>,
 }
 
 impl Player {
@@ -50,7 +52,10 @@ impl Player {
             let device = default_device().unwrap();
             new(device, r);
         });
-        Self { s }
+        Self {
+            s,
+            songs: Index::default(),
+        }
     }
     pub fn play_song(&self, path: String, state: State) {
         self.s.send(Event::PlaySong((path, state))).unwrap();
@@ -76,11 +81,111 @@ impl Player {
                 ((VOLUME * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
         }
     }
-    pub fn elasped(&self) -> Duration {
+    pub fn elapsed(&self) -> Duration {
         unsafe { ELAPSED }
     }
     pub fn duration(&self) -> Duration {
         unsafe { DURATION }
+    }
+    pub fn is_playing(&self) -> bool {
+        unsafe { STATE == State::Playing }
+    }
+    pub fn next(&mut self) {
+        self.songs.down();
+        if let Some(song) = self.songs.selected() {
+            unsafe {
+                GAIN = song.gain;
+            }
+            self.play_song(song.path.clone(), State::Playing);
+        }
+    }
+    pub fn prev(&mut self) {
+        self.songs.up();
+        if let Some(song) = self.songs.selected() {
+            unsafe {
+                GAIN = song.gain;
+            }
+            self.play_song(song.path.clone(), State::Playing);
+        }
+    }
+    pub fn delete_index(&mut self, i: usize) {
+        if self.songs.is_empty() {
+            return;
+        }
+
+        self.songs.data.remove(i);
+
+        if let Some(playing) = self.songs.index() {
+            let len = self.songs.len();
+            if len == 0 {
+                self.clear();
+            } else if i == playing && i == 0 {
+                if i == 0 {
+                    self.songs.select(Some(0));
+                }
+                self.play_index(self.songs.index().unwrap());
+            } else if i == playing && i == len {
+                self.songs.select(Some(len - 1));
+            } else if i < playing {
+                self.songs.select(Some(playing - 1));
+            }
+        };
+    }
+    pub fn clear(&mut self) {
+        self.s.send(Event::Stop).unwrap();
+        self.songs = Index::default();
+    }
+    pub fn clear_except_playing(&mut self) {
+        if let Some(index) = self.songs.index() {
+            let playing = self.songs.data.remove(index);
+            self.songs = Index::new(vec![playing], Some(0));
+        }
+    }
+    pub fn add(&mut self, songs: &[Song]) {
+        self.songs.data.extend(songs.to_vec());
+        if self.songs.selected().is_none() {
+            self.songs.select(Some(0));
+            self.play_index(0);
+        }
+    }
+    pub fn play_index(&mut self, i: usize) {
+        self.songs.select(Some(i));
+        if let Some(song) = self.songs.selected() {
+            unsafe {
+                GAIN = song.gain;
+            }
+            self.play_song(song.path.clone(), State::Playing);
+        }
+    }
+    pub fn toggle_playback(&self) {
+        match unsafe { &STATE } {
+            State::Paused => self.play(),
+            State::Playing => self.pause(),
+            _ => (),
+        }
+    }
+    //Checks if the current song is finished. If yes, the next song is played.
+    pub fn is_finished(&mut self) {
+        unsafe {
+            if STATE == State::Finished {
+                self.next();
+            }
+        }
+    }
+
+    pub fn seek_foward(&mut self) {
+        let pos = (self.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
+        self.seek(pos);
+    }
+    pub fn seek_backward(&mut self) {
+        let pos = (self.elapsed().as_secs_f32() - 10.0).clamp(0.0, f32::MAX);
+        self.seek(pos);
+    }
+    pub fn volume(&self) -> u8 {
+        unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
+    }
+    pub fn set_output_device(&self, _device: &str) {
+        //TODO:
     }
 }
 
@@ -166,7 +271,7 @@ impl Symphonia {
         self.buf.pop_front()
     }
     pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
-        if self.error_count > 2 {
+        if self.error_count > 2 || unsafe { &STATE } == &State::Finished {
             return None;
         }
 
@@ -177,8 +282,14 @@ impl Symphonia {
             }
             Err(err) => match err {
                 Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
-                    self.elapsed = self.duration;
-                    return None;
+                    //Just in case my 250ms addition is not enough.
+                    if self.elapsed() + Duration::from_secs(1) > self.duration() {
+                        unsafe { STATE = State::Finished };
+                        return None;
+                    } else {
+                        self.error_count += 1;
+                        return self.next_packet();
+                    }
                 }
                 _ => {
                     gonk_core::log!("{}", err);
@@ -189,7 +300,15 @@ impl Symphonia {
         };
 
         self.elapsed = next_packet.ts();
-        // unsafe { STATE.elapsed = self.elapsed() };
+        unsafe { ELAPSED = self.elapsed() };
+
+        //HACK: Sometimes the end of file error does not indicate the end of the file?
+        //The duration is a little bit longer than the maximum elapsed??
+        //The final packet will make the elapsed time move backwards???
+        if self.elapsed() + Duration::from_millis(250) > self.duration() {
+            unsafe { STATE = State::Finished };
+            return None;
+        }
 
         match self.decoder.decode(&next_packet) {
             Ok(decoded) => {
