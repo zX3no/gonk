@@ -6,6 +6,7 @@ use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
 use std::time::Duration;
+use winapi::ctypes::c_void;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::guiddef::GUID;
 use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
@@ -49,6 +50,7 @@ static INIT: Once = Once::new();
 static mut DEVICES: Vec<Device> = Vec::new();
 static mut DEFAULT_DEVICE: Option<Device> = None;
 
+//TODO: Inline this macro.
 RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
 interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
    fn SetSampleRate(
@@ -65,6 +67,7 @@ pub struct Device {
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
+//TODO: I can do this better.
 #[inline]
 pub fn check(result: i32) -> Result<(), String> {
     if result != 0 {
@@ -202,91 +205,173 @@ pub fn utf16_string(ptr_utf16: *const u16) -> String {
     name_os_string.to_string_lossy().to_string()
 }
 
-pub unsafe fn audio_client(_device: &Device) {
-    todo!();
+pub struct Wasapi {
+    pub audio_client: *mut IAudioClient,
+    pub audio_clock_adjust: *mut IAudioClockAdjustment,
+    pub render_client: *mut IAudioRenderClient,
+    pub h_event: *mut c_void,
+    pub format: WAVEFORMATEXTENSIBLE,
+}
+
+impl Wasapi {
+    pub unsafe fn new(device: &Device) -> Self {
+        init();
+
+        let audio_client: *mut IAudioClient = {
+            let mut audio_client = null_mut();
+            let result = (*device.inner).Activate(
+                &IID_IAudioClient,
+                CLSCTX_ALL,
+                null_mut(),
+                &mut audio_client,
+            );
+            check(result).unwrap();
+            assert!(!audio_client.is_null());
+            audio_client as *mut _
+        };
+
+        let mut format = null_mut();
+        (*audio_client).GetMixFormat(&mut format);
+        let format = &mut *format;
+
+        if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
+            let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
+            if format.SubFormat.Data1 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data1
+                || format.SubFormat.Data2 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data2
+                || format.SubFormat.Data3 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data3
+                || format.SubFormat.Data4 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data4
+            {
+                panic!("Unsupported sample format!");
+            }
+        }
+
+        let mut mask = 0;
+        for n in 0..format.nChannels {
+            mask += 1 << n;
+        }
+        let format = WAVEFORMATEXTENSIBLE {
+            Format: *format,
+            Samples: format.wBitsPerSample as u16,
+            SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
+            dwChannelMask: mask,
+        };
+
+        if format.Format.nChannels < 2 {
+            panic!("Device has less than 2 channels.");
+        }
+
+        let mut default_period = zeroed();
+        let mut _min_period = zeroed();
+        (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
+
+        let result = (*audio_client).Initialize(
+            AUDCLNT_SHAREMODE_SHARED,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+                | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
+                | AUDCLNT_STREAMFLAGS_RATEADJUST,
+            default_period,
+            default_period,
+            &format as *const _ as *const WAVEFORMATEX,
+            null(),
+        );
+        check(result).unwrap();
+
+        let mut audio_clock_ptr = null_mut();
+        let result =
+            (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr);
+        check(result).unwrap();
+        let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
+
+        let h_event = CreateEventA(null_mut(), 0, 0, null());
+        (*audio_client).SetEventHandle(h_event);
+
+        let mut renderclient_ptr = null_mut();
+        let result =
+            (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
+        check(result).unwrap();
+        let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
+
+        (*audio_client).Start();
+
+        Self {
+            audio_client,
+            audio_clock_adjust,
+            render_client,
+            h_event,
+            format,
+        }
+    }
+    pub unsafe fn fill_buffer(&mut self, buffer: &mut Vec<u8>, sym: &mut Symphonia, gain: f32) {
+        let block_align = self.format.Format.nBlockAlign as usize;
+        let channels = self.format.Format.nChannels as usize;
+        let max_frames = MAX_BUFFER_SIZE as usize;
+
+        let channel_align = block_align / channels;
+
+        let mut padding_count = zeroed();
+        let result = (*self.audio_client).GetCurrentPadding(&mut padding_count);
+        check(result).unwrap();
+
+        let mut buffer_frame_count = zeroed();
+        let result = (*self.audio_client).GetBufferSize(&mut buffer_frame_count);
+        check(result).unwrap();
+
+        let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
+
+        if buffer_frame_count > buffer.len() {
+            buffer.resize(buffer_frame_count * block_align, 0);
+        }
+
+        let mut frames_written = 0;
+        while frames_written < buffer_frame_count {
+            //This can range from 441 to 1024. I haven't see it go over MAX_FRAMES.
+            let frames = (buffer_frame_count - frames_written).min(max_frames);
+
+            for out_frame in &mut buffer
+                [frames_written * block_align..(frames_written + frames) * block_align]
+                .chunks_exact_mut(block_align)
+            {
+                for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
+                    let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
+                    let smp_bytes = smp.to_le_bytes();
+                    out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
+                }
+            }
+
+            frames_written += frames;
+        }
+
+        // Write the output buffer to the device.
+        let data = &buffer[0..buffer_frame_count * block_align];
+
+        let nbr_bytes = buffer_frame_count * block_align;
+        debug_assert_eq!(nbr_bytes, data.len());
+
+        let mut buffer_ptr = null_mut();
+        let result = (*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr);
+        check(result).unwrap();
+
+        let buffer_slice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
+        buffer_slice.copy_from_slice(data);
+        (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
+        check(result).unwrap();
+    }
+    pub unsafe fn update_sample_rate(&mut self, new: u32) {
+        if COMMON_SAMPLE_RATES.contains(&new) && !matches!(new, 192_000 | 96_000) {
+            let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
+            check(result).unwrap();
+        } else {
+            todo!()
+        }
+    }
 }
 
 pub unsafe fn new(device: &Device, r: Receiver<Event>) {
-    init();
+    let mut wasapi = Wasapi::new(device);
+    let mut sample_rate = wasapi.format.Format.nSamplesPerSec;
 
-    let audio_client: *mut IAudioClient = {
-        let mut audio_client = null_mut();
-        let result =
-            (*device.inner).Activate(&IID_IAudioClient, CLSCTX_ALL, null_mut(), &mut audio_client);
-        check(result).unwrap();
-        assert!(!audio_client.is_null());
-        audio_client as *mut _
-    };
-
-    let mut format = null_mut();
-    (*audio_client).GetMixFormat(&mut format);
-    let format = &mut *format;
-
-    if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
-        let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
-        if format.SubFormat.Data1 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data1
-            || format.SubFormat.Data2 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data2
-            || format.SubFormat.Data3 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data3
-            || format.SubFormat.Data4 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data4
-        {
-            panic!("Unsupported sample format!");
-        }
-    }
-
-    let mut mask = 0;
-    for n in 0..format.nChannels {
-        mask += 1 << n;
-    }
-    let format = WAVEFORMATEXTENSIBLE {
-        Format: *format,
-        Samples: format.wBitsPerSample as u16,
-        SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
-        dwChannelMask: mask,
-    };
-
-    if format.Format.nChannels < 2 {
-        panic!("Device has less than 2 channels.");
-    }
-
-    let mut default_period = zeroed();
-    let mut _min_period = zeroed();
-    (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
-
-    let result = (*audio_client).Initialize(
-        AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-            | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
-            | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
-            | AUDCLNT_STREAMFLAGS_RATEADJUST,
-        default_period,
-        default_period,
-        &format as *const _ as *const WAVEFORMATEX,
-        null(),
-    );
-    check(result).unwrap();
-
-    let mut audio_clock_ptr = null_mut();
-    let result = (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr);
-    check(result).unwrap();
-    let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
-
-    let h_event = CreateEventA(null_mut(), 0, 0, null());
-    (*audio_client).SetEventHandle(h_event);
-
-    let mut renderclient_ptr = null_mut();
-    let result = (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
-    check(result).unwrap();
-    let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
-
-    (*audio_client).Start();
-
-    let block_align = format.Format.nBlockAlign as usize;
-    let sample_rate = format.Format.nSamplesPerSec;
-    let channels = format.Format.nChannels as usize;
-    let max_frames = MAX_BUFFER_SIZE as usize;
-
-    let mut device_buffer = Vec::new();
-
+    let mut buffer = Vec::new();
     let mut decoder: Option<Symphonia> = None;
 
     let mut gain = 0.50;
@@ -296,26 +381,14 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                 Event::PlaySong((path, s, g)) => {
                     STATE = s;
                     gain = g;
-                    //TODO: Handle different sample rates.
                     match Symphonia::new(&path) {
                         Ok(sym) => {
                             DURATION = sym.duration();
                             ELAPSED = Duration::default();
                             let new = sym.sample_rate();
                             if sample_rate != new {
-                                if COMMON_SAMPLE_RATES.contains(&new)
-                                    && !matches!(new, 192_000 | 96_000)
-                                {
-                                    println!(
-                                        "Adjusting sample rate from {} to {}",
-                                        sample_rate, new
-                                    );
-                                    //TODO: Why can't this handle 96000 & 192000 Hz?
-                                    let result = (*audio_clock_adjust).SetSampleRate(new as f32);
-                                    check(result).unwrap();
-                                } else {
-                                    todo!();
-                                }
+                                wasapi.update_sample_rate(new);
+                                sample_rate = new;
                             }
                             decoder = Some(sym);
                         }
@@ -340,70 +413,11 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
             State::Playing => {
                 if let Some(decoder) = &mut decoder {
                     ELAPSED = decoder.elapsed();
-
-                    let channel_align = block_align / channels;
-
-                    let mut padding_count = zeroed();
-                    let result = (*audio_client).GetCurrentPadding(&mut padding_count);
-                    check(result).unwrap();
-
-                    let mut buffer_frame_count = zeroed();
-                    let result = (*audio_client).GetBufferSize(&mut buffer_frame_count);
-                    check(result).unwrap();
-
-                    let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
-
-                    if buffer_frame_count > device_buffer.len() {
-                        device_buffer.resize(buffer_frame_count * block_align, 0);
-                    }
-
-                    let mut frames_written = 0;
-                    while frames_written < buffer_frame_count {
-                        //This can range from 441 to 1024. I haven't see it go over MAX_FRAMES.
-                        let frames = (buffer_frame_count - frames_written).min(max_frames);
-
-                        for out_frame in &mut device_buffer
-                            [frames_written * block_align..(frames_written + frames) * block_align]
-                            .chunks_exact_mut(block_align)
-                        {
-                            for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
-                                let smp = decoder.next().unwrap_or(0.0) * VOLUME * gain;
-                                let smp_bytes = smp.to_le_bytes();
-                                out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
-                            }
-                        }
-
-                        frames_written += frames;
-                    }
-
-                    // Write the output buffer to the device.
-                    let data = &device_buffer[0..buffer_frame_count * block_align];
-
-                    let nbr_bytes = buffer_frame_count * block_align;
-                    debug_assert_eq!(nbr_bytes, data.len());
-
-                    let mut buffer_ptr = null_mut();
-                    let result =
-                        (*render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr);
-                    check(result).unwrap();
-
-                    let buffer_slice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
-                    buffer_slice.copy_from_slice(data);
-                    (*render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
-                    check(result).unwrap();
-
-                    if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 {
-                        panic!("Error occured while waiting for object.");
-                    }
-
-                    ResetEvent(h_event);
+                    wasapi.fill_buffer(&mut buffer, decoder, gain);
                 }
             }
         }
     }
-
-    // let result = (*audio_client).Stop();
-    // check(result).unwrap();
 }
 
 #[derive(Debug)]
