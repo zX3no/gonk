@@ -289,11 +289,13 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 
     let mut decoder: Option<Symphonia> = None;
 
+    let mut gain = 0.50;
     loop {
         if let Ok(event) = r.try_recv() {
             match event {
-                Event::PlaySong((path, s)) => {
+                Event::PlaySong((path, s, g)) => {
                     STATE = s;
+                    gain = g;
                     //TODO: Handle different sample rates.
                     match Symphonia::new(&path) {
                         Ok(sym) => {
@@ -301,11 +303,14 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                             ELAPSED = Duration::default();
                             let new = sym.sample_rate();
                             if sample_rate != new {
-                                if COMMON_SAMPLE_RATES.contains(&new) && new != 192_000 {
+                                if COMMON_SAMPLE_RATES.contains(&new)
+                                    && !matches!(new, 192_000 | 96_000)
+                                {
                                     println!(
                                         "Adjusting sample rate from {} to {}",
                                         sample_rate, new
                                     );
+                                    //TODO: Why can't this handle 96000 & 192000 Hz?
                                     let result = (*audio_clock_adjust).SetSampleRate(new as f32);
                                     check(result).unwrap();
                                 } else {
@@ -362,7 +367,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                             .chunks_exact_mut(block_align)
                         {
                             for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
-                                let smp = decoder.next().unwrap_or(0.0) * VOLUME;
+                                let smp = decoder.next().unwrap_or(0.0) * VOLUME * gain;
                                 let smp_bytes = smp.to_le_bytes();
                                 out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
                             }
@@ -404,7 +409,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 #[derive(Debug)]
 pub enum Event {
     ///Sometimes I want to queue a song but not play it.
-    PlaySong((String, State)),
+    PlaySong((String, State, f32)),
     Play,
     Pause,
     Stop,
@@ -422,7 +427,6 @@ pub enum State {
 pub static mut STATE: State = State::Stopped;
 pub static mut ELAPSED: Duration = Duration::from_secs(0);
 pub static mut DURATION: Duration = Duration::from_secs(0);
-pub static mut GAIN: f32 = 0.0;
 pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
 
 // pub fn set_sample_rate(&self, rate: u32) -> Result<(), String> {

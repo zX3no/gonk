@@ -47,7 +47,7 @@ impl Player {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         update_devices();
-        let (s, r) = bounded::<Event>(10);
+        let (s, r) = bounded::<Event>(5);
         thread::spawn(move || unsafe {
             let device = default_device().unwrap();
             new(device, r);
@@ -56,9 +56,6 @@ impl Player {
             s,
             songs: Index::default(),
         }
-    }
-    pub fn play_song(&self, path: String, state: State) {
-        self.s.send(Event::PlaySong((path, state))).unwrap();
     }
     pub fn play(&self) {
         self.s.send(Event::Play).unwrap();
@@ -93,19 +90,25 @@ impl Player {
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
-            unsafe {
-                GAIN = song.gain;
-            }
-            self.play_song(song.path.clone(), State::Playing);
+            self.s
+                .send(Event::PlaySong((
+                    song.path.clone(),
+                    State::Playing,
+                    song.gain,
+                )))
+                .unwrap();
         }
     }
     pub fn prev(&mut self) {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
-            unsafe {
-                GAIN = song.gain;
-            }
-            self.play_song(song.path.clone(), State::Playing);
+            self.s
+                .send(Event::PlaySong((
+                    song.path.clone(),
+                    State::Playing,
+                    song.gain,
+                )))
+                .unwrap();
         }
     }
     pub fn delete_index(&mut self, i: usize) {
@@ -151,10 +154,13 @@ impl Player {
     pub fn play_index(&mut self, i: usize) {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            unsafe {
-                GAIN = song.gain;
-            }
-            self.play_song(song.path.clone(), State::Playing);
+            self.s
+                .send(Event::PlaySong((
+                    song.path.clone(),
+                    State::Playing,
+                    song.gain,
+                )))
+                .unwrap();
         }
     }
     pub fn toggle_playback(&self) {
@@ -243,19 +249,20 @@ impl Symphonia {
     pub fn sample_rate(&self) -> u32 {
         self.track.codec_params.sample_rate.unwrap()
     }
+    //TODO: I would like seeking out of bounds to play the next song.
+    //I can't trust symphonia to provide accurate errors so it's not worth the hassle.
+    //I could use pos + elapsed > duration but the duration isn't accurate.
     pub fn seek(&mut self, pos: f32) {
         let pos = Duration::from_secs_f32(pos);
 
-        match self.format_reader.seek(
+        //Ignore errors.
+        let _ = self.format_reader.seek(
             SeekMode::Coarse,
             SeekTo::Time {
                 time: Time::new(pos.as_secs(), pos.subsec_nanos() as f64 / 1_000_000_000.0),
                 track_id: None,
             },
-        ) {
-            Ok(_) => (),
-            Err(err) => panic!("{}", err),
-        }
+        );
     }
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<f32> {
