@@ -8,6 +8,7 @@ readme = "../README.md"
 license = "CC0-1.0"
 
 [dependencies]
+crossbeam-channel = "0.5.6"
 gonk-core = {version = "0.2.0", path = "../gonk-core"}
 symphonia = { version = "0.5.1", default-features = false, features = ["flac", "mp3", "ogg", "vorbis"] }
 
