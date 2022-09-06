@@ -321,8 +321,14 @@ fn main() {
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                             if scan_handle.is_none() {
                                 let folder = gonk_core::music_folder().to_string();
-                                scan_handle = Some(gonk_core::scan(folder));
-                                playlist.playlists = Index::from(gonk_core::playlists());
+                                if folder.is_empty() {
+                                    gonk_core::log!(
+                                        "Nothing to scan! Add a folder with 'gonk add path/'"
+                                    );
+                                } else {
+                                    scan_handle = Some(gonk_core::scan(folder));
+                                    playlist.playlists = Index::from(gonk_core::playlists());
+                                }
                             }
                         }
                         KeyCode::Char('q') => player.seek_backward(),
