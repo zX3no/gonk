@@ -4,12 +4,11 @@
     non_upper_case_globals,
     non_snake_case
 )]
+use crossbeam_channel::{bounded, Sender};
 use gonk_core::{Index, Song};
 use std::fs::File;
 use std::io::ErrorKind;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::RwLock;
-use std::{collections::VecDeque, sync::Arc, thread, time::Duration};
+use std::{collections::VecDeque, thread, time::Duration};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{
@@ -37,265 +36,81 @@ mod pipewire;
 #[cfg(unix)]
 pub use pipewire::*;
 
-const VOLUME: f32 = 300.0;
-
-#[allow(unused)]
-#[inline]
-pub fn sleep(millis: u64) {
-    thread::sleep(Duration::from_millis(millis));
-}
-
-#[inline]
-pub fn calc_volume(volume: u8) -> f32 {
-    volume as f32 / VOLUME
-}
-
-#[derive(Debug)]
-pub enum Event {
-    OutputDevice(String),
-}
-
-#[derive(Default)]
-pub struct Queue<T> {
-    data: Arc<RwLock<VecDeque<T>>>,
-    capacity: Arc<AtomicUsize>,
-}
-
-impl<T> Queue<T> {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            data: Default::default(),
-            capacity: Arc::new(AtomicUsize::new(capacity)),
-        }
-    }
-    ///Blocks when the queue is full.
-    pub fn push(&self, t: T) {
-        while self.len() > self.capacity.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_nanos(100));
-        }
-        self.data.write().unwrap().push_back(t);
-    }
-    pub fn pop(&self) -> Option<T> {
-        self.data.write().unwrap().pop_front()
-    }
-    pub fn len(&self) -> usize {
-        self.data.read().unwrap().len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.data.read().unwrap().is_empty()
-    }
-    pub fn clear(&mut self) {
-        self.data.write().unwrap().clear();
-    }
-    pub fn resize(&mut self, capacity: usize) {
-        self.capacity.store(capacity, Ordering::Relaxed);
-    }
-}
-
-impl<T> Clone for Queue<T> {
-    fn clone(&self) -> Self {
-        Self {
-            data: self.data.clone(),
-            capacity: self.capacity.clone(),
-        }
-    }
-}
-
-pub struct State {
-    pub playing: bool,
-    pub finished: bool,
-    pub elapsed: Duration,
-    pub duration: Duration,
-    pub volume: f32,
-    pub gain: f32,
-    pub path: String,
-    pub device: String,
-    pub sample_rate: u32,
-}
-
-//Nooooo! You can't use shared mutable state, it...it's too unsafe!
-static mut STATE: State = State {
-    playing: false,
-    finished: false,
-    elapsed: Duration::from_secs(0),
-    duration: Duration::from_secs(0),
-    volume: 15.0 / VOLUME,
-    gain: 0.0,
-    path: String::new(),
-    device: String::new(),
-    sample_rate: 44100,
-};
-
-static mut SYMPHONIA: Option<Symphonia> = None;
-static mut STREAM: Option<StreamHandle> = None;
+const VOLUME_REDUCTION: f32 = 300.0;
 
 pub struct Player {
-    pub volume: u8,
+    s: Sender<Event>,
     pub songs: Index<Song>,
 }
 
 impl Player {
-    //TODO: This is probably a good example of why you shouldn't use global state.
-    pub unsafe fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         update_devices();
 
         let devices = devices();
         let default = default_device().unwrap();
         let d = devices.iter().find(|d| d.name == device);
-        let mut device = if let Some(d) = d { d } else { default };
-        let selected = songs.selected().cloned();
+        let device = if let Some(d) = d { d } else { default };
 
-        thread::spawn(move || {
-            let elapsed = Duration::from_secs_f32(elapsed);
-            let mut sample_rate = 44100;
-
-            STATE.elapsed = elapsed;
-            STATE.volume = calc_volume(volume);
-
-            if let Some(song) = &selected {
-                match Symphonia::new(&song.path) {
-                    Ok(mut sym) => {
-                        sym.seek(elapsed);
-
-                        if sym.sample_rate() != sample_rate {
-                            sample_rate = sym.sample_rate();
-                        }
-
-                        STATE.gain = song.gain;
-                        STATE.duration = sym.duration();
-                        STATE.playing = false;
-                        STATE.finished = false;
-                        STATE.path = song.path.clone();
-                        SYMPHONIA = Some(sym);
-                    }
-                    Err(err) => gonk_core::log!("Failed to restore queue. {}", err),
-                }
-            }
-
-            STREAM = Some(StreamHandle::new(device, sample_rate));
-            let stream = STREAM.as_mut().unwrap();
-
-            loop {
-                if device.name != STATE.device {
-                    if let Some(d) = devices.iter().find(|device| device.name == STATE.device) {
-                        device = d;
-                        *stream = StreamHandle::new(device, sample_rate);
-                    }
-                }
-
-                if STATE.sample_rate != sample_rate {
-                    sample_rate = STATE.sample_rate;
-                    if stream.set_sample_rate(sample_rate).is_err() {
-                        *stream = StreamHandle::new(device, sample_rate);
-                    }
-                }
-
-                //Half the volume to match songs without replay gain information.
-                let gain = if STATE.gain == 0.0 { 0.50 } else { STATE.gain };
-
-                if let Some(sym) = &mut SYMPHONIA {
-                    if STATE.playing && !STATE.finished {
-                        if let Some(next) = sym.next_packet() {
-                            for smp in next.samples() {
-                                stream.queue.push(smp * STATE.volume * gain);
-                            }
-                        } else {
-                            STATE.finished = true;
-                        }
-                    }
-                }
-            }
+        let (s, r) = bounded::<Event>(5);
+        thread::spawn(move || unsafe {
+            new(device, r);
         });
 
-        Self { volume, songs }
-    }
-    pub fn volume_up(&mut self) {
-        self.volume = (self.volume + 5).clamp(0, 100);
-        unsafe {
-            STATE.volume = calc_volume(self.volume);
+        //Restore previous queue state.
+        unsafe { VOLUME = volume as f32 / VOLUME_REDUCTION };
+        if let Some(song) = songs.selected().cloned() {
+            s.send(Event::RestoreSong((song.path.clone(), song.gain, elapsed)))
+                .unwrap();
         }
-    }
-    pub fn volume_down(&mut self) {
-        self.volume = (self.volume as i8 - 5).clamp(0, 100) as u8;
-        unsafe {
-            STATE.volume = calc_volume(self.volume);
-        }
-    }
-    pub fn toggle_playback(&self) {
-        unsafe {
-            STATE.playing = !STATE.playing;
-            if let Some(stream) = &mut STREAM {
-                if STATE.playing {
-                    stream.play();
-                } else {
-                    stream.pause();
-                }
-            }
-        }
-    }
-    pub fn play_song(&self, path: &str, gain: f32) {
-        unsafe {
-            STATE.path = path.to_string();
-            STATE.gain = gain;
-            STATE.elapsed = Duration::default();
 
-            match Symphonia::new(path) {
-                Ok(sym) => {
-                    STATE.sample_rate = sym.sample_rate();
-                    STATE.duration = sym.duration();
-                    STATE.finished = false;
-                    SYMPHONIA = Some(sym);
-
-                    //TODO: This get's rid of the lag but causes clicking.
-                    if let Some(stream) = &mut STREAM {
-                        stream.queue.clear();
-
-                        //Play if paused.
-                        if !STATE.playing {
-                            STATE.playing = true;
-                            stream.play();
-                        }
-                    }
-                }
-                Err(err) => gonk_core::log!("Failed to play song. {}", err),
-            }
+        Self { s, songs }
+    }
+    pub fn play(&self) {
+        self.s.send(Event::Play).unwrap();
+    }
+    pub fn pause(&self) {
+        self.s.send(Event::Pause).unwrap();
+    }
+    pub fn seek(&self, pos: f32) {
+        self.s.send(Event::Seek(pos)).unwrap();
+    }
+    pub fn volume_up(&self) {
+        unsafe {
+            VOLUME =
+                ((VOLUME * VOLUME_REDUCTION) as u8 + 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
         }
     }
-    pub fn seek_foward(&mut self) {
-        let pos = (self.elapsed().as_secs_f64() + 10.0).clamp(0.0, f64::MAX);
-        let pos = Duration::from_secs_f64(pos);
-        self.seek(pos);
-    }
-    pub fn seek_backward(&mut self) {
-        let pos = (self.elapsed().as_secs_f64() - 10.0).clamp(0.0, f64::MAX);
-        let pos = Duration::from_secs_f64(pos);
-        self.seek(pos);
-    }
-    pub fn seek(&mut self, pos: Duration) {
-        match unsafe { &mut SYMPHONIA } {
-            Some(sym) => sym.seek(pos),
-            None => (),
-        };
+    pub fn volume_down(&self) {
+        unsafe {
+            VOLUME =
+                ((VOLUME * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
+        }
     }
     pub fn elapsed(&self) -> Duration {
-        unsafe { STATE.elapsed }
+        unsafe { ELAPSED }
     }
     pub fn duration(&self) -> Duration {
-        unsafe { STATE.duration }
+        unsafe { DURATION }
     }
     pub fn is_playing(&self) -> bool {
-        unsafe { STATE.playing }
+        unsafe { STATE == State::Playing }
     }
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
-            self.play_song(&song.path, song.gain)
+            self.s
+                .send(Event::PlaySong((song.path.clone(), song.gain)))
+                .unwrap();
         }
     }
     pub fn prev(&mut self) {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
-            self.play_song(&song.path, song.gain)
+            self.s
+                .send(Event::PlaySong((song.path.clone(), song.gain)))
+                .unwrap();
         }
     }
     pub fn delete_index(&mut self, i: usize) {
@@ -322,12 +137,7 @@ impl Player {
         };
     }
     pub fn clear(&mut self) {
-        unsafe {
-            STATE.playing = false;
-            STATE.finished = false;
-            STATE.path = String::new();
-            SYMPHONIA = None;
-        };
+        self.s.send(Event::Stop).unwrap();
         self.songs = Index::default();
     }
     pub fn clear_except_playing(&mut self) {
@@ -346,22 +156,40 @@ impl Player {
     pub fn play_index(&mut self, i: usize) {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            self.play_song(&song.path, song.gain);
+            self.s
+                .send(Event::PlaySong((song.path.clone(), song.gain)))
+                .unwrap();
         }
     }
-    ///Checks if the current song is finished. If yes, the next song is played.
-    pub fn check_next(&mut self) {
+    pub fn toggle_playback(&self) {
+        match unsafe { &STATE } {
+            State::Paused => self.play(),
+            State::Playing => self.pause(),
+            _ => (),
+        }
+    }
+    //Checks if the current song is finished. If yes, the next song is played.
+    pub fn is_finished(&mut self) {
         unsafe {
-            if STATE.finished {
-                STATE.finished = false;
+            if STATE == State::Finished {
                 self.next();
             }
         }
     }
-    pub fn set_output_device(&self, device: &str) {
-        unsafe {
-            STATE.device = device.to_string();
-        }
+
+    pub fn seek_foward(&mut self) {
+        let pos = (self.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
+        self.seek(pos);
+    }
+    pub fn seek_backward(&mut self) {
+        let pos = (self.elapsed().as_secs_f32() - 10.0).clamp(0.0, f32::MAX);
+        self.seek(pos);
+    }
+    pub fn volume(&self) -> u8 {
+        unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
+    }
+    pub fn set_output_device(&self, _device: &str) {
+        //TODO:
     }
 }
 
@@ -372,6 +200,7 @@ pub struct Symphonia {
     elapsed: u64,
     duration: u64,
     error_count: u8,
+    buf: VecDeque<f32>,
 }
 
 impl Symphonia {
@@ -402,6 +231,7 @@ impl Symphonia {
             duration,
             elapsed: 0,
             error_count: 0,
+            buf: VecDeque::new(),
         })
     }
     pub fn elapsed(&self) -> Duration {
@@ -417,22 +247,36 @@ impl Symphonia {
     pub fn sample_rate(&self) -> u32 {
         self.track.codec_params.sample_rate.unwrap()
     }
-    pub fn seek(&mut self, pos: Duration) {
-        match self.format_reader.seek(
+    //TODO: I would like seeking out of bounds to play the next song.
+    //I can't trust symphonia to provide accurate errors so it's not worth the hassle.
+    //I could use pos + elapsed > duration but the duration isn't accurate.
+    pub fn seek(&mut self, pos: f32) {
+        let pos = Duration::from_secs_f32(pos);
+
+        //Ignore errors.
+        let _ = self.format_reader.seek(
             SeekMode::Coarse,
             SeekTo::Time {
                 time: Time::new(pos.as_secs(), pos.subsec_nanos() as f64 / 1_000_000_000.0),
                 track_id: None,
             },
-        ) {
-            Ok(_) => (),
-            Err(_) => unsafe {
-                STATE.finished = true;
-            },
+        );
+    }
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Option<f32> {
+        if self.buf.is_empty() {
+            match self.next_packet() {
+                Some(packet) => self.buf = VecDeque::from(packet.samples().to_vec()),
+                None => {
+                    return None;
+                }
+            }
         }
+
+        self.buf.pop_front()
     }
     pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
-        if self.error_count > 2 {
+        if self.error_count > 2 || unsafe { &STATE } == &State::Finished {
             return None;
         }
 
@@ -443,8 +287,14 @@ impl Symphonia {
             }
             Err(err) => match err {
                 Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
-                    self.elapsed = self.duration;
-                    return None;
+                    //Just in case my 250ms addition is not enough.
+                    if self.elapsed() + Duration::from_secs(1) > self.duration() {
+                        unsafe { STATE = State::Finished };
+                        return None;
+                    } else {
+                        self.error_count += 1;
+                        return self.next_packet();
+                    }
                 }
                 _ => {
                     gonk_core::log!("{}", err);
@@ -455,7 +305,15 @@ impl Symphonia {
         };
 
         self.elapsed = next_packet.ts();
-        unsafe { STATE.elapsed = self.elapsed() };
+        unsafe { ELAPSED = self.elapsed() };
+
+        //HACK: Sometimes the end of file error does not indicate the end of the file?
+        //The duration is a little bit longer than the maximum elapsed??
+        //The final packet will make the elapsed time move backwards???
+        if self.elapsed() + Duration::from_millis(250) > self.duration() {
+            unsafe { STATE = State::Finished };
+            return None;
+        }
 
         match self.decoder.decode(&next_packet) {
             Ok(decoded) => {

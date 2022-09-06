@@ -145,7 +145,7 @@ fn main() {
     let volume = gonk_core::volume();
     let device = gonk_core::output_device();
     let ui_index = index.unwrap_or(0);
-    let mut player = unsafe { Player::new(device, volume, songs, elapsed) };
+    let mut player = Player::new(device, volume, songs, elapsed);
     let mut player_clone = player.songs.data.clone();
 
     let mut queue = Queue::new(ui_index);
@@ -216,7 +216,7 @@ fn main() {
         //Update the UI index.
         queue.len = player.songs.len();
 
-        player.check_next();
+        player.is_finished();
 
         if player.songs.data != player_clone {
             player_clone = player.songs.data.clone();
@@ -331,11 +331,11 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            gonk_core::save_volume(player.volume);
+                            gonk_core::save_volume(player.volume());
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            gonk_core::save_volume(player.volume);
+                            gonk_core::save_volume(player.volume());
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,

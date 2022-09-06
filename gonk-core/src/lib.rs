@@ -47,7 +47,10 @@ pub static mut SETTINGS: Settings = Settings::default();
 
 pub fn init() {
     match fs::read(&settings_path()) {
-        Ok(bytes) if !bytes.is_empty() => unsafe { SETTINGS = Settings::from(bytes) },
+        Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
+            Some(settings) => unsafe { SETTINGS = settings },
+            None => save_settings(),
+        },
         //Save the default settings if nothing is found.
         _ => save_settings(),
     }
@@ -199,7 +202,7 @@ impl Settings {
             queue: Vec::new(),
         }
     }
-    pub fn from(bytes: Vec<u8>) -> Self {
+    pub fn from(bytes: Vec<u8>) -> Option<Self> {
         unsafe {
             let volume = bytes[0];
             let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
@@ -207,13 +210,17 @@ impl Settings {
 
             let start = 9;
             let end = u16::from_le_bytes(bytes[7..start].try_into().unwrap()) as usize + start;
-            debug_assert!(end <= bytes.len());
+            if end >= bytes.len() {
+                return None;
+            }
             let output_device = from_utf8_unchecked(&bytes[start..end]).to_string();
 
             let start = end + 2;
             let music_folder_len =
                 u16::from_le_bytes(bytes[end..start].try_into().unwrap()) as usize;
-            debug_assert!(music_folder_len <= bytes.len());
+            if music_folder_len >= bytes.len() {
+                return None;
+            }
             let music_folder =
                 from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
 
@@ -224,14 +231,14 @@ impl Settings {
                 i += SONG_LEN;
             }
 
-            Self {
+            Some(Self {
                 index,
                 volume,
                 output_device,
                 music_folder,
                 elapsed,
                 queue,
-            }
+            })
         }
     }
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -791,9 +798,18 @@ mod tests {
 
     #[test]
     fn settings() {
-        let settings = Settings::default();
-        //TODO: add song and check it
-        validate(settings.queue);
+        let mut settings = Settings::default();
+        let song = RawSong::new("artist", "album", "title", "path", 1, 1, 0.25);
+        settings.queue.push(song);
+
+        let bytes = settings.as_bytes();
+        let new_settings = Settings::from(bytes).unwrap();
+
+        assert_eq!(settings.volume, new_settings.volume);
+        assert_eq!(settings.index, new_settings.index);
+        assert_eq!(settings.elapsed, new_settings.elapsed);
+        assert_eq!(settings.output_device, new_settings.output_device);
+        assert_eq!(settings.music_folder, new_settings.music_folder);
     }
 
     #[test]

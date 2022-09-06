@@ -90,9 +90,9 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
         if (size.height - 3 == y || size.height - 2 == y || size.height - 1 == y)
             && size.height > 15
         {
-            let ratio = x as f64 / size.width as f64;
-            let duration = player.duration().as_secs_f64();
-            player.seek(Duration::from_secs_f64(duration * ratio));
+            let ratio = x as f32 / size.width as f32;
+            let duration = player.duration().as_secs_f32();
+            player.seek(duration * ratio);
         }
 
         //Mouse support for the queue.
@@ -136,7 +136,7 @@ fn draw_header(player: &mut Player, f: &mut Frame, area: Rect) {
         draw_title(player, f, area);
     }
 
-    let volume = Spans::from(format!("Vol: {}%─╮", player.volume));
+    let volume = Spans::from(format!("Vol: {}%─╮", player.volume()));
     f.render_widget(Paragraph::new(volume).alignment(Alignment::Right), area);
 }
 

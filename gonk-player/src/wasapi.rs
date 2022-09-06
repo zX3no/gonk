@@ -1,20 +1,16 @@
-use crate::Queue;
+use crate::{Symphonia, VOLUME_REDUCTION};
 use core::slice;
+use crossbeam_channel::Receiver;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-use std::thread;
 use std::time::Duration;
+use winapi::ctypes::c_void;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::guiddef::GUID;
 use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
-use winapi::shared::ntdef::HANDLE;
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
 use winapi::um::audiosessiontypes::{
     AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
@@ -24,13 +20,15 @@ use winapi::um::mmdeviceapi::{
     eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
-use winapi::um::synchapi::{CreateEventA, ResetEvent, WaitForSingleObject};
+use winapi::um::synchapi::CreateEventA;
 use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
+use winapi::um::winbase::{
+    FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS,
+};
 use winapi::um::winnt::HRESULT;
 use winapi::{Interface, RIDL};
 
-const MAX_BUFFER_SIZE: u32 = 1024;
-const WAIT_OBJECT_0: u32 = 0x00000000;
+const MAX_BUFFER_SIZE: usize = 1024;
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
@@ -48,9 +46,12 @@ const COMMON_SAMPLE_RATES: [u32; 13] = [
 ];
 
 static INIT: Once = Once::new();
+//TODO: It is very slow to collect devices
+//I'm not sure if this is necessary though.
 static mut DEVICES: Vec<Device> = Vec::new();
 static mut DEFAULT_DEVICE: Option<Device> = None;
 
+//TODO: Inline this macro.
 RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
 interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
    fn SetSampleRate(
@@ -67,20 +68,23 @@ pub struct Device {
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
-#[inline]
-pub fn check(result: i32) -> Result<(), String> {
+///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
+pub unsafe fn check(result: i32) -> Result<(), String> {
     if result != 0 {
-        //https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-        match result {
-            1 => Err("AUDCLNT_E_NOT_INITIALIZED".to_string()),
-            //0x80070057
-            -2147024809 => Err("Invalid argument.".to_string()),
-            // 0x80004003
-            -2147467261 => Err("Pointer is not valid".to_string()),
-            -2004287483 => Err("AUDCLNT_E_NOT_STOPPED".to_string()),
-            -2004287480 => Err("AUDCLNT_E_UNSUPPORTED_FORMAT".to_string()),
-            _ => Err(format!("{result}")),
-        }
+        let mut buf = [0u16; 2048];
+        let result = FormatMessageW(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            null_mut(),
+            result as u32,
+            0,
+            buf.as_mut_ptr(),
+            buf.len() as u32,
+            null_mut(),
+        );
+        debug_assert!(result != 0);
+        let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+        let msg = String::from_utf16(&buf[..b - 2]).unwrap();
+        Err(msg)
     } else {
         Ok(())
     }
@@ -188,38 +192,54 @@ pub fn default_device() -> Option<&'static Device> {
     unsafe { DEFAULT_DEVICE.as_ref() }
 }
 
-pub fn utf16_string(ptr_utf16: *const u16) -> String {
-    // Find the length of the friendly name.
+pub unsafe fn utf16_string(ptr_utf16: *const u16) -> String {
     let mut len = 0;
-
-    unsafe {
-        while *ptr_utf16.offset(len) != 0 {
-            len += 1;
-        }
+    while *ptr_utf16.offset(len) != 0 {
+        len += 1;
     }
-
-    // Create the utf16 slice and convert it into a string.
-    let name_slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
-    let name_os_string: OsString = OsStringExt::from_wide(name_slice);
-    name_os_string.to_string_lossy().to_string()
+    let slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
+    let os_str: OsString = OsStringExt::from_wide(slice);
+    os_str.to_string_lossy().to_string()
 }
 
-pub struct StreamHandle {
-    pub queue: Queue<f32>,
+#[derive(Debug)]
+pub enum Event {
+    /// Path, Gain
+    PlaySong((String, f32)),
+    /// Path, Gain, Elapsed
+    RestoreSong((String, f32, f32)),
+    Play,
+    Pause,
+    Stop,
+    Seek(f32),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum State {
+    Stopped,
+    Paused,
+    Playing,
+    Finished,
+}
+
+pub static mut STATE: State = State::Stopped;
+pub static mut ELAPSED: Duration = Duration::from_secs(0);
+pub static mut DURATION: Duration = Duration::from_secs(0);
+pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
+
+pub struct Wasapi {
     pub audio_client: *mut IAudioClient,
     pub audio_clock_adjust: *mut IAudioClockAdjustment,
-    pub device: Device,
-    pub sample_rate: u32,
-    pub buffer_size: u32,
-    pub num_out_channels: u32,
-    pub stream_dropped: Arc<AtomicBool>,
+    pub render_client: *mut IAudioRenderClient,
+    pub h_event: *mut c_void,
+    pub format: WAVEFORMATEXTENSIBLE,
+
+    pub buffer: Vec<u8>,
 }
 
-impl StreamHandle {
-    pub unsafe fn new(device: &Device, sample_rate: u32) -> Self {
+impl Wasapi {
+    pub unsafe fn new(device: &Device, sample_rate: Option<u32>) -> Self {
         init();
-
-        assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
 
         let audio_client: *mut IAudioClient = {
             let mut audio_client = null_mut();
@@ -237,8 +257,13 @@ impl StreamHandle {
         let mut format = null_mut();
         (*audio_client).GetMixFormat(&mut format);
         let format = &mut *format;
-        format.nSamplesPerSec = sample_rate;
-        format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+
+        //Update format to desired sample rate.
+        if let Some(sample_rate) = sample_rate {
+            assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
+            format.nSamplesPerSec = sample_rate;
+            format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+        }
 
         if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
             let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
@@ -300,135 +325,51 @@ impl StreamHandle {
 
         (*audio_client).Start();
 
-        let stream_dropped = Arc::new(AtomicBool::new(false));
-        //192000hz will not play with a smaller buffer size.
-        let queue = Queue::new(MAX_BUFFER_SIZE as usize * 8);
-
-        let audio_thread = AudioThread {
-            queue: queue.clone(),
-            stream_dropped: Arc::clone(&stream_dropped),
-            audio_client,
-            h_event,
-            render_client,
-            block_align: format.Format.nBlockAlign as usize,
-            channels: format.Format.nChannels as usize,
-            max_frames: MAX_BUFFER_SIZE as usize,
-        };
-
-        //TODO: Need a way to start/stop the audio thread.
-        thread::spawn(move || {
-            run(audio_thread);
-        });
-
-        StreamHandle {
-            queue,
+        Self {
             audio_client,
             audio_clock_adjust,
-            device: device.clone(),
-            sample_rate: format.Format.nSamplesPerSec,
-            buffer_size: MAX_BUFFER_SIZE,
-            num_out_channels: format.Format.nChannels as u32,
-            stream_dropped,
+            render_client,
+            h_event,
+            format,
+            buffer: Vec::new(),
         }
     }
-    pub fn set_sample_rate(&self, rate: u32) -> Result<(), String> {
-        if COMMON_SAMPLE_RATES.contains(&rate) && rate != 192_000 {
-            let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(rate as f32) };
-            check(result)
-        } else {
-            Err(String::from("Unsupported sample rate."))
-        }
-    }
-    pub fn play(&self) {
-        unsafe { PLAYING = true };
-    }
-    pub fn pause(&self) {
-        unsafe { PLAYING = false };
-    }
-}
-
-impl Drop for StreamHandle {
-    fn drop(&mut self) {
-        self.stream_dropped.store(true, Ordering::Relaxed);
-    }
-}
-
-static mut PLAYING: bool = true;
-
-pub struct AudioThread {
-    pub queue: Queue<f32>,
-    pub stream_dropped: Arc<AtomicBool>,
-    pub audio_client: *mut IAudioClient,
-    pub h_event: HANDLE,
-    pub render_client: *mut IAudioRenderClient,
-    pub block_align: usize,
-    pub channels: usize,
-    pub max_frames: usize,
-}
-
-unsafe impl Send for AudioThread {}
-
-//TODO: Don't crash when a device disconnects.
-//ie. Recover from check(result).unwrap()
-pub unsafe fn run(thread: AudioThread) {
-    let AudioThread {
-        queue,
-        stream_dropped,
-        audio_client,
-        h_event,
-        render_client,
-        block_align,
-        channels,
-        max_frames,
-    } = thread;
-
-    let mut device_buffer = Vec::new();
-    let mut playing = true;
-    while !stream_dropped.load(Ordering::Relaxed) {
-        if PLAYING != playing {
-            playing = PLAYING;
-            if playing {
-                let result = (*audio_client).Start();
-                check(result).unwrap();
-            } else {
-                let result = (*audio_client).Stop();
-                check(result).unwrap();
-
-                //Wait until the player is running again
-                //Samples are still in the buffer so this seems to work?
-                while !PLAYING {
-                    thread::sleep(Duration::from_millis(1));
-                }
-            }
-        }
-
-        let channel_align = block_align / channels;
-
+    pub unsafe fn buffer_frame_count(&mut self) -> usize {
         let mut padding_count = zeroed();
-        let result = (*audio_client).GetCurrentPadding(&mut padding_count);
+        let result = (*self.audio_client).GetCurrentPadding(&mut padding_count);
         check(result).unwrap();
 
         let mut buffer_frame_count = zeroed();
-        let result = (*audio_client).GetBufferSize(&mut buffer_frame_count);
+        let result = (*self.audio_client).GetBufferSize(&mut buffer_frame_count);
         check(result).unwrap();
 
-        let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
+        (buffer_frame_count - padding_count) as usize
+    }
+    //TODO: This should probably be moved out of the struct.
+    pub unsafe fn fill_buffer(&mut self, sym: &mut Symphonia, gain: f32) {
+        let block_align = self.format.Format.nBlockAlign as usize;
+        let channels = self.format.Format.nChannels as usize;
+        let channel_align = block_align / channels;
 
-        if buffer_frame_count > device_buffer.len() {
-            device_buffer.resize(buffer_frame_count * block_align, 0);
+        let buffer_frame_count = self.buffer_frame_count();
+
+        if buffer_frame_count > self.buffer.len() {
+            self.buffer.resize(buffer_frame_count * block_align, 0);
         }
 
         let mut frames_written = 0;
         while frames_written < buffer_frame_count {
-            //This can range from 441 to 1024. I haven't see it go over MAX_FRAMES.
-            let frames = (buffer_frame_count - frames_written).min(max_frames);
+            let frames = (buffer_frame_count - frames_written).min(MAX_BUFFER_SIZE);
 
-            for out_frame in &mut device_buffer
+            debug_assert!((frames_written + frames) * block_align <= self.buffer.len());
+            for out_frame in &mut self.buffer
                 [frames_written * block_align..(frames_written + frames) * block_align]
                 .chunks_exact_mut(block_align)
             {
                 for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
-                    let smp_bytes = queue.pop().unwrap_or(0.0).to_le_bytes();
+                    let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
+                    let smp_bytes = smp.to_le_bytes();
+                    debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
                     out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
                 }
             }
@@ -437,26 +378,108 @@ pub unsafe fn run(thread: AudioThread) {
         }
 
         // Write the output buffer to the device.
-        let data = &device_buffer[0..buffer_frame_count * block_align];
+        debug_assert!(self.buffer.len() >= buffer_frame_count * block_align);
+        let data = &self.buffer[0..buffer_frame_count * block_align];
 
         let nbr_bytes = buffer_frame_count * block_align;
         debug_assert_eq!(nbr_bytes, data.len());
 
         let mut buffer_ptr = null_mut();
-        let result = (*render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr);
+        let result = (*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr);
         check(result).unwrap();
 
         let buffer_slice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
         buffer_slice.copy_from_slice(data);
-        (*render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
+        (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
         check(result).unwrap();
-
-        if WaitForSingleObject(h_event, 1000) != WAIT_OBJECT_0 && playing {
-            panic!("Error occured while waiting for object.");
-        }
-        ResetEvent(h_event);
     }
+    //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
+    //44100 cannot convert to 192_000 and vise vera.
+    #[allow(clippy::result_unit_err)]
+    pub unsafe fn set_sample_rate(&mut self, new: u32) -> Result<(), ()> {
+        debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
+        let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
 
-    let result = (*audio_client).Stop();
-    check(result).unwrap();
+        match check(result) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(()),
+        }
+    }
+}
+
+pub unsafe fn new(device: &Device, r: Receiver<Event>) {
+    let mut wasapi = Wasapi::new(device, None);
+    let mut sample_rate = wasapi.format.Format.nSamplesPerSec;
+    let mut decoder: Option<Symphonia> = None;
+    let mut gain = 0.50;
+
+    loop {
+        if let Ok(event) = r.try_recv() {
+            match event {
+                Event::PlaySong((path, g)) => {
+                    STATE = State::Playing;
+                    gain = g;
+                    match Symphonia::new(&path) {
+                        Ok(sym) => {
+                            DURATION = sym.duration();
+                            ELAPSED = Duration::default();
+
+                            let new = sym.sample_rate();
+                            if sample_rate != new {
+                                if wasapi.set_sample_rate(new).is_err() {
+                                    wasapi = Wasapi::new(device, Some(new));
+                                };
+                                sample_rate = new;
+                            }
+
+                            decoder = Some(sym);
+                        }
+                        Err(err) => panic!("{}", err),
+                    }
+                }
+                Event::RestoreSong((path, g, elapsed)) => {
+                    STATE = State::Paused;
+                    gain = g;
+                    match Symphonia::new(&path) {
+                        Ok(mut sym) => {
+                            DURATION = sym.duration();
+                            ELAPSED = Duration::from_secs_f32(elapsed);
+
+                            let new = sym.sample_rate();
+                            if sample_rate != new {
+                                if wasapi.set_sample_rate(new).is_err() {
+                                    wasapi = Wasapi::new(device, Some(new));
+                                };
+                                sample_rate = new;
+                            }
+
+                            sym.seek(elapsed);
+                            decoder = Some(sym);
+                        }
+                        Err(err) => panic!("{}", err),
+                    }
+                }
+                Event::Seek(pos) => {
+                    if let Some(decoder) = &mut decoder {
+                        decoder.seek(pos);
+                    }
+                }
+                Event::Play => STATE = State::Playing,
+                Event::Pause => STATE = State::Paused,
+                Event::Stop => STATE = State::Stopped,
+            }
+        }
+
+        match STATE {
+            State::Stopped => decoder = None,
+            State::Paused => (),
+            State::Finished => (),
+            State::Playing => {
+                if let Some(decoder) = &mut decoder {
+                    ELAPSED = decoder.elapsed();
+                    wasapi.fill_buffer(decoder, gain);
+                }
+            }
+        }
+    }
 }
