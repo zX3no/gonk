@@ -798,9 +798,18 @@ mod tests {
 
     #[test]
     fn settings() {
-        let settings = Settings::default();
-        //TODO: add song and check it
-        validate(settings.queue);
+        let mut settings = Settings::default();
+        let song = RawSong::new("artist", "album", "title", "path", 1, 1, 0.25);
+        settings.queue.push(song);
+
+        let bytes = settings.as_bytes();
+        let new_settings = Settings::from(bytes).unwrap();
+
+        assert_eq!(settings.volume, new_settings.volume);
+        assert_eq!(settings.index, new_settings.index);
+        assert_eq!(settings.elapsed, new_settings.elapsed);
+        assert_eq!(settings.output_device, new_settings.output_device);
+        assert_eq!(settings.music_folder, new_settings.music_folder);
     }
 
     #[test]
