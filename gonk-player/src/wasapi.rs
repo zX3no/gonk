@@ -20,13 +20,15 @@ use winapi::um::mmdeviceapi::{
     eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
-use winapi::um::synchapi::{CreateEventA, ResetEvent, WaitForSingleObject};
+use winapi::um::synchapi::CreateEventA;
 use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
+use winapi::um::winbase::{
+    FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS,
+};
 use winapi::um::winnt::HRESULT;
 use winapi::{Interface, RIDL};
 
 const MAX_BUFFER_SIZE: usize = 1024;
-const WAIT_OBJECT_0: u32 = 0x00000000;
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
@@ -66,21 +68,23 @@ pub struct Device {
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
-//TODO: I can do this better.
-#[inline]
-pub fn check(result: i32) -> Result<(), String> {
+///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
+pub unsafe fn check(result: i32) -> Result<(), String> {
     if result != 0 {
-        //https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-        match result {
-            1 => Err("AUDCLNT_E_NOT_INITIALIZED".to_string()),
-            //0x80070057
-            -2147024809 => Err("Invalid argument.".to_string()),
-            // 0x80004003
-            -2147467261 => Err("Pointer is not valid".to_string()),
-            -2004287483 => Err("AUDCLNT_E_NOT_STOPPED".to_string()),
-            -2004287480 => Err("AUDCLNT_E_UNSUPPORTED_FORMAT".to_string()),
-            _ => Err(format!("{result}")),
-        }
+        let mut buf = [0u16; 2048];
+        let result = FormatMessageW(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            null_mut(),
+            result as u32,
+            0,
+            buf.as_mut_ptr(),
+            buf.len() as u32,
+            null_mut(),
+        );
+        debug_assert!(result != 0);
+        let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+        let msg = String::from_utf16(&buf[..b - 2]).unwrap();
+        Err(msg)
     } else {
         Ok(())
     }
@@ -188,20 +192,14 @@ pub fn default_device() -> Option<&'static Device> {
     unsafe { DEFAULT_DEVICE.as_ref() }
 }
 
-pub fn utf16_string(ptr_utf16: *const u16) -> String {
-    // Find the length of the friendly name.
+pub unsafe fn utf16_string(ptr_utf16: *const u16) -> String {
     let mut len = 0;
-
-    unsafe {
-        while *ptr_utf16.offset(len) != 0 {
-            len += 1;
-        }
+    while *ptr_utf16.offset(len) != 0 {
+        len += 1;
     }
-
-    // Create the utf16 slice and convert it into a string.
-    let name_slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
-    let name_os_string: OsString = OsStringExt::from_wide(name_slice);
-    name_os_string.to_string_lossy().to_string()
+    let slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
+    let os_str: OsString = OsStringExt::from_wide(slice);
+    os_str.to_string_lossy().to_string()
 }
 
 #[derive(Debug)]
@@ -398,16 +396,13 @@ impl Wasapi {
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise vera.
     #[allow(clippy::result_unit_err)]
-    pub unsafe fn update_sample_rate(&mut self, new: u32) -> Result<(), ()> {
-        if COMMON_SAMPLE_RATES.contains(&new) && !matches!(new, 192_000 | 96_000) {
-            let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
+    pub unsafe fn set_sample_rate(&mut self, new: u32) -> Result<(), ()> {
+        debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
+        let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
 
-            match check(result) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(()),
-            }
-        } else {
-            Err(())
+        match check(result) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(()),
         }
     }
 }
@@ -431,7 +426,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 
                             let new = sym.sample_rate();
                             if sample_rate != new {
-                                if wasapi.update_sample_rate(new).is_err() {
+                                if wasapi.set_sample_rate(new).is_err() {
                                     wasapi = Wasapi::new(device, Some(new));
                                 };
                                 sample_rate = new;
@@ -452,7 +447,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 
                             let new = sym.sample_rate();
                             if sample_rate != new {
-                                if wasapi.update_sample_rate(new).is_err() {
+                                if wasapi.set_sample_rate(new).is_err() {
                                     wasapi = Wasapi::new(device, Some(new));
                                 };
                                 sample_rate = new;
