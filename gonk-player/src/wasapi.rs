@@ -1,4 +1,4 @@
-use crate::{Symphonia, VOLUME_REDUCTION};
+use crate::{Event, State, Symphonia, VOLUME_REDUCTION};
 use core::slice;
 use crossbeam_channel::Receiver;
 use std::ffi::OsString;
@@ -65,8 +65,19 @@ pub struct Device {
     pub name: String,
 }
 
+pub static mut STATE: State = State::Stopped;
+pub static mut ELAPSED: Duration = Duration::from_secs(0);
+pub static mut DURATION: Duration = Duration::from_secs(0);
+pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
+
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
+
+pub fn init() {
+    INIT.call_once(|| unsafe {
+        CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
+    });
+}
 
 ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
 pub unsafe fn check(result: i32) -> Result<(), String> {
@@ -88,12 +99,6 @@ pub unsafe fn check(result: i32) -> Result<(), String> {
     } else {
         Ok(())
     }
-}
-
-pub fn init() {
-    INIT.call_once(|| unsafe {
-        CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
-    });
 }
 
 pub fn update_devices() {
@@ -201,31 +206,6 @@ pub unsafe fn utf16_string(ptr_utf16: *const u16) -> String {
     let os_str: OsString = OsStringExt::from_wide(slice);
     os_str.to_string_lossy().to_string()
 }
-
-#[derive(Debug)]
-pub enum Event {
-    /// Path, Gain
-    PlaySong((String, f32)),
-    /// Path, Gain, Elapsed
-    RestoreSong((String, f32, f32)),
-    Play,
-    Pause,
-    Stop,
-    Seek(f32),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum State {
-    Stopped,
-    Paused,
-    Playing,
-    Finished,
-}
-
-pub static mut STATE: State = State::Stopped;
-pub static mut ELAPSED: Duration = Duration::from_secs(0);
-pub static mut DURATION: Duration = Duration::from_secs(0);
-pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
 
 pub struct Wasapi {
     pub audio_client: *mut IAudioClient,

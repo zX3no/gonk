@@ -38,6 +38,26 @@ pub use pipewire::*;
 
 const VOLUME_REDUCTION: f32 = 300.0;
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum State {
+    Stopped,
+    Paused,
+    Playing,
+    Finished,
+}
+
+#[derive(Debug)]
+pub enum Event {
+    /// Path, Gain
+    PlaySong((String, f32)),
+    /// Path, Gain, Elapsed
+    RestoreSong((String, f32, f32)),
+    Play,
+    Pause,
+    Stop,
+    Seek(f32),
+}
+
 pub struct Player {
     s: Sender<Event>,
     pub songs: Index<Song>,
