@@ -311,7 +311,7 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
 }
 
 pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
-    if let Some(area) = centered_rect(20, 6, f.size()) {
+    if let Some(area) = centered_rect(20, 5, f.size()) {
         let v = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Percentage(90)])
@@ -324,7 +324,7 @@ pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
 
         let (yes, no) = if playlist.yes {
             (
-                Style::default(),
+                Style::default().add_modifier(Modifier::UNDERLINED),
                 Style::default()
                     .fg(Color::DarkGray)
                     .add_modifier(Modifier::DIM),
@@ -333,12 +333,10 @@ pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
             (
                 Style::default()
                     .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-                Style::default(),
+                    .add_modifier(Modifier::DIM | Modifier::UNDERLINED),
+                Style::default().add_modifier(Modifier::UNDERLINED),
             )
         };
-
-        f.render_widget(Clear, area);
 
         let delete_msg = if let Mode::Playlist = playlist.mode {
             "Delete playlist?"
@@ -346,11 +344,13 @@ pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
             "Delete song?"
         };
 
+        f.render_widget(Clear, area);
+
         f.render_widget(
             Paragraph::new(delete_msg)
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
+                        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
                         .border_type(BorderType::Rounded),
                 )
                 .alignment(Alignment::Center),
@@ -358,27 +358,23 @@ pub fn draw_delete_popup(playlist: &mut Playlist, f: &mut Frame) {
         );
 
         f.render_widget(
-            Paragraph::new("Yes")
+            Paragraph::new(Span::styled("Yes", yes))
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
-                        .style(yes)
+                        .borders(Borders::LEFT | Borders::BOTTOM)
                         .border_type(BorderType::Rounded),
                 )
-                .style(yes)
                 .alignment(Alignment::Center),
             horizontal[0],
         );
 
         f.render_widget(
-            Paragraph::new("No")
+            Paragraph::new(Span::styled("No", no))
                 .block(
                     Block::default()
-                        .borders(Borders::ALL)
-                        .style(no)
+                        .borders(Borders::RIGHT | Borders::BOTTOM)
                         .border_type(BorderType::Rounded),
                 )
-                .style(no)
                 .alignment(Alignment::Center),
             horizontal[1],
         );
