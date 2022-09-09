@@ -281,8 +281,6 @@ impl Wasapi {
             panic!("Device has less than 2 channels.");
         }
 
-        dbg!(format.Format.nSamplesPerSec);
-
         let mut default_period = zeroed();
         let mut _min_period = zeroed();
         (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
