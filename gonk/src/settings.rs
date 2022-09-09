@@ -9,7 +9,7 @@ use tui::{
 
 //TODO: Devices are not refreshed when new ones are connected.
 pub struct Settings {
-    pub devices: Index<String>,
+    pub devices: Index<&'static str>,
     pub current_device: String,
 }
 
@@ -19,9 +19,10 @@ impl Settings {
         let devices = devices();
         let default = default_device().unwrap();
 
-        let devices: Vec<String> = devices.iter().map(|device| device.name.clone()).collect();
+        let devices: Vec<&'static str> =
+            devices.iter().map(|device| device.name.as_str()).collect();
 
-        let current_device = if devices.iter().any(|name| name == wanted_device) {
+        let current_device = if devices.iter().any(|name| *name == wanted_device) {
             wanted_device.to_string()
         } else {
             default.name.to_string()
@@ -31,6 +32,20 @@ impl Settings {
             devices: Index::from(devices),
             current_device,
         }
+    }
+    pub fn update(&mut self) {
+        let mut index = self.devices.index().unwrap_or(0);
+        if index >= devices().len() {
+            index = devices().len().saturating_sub(1);
+        }
+
+        self.devices = Index::new(
+            devices()
+                .iter()
+                .map(|device| device.name.as_str())
+                .collect(),
+            Some(index),
+        );
     }
 }
 
@@ -54,10 +69,10 @@ pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
         .data
         .iter()
         .map(|name| {
-            if name == &settings.current_device {
-                ListItem::new(name.as_str())
+            if *name == settings.current_device {
+                ListItem::new(*name)
             } else {
-                ListItem::new(name.as_str()).style(Style::default().add_modifier(Modifier::DIM))
+                ListItem::new(*name).style(Style::default().add_modifier(Modifier::DIM))
             }
         })
         .collect();

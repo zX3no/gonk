@@ -52,6 +52,7 @@ pub enum Event {
     PlaySong((String, f32)),
     /// Path, Gain, Elapsed
     RestoreSong((String, f32, f32)),
+    OutputDevice(String),
     Play,
     Pause,
     Stop,
@@ -66,7 +67,7 @@ pub struct Player {
 impl Player {
     #[allow(clippy::new_without_default)]
     pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-        update_devices();
+        init();
 
         let devices = devices();
         let default = default_device().unwrap();
@@ -208,8 +209,10 @@ impl Player {
     pub fn volume(&self) -> u8 {
         unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
     }
-    pub fn set_output_device(&self, _device: &str) {
-        //TODO:
+    pub fn set_output_device(&self, device: &str) {
+        self.s
+            .send(Event::OutputDevice(device.to_string()))
+            .unwrap();
     }
 }
 

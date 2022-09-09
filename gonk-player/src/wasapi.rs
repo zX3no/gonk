@@ -6,8 +6,8 @@ use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
+use std::thread;
 use std::time::Duration;
-use winapi::ctypes::c_void;
 use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
 use winapi::shared::guiddef::GUID;
 use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
@@ -48,8 +48,8 @@ const COMMON_SAMPLE_RATES: [u32; 13] = [
 static INIT: Once = Once::new();
 //TODO: It is very slow to collect devices
 //I'm not sure if this is necessary though.
-static mut DEVICES: Vec<Device> = Vec::new();
-static mut DEFAULT_DEVICE: Option<Device> = None;
+pub static mut DEVICES: Vec<Device> = Vec::new();
+pub static mut DEFAULT_DEVICE: Option<Device> = None;
 
 //TODO: Inline this macro.
 RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
@@ -76,7 +76,106 @@ unsafe impl Sync for Device {}
 pub fn init() {
     INIT.call_once(|| unsafe {
         CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
+
+        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+        let result = CoCreateInstance(
+            &CLSID_MMDeviceEnumerator,
+            null_mut(),
+            CLSCTX_ALL,
+            &IMMDeviceEnumerator::uuidof(),
+            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+        );
+        check(result).unwrap();
+
+        update_outputs(enumerator);
+
+        let ptr: usize = enumerator as usize;
+        thread::spawn(move || {
+            //This is so stupid.
+            let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
+            loop {
+                update_outputs(enumerator);
+                thread::sleep(Duration::from_millis(200));
+            }
+        });
     });
+}
+
+pub unsafe fn update_outputs(enumerator: *mut IMMDeviceEnumerator) {
+    let mut collection = null_mut();
+    let result = (*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection);
+    check(result).unwrap();
+
+    let mut count: u32 = zeroed();
+    let result = (*collection).GetCount(&mut count as *mut u32 as *const u32);
+    check(result).unwrap();
+
+    if count == 0 {
+        panic!("No output devices.");
+    }
+
+    let mut devices = Vec::new();
+
+    for i in 0..count {
+        //Get IMMDevice.
+        let mut device = null_mut();
+        let result = (*collection).Item(i, &mut device);
+        check(result).unwrap();
+
+        //Get name.
+        let mut store = null_mut();
+        let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+        check(result).unwrap();
+        let mut prop = zeroed();
+        //This is slow. Around 250us.
+        let result = (*store).GetValue(
+            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+            &mut prop,
+        );
+        check(result).unwrap();
+
+        let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+        let name = utf16_string(ptr_utf16);
+        PropVariantClear(&mut prop);
+
+        let device = Device {
+            inner: device,
+            name,
+        };
+
+        devices.push(device);
+    }
+
+    //Default default device.
+    let mut device: *mut IMMDevice = null_mut();
+    let result = (*enumerator).GetDefaultAudioEndpoint(
+        eRender,
+        eConsole,
+        &mut device as *mut *mut IMMDevice,
+    );
+    //TODO: This can crash when there are no devices.
+    check(result).unwrap();
+
+    //Get default device name.
+    let mut store = null_mut();
+    let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
+    check(result).unwrap();
+    let mut prop = zeroed();
+    let result = (*store).GetValue(
+        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+        &mut prop,
+    );
+    check(result).unwrap();
+
+    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+    let name = utf16_string(ptr_utf16);
+    PropVariantClear(&mut prop);
+
+    DEFAULT_DEVICE = Some(Device {
+        inner: device,
+        name,
+    });
+    DEVICES = devices;
 }
 
 ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
@@ -98,94 +197,6 @@ pub unsafe fn check(result: i32) -> Result<(), String> {
         Err(msg)
     } else {
         Ok(())
-    }
-}
-
-pub fn update_devices() {
-    init();
-    unsafe {
-        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-        let result = CoCreateInstance(
-            &CLSID_MMDeviceEnumerator,
-            null_mut(),
-            CLSCTX_ALL,
-            &IMMDeviceEnumerator::uuidof(),
-            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-        );
-        check(result).unwrap();
-
-        let mut collection = null_mut();
-        let result =
-            (*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection);
-        check(result).unwrap();
-        let collection = &*collection;
-
-        let mut count: u32 = zeroed();
-        let result = collection.GetCount(&mut count as *mut u32 as *const u32);
-        check(result).unwrap();
-
-        let mut devices = Vec::new();
-
-        for i in 0..count {
-            //Get IMMDevice.
-            let mut device = null_mut();
-            let result = collection.Item(i, &mut device);
-            check(result).unwrap();
-
-            //Get name.
-            let mut store = null_mut();
-            let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-            check(result).unwrap();
-            let mut prop = zeroed();
-            //This is slow. Around 250us.
-            let result = (*store).GetValue(
-                &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-                &mut prop,
-            );
-            check(result).unwrap();
-
-            let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-            let name = utf16_string(ptr_utf16);
-            PropVariantClear(&mut prop);
-
-            let device = Device {
-                inner: device,
-                name,
-            };
-
-            devices.push(device);
-        }
-
-        //Default device
-        let mut device: *mut IMMDevice = null_mut();
-        let result = (*enumerator).GetDefaultAudioEndpoint(
-            eRender,
-            eConsole,
-            &mut device as *mut *mut IMMDevice,
-        );
-        check(result).unwrap();
-
-        //Get name.
-        let mut store = null_mut();
-        let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-        check(result).unwrap();
-        let mut prop = zeroed();
-        let result = (*store).GetValue(
-            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-            &mut prop,
-        );
-        check(result).unwrap();
-        let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-        let name = utf16_string(ptr_utf16);
-        PropVariantClear(&mut prop);
-
-        let default = Device {
-            inner: device,
-            name,
-        };
-
-        DEFAULT_DEVICE = Some(default);
-        DEVICES = devices;
     }
 }
 
@@ -211,7 +222,6 @@ pub struct Wasapi {
     pub audio_client: *mut IAudioClient,
     pub audio_clock_adjust: *mut IAudioClockAdjustment,
     pub render_client: *mut IAudioRenderClient,
-    pub h_event: *mut c_void,
     pub format: WAVEFORMATEXTENSIBLE,
 
     pub buffer: Vec<u8>,
@@ -271,6 +281,8 @@ impl Wasapi {
             panic!("Device has less than 2 channels.");
         }
 
+        dbg!(format.Format.nSamplesPerSec);
+
         let mut default_period = zeroed();
         let mut _min_period = zeroed();
         (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
@@ -294,6 +306,7 @@ impl Wasapi {
         check(result).unwrap();
         let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
 
+        //This must be set for some reason.
         let h_event = CreateEventA(null_mut(), 0, 0, null());
         (*audio_client).SetEventHandle(h_event);
 
@@ -309,7 +322,6 @@ impl Wasapi {
             audio_client,
             audio_clock_adjust,
             render_client,
-            h_event,
             format,
             buffer: Vec::new(),
         }
@@ -374,7 +386,7 @@ impl Wasapi {
         check(result).unwrap();
     }
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
-    //44100 cannot convert to 192_000 and vise vera.
+    //44100 cannot convert to 192_000 and vise versa.
     #[allow(clippy::result_unit_err)]
     pub unsafe fn set_sample_rate(&mut self, new: u32) -> Result<(), ()> {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
@@ -387,6 +399,7 @@ impl Wasapi {
     }
 }
 
+//TODO: Devices with 4 channels don't play correctly?
 pub unsafe fn new(device: &Device, r: Receiver<Event>) {
     let mut wasapi = Wasapi::new(device, None);
     let mut sample_rate = wasapi.format.Format.nSamplesPerSec;
@@ -447,6 +460,14 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                 Event::Play => STATE = State::Playing,
                 Event::Pause => STATE = State::Paused,
                 Event::Stop => STATE = State::Stopped,
+                Event::OutputDevice(device) => {
+                    let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
+                        device
+                    } else {
+                        unreachable!("Requested a device that does not exist.")
+                    };
+                    wasapi = Wasapi::new(device, Some(sample_rate));
+                }
             }
         }
 

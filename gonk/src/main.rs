@@ -211,6 +211,9 @@ fn main() {
                 player.elapsed().as_secs_f32(),
             );
 
+            //Update the list of output devices.
+            settings.update();
+
             last_tick = Instant::now();
         }
 
@@ -407,7 +410,7 @@ fn main() {
                             Mode::Settings => {
                                 if let Some(device) = settings.devices.selected() {
                                     player.set_output_device(device);
-                                    settings.current_device = device.clone();
+                                    settings.current_device = (*device).to_string();
                                 }
                             }
                             Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
