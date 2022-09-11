@@ -397,6 +397,32 @@ impl Wasapi {
     }
 }
 
+pub unsafe fn new_decoder(
+    path: &str,
+    device: &Device,
+    decoder: &mut Option<Symphonia>,
+    wasapi: &mut Wasapi,
+    sample_rate: &mut u32,
+) {
+    match Symphonia::new(path) {
+        Ok(sym) => {
+            DURATION = sym.duration();
+            ELAPSED = Duration::default();
+
+            let new = sym.sample_rate();
+            if *sample_rate != new {
+                if wasapi.set_sample_rate(new).is_err() {
+                    *wasapi = Wasapi::new(device, Some(new));
+                };
+                *sample_rate = new;
+            }
+
+            *decoder = Some(sym);
+        }
+        Err(err) => gonk_core::log!("{}", err),
+    }
+}
+
 //TODO: Devices with 4 channels don't play correctly?
 pub unsafe fn new(device: &Device, r: Receiver<Event>) {
     let mut wasapi = Wasapi::new(device, None);
@@ -410,44 +436,14 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                 Event::PlaySong((path, g)) => {
                     STATE = State::Playing;
                     gain = g;
-                    match Symphonia::new(&path) {
-                        Ok(sym) => {
-                            DURATION = sym.duration();
-                            ELAPSED = Duration::default();
-
-                            let new = sym.sample_rate();
-                            if sample_rate != new {
-                                if wasapi.set_sample_rate(new).is_err() {
-                                    wasapi = Wasapi::new(device, Some(new));
-                                };
-                                sample_rate = new;
-                            }
-
-                            decoder = Some(sym);
-                        }
-                        Err(err) => panic!("{}", err),
-                    }
+                    new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                 }
                 Event::RestoreSong((path, g, elapsed)) => {
                     STATE = State::Paused;
                     gain = g;
-                    match Symphonia::new(&path) {
-                        Ok(mut sym) => {
-                            DURATION = sym.duration();
-                            ELAPSED = Duration::from_secs_f32(elapsed);
-
-                            let new = sym.sample_rate();
-                            if sample_rate != new {
-                                if wasapi.set_sample_rate(new).is_err() {
-                                    wasapi = Wasapi::new(device, Some(new));
-                                };
-                                sample_rate = new;
-                            }
-
-                            sym.seek(elapsed);
-                            decoder = Some(sym);
-                        }
-                        Err(err) => panic!("{}", err),
+                    new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
+                    if let Some(decoder) = &mut decoder {
+                        decoder.seek(elapsed);
                     }
                 }
                 Event::Seek(pos) => {
