@@ -407,7 +407,6 @@ pub unsafe fn new_decoder(
     match Symphonia::new(path) {
         Ok(sym) => {
             DURATION = sym.duration();
-            ELAPSED = Duration::default();
 
             let new = sym.sample_rate();
             if *sample_rate != new {
@@ -435,11 +434,13 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
             match event {
                 Event::PlaySong((path, g)) => {
                     STATE = State::Playing;
+                    ELAPSED = Duration::default();
                     gain = g;
                     new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                 }
                 Event::RestoreSong((path, g, elapsed)) => {
                     STATE = State::Paused;
+                    ELAPSED = Duration::from_secs_f32(elapsed);
                     gain = g;
                     new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                     if let Some(decoder) = &mut decoder {
