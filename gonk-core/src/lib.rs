@@ -455,39 +455,52 @@ impl Ord for Song {
 
 impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
+        assert_eq!(bytes.len(), SONG_LEN);
         unsafe {
             let text = &bytes[..TEXT_LEN];
-            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
-            debug_assert!(artist_len <= TEXT_LEN);
-            let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
+            let artist_len =
+                u16::from_le_bytes(text.get(0..2).unwrap().try_into().unwrap()) as usize;
+            let artist = from_utf8_unchecked(text.get(2..artist_len + 2).unwrap());
 
-            let album_len =
-                u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
-                    as usize;
-            debug_assert!(album_len <= TEXT_LEN);
+            let album_len = u16::from_le_bytes(
+                text.get(2 + artist_len..2 + artist_len + 2)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
             let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
             let album = from_utf8_unchecked(&text[album]);
 
             let title_len = u16::from_le_bytes(
-                text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+                text.get(2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2)
+                    .unwrap()
                     .try_into()
                     .unwrap(),
             ) as usize;
-            debug_assert!(title_len <= TEXT_LEN);
-            let title =
-                2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
-            let title = from_utf8_unchecked(&text[title]);
+            let title = from_utf8_unchecked(
+                text.get(
+                    2 + artist_len + 2 + album_len + 2
+                        ..artist_len + 2 + album_len + 2 + title_len + 2,
+                )
+                .unwrap(),
+            );
 
             let path_len = u16::from_le_bytes(
-                text[2 + artist_len + 2 + album_len + 2 + title_len
-                    ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
-                    .try_into()
-                    .unwrap(),
+                text.get(
+                    2 + artist_len + 2 + album_len + 2 + title_len
+                        ..2 + artist_len + 2 + album_len + 2 + title_len + 2,
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
             ) as usize;
-            debug_assert!(path_len <= TEXT_LEN);
-            let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
-            let path = from_utf8_unchecked(&text[path]);
+            let path = from_utf8_unchecked(
+                text.get(
+                    2 + artist_len + 2 + album_len + 2 + title_len + 2
+                        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2,
+                )
+                .unwrap(),
+            );
 
             let number = bytes[NUMBER_POS];
             let disc = bytes[DISC_POS];
@@ -583,7 +596,7 @@ impl RawSong {
     }
     pub fn into_bytes(&self) -> [u8; SONG_LEN] {
         let mut song = [0u8; SONG_LEN];
-        debug_assert!(self.text.len() <= TEXT_LEN);
+        assert!(self.text.len() <= TEXT_LEN);
 
         song[..self.text.len()].copy_from_slice(&self.text);
         song[NUMBER_POS] = self.number;
