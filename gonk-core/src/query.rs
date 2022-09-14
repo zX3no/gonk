@@ -191,7 +191,7 @@ pub fn artists_albums_and_songs() -> (Vec<String>, Vec<(String, String)>, Vec<So
             .into_par_iter()
             .map(|i| {
                 let pos = i * SONG_LEN;
-                let bytes = unsafe { &mmap.get_unchecked(pos..pos + SONG_LEN) };
+                let bytes = &mmap[pos..pos + SONG_LEN];
                 Song::from(bytes, i)
             })
             .collect();

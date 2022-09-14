@@ -1,3 +1,4 @@
+#![feature(test)]
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -349,6 +350,10 @@ pub fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
 }
 
+/// Collect and add files to the database.
+/// This operation will truncate.
+///
+/// Returns `JoinHandle` so scans won't run concurrently.
 pub fn scan(path: String) -> JoinHandle<()> {
     if let Some(mmap) = unsafe { MMAP.take() } {
         drop(mmap);
@@ -790,7 +795,130 @@ where
 #[cfg(test)]
 mod tests {
     use crate::*;
+    use rayon::prelude::ParallelSliceMut;
+    extern crate test;
+    use tempfile::tempfile;
+    use test::Bencher;
 
+    #[bench]
+    fn bench_collect_all(b: &mut Bencher) {
+        let file = tempfile().unwrap();
+
+        let mut writer = BufWriter::new(&file);
+        for i in 0..10_000 {
+            let song = RawSong::new(
+                &format!("{} artist", i),
+                &format!("{} album", i),
+                &format!("{} title", i),
+                &format!("{} path", i),
+                1,
+                1,
+                0.25,
+            );
+            writer.write_all(&song.into_bytes()).unwrap();
+        }
+        writer.flush().unwrap();
+
+        let mmap = unsafe { memmap2::Mmap::map(&file).unwrap() };
+
+        b.iter(|| {
+            let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
+                .into_par_iter()
+                .map(|i| {
+                    let pos = i * SONG_LEN;
+                    let bytes = &mmap[pos..pos + SONG_LEN];
+                    Song::from(bytes, i)
+                })
+                .collect();
+            assert_eq!(songs.len(), 10_000);
+
+            let mut albums: Vec<(&str, &str)> = songs
+                .iter()
+                .map(|song| (song.artist.as_str(), song.album.as_str()))
+                .collect();
+            albums.par_sort_unstable_by_key(|(artist, _album)| artist.to_ascii_lowercase());
+            albums.dedup();
+            assert_eq!(albums.len(), 10_000);
+
+            let albums: Vec<(String, String)> = albums
+                .into_iter()
+                .map(|(artist, album)| (artist.to_owned(), album.to_owned()))
+                .collect();
+            assert_eq!(albums.len(), 10_000);
+
+            let mut artists: Vec<String> = albums
+                .iter()
+                .map(|(artist, _album)| artist.clone())
+                .collect();
+            artists.dedup();
+
+            assert_eq!(artists.len(), 10_000);
+        });
+    }
+    #[bench]
+    fn bench_collect_artist_single(b: &mut Bencher) {
+        let file = tempfile().unwrap();
+
+        let mut writer = BufWriter::new(&file);
+        for i in 0..10_000 {
+            let song = RawSong::new(
+                &format!("{} artist", i),
+                &format!("{} album", i),
+                &format!("{} title", i),
+                &format!("{} path", i),
+                1,
+                1,
+                0.25,
+            );
+            writer.write_all(&song.into_bytes()).unwrap();
+        }
+        writer.flush().unwrap();
+
+        let mmap = unsafe { memmap2::Mmap::map(&file).unwrap() };
+
+        b.iter(|| {
+            let mut songs = Vec::new();
+            let mut i = 0;
+            while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+                let artist = artist(text);
+                if artist == "9999 artist" {
+                    let song_bytes = &mmap[i..i + SONG_LEN];
+                    songs.push(Song::from(song_bytes, i / SONG_LEN));
+                }
+                i += SONG_LEN;
+            }
+            songs.sort_unstable();
+            assert_eq!(songs.len(), 1);
+        });
+    }
+    #[bench]
+    fn bench_collect_artist(b: &mut Bencher) {
+        let file = tempfile().unwrap();
+
+        let mut writer = BufWriter::new(&file);
+        let song = RawSong::new("artist", "album", "title", "path", 1, 1, 0.25);
+        for _ in 0..10_000 {
+            writer.write_all(&song.into_bytes()).unwrap();
+        }
+        writer.flush().unwrap();
+
+        let mmap = unsafe { memmap2::Mmap::map(&file).unwrap() };
+
+        b.iter(|| {
+            let mut songs = Vec::new();
+            let mut i = 0;
+            while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+                let artist = artist(text);
+                if artist == "artist" {
+                    let song_bytes = &mmap[i..i + SONG_LEN];
+                    songs.push(Song::from(song_bytes, i / SONG_LEN));
+                }
+                i += SONG_LEN;
+            }
+            songs.sort_unstable();
+            assert_eq!(songs.len(), 10000);
+        });
+    }
     #[test]
     fn clamp_song() {
         let song = RawSong::new(
