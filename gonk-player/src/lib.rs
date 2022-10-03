@@ -134,25 +134,24 @@ impl Player {
                 .unwrap();
         }
     }
-    pub fn delete_index(&mut self, i: usize) {
+    pub fn delete_index(&mut self, index: usize) {
         if self.songs.is_empty() {
             return;
         }
 
-        self.songs.data.remove(i);
+        self.songs.data.remove(index);
 
         if let Some(playing) = self.songs.index() {
             let len = self.songs.len();
             if len == 0 {
                 self.clear();
-            } else if i == playing && i == 0 {
-                if i == 0 {
-                    self.songs.select(Some(0));
-                }
+            } else if index == playing && index == 0 {
+                self.songs.select(Some(0));
                 self.play_index(self.songs.index().unwrap());
-            } else if i == playing && i == len {
+            } else if index == playing && index == len {
                 self.songs.select(Some(len - 1));
-            } else if i < playing {
+                self.play_index(self.songs.index().unwrap());
+            } else if index < playing {
                 self.songs.select(Some(playing - 1));
             }
         };
