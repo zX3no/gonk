@@ -454,7 +454,10 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                 }
                 Event::Play => STATE = State::Playing,
                 Event::Pause => STATE = State::Paused,
-                Event::Stop => STATE = State::Stopped,
+                Event::Stop => {
+                    STATE = State::Stopped;
+                    decoder = None
+                }
                 Event::OutputDevice(device) => {
                     let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
                         device
@@ -466,15 +469,16 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
             }
         }
 
-        match STATE {
-            State::Stopped => decoder = None,
-            State::Paused => (),
-            State::Finished => (),
-            State::Playing => {
-                if let Some(decoder) = &mut decoder {
-                    ELAPSED = decoder.elapsed();
-                    wasapi.fill_buffer(decoder, gain);
-                }
+        //HACK: Don't overwork the thread.
+        //Updating the elapsed time is not that important.
+        //Filling the buffer hear is probably not good.
+        thread::sleep(Duration::from_millis(2));
+
+        //Update the elapsed time and fill the output buffer.
+        if let State::Playing = STATE {
+            if let Some(decoder) = &mut decoder {
+                ELAPSED = decoder.elapsed();
+                wasapi.fill_buffer(decoder, gain);
             }
         }
     }
