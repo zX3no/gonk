@@ -220,7 +220,7 @@ fn main() {
         //Update the UI index.
         queue.len = player.songs.len();
 
-        player.is_finished();
+        player.update();
 
         if player.songs.data != player_clone {
             player_clone = player.songs.data.clone();
