@@ -357,6 +357,7 @@ impl Wasapi {
                 .chunks_exact_mut(block_align)
             {
                 for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
+                    let gain = if gain == 0.0 { 0.5 } else { gain };
                     let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
                     let smp_bytes = smp.to_le_bytes();
                     debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
