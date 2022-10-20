@@ -435,13 +435,17 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                 Event::PlaySong((path, g)) => {
                     STATE = State::Playing;
                     ELAPSED = Duration::default();
-                    gain = g;
+                    if g != 0.0 {
+                        gain = g;
+                    }
                     new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                 }
                 Event::RestoreSong((path, g, elapsed)) => {
                     STATE = State::Paused;
                     ELAPSED = Duration::from_secs_f32(elapsed);
-                    gain = g;
+                    if g != 0.0 {
+                        gain = g;
+                    }
                     new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                     if let Some(decoder) = &mut decoder {
                         decoder.seek(elapsed);
