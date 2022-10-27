@@ -1,4 +1,5 @@
 #![feature(test)]
+use flac_decoder::read_metadata;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -24,7 +25,6 @@ use symphonia::{
     default::get_probe,
 };
 use walkdir::{DirEntry, WalkDir};
-use flac_decoder::read_metadata;
 
 //522 + 1 + 1 + 4
 pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
@@ -699,7 +699,7 @@ impl RawSong {
                         gain,
                     ))
                 }
-                Err(err) => (),
+                Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
             }
         } else {
             let file = match File::open(path) {
