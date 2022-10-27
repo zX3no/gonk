@@ -211,17 +211,6 @@ pub fn delete(playlist: &mut Playlist, shift: bool) {
     }
 }
 
-pub fn on_escape(playlist: &mut Playlist) {
-    if playlist.delete {
-        playlist.yes = true;
-        playlist.delete = false;
-    } else if let Mode::Popup = playlist.mode {
-        playlist.mode = Mode::Playlist;
-        playlist.search_query = String::new();
-        playlist.changed = true;
-    }
-}
-
 //TODO: I think I want a different popup.
 //It should be a small side bar in the browser.
 //There should be a list of existing playlists.

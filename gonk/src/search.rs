@@ -97,21 +97,6 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
     }
 }
 
-pub fn on_escape(search: &mut Search) {
-    match search.mode {
-        Mode::Search => {
-            if let Mode::Search = search.mode {
-                search.query.clear();
-                search.query_changed = true;
-            }
-        }
-        Mode::Select => {
-            search.mode = Mode::Search;
-            search.results.select(None);
-        }
-    }
-}
-
 pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
     match search.mode {
         Mode::Search => {
