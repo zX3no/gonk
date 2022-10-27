@@ -18,7 +18,7 @@ use symphonia::{
     core::{
         formats::FormatOptions,
         io::{MediaSourceStream, MediaSourceStreamOptions},
-        meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+        meta::{Limit, MetadataOptions, MetadataRevision, StandardTagKey},
         probe::Hint,
     },
     default::get_probe,
@@ -719,7 +719,10 @@ impl From<&'_ Path> for RawSong {
                 &Hint::new(),
                 mss,
                 &FormatOptions::default(),
-                &MetadataOptions::default(),
+                &MetadataOptions {
+                    limit_visual_bytes: Limit::Maximum(1),
+                    ..Default::default()
+                },
             ) {
                 Ok(probe) => probe,
                 Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
