@@ -24,6 +24,7 @@ use symphonia::{
     default::get_probe,
 };
 use walkdir::{DirEntry, WalkDir};
+use flac_decoder::read_metadata;
 
 //522 + 1 + 1 + 4
 pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
@@ -74,14 +75,7 @@ pub fn init() {
     unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
 }
 
-pub fn settings_path() -> PathBuf {
-    let mut path = database_path();
-    path.pop();
-    path.push("settings.db");
-    path
-}
-
-pub fn database_path() -> PathBuf {
+pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())
     } else {
@@ -92,6 +86,19 @@ pub fn database_path() -> PathBuf {
     if !gonk.exists() {
         fs::create_dir_all(&gonk).unwrap();
     }
+
+    gonk
+}
+
+pub fn settings_path() -> PathBuf {
+    let mut path = database_path();
+    path.pop();
+    path.push("settings.db");
+    path
+}
+
+pub fn database_path() -> PathBuf {
+    let gonk = gonk_path();
 
     //Backwards compatibility for older versions of gonk
     let old_db = gonk.join("gonk_new.db");
@@ -351,6 +358,16 @@ pub fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
 }
 
+static mut ERRORS: usize = 0;
+
+pub fn errors() -> usize {
+    unsafe {
+        let errors = ERRORS;
+        ERRORS = 0;
+        errors
+    }
+}
+
 /// Collect and add files to the database.
 /// This operation will truncate.
 ///
@@ -382,10 +399,31 @@ pub fn scan(path: String) -> JoinHandle<()> {
                     })
                     .collect();
 
-                let songs: Vec<RawSong> = paths
+                let songs: Vec<_> = paths
                     .into_par_iter()
-                    .map(|path| RawSong::from(path.path()))
+                    .map(|path| RawSong::from_path(path.path()))
                     .collect();
+
+                let errors: Vec<_> = songs.iter().filter(|song| song.is_err()).collect();
+                let error_count = errors.len();
+                let errors: String = errors
+                    .into_iter()
+                    .filter_map(|error| {
+                        if let Err(error) = error {
+                            Some(format!("{error}\n"))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if error_count != 0 {
+                    let path = gonk_path().join("gonk.log");
+                    unsafe { ERRORS = error_count };
+                    fs::write(path, errors).unwrap();
+                }
+
+                let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
 
                 for song in songs {
                     writer.write_all(&song.into_bytes()).unwrap();
@@ -541,7 +579,7 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         if path.len() > TEXT_LEN {
-            panic!("PATH IS TOO LONG! {path}");
+            panic!("PATH IS TOO LONG! {path}")
         }
 
         let mut artist = artist.to_string();
@@ -619,101 +657,57 @@ impl RawSong {
     pub fn path(&self) -> &str {
         path(&self.text)
     }
-}
-
-impl Default for RawSong {
-    fn default() -> Self {
-        Self::new("artist", "album", "title", "path", 12, 1, 0.123)
-    }
-}
-
-impl Debug for RawSong {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let title = title(&self.text);
-        let album = album(&self.text);
-        let artist = artist(&self.text);
-        let path = path(&self.text);
-        f.debug_struct("Song")
-            .field("artist", &artist)
-            .field("album", &album)
-            .field("title", &title)
-            .field("path", &path)
-            .field("number", &self.number)
-            .field("disc", &self.disc)
-            .field("gain", &self.gain)
-            .finish()
-    }
-}
-
-impl From<&'_ [u8]> for RawSong {
-    fn from(bytes: &[u8]) -> Self {
-        Self {
-            text: bytes[..TEXT_LEN].try_into().unwrap(),
-            number: bytes[NUMBER_POS],
-            disc: bytes[DISC_POS],
-            gain: f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap()),
-        }
-    }
-}
-
-impl From<&Song> for RawSong {
-    fn from(song: &Song) -> Self {
-        RawSong::new(
-            &song.artist,
-            &song.album,
-            &song.title,
-            &song.path,
-            song.number,
-            song.disc,
-            song.gain,
-        )
-    }
-}
-
-impl From<&'_ Path> for RawSong {
-    fn from(path: &'_ Path) -> Self {
+    pub fn from_path(path: &'_ Path) -> Result<RawSong, String> {
         let ex = path.extension().unwrap();
         if ex == "flac" {
-            let metadata = crate::flac_decoder::read_metadata(path).unwrap();
-            let number = metadata
-                .get("TRACKNUMBER")
-                .unwrap_or(&String::from("1"))
-                .parse()
-                .unwrap_or(1);
-            let disc = metadata
-                .get("DISCNUMBER")
-                .unwrap_or(&String::from("1"))
-                .parse()
-                .unwrap_or(1);
-            let mut gain = 0.0;
-            if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
-                let g = db.replace(" dB", "");
-                if let Ok(db) = g.parse::<f32>() {
-                    gain = 10.0f32.powf(db / 20.0);
-                }
-            }
+            match read_metadata(path) {
+                Ok(metadata) => {
+                    let number = metadata
+                        .get("TRACKNUMBER")
+                        .unwrap_or(&String::from("1"))
+                        .parse()
+                        .unwrap_or(1);
+                    let disc = metadata
+                        .get("DISCNUMBER")
+                        .unwrap_or(&String::from("1"))
+                        .parse()
+                        .unwrap_or(1);
+                    let mut gain = 0.0;
+                    if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
+                        let g = db.replace(" dB", "");
+                        if let Ok(db) = g.parse::<f32>() {
+                            gain = 10.0f32.powf(db / 20.0);
+                        }
+                    }
 
-            RawSong::new(
-                #[allow(clippy::or_fun_call)]
-                metadata.get("ALBUMARTIST").unwrap_or(
-                    metadata
-                        .get("ARTIST")
-                        .unwrap_or(&String::from("Unknown Artist")),
-                ),
-                metadata
-                    .get("ALBUM")
-                    .unwrap_or(&String::from("Unknown Album")),
-                metadata
-                    .get("TITLE")
-                    .unwrap_or(&String::from("Unknown Title")),
-                &path.to_string_lossy(),
-                number,
-                disc,
-                gain,
-            )
+                    Ok(RawSong::new(
+                        #[allow(clippy::or_fun_call)]
+                        metadata.get("ALBUMARTIST").unwrap_or(
+                            metadata
+                                .get("ARTIST")
+                                .unwrap_or(&String::from("Unknown Artist")),
+                        ),
+                        metadata
+                            .get("ALBUM")
+                            .unwrap_or(&String::from("Unknown Album")),
+                        metadata
+                            .get("TITLE")
+                            .unwrap_or(&String::from("Unknown Title")),
+                        &path.to_string_lossy(),
+                        number,
+                        disc,
+                        gain,
+                    ))
+                }
+                Err(err) => (),
+            }
         } else {
-            let file = Box::new(File::open(path).expect("Could not open file."));
-            let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+            let file = match File::open(path) {
+                Ok(file) => file,
+                Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+            };
+
+            let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
 
             let mut probe = match get_probe().format(
                 &Hint::new(),
@@ -725,7 +719,7 @@ impl From<&'_ Path> for RawSong {
                 },
             ) {
                 Ok(probe) => probe,
-                Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
+                Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
             };
 
             let mut title = String::from("Unknown Title");
@@ -788,7 +782,7 @@ impl From<&'_ Path> for RawSong {
                 //Probably a WAV file that doesn't have metadata.
             }
 
-            RawSong::new(
+            Ok(RawSong::new(
                 &artist,
                 &album,
                 &title,
@@ -796,93 +790,58 @@ impl From<&'_ Path> for RawSong {
                 number,
                 disc,
                 gain,
-            )
+            ))
         }
     }
-    // fn from(path: &'_ Path) -> Self {
-    //     let file = Box::new(File::open(path).expect("Could not open file."));
-    //     let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+}
 
-    //     let mut probe = match get_probe().format(
-    //         &Hint::new(),
-    //         mss,
-    //         &FormatOptions::default(),
-    //         &MetadataOptions::default(),
-    //     ) {
-    //         Ok(probe) => probe,
-    //         Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
-    //     };
+impl Default for RawSong {
+    fn default() -> Self {
+        Self::new("artist", "album", "title", "path", 12, 1, 0.123)
+    }
+}
 
-    //     let mut title = String::from("Unknown Title");
-    //     let mut album = String::from("Unknown Album");
-    //     let mut artist = String::from("Unknown Artist");
-    //     let mut number = 1;
-    //     let mut disc = 1;
-    //     let mut gain = 0.0;
+impl Debug for RawSong {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let title = title(&self.text);
+        let album = album(&self.text);
+        let artist = artist(&self.text);
+        let path = path(&self.text);
+        f.debug_struct("Song")
+            .field("artist", &artist)
+            .field("album", &album)
+            .field("title", &title)
+            .field("path", &path)
+            .field("number", &self.number)
+            .field("disc", &self.disc)
+            .field("gain", &self.gain)
+            .finish()
+    }
+}
 
-    //     let mut update_metadata = |metadata: &MetadataRevision| {
-    //         for tag in metadata.tags() {
-    //             if let Some(std_key) = tag.std_key {
-    //                 match std_key {
-    //                     StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
-    //                     StandardTagKey::Artist if artist == "Unknown Artist" => {
-    //                         artist = tag.value.to_string()
-    //                     }
-    //                     StandardTagKey::Album => album = tag.value.to_string(),
-    //                     StandardTagKey::TrackTitle => title = tag.value.to_string(),
-    //                     StandardTagKey::TrackNumber => {
-    //                         let num = tag.value.to_string();
-    //                         if let Some((num, _)) = num.split_once('/') {
-    //                             number = num.parse().unwrap_or(1);
-    //                         } else {
-    //                             number = num.parse().unwrap_or(1);
-    //                         }
-    //                     }
-    //                     StandardTagKey::DiscNumber => {
-    //                         let num = tag.value.to_string();
-    //                         if let Some((num, _)) = num.split_once('/') {
-    //                             disc = num.parse().unwrap_or(1);
-    //                         } else {
-    //                             disc = num.parse().unwrap_or(1);
-    //                         }
-    //                     }
-    //                     StandardTagKey::ReplayGainTrackGain => {
-    //                         let db = tag
-    //                             .value
-    //                             .to_string()
-    //                             .split(' ')
-    //                             .next()
-    //                             .unwrap()
-    //                             .parse()
-    //                             .unwrap_or(0.0);
+impl From<&'_ [u8]> for RawSong {
+    fn from(bytes: &[u8]) -> Self {
+        Self {
+            text: bytes[..TEXT_LEN].try_into().unwrap(),
+            number: bytes[NUMBER_POS],
+            disc: bytes[DISC_POS],
+            gain: f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap()),
+        }
+    }
+}
 
-    //                         gain = 10.0f32.powf(db / 20.0);
-    //                     }
-    //                     _ => (),
-    //                 }
-    //             }
-    //         }
-    //     };
-
-    //     if let Some(metadata) = probe.format.metadata().skip_to_latest() {
-    //         update_metadata(metadata);
-    //     } else if let Some(mut metadata) = probe.metadata.get() {
-    //         let metadata = metadata.skip_to_latest().unwrap();
-    //         update_metadata(metadata);
-    //     } else {
-    //         //Probably a WAV file that doesn't have metadata.
-    //     }
-
-    //     RawSong::new(
-    //         &artist,
-    //         &album,
-    //         &title,
-    //         &path.to_string_lossy(),
-    //         number,
-    //         disc,
-    //         gain,
-    //     )
-    // }
+impl From<&Song> for RawSong {
+    fn from(song: &Song) -> Self {
+        RawSong::new(
+            &song.artist,
+            &song.album,
+            &song.title,
+            &song.path,
+            song.number,
+            song.disc,
+            song.gain,
+        )
+    }
 }
 
 pub fn bench<F>(func: F)

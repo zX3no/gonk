@@ -174,11 +174,27 @@ fn main() {
                 search::refresh_results(&mut search);
 
                 if let Some(time) = scan_timer {
-                    log!(
-                        "Finished adding {} files in {:.2} seconds.",
-                        gonk_core::len(),
-                        time.elapsed().as_secs_f32()
-                    );
+                    let errors = gonk_core::errors();
+                    if errors == 0 {
+                        log!(
+                            "Finished adding {} files in {:.2} seconds.",
+                            gonk_core::len(),
+                            time.elapsed().as_secs_f32()
+                        );
+                    } else {
+                        #[cfg(windows)]
+                        let dir = "See %appdata%/gonk/gonk.log for details.";
+
+                        #[cfg(unix)]
+                        let dir = "See .config/gonk/gonk.log for details.";
+
+                        let s = if errors == 1 { "" } else { "s" };
+
+                        log!(
+                            "Added {} files with {errors} error{s}. {dir}",
+                            gonk_core::len(),
+                        );
+                    }
                 }
 
                 scan_timer = None;
@@ -367,9 +383,35 @@ fn main() {
                             };
                         }
                         KeyCode::Esc => match mode {
-                            Mode::Search => search::on_escape(&mut search),
-                            Mode::Playlist => playlist::on_escape(&mut playlist),
-                            _ => (),
+                            Mode::Search => match search.mode {
+                                search::Mode::Search => {
+                                    if let search::Mode::Search = search.mode {
+                                        // search.query.clear();
+                                        // search.query_changed = true;
+                                        mode = Mode::Queue;
+                                    }
+                                }
+                                search::Mode::Select => {
+                                    search.mode = search::Mode::Search;
+                                    search.results.select(None);
+                                }
+                            },
+                            Mode::Playlist => {
+                                if playlist.delete {
+                                    playlist.yes = true;
+                                    playlist.delete = false;
+                                } else if let playlist::Mode::Popup = playlist.mode {
+                                    playlist.mode = playlist::Mode::Playlist;
+                                    playlist.search_query = String::new();
+                                    playlist.changed = true;
+                                } else {
+                                    mode = Mode::Browser;
+                                }
+                            }
+                            // Mode::Queue => mode = Mode::Browser,
+                            Mode::Browser => mode = Mode::Queue,
+                            Mode::Queue => (),
+                            Mode::Settings => mode = Mode::Queue,
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
