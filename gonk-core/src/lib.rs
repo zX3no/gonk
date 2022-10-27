@@ -656,8 +656,12 @@ impl RawSong {
         path(&self.text)
     }
     pub fn from_path(path: &'_ Path) -> Result<RawSong, String> {
-        let file = Box::new(File::open(path).expect("Could not open file."));
-        let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+        };
+
+        let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
 
         let mut probe = match get_probe().format(
             &Hint::new(),
