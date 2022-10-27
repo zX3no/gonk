@@ -235,7 +235,7 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                         (t[0], t[1])
                     };
 
-                    tags.insert(k.to_string(), v.to_string());
+                    tags.insert(k.to_ascii_uppercase(), v.to_string());
                 }
             }
             //Cuesheet
