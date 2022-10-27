@@ -686,10 +686,10 @@ impl From<&'_ Path> for RawSong {
                 .parse()
                 .unwrap_or(1);
             let mut gain = 0.0;
-            if let Some(g) = metadata.get("replaygain_track_gain") {
-                let g = g.replace(" dB", "");
-                if let Ok(g) = g.parse::<f32>() {
-                    gain = g;
+            if let Some(db) = metadata.get("replaygain_track_gain") {
+                let g = db.replace(" dB", "");
+                if let Ok(db) = g.parse::<f32>() {
+                    gain = 10.0f32.powf(db / 20.0);
                 }
             }
 
