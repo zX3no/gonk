@@ -360,6 +360,7 @@ fn main() {
                             }
                         }
                         KeyCode::Tab => {
+                            terminal.clear().unwrap();
                             mode = match mode {
                                 Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
                                 Mode::Queue | Mode::Playlist => Mode::Browser,
@@ -484,7 +485,8 @@ fn main() {
                     },
                     _ => (),
                 },
-                _ => (),
+                Event::Resize(_, _) => (),
+                Event::Paste(_) => (),
             }
         }
     }
