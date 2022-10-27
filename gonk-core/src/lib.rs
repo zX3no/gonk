@@ -47,7 +47,7 @@ pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
 pub fn init() {
-    match fs::read(&settings_path()) {
+    match fs::read(settings_path()) {
         Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
             Some(settings) => unsafe { SETTINGS = settings },
             None => save_settings(),
@@ -61,7 +61,7 @@ pub fn init() {
         .read(true)
         .write(true)
         .create(true)
-        .open(&database_path())
+        .open(database_path())
         .unwrap();
 
     let mmap = unsafe { Mmap::map(&db).unwrap() };
@@ -73,14 +73,7 @@ pub fn init() {
     unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
 }
 
-pub fn settings_path() -> PathBuf {
-    let mut path = database_path();
-    path.pop();
-    path.push("settings.db");
-    path
-}
-
-pub fn database_path() -> PathBuf {
+pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())
     } else {
@@ -91,6 +84,19 @@ pub fn database_path() -> PathBuf {
     if !gonk.exists() {
         fs::create_dir_all(&gonk).unwrap();
     }
+
+    gonk
+}
+
+pub fn settings_path() -> PathBuf {
+    let mut path = database_path();
+    path.pop();
+    path.push("settings.db");
+    path
+}
+
+pub fn database_path() -> PathBuf {
+    let gonk = gonk_path();
 
     //Backwards compatibility for older versions of gonk
     let old_db = gonk.join("gonk_new.db");
@@ -350,6 +356,16 @@ pub fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
 }
 
+static mut ERRORS: usize = 0;
+
+pub fn errors() -> usize {
+    unsafe {
+        let errors = ERRORS;
+        ERRORS = 0;
+        errors
+    }
+}
+
 /// Collect and add files to the database.
 /// This operation will truncate.
 ///
@@ -365,7 +381,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             .write(true)
             .read(true)
             .truncate(true)
-            .open(&database_path())
+            .open(database_path())
         {
             Ok(file) => {
                 let mut writer = BufWriter::new(&file);
@@ -381,10 +397,31 @@ pub fn scan(path: String) -> JoinHandle<()> {
                     })
                     .collect();
 
-                let songs: Vec<RawSong> = paths
+                let songs: Vec<_> = paths
                     .into_par_iter()
-                    .map(|path| RawSong::from(path.path()))
+                    .map(|path| RawSong::from_path(path.path()))
                     .collect();
+
+                let errors: Vec<_> = songs.iter().filter(|song| song.is_err()).collect();
+                let error_count = errors.len();
+                let errors: String = errors
+                    .into_iter()
+                    .filter_map(|error| {
+                        if let Err(error) = error {
+                            Some(format!("{error}\n"))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if error_count != 0 {
+                    let path = gonk_path().join("gonk.log");
+                    unsafe { ERRORS = error_count };
+                    fs::write(path, errors).unwrap();
+                }
+
+                let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
 
                 for song in songs {
                     writer.write_all(&song.into_bytes()).unwrap();
@@ -395,10 +432,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             }
             Err(_) => {
                 //Re-open the database as read only.
-                let db = OpenOptions::new()
-                    .read(true)
-                    .open(&database_path())
-                    .unwrap();
+                let db = OpenOptions::new().read(true).open(database_path()).unwrap();
                 unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
 
                 log!("Failed to scan folder, database is already open.");
@@ -543,7 +577,7 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         if path.len() > TEXT_LEN {
-            panic!("PATH IS TOO LONG! {}", path)
+            panic!("PATH IS TOO LONG! {path}")
         }
 
         let mut artist = artist.to_string();
@@ -621,59 +655,7 @@ impl RawSong {
     pub fn path(&self) -> &str {
         path(&self.text)
     }
-}
-
-impl Default for RawSong {
-    fn default() -> Self {
-        Self::new("artist", "album", "title", "path", 12, 1, 0.123)
-    }
-}
-
-impl Debug for RawSong {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let title = title(&self.text);
-        let album = album(&self.text);
-        let artist = artist(&self.text);
-        let path = path(&self.text);
-        f.debug_struct("Song")
-            .field("artist", &artist)
-            .field("album", &album)
-            .field("title", &title)
-            .field("path", &path)
-            .field("number", &self.number)
-            .field("disc", &self.disc)
-            .field("gain", &self.gain)
-            .finish()
-    }
-}
-
-impl From<&'_ [u8]> for RawSong {
-    fn from(bytes: &[u8]) -> Self {
-        Self {
-            text: bytes[..TEXT_LEN].try_into().unwrap(),
-            number: bytes[NUMBER_POS],
-            disc: bytes[DISC_POS],
-            gain: f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap()),
-        }
-    }
-}
-
-impl From<&Song> for RawSong {
-    fn from(song: &Song) -> Self {
-        RawSong::new(
-            &song.artist,
-            &song.album,
-            &song.title,
-            &song.path,
-            song.number,
-            song.disc,
-            song.gain,
-        )
-    }
-}
-
-impl From<&'_ Path> for RawSong {
-    fn from(path: &'_ Path) -> Self {
+    pub fn from_path(path: &'_ Path) -> Result<RawSong, String> {
         let file = Box::new(File::open(path).expect("Could not open file."));
         let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
 
@@ -684,7 +666,7 @@ impl From<&'_ Path> for RawSong {
             &MetadataOptions::default(),
         ) {
             Ok(probe) => probe,
-            Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
+            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
         };
 
         let mut title = String::from("Unknown Title");
@@ -747,7 +729,7 @@ impl From<&'_ Path> for RawSong {
             //Probably a WAV file that doesn't have metadata.
         }
 
-        RawSong::new(
+        Ok(RawSong::new(
             &artist,
             &album,
             &title,
@@ -755,6 +737,55 @@ impl From<&'_ Path> for RawSong {
             number,
             disc,
             gain,
+        ))
+    }
+}
+
+impl Default for RawSong {
+    fn default() -> Self {
+        Self::new("artist", "album", "title", "path", 12, 1, 0.123)
+    }
+}
+
+impl Debug for RawSong {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let title = title(&self.text);
+        let album = album(&self.text);
+        let artist = artist(&self.text);
+        let path = path(&self.text);
+        f.debug_struct("Song")
+            .field("artist", &artist)
+            .field("album", &album)
+            .field("title", &title)
+            .field("path", &path)
+            .field("number", &self.number)
+            .field("disc", &self.disc)
+            .field("gain", &self.gain)
+            .finish()
+    }
+}
+
+impl From<&'_ [u8]> for RawSong {
+    fn from(bytes: &[u8]) -> Self {
+        Self {
+            text: bytes[..TEXT_LEN].try_into().unwrap(),
+            number: bytes[NUMBER_POS],
+            disc: bytes[DISC_POS],
+            gain: f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap()),
+        }
+    }
+}
+
+impl From<&Song> for RawSong {
+    fn from(song: &Song) -> Self {
+        RawSong::new(
+            &song.artist,
+            &song.album,
+            &song.title,
+            &song.path,
+            song.number,
+            song.disc,
+            song.gain,
         )
     }
 }

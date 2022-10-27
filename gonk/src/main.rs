@@ -174,11 +174,27 @@ fn main() {
                 search::refresh_results(&mut search);
 
                 if let Some(time) = scan_timer {
-                    log!(
-                        "Finished adding {} files in {:.2} seconds.",
-                        gonk_core::len(),
-                        time.elapsed().as_secs_f32()
-                    );
+                    let errors = gonk_core::errors();
+                    if errors == 0 {
+                        log!(
+                            "Finished adding {} files in {:.2} seconds.",
+                            gonk_core::len(),
+                            time.elapsed().as_secs_f32()
+                        );
+                    } else {
+                        #[cfg(windows)]
+                        let dir = "See %appdata%/gonk/gonk.log for details.";
+
+                        #[cfg(unix)]
+                        let dir = "See .config/gonk/gonk.log for details.";
+
+                        let s = if errors == 1 { "" } else { "s" };
+
+                        log!(
+                            "Added {} files with {errors} error{s}. {dir}",
+                            gonk_core::len(),
+                        );
+                    }
                 }
 
                 scan_timer = None;
