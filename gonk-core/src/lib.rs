@@ -684,7 +684,7 @@ impl From<&'_ Path> for RawSong {
             &MetadataOptions::default(),
         ) {
             Ok(probe) => probe,
-            Err(_) => panic!("{:?}", path),
+            Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
         };
 
         let mut title = String::from("Unknown Title");
