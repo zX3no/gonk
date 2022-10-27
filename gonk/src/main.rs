@@ -104,7 +104,7 @@ fn main() {
             "reset" => {
                 return match gonk_core::reset() {
                     Ok(_) => println!("Files reset!"),
-                    Err(e) => println!("Failed to reset database! {}", e),
+                    Err(e) => println!("Failed to reset database! {e}"),
                 };
             }
             "help" | "--help" => {

@@ -33,6 +33,7 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
 pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
 pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
+mod flac_decoder;
 mod index;
 mod playlist;
 mod query;
@@ -47,7 +48,7 @@ pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
 pub fn init() {
-    match fs::read(&settings_path()) {
+    match fs::read(settings_path()) {
         Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
             Some(settings) => unsafe { SETTINGS = settings },
             None => save_settings(),
@@ -61,7 +62,7 @@ pub fn init() {
         .read(true)
         .write(true)
         .create(true)
-        .open(&database_path())
+        .open(database_path())
         .unwrap();
 
     let mmap = unsafe { Mmap::map(&db).unwrap() };
@@ -365,7 +366,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             .write(true)
             .read(true)
             .truncate(true)
-            .open(&database_path())
+            .open(database_path())
         {
             Ok(file) => {
                 let mut writer = BufWriter::new(&file);
@@ -395,10 +396,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
             }
             Err(_) => {
                 //Re-open the database as read only.
-                let db = OpenOptions::new()
-                    .read(true)
-                    .open(&database_path())
-                    .unwrap();
+                let db = OpenOptions::new().read(true).open(database_path()).unwrap();
                 unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
 
                 log!("Failed to scan folder, database is already open.");
@@ -543,7 +541,7 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         if path.len() > TEXT_LEN {
-            panic!("PATH IS TOO LONG! {}", path)
+            panic!("PATH IS TOO LONG! {path}");
         }
 
         let mut artist = artist.to_string();
@@ -674,89 +672,209 @@ impl From<&Song> for RawSong {
 
 impl From<&'_ Path> for RawSong {
     fn from(path: &'_ Path) -> Self {
-        let file = Box::new(File::open(path).expect("Could not open file."));
-        let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+        let ex = path.extension().unwrap();
+        if ex == "flac" {
+            let metadata = crate::flac_decoder::read_metadata(path).unwrap();
+            let number = metadata
+                .get("TRACKNUMBER")
+                .unwrap_or(&String::from("1"))
+                .parse()
+                .unwrap_or(1);
 
-        let mut probe = match get_probe().format(
-            &Hint::new(),
-            mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
-        ) {
-            Ok(probe) => probe,
-            Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
-        };
+            let disc = metadata
+                .get("DISCNUMBER")
+                .unwrap_or(&String::from("1"))
+                .parse()
+                .unwrap_or(1);
+            let gain = 0.0;
 
-        let mut title = String::from("Unknown Title");
-        let mut album = String::from("Unknown Album");
-        let mut artist = String::from("Unknown Artist");
-        let mut number = 1;
-        let mut disc = 1;
-        let mut gain = 0.0;
+            RawSong::new(
+                #[allow(clippy::or_fun_call)]
+                metadata.get("ALBUMARTIST").unwrap_or(
+                    metadata
+                        .get("ARTIST")
+                        .unwrap_or(&String::from("Unknown Artist")),
+                ),
+                metadata
+                    .get("ALBUM")
+                    .unwrap_or(&String::from("Unknown Album")),
+                metadata
+                    .get("TITLE")
+                    .unwrap_or(&String::from("Unknown Title")),
+                &path.to_string_lossy(),
+                number,
+                disc,
+                gain,
+            )
+        } else {
+            let file = Box::new(File::open(path).expect("Could not open file."));
+            let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
 
-        let mut update_metadata = |metadata: &MetadataRevision| {
-            for tag in metadata.tags() {
-                if let Some(std_key) = tag.std_key {
-                    match std_key {
-                        StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
-                        StandardTagKey::Artist if artist == "Unknown Artist" => {
-                            artist = tag.value.to_string()
-                        }
-                        StandardTagKey::Album => album = tag.value.to_string(),
-                        StandardTagKey::TrackTitle => title = tag.value.to_string(),
-                        StandardTagKey::TrackNumber => {
-                            let num = tag.value.to_string();
-                            if let Some((num, _)) = num.split_once('/') {
-                                number = num.parse().unwrap_or(1);
-                            } else {
-                                number = num.parse().unwrap_or(1);
+            let mut probe = match get_probe().format(
+                &Hint::new(),
+                mss,
+                &FormatOptions::default(),
+                &MetadataOptions::default(),
+            ) {
+                Ok(probe) => probe,
+                Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
+            };
+
+            let mut title = String::from("Unknown Title");
+            let mut album = String::from("Unknown Album");
+            let mut artist = String::from("Unknown Artist");
+            let mut number = 1;
+            let mut disc = 1;
+            let mut gain = 0.0;
+
+            let mut update_metadata = |metadata: &MetadataRevision| {
+                for tag in metadata.tags() {
+                    if let Some(std_key) = tag.std_key {
+                        match std_key {
+                            StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
+                            StandardTagKey::Artist if artist == "Unknown Artist" => {
+                                artist = tag.value.to_string()
                             }
-                        }
-                        StandardTagKey::DiscNumber => {
-                            let num = tag.value.to_string();
-                            if let Some((num, _)) = num.split_once('/') {
-                                disc = num.parse().unwrap_or(1);
-                            } else {
-                                disc = num.parse().unwrap_or(1);
+                            StandardTagKey::Album => album = tag.value.to_string(),
+                            StandardTagKey::TrackTitle => title = tag.value.to_string(),
+                            StandardTagKey::TrackNumber => {
+                                let num = tag.value.to_string();
+                                if let Some((num, _)) = num.split_once('/') {
+                                    number = num.parse().unwrap_or(1);
+                                } else {
+                                    number = num.parse().unwrap_or(1);
+                                }
                             }
-                        }
-                        StandardTagKey::ReplayGainTrackGain => {
-                            let db = tag
-                                .value
-                                .to_string()
-                                .split(' ')
-                                .next()
-                                .unwrap()
-                                .parse()
-                                .unwrap_or(0.0);
+                            StandardTagKey::DiscNumber => {
+                                let num = tag.value.to_string();
+                                if let Some((num, _)) = num.split_once('/') {
+                                    disc = num.parse().unwrap_or(1);
+                                } else {
+                                    disc = num.parse().unwrap_or(1);
+                                }
+                            }
+                            StandardTagKey::ReplayGainTrackGain => {
+                                let db = tag
+                                    .value
+                                    .to_string()
+                                    .split(' ')
+                                    .next()
+                                    .unwrap()
+                                    .parse()
+                                    .unwrap_or(0.0);
 
-                            gain = 10.0f32.powf(db / 20.0);
+                                gain = 10.0f32.powf(db / 20.0);
+                            }
+                            _ => (),
                         }
-                        _ => (),
                     }
                 }
+            };
+
+            if let Some(metadata) = probe.format.metadata().skip_to_latest() {
+                update_metadata(metadata);
+            } else if let Some(mut metadata) = probe.metadata.get() {
+                let metadata = metadata.skip_to_latest().unwrap();
+                update_metadata(metadata);
+            } else {
+                //Probably a WAV file that doesn't have metadata.
             }
-        };
 
-        if let Some(metadata) = probe.format.metadata().skip_to_latest() {
-            update_metadata(metadata);
-        } else if let Some(mut metadata) = probe.metadata.get() {
-            let metadata = metadata.skip_to_latest().unwrap();
-            update_metadata(metadata);
-        } else {
-            //Probably a WAV file that doesn't have metadata.
+            RawSong::new(
+                &artist,
+                &album,
+                &title,
+                &path.to_string_lossy(),
+                number,
+                disc,
+                gain,
+            )
         }
-
-        RawSong::new(
-            &artist,
-            &album,
-            &title,
-            &path.to_string_lossy(),
-            number,
-            disc,
-            gain,
-        )
     }
+    // fn from(path: &'_ Path) -> Self {
+    //     let file = Box::new(File::open(path).expect("Could not open file."));
+    //     let mss = MediaSourceStream::new(file, MediaSourceStreamOptions::default());
+
+    //     let mut probe = match get_probe().format(
+    //         &Hint::new(),
+    //         mss,
+    //         &FormatOptions::default(),
+    //         &MetadataOptions::default(),
+    //     ) {
+    //         Ok(probe) => probe,
+    //         Err(err) => panic!("Probe error: {err} @ path: {}", path.to_string_lossy()),
+    //     };
+
+    //     let mut title = String::from("Unknown Title");
+    //     let mut album = String::from("Unknown Album");
+    //     let mut artist = String::from("Unknown Artist");
+    //     let mut number = 1;
+    //     let mut disc = 1;
+    //     let mut gain = 0.0;
+
+    //     let mut update_metadata = |metadata: &MetadataRevision| {
+    //         for tag in metadata.tags() {
+    //             if let Some(std_key) = tag.std_key {
+    //                 match std_key {
+    //                     StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
+    //                     StandardTagKey::Artist if artist == "Unknown Artist" => {
+    //                         artist = tag.value.to_string()
+    //                     }
+    //                     StandardTagKey::Album => album = tag.value.to_string(),
+    //                     StandardTagKey::TrackTitle => title = tag.value.to_string(),
+    //                     StandardTagKey::TrackNumber => {
+    //                         let num = tag.value.to_string();
+    //                         if let Some((num, _)) = num.split_once('/') {
+    //                             number = num.parse().unwrap_or(1);
+    //                         } else {
+    //                             number = num.parse().unwrap_or(1);
+    //                         }
+    //                     }
+    //                     StandardTagKey::DiscNumber => {
+    //                         let num = tag.value.to_string();
+    //                         if let Some((num, _)) = num.split_once('/') {
+    //                             disc = num.parse().unwrap_or(1);
+    //                         } else {
+    //                             disc = num.parse().unwrap_or(1);
+    //                         }
+    //                     }
+    //                     StandardTagKey::ReplayGainTrackGain => {
+    //                         let db = tag
+    //                             .value
+    //                             .to_string()
+    //                             .split(' ')
+    //                             .next()
+    //                             .unwrap()
+    //                             .parse()
+    //                             .unwrap_or(0.0);
+
+    //                         gain = 10.0f32.powf(db / 20.0);
+    //                     }
+    //                     _ => (),
+    //                 }
+    //             }
+    //         }
+    //     };
+
+    //     if let Some(metadata) = probe.format.metadata().skip_to_latest() {
+    //         update_metadata(metadata);
+    //     } else if let Some(mut metadata) = probe.metadata.get() {
+    //         let metadata = metadata.skip_to_latest().unwrap();
+    //         update_metadata(metadata);
+    //     } else {
+    //         //Probably a WAV file that doesn't have metadata.
+    //     }
+
+    //     RawSong::new(
+    //         &artist,
+    //         &album,
+    //         &title,
+    //         &path.to_string_lossy(),
+    //         number,
+    //         disc,
+    //         gain,
+    //     )
+    // }
 }
 
 pub fn bench<F>(func: F)

@@ -272,7 +272,7 @@ impl Wasapi {
         }
         let format = WAVEFORMATEXTENSIBLE {
             Format: *format,
-            Samples: format.wBitsPerSample as u16,
+            Samples: format.wBitsPerSample,
             SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
             dwChannelMask: mask,
         };
@@ -476,7 +476,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
 
         //HACK: Don't overwork the thread.
         //Updating the elapsed time is not that important.
-        //Filling the buffer hear is probably not good.
+        //Filling the buffer here is probably not good.
         thread::sleep(Duration::from_millis(2));
 
         //Update the elapsed time and fill the output buffer.

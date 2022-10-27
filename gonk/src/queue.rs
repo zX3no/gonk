@@ -168,11 +168,11 @@ fn draw_title(player: &mut Player, f: &mut Frame, area: Rect) {
 
         vec![
             Spans::from(vec![
-                Span::raw(format!("─│ {}", pad_front)),
+                Span::raw(format!("─│ {pad_front}")),
                 Span::styled(artist, Style::default().fg(ARTIST)),
                 Span::raw(" ─ "),
                 Span::styled(album, Style::default().fg(ALBUM)),
-                Span::raw(format!("{} │─", pad_back)),
+                Span::raw(format!("{pad_back} │─")),
             ]),
             Spans::from(Span::styled(title, Style::default().fg(TITLE))),
         ]
@@ -349,7 +349,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
                     .borders(Borders::ALL),
             )
             .gauge_style(Style::default().fg(SEEKER))
-            .ratio(ratio as f64)
+            .ratio(ratio)
             .label(seeker),
         area,
     );
