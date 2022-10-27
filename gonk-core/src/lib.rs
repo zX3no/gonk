@@ -680,13 +680,18 @@ impl From<&'_ Path> for RawSong {
                 .unwrap_or(&String::from("1"))
                 .parse()
                 .unwrap_or(1);
-
             let disc = metadata
                 .get("DISCNUMBER")
                 .unwrap_or(&String::from("1"))
                 .parse()
                 .unwrap_or(1);
-            let gain = 0.0;
+            let mut gain = 0.0;
+            if let Some(g) = metadata.get("replaygain_track_gain") {
+                let g = g.replace(" dB", "");
+                if let Ok(g) = g.parse::<f32>() {
+                    gain = g;
+                }
+            }
 
             RawSong::new(
                 #[allow(clippy::or_fun_call)]

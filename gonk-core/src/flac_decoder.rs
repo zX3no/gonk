@@ -176,6 +176,7 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                 }
 
                 //128 md5 signature
+                //TODO: is seeking faster than just reading?
                 let mut md5 = [0; 16];
                 reader.read_exact(&mut md5)?;
                 stream_info.md5 = md5;
