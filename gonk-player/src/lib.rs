@@ -36,7 +36,7 @@ mod pipewire;
 #[cfg(unix)]
 pub use pipewire::*;
 
-const VOLUME_REDUCTION: f32 = 300.0;
+const VOLUME_REDUCTION: f32 = 150.0;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum State {
