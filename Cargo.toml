@@ -3,3 +3,4 @@ members = ["gonk", "gonk-core", "gonk-player"]
 
 [profile.release]
 strip = true
+debug = true

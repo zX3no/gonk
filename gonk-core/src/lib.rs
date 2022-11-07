@@ -1,4 +1,5 @@
 #![feature(test)]
+#![allow(clippy::missing_safety_doc)]
 use flac_decoder::read_metadata;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -334,7 +335,7 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
             SETTINGS
                 .queue
                 .iter()
-                .map(|song| Song::from(&song.into_bytes(), 0))
+                .map(|song| Song::from_unchecked(&song.into_bytes(), 0))
                 .collect(),
             index,
             SETTINGS.elapsed,
@@ -496,7 +497,7 @@ impl Ord for Song {
 
 impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
-        assert_eq!(bytes.len(), SONG_LEN);
+        debug_assert_eq!(bytes.len(), SONG_LEN);
         unsafe {
             let text = &bytes[..TEXT_LEN];
             let artist_len =
@@ -547,6 +548,60 @@ impl Song {
             let disc = bytes[DISC_POS];
             let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap());
 
+            Self {
+                artist: artist.to_string(),
+                album: album.to_string(),
+                title: title.to_string(),
+                path: path.to_string(),
+                number,
+                disc,
+                gain,
+                id,
+            }
+        }
+    }
+    pub unsafe fn from_unchecked(bytes: &[u8], id: usize) -> Self {
+        debug_assert_eq!(bytes.len(), SONG_LEN);
+        unsafe {
+            let text = &bytes[..TEXT_LEN];
+            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
+            let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
+
+            let album_len = u16::from_le_bytes(
+                text[2 + artist_len..2 + artist_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+
+            let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+            let album = from_utf8_unchecked(&text[album]);
+
+            let title_len = u16::from_le_bytes(
+                text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+
+            let title = from_utf8_unchecked(
+                &text[2 + artist_len + 2 + album_len + 2
+                    ..artist_len + 2 + album_len + 2 + title_len + 2],
+            );
+
+            let path_len = u16::from_le_bytes(
+                text[2 + artist_len + 2 + album_len + 2 + title_len
+                    ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+
+            let path = from_utf8_unchecked(
+                &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
+                    ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
+            );
+
+            let number = bytes[NUMBER_POS];
+            let disc = bytes[DISC_POS];
+            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked());
             Self {
                 artist: artist.to_string(),
                 album: album.to_string(),
