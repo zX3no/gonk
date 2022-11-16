@@ -5,18 +5,22 @@ use std::str::from_utf8_unchecked;
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let end = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize + 2;
-        from_utf8_unchecked(&text[2..end])
+        let array: &[u8; 2] = &*(text[0..2].as_ptr() as *const [_; 2]);
+        let end = u16::from_le_bytes(*array) + 2;
+        from_utf8_unchecked(&text[2..end as usize])
     }
 }
 
 pub fn album(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
-        let album_len =
-            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
-                as usize;
+        let array: &[u8; 2] = &*(text[0..2].as_ptr() as *const [_; 2]);
+        let artist_len = u16::from_le_bytes(*array) as usize;
+
+        let array: &[u8; 2] =
+            &*(text[2 + artist_len..2 + artist_len + 2].as_ptr() as *const [_; 2]);
+        let album_len = u16::from_le_bytes(*array) as usize;
+
         let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
         from_utf8_unchecked(&text[album])
     }
@@ -172,6 +176,7 @@ pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
 }
 
 pub fn albums_by_artist(ar: &str) -> Vec<String> {
+    bench::profile!();
     if let Some(mmap) = mmap() {
         let mut albums = Vec::new();
         let mut i = 0;
@@ -182,6 +187,28 @@ pub fn albums_by_artist(ar: &str) -> Vec<String> {
             }
             i += SONG_LEN;
         }
+        albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
+        albums.dedup();
+        albums
+    } else {
+        Vec::new()
+    }
+}
+
+pub unsafe fn unsafe_albums_by_artist(ar: &str) -> Vec<String> {
+    bench::profile!();
+    if let Some(mmap) = mmap() {
+        let mut albums: Vec<String> = (0..len())
+            .filter_map(|i| {
+                let text = &mmap[i * SONG_LEN..i * SONG_LEN + TEXT_LEN];
+                let artist = artist(text);
+                if artist == ar {
+                    Some(album(text).to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
         albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
         albums.dedup();
         albums

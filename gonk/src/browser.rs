@@ -115,7 +115,8 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        browser.albums = Index::new(gonk_core::albums_by_artist(artist), Some(0));
+        let albums = unsafe { gonk_core::unsafe_albums_by_artist(artist) };
+        browser.albums = Index::new(albums, Some(0));
         update_songs(browser);
     }
 }

@@ -379,6 +379,9 @@ pub fn scan(path: String) -> JoinHandle<()> {
     }
 
     thread::spawn(|| {
+        //TODO: Write to a new file then delete the old database.
+        //This way scanning can fail and all the files aren't lost.
+
         //Open and truncate the database.
         match OpenOptions::new()
             .write(true)
