@@ -115,11 +115,13 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                 stream_info.block_len_max = u16_be(&mut reader);
 
                 if stream_info.block_len_min < 16 || stream_info.block_len_max < 16 {
-                    panic!("flac: minimum block length is 16 samples");
+                    return Err("flac: minimum block length is 16 samples")?;
                 }
 
                 if stream_info.block_len_max < stream_info.block_len_min {
-                    panic!("flac: maximum block length is less than the minimum block length");
+                    return Err(
+                        "flac: maximum block length is less than the minimum block length",
+                    )?;
                 }
 
                 stream_info.frame_byte_len_min = u24_be(&mut reader);
@@ -130,7 +132,9 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                     && stream_info.frame_byte_len_max > 0
                     && stream_info.frame_byte_len_max < stream_info.frame_byte_len_min
                 {
-                    panic!("flac: maximum frame length is less than the minimum frame length");
+                    return Err(
+                        "flac: maximum frame length is less than the minimum frame length",
+                    )?;
                 }
 
                 let mut bits64 = [0; 8];
@@ -146,7 +150,7 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                 stream_info.channels = (bits64[2] & 0b0001111 >> 1) + 1;
 
                 if stream_info.channels < 1 || stream_info.channels > 8 {
-                    panic!("flac: stream channels are out of bounds");
+                    return Err("flac: stream channels are out of bounds")?;
                 }
 
                 //single bit
@@ -157,7 +161,7 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                     concat(last_bit as u16, four_bits as u16, 4) as u8 + 1;
 
                 if stream_info.bits_per_sample < 4 || stream_info.bits_per_sample > 32 {
-                    panic!("flac: stream bits per sample are out of bounds");
+                    return Err("flac: stream bits per sample are out of bounds")?;
                 }
 
                 //Total samples in stream 36 bits

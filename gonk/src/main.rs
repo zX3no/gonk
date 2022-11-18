@@ -546,7 +546,4 @@ fn main() {
         DisableMouseCapture
     )
     .unwrap();
-
-    let log = bench::log();
-    eprintln!("{log}");
 }

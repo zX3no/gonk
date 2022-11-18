@@ -19,7 +19,5 @@ symphonia = { version = "0.5.1", default-features = false, features = [
     "vorbis",
 ] }
 
-bench = { version = "0.1.0", path = "../../profiler/bench" }
-
 [dev-dependencies]
 tempfile = "*"

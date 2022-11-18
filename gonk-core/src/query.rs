@@ -176,7 +176,6 @@ pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
 }
 
 pub fn albums_by_artist(ar: &str) -> Vec<String> {
-    bench::profile!();
     if let Some(mmap) = mmap() {
         let mut albums = Vec::new();
         let mut i = 0;
@@ -196,7 +195,7 @@ pub fn albums_by_artist(ar: &str) -> Vec<String> {
 }
 
 pub unsafe fn unsafe_albums_by_artist(ar: &str) -> Vec<String> {
-    bench::profile!();
+    // bench::profile!();
     if let Some(mmap) = mmap() {
         let mut albums: Vec<String> = (0..len())
             .filter_map(|i| {
