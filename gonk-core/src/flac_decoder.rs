@@ -3,7 +3,6 @@ use std::{
     error::Error,
     fs::File,
     io::{BufReader, Read},
-    mem,
     path::Path,
     str::from_utf8_unchecked,
 };
@@ -15,12 +14,9 @@ pub fn u16_be(reader: &mut BufReader<File>) -> u16 {
 }
 
 pub fn u24_be(reader: &mut BufReader<File>) -> u32 {
-    let mut triple = [0; 3];
-    reader.read_exact(&mut triple).unwrap();
-
-    let mut buffer = [0u8; mem::size_of::<u32>()];
-    buffer[0..3].clone_from_slice(&triple);
-    u32::from_be_bytes(buffer) >> 8
+    let mut triple = [0; 4];
+    reader.read_exact(&mut triple[0..3]).unwrap();
+    u32::from_be_bytes(triple) >> 8
 }
 
 pub fn u32_le(reader: &mut BufReader<File>) -> u32 {
@@ -141,9 +137,8 @@ pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, 
                 reader.read_exact(&mut bits64)?;
 
                 //Sample rate 20 bits index [0, 1] 16 and some of [2] 4
-                let mut buf = [0; mem::size_of::<u32>()];
-                buf[0..3].clone_from_slice(&bits64[0..3]);
-                stream_info.sample_rate = u32::from_be_bytes(buf) >> 12;
+                stream_info.sample_rate =
+                    u32::from_be_bytes([bits64[0], bits64[1], bits64[2], 0]) >> 12;
 
                 //Number of channels 3 bits
                 //Index is the the last 3 bits of [2]
