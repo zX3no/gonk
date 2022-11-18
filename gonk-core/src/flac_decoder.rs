@@ -71,6 +71,16 @@ pub struct SeekPoint {
     pub n_samples: u16,
 }
 
+#[derive(Debug)]
+pub struct Metadata {
+    pub title: String,
+    pub album: String,
+    pub artist: String,
+    pub number: u8,
+    pub disc: u8,
+    pub gain: f32,
+}
+
 pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, Box<dyn Error>> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);

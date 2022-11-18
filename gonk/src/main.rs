@@ -343,7 +343,7 @@ fn main() {
                                 let folder = gonk_core::music_folder().to_string();
                                 if folder.is_empty() {
                                     gonk_core::log!(
-                                        "Nothing to scan! Add a folder with 'gonk add path/'"
+                                        "Nothing to scan! Add a folder with 'gonk add /path/'"
                                     );
                                 } else {
                                     scan_handle = Some(gonk_core::scan(folder));
@@ -546,4 +546,6 @@ fn main() {
         DisableMouseCapture
     )
     .unwrap();
+
+    gonk_core::profiler::log();
 }

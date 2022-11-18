@@ -41,6 +41,7 @@ mod playlist;
 mod query;
 
 pub mod log;
+pub mod profiler;
 
 pub use index::*;
 pub use playlist::*;
@@ -50,6 +51,8 @@ pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
 pub fn init() {
+    profiler::init();
+
     match fs::read(settings_path()) {
         Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
             Some(settings) => unsafe { SETTINGS = settings },
