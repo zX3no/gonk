@@ -18,7 +18,7 @@ impl RawPlaylist {
     pub fn new(name: &str, data: Vec<RawSong>) -> Self {
         let mut path = database_path();
         path.pop();
-        path.push(format!("{}.playlist", name));
+        path.push(format!("{name}.playlist"));
 
         Self {
             path,
@@ -63,7 +63,7 @@ impl From<&[u8]> for RawPlaylist {
 
             let mut path = database_path();
             path.pop();
-            path.push(format!("{}.playlist", name));
+            path.push(format!("{name}.playlist"));
 
             Self {
                 name: name.to_string(),

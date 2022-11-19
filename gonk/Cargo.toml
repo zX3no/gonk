@@ -13,7 +13,7 @@ default-run = "gonk"
 [dependencies]
 tui = "0.19.0"
 crossterm = "0.25.0"
-unicode-width = "0.1.9"
-rayon = "1.5.3"
-gonk-player = {version = "0.2.0", path = "../gonk-player"}
-gonk-core = {version = "0.2.0", path = "../gonk-core"}
+unicode-width = "0.1.10"
+rayon = "1.6.0"
+gonk-player = { version = "0.2.0", path = "../gonk-player" }
+gonk-core = { version = "0.2.0", path = "../gonk-core" }

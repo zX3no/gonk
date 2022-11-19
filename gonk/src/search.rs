@@ -324,7 +324,7 @@ fn draw_song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
     let song_table = Table::new(&rows)
         .header(
             Row::new(vec![Span::styled(
-                format!("{} ", name),
+                format!("{name} "),
                 Style::default().add_modifier(Modifier::ITALIC),
             )])
             .bottom_margin(1),
@@ -349,7 +349,7 @@ fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
     let table = Table::new(&cells)
         .header(
             Row::new(vec![Cell::from(Span::styled(
-                format!("{} ", album),
+                format!("{album} "),
                 Style::default().add_modifier(Modifier::ITALIC),
             ))])
             .bottom_margin(1),
@@ -375,7 +375,7 @@ fn draw_artist(f: &mut Frame, artist: &str, area: Rect) {
     let table = Table::new(&cells)
         .header(
             Row::new(vec![Cell::from(Span::styled(
-                format!("{} ", artist),
+                format!("{artist} "),
                 Style::default().add_modifier(Modifier::ITALIC),
             ))])
             .bottom_margin(1),

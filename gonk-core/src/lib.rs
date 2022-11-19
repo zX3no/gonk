@@ -1,4 +1,6 @@
 #![feature(test)]
+#![allow(clippy::missing_safety_doc)]
+use flac_decoder::read_metadata;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -18,7 +20,7 @@ use symphonia::{
     core::{
         formats::FormatOptions,
         io::{MediaSourceStream, MediaSourceStreamOptions},
-        meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+        meta::{Limit, MetadataOptions, MetadataRevision, StandardTagKey},
         probe::Hint,
     },
     default::get_probe,
@@ -33,11 +35,13 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
 pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
 pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
 
+mod flac_decoder;
 mod index;
 mod playlist;
 mod query;
 
 pub mod log;
+pub mod profiler;
 
 pub use index::*;
 pub use playlist::*;
@@ -47,6 +51,8 @@ pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
 pub fn init() {
+    profiler::init();
+
     match fs::read(settings_path()) {
         Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
             Some(settings) => unsafe { SETTINGS = settings },
@@ -332,7 +338,7 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
             SETTINGS
                 .queue
                 .iter()
-                .map(|song| Song::from(&song.into_bytes(), 0))
+                .map(|song| Song::from_unchecked(&song.into_bytes(), 0))
                 .collect(),
             index,
             SETTINGS.elapsed,
@@ -376,6 +382,10 @@ pub fn scan(path: String) -> JoinHandle<()> {
     }
 
     thread::spawn(|| {
+        profile!();
+        //TODO: Write to a new file then delete the old database.
+        //This way scanning can fail and all the files aren't lost.
+
         //Open and truncate the database.
         match OpenOptions::new()
             .write(true)
@@ -494,7 +504,7 @@ impl Ord for Song {
 
 impl Song {
     pub fn from(bytes: &[u8], id: usize) -> Self {
-        assert_eq!(bytes.len(), SONG_LEN);
+        debug_assert_eq!(bytes.len(), SONG_LEN);
         unsafe {
             let text = &bytes[..TEXT_LEN];
             let artist_len =
@@ -545,6 +555,60 @@ impl Song {
             let disc = bytes[DISC_POS];
             let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap());
 
+            Self {
+                artist: artist.to_string(),
+                album: album.to_string(),
+                title: title.to_string(),
+                path: path.to_string(),
+                number,
+                disc,
+                gain,
+                id,
+            }
+        }
+    }
+    pub unsafe fn from_unchecked(bytes: &[u8], id: usize) -> Self {
+        debug_assert_eq!(bytes.len(), SONG_LEN);
+        unsafe {
+            let text = &bytes[..TEXT_LEN];
+            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
+            let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
+
+            let album_len = u16::from_le_bytes(
+                text[2 + artist_len..2 + artist_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+
+            let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+            let album = from_utf8_unchecked(&text[album]);
+
+            let title_len = u16::from_le_bytes(
+                text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+
+            let title = from_utf8_unchecked(
+                &text[2 + artist_len + 2 + album_len + 2
+                    ..artist_len + 2 + album_len + 2 + title_len + 2],
+            );
+
+            let path_len = u16::from_le_bytes(
+                text[2 + artist_len + 2 + album_len + 2 + title_len
+                    ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
+                    .try_into()
+                    .unwrap_unchecked(),
+            ) as usize;
+
+            let path = from_utf8_unchecked(
+                &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
+                    ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
+            );
+
+            let number = bytes[NUMBER_POS];
+            let disc = bytes[DISC_POS];
+            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked());
             Self {
                 artist: artist.to_string(),
                 album: album.to_string(),
@@ -656,92 +720,142 @@ impl RawSong {
         path(&self.text)
     }
     pub fn from_path(path: &'_ Path) -> Result<RawSong, String> {
-        let file = match File::open(path) {
-            Ok(file) => file,
-            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
-        };
-
-        let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
-
-        let mut probe = match get_probe().format(
-            &Hint::new(),
-            mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
-        ) {
-            Ok(probe) => probe,
-            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
-        };
-
-        let mut title = String::from("Unknown Title");
-        let mut album = String::from("Unknown Album");
-        let mut artist = String::from("Unknown Artist");
-        let mut number = 1;
-        let mut disc = 1;
-        let mut gain = 0.0;
-
-        let mut update_metadata = |metadata: &MetadataRevision| {
-            for tag in metadata.tags() {
-                if let Some(std_key) = tag.std_key {
-                    match std_key {
-                        StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
-                        StandardTagKey::Artist if artist == "Unknown Artist" => {
-                            artist = tag.value.to_string()
-                        }
-                        StandardTagKey::Album => album = tag.value.to_string(),
-                        StandardTagKey::TrackTitle => title = tag.value.to_string(),
-                        StandardTagKey::TrackNumber => {
-                            let num = tag.value.to_string();
-                            if let Some((num, _)) = num.split_once('/') {
-                                number = num.parse().unwrap_or(1);
-                            } else {
-                                number = num.parse().unwrap_or(1);
-                            }
-                        }
-                        StandardTagKey::DiscNumber => {
-                            let num = tag.value.to_string();
-                            if let Some((num, _)) = num.split_once('/') {
-                                disc = num.parse().unwrap_or(1);
-                            } else {
-                                disc = num.parse().unwrap_or(1);
-                            }
-                        }
-                        StandardTagKey::ReplayGainTrackGain => {
-                            let db = tag
-                                .value
-                                .to_string()
-                                .split(' ')
-                                .next()
-                                .unwrap()
-                                .parse()
-                                .unwrap_or(0.0);
-
+        let ex = path.extension().unwrap();
+        if ex == "flac" {
+            profile!("custom::decode");
+            match read_metadata(path) {
+                Ok(metadata) => {
+                    let number = metadata
+                        .get("TRACKNUMBER")
+                        .unwrap_or(&String::from("1"))
+                        .parse()
+                        .unwrap_or(1);
+                    let disc = metadata
+                        .get("DISCNUMBER")
+                        .unwrap_or(&String::from("1"))
+                        .parse()
+                        .unwrap_or(1);
+                    let mut gain = 0.0;
+                    if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
+                        let g = db.replace(" dB", "");
+                        if let Ok(db) = g.parse::<f32>() {
                             gain = 10.0f32.powf(db / 20.0);
                         }
-                        _ => (),
+                    }
+
+                    Ok(RawSong::new(
+                        #[allow(clippy::or_fun_call)]
+                        metadata.get("ALBUMARTIST").unwrap_or(
+                            metadata
+                                .get("ARTIST")
+                                .unwrap_or(&String::from("Unknown Artist")),
+                        ),
+                        metadata
+                            .get("ALBUM")
+                            .unwrap_or(&String::from("Unknown Album")),
+                        metadata
+                            .get("TITLE")
+                            .unwrap_or(&String::from("Unknown Title")),
+                        &path.to_string_lossy(),
+                        number,
+                        disc,
+                        gain,
+                    ))
+                }
+                Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+            }
+        } else {
+            profile!("symphonia::decode");
+            let file = match File::open(path) {
+                Ok(file) => file,
+                Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+            };
+
+            let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
+
+            let mut probe = match get_probe().format(
+                &Hint::new(),
+                mss,
+                &FormatOptions::default(),
+                &MetadataOptions {
+                    limit_visual_bytes: Limit::Maximum(1),
+                    ..Default::default()
+                },
+            ) {
+                Ok(probe) => probe,
+                Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+            };
+
+            let mut title = String::from("Unknown Title");
+            let mut album = String::from("Unknown Album");
+            let mut artist = String::from("Unknown Artist");
+            let mut number = 1;
+            let mut disc = 1;
+            let mut gain = 0.0;
+
+            let mut update_metadata = |metadata: &MetadataRevision| {
+                for tag in metadata.tags() {
+                    if let Some(std_key) = tag.std_key {
+                        match std_key {
+                            StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
+                            StandardTagKey::Artist if artist == "Unknown Artist" => {
+                                artist = tag.value.to_string()
+                            }
+                            StandardTagKey::Album => album = tag.value.to_string(),
+                            StandardTagKey::TrackTitle => title = tag.value.to_string(),
+                            StandardTagKey::TrackNumber => {
+                                let num = tag.value.to_string();
+                                if let Some((num, _)) = num.split_once('/') {
+                                    number = num.parse().unwrap_or(1);
+                                } else {
+                                    number = num.parse().unwrap_or(1);
+                                }
+                            }
+                            StandardTagKey::DiscNumber => {
+                                let num = tag.value.to_string();
+                                if let Some((num, _)) = num.split_once('/') {
+                                    disc = num.parse().unwrap_or(1);
+                                } else {
+                                    disc = num.parse().unwrap_or(1);
+                                }
+                            }
+                            StandardTagKey::ReplayGainTrackGain => {
+                                let db = tag
+                                    .value
+                                    .to_string()
+                                    .split(' ')
+                                    .next()
+                                    .unwrap()
+                                    .parse()
+                                    .unwrap_or(0.0);
+
+                                gain = 10.0f32.powf(db / 20.0);
+                            }
+                            _ => (),
+                        }
                     }
                 }
+            };
+
+            if let Some(metadata) = probe.format.metadata().skip_to_latest() {
+                update_metadata(metadata);
+            } else if let Some(mut metadata) = probe.metadata.get() {
+                let metadata = metadata.skip_to_latest().unwrap();
+                update_metadata(metadata);
+            } else {
+                //Probably a WAV file that doesn't have metadata.
             }
-        };
 
-        if let Some(metadata) = probe.format.metadata().skip_to_latest() {
-            update_metadata(metadata);
-        } else if let Some(mut metadata) = probe.metadata.get() {
-            let metadata = metadata.skip_to_latest().unwrap();
-            update_metadata(metadata);
-        } else {
-            //Probably a WAV file that doesn't have metadata.
+            Ok(RawSong::new(
+                &artist,
+                &album,
+                &title,
+                &path.to_string_lossy(),
+                number,
+                disc,
+                gain,
+            ))
         }
-
-        Ok(RawSong::new(
-            &artist,
-            &album,
-            &title,
-            &path.to_string_lossy(),
-            number,
-            disc,
-            gain,
-        ))
     }
 }
 

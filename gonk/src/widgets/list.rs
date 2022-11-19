@@ -218,11 +218,11 @@ impl<'a> StatefulWidget for List<'a> {
                         list_area.width as usize,
                         item_style,
                     );
-                    (elem_x, (list_area.width - (elem_x - x)) as u16)
+                    (elem_x, (list_area.width - (elem_x - x)))
                 } else {
                     (x, list_area.width)
                 };
-                buf.set_spans(elem_x, y + j as u16, line, max_element_width as u16);
+                buf.set_spans(elem_x, y + j as u16, line, max_element_width);
             }
 
             //sets the style of the selection

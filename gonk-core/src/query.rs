@@ -5,18 +5,22 @@ use std::str::from_utf8_unchecked;
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let end = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize + 2;
-        from_utf8_unchecked(&text[2..end])
+        let array: &[u8; 2] = &*(text[0..2].as_ptr() as *const [_; 2]);
+        let end = u16::from_le_bytes(*array) + 2;
+        from_utf8_unchecked(&text[2..end as usize])
     }
 }
 
 pub fn album(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
-        let album_len =
-            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
-                as usize;
+        let array: &[u8; 2] = &*(text[0..2].as_ptr() as *const [_; 2]);
+        let artist_len = u16::from_le_bytes(*array) as usize;
+
+        let array: &[u8; 2] =
+            &*(text[2 + artist_len..2 + artist_len + 2].as_ptr() as *const [_; 2]);
+        let album_len = u16::from_le_bytes(*array) as usize;
+
         let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
         from_utf8_unchecked(&text[album])
     }
@@ -89,6 +93,27 @@ pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
     }
 }
 
+pub unsafe fn artist_and_album_unchecked(text: &[u8]) -> (&str, &str) {
+    debug_assert_eq!(text.len(), TEXT_LEN);
+    unsafe {
+        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
+        let artist = 2..artist_len + 2;
+
+        let album_len = u16::from_le_bytes(
+            text[2 + artist_len..2 + artist_len + 2]
+                .try_into()
+                .unwrap_unchecked(),
+        ) as usize;
+
+        let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+
+        (
+            from_utf8_unchecked(&text[artist]),
+            from_utf8_unchecked(&text[album]),
+        )
+    }
+}
+
 pub fn get(index: usize) -> Option<Song> {
     if let Some(mmap) = mmap() {
         let start = SONG_LEN * index;
@@ -107,6 +132,25 @@ pub fn ids(ids: &[usize]) -> Vec<Song> {
             let bytes = &mmap[start..start + SONG_LEN];
             songs.push(Song::from(bytes, *id));
         }
+        songs
+    } else {
+        Vec::new()
+    }
+}
+
+pub unsafe fn songs_from_album_unchecked(ar: &str, al: &str) -> Vec<Song> {
+    if let Some(mmap) = mmap() {
+        let mut songs = Vec::new();
+        let mut i = 0;
+        while (i + TEXT_LEN) <= mmap.len() {
+            let text = &mmap[i..i + TEXT_LEN];
+            let (artist, album) = artist_and_album_unchecked(text);
+            if artist == ar && album == al {
+                songs.push(Song::from_unchecked(&mmap[i..i + SONG_LEN], i / SONG_LEN));
+            }
+            i += SONG_LEN;
+        }
+        songs.sort_unstable();
         songs
     } else {
         Vec::new()
@@ -142,6 +186,28 @@ pub fn albums_by_artist(ar: &str) -> Vec<String> {
             }
             i += SONG_LEN;
         }
+        albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
+        albums.dedup();
+        albums
+    } else {
+        Vec::new()
+    }
+}
+
+pub unsafe fn unsafe_albums_by_artist(ar: &str) -> Vec<String> {
+    // bench::profile!();
+    if let Some(mmap) = mmap() {
+        let mut albums: Vec<String> = (0..len())
+            .filter_map(|i| {
+                let text = &mmap[i * SONG_LEN..i * SONG_LEN + TEXT_LEN];
+                let artist = artist(text);
+                if artist == ar {
+                    Some(album(text).to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
         albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
         albums.dedup();
         albums

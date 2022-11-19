@@ -104,7 +104,7 @@ fn main() {
             "reset" => {
                 return match gonk_core::reset() {
                     Ok(_) => println!("Files reset!"),
-                    Err(e) => println!("Failed to reset database! {}", e),
+                    Err(e) => println!("Failed to reset database! {e}"),
                 };
             }
             "help" | "--help" => {
@@ -343,7 +343,7 @@ fn main() {
                                 let folder = gonk_core::music_folder().to_string();
                                 if folder.is_empty() {
                                     gonk_core::log!(
-                                        "Nothing to scan! Add a folder with 'gonk add path/'"
+                                        "Nothing to scan! Add a folder with 'gonk add /path/'"
                                     );
                                 } else {
                                     scan_handle = Some(gonk_core::scan(folder));
@@ -376,6 +376,7 @@ fn main() {
                             }
                         }
                         KeyCode::Tab => {
+                            terminal.clear().unwrap();
                             mode = match mode {
                                 Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
                                 Mode::Queue | Mode::Playlist => Mode::Browser,
@@ -526,7 +527,8 @@ fn main() {
                     },
                     _ => (),
                 },
-                _ => (),
+                Event::Resize(_, _) => (),
+                Event::Paste(_) => (),
             }
         }
     }
@@ -544,4 +546,6 @@ fn main() {
         DisableMouseCapture
     )
     .unwrap();
+
+    gonk_core::profiler::log();
 }

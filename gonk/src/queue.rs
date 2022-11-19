@@ -146,8 +146,13 @@ fn draw_title(player: &mut Player, f: &mut Frame, area: Rect) {
         let mut album = song.album.trim_end().to_string();
         let mut title = song.title.trim_end().to_string();
         let max_width = area.width.saturating_sub(30) as usize;
+        let separator_width = "-| - |-".width();
 
-        while artist.width() + album.width() + "-| - |-".width() > max_width {
+        if max_width == 0 || max_width < separator_width {
+            return;
+        }
+
+        while artist.width() + album.width() + separator_width > max_width {
             if artist.width() > album.width() {
                 artist.pop();
             } else {
@@ -168,11 +173,11 @@ fn draw_title(player: &mut Player, f: &mut Frame, area: Rect) {
 
         vec![
             Spans::from(vec![
-                Span::raw(format!("─│ {}", pad_front)),
+                Span::raw(format!("─│ {pad_front}")),
                 Span::styled(artist, Style::default().fg(ARTIST)),
                 Span::raw(" ─ "),
                 Span::styled(album, Style::default().fg(ALBUM)),
-                Span::raw(format!("{} │─", pad_back)),
+                Span::raw(format!("{pad_back} │─")),
             ]),
             Spans::from(Span::styled(title, Style::default().fg(TITLE))),
         ]
@@ -349,7 +354,7 @@ fn draw_seeker(player: &mut Player, f: &mut Frame, area: Rect) {
                     .borders(Borders::ALL),
             )
             .gauge_style(Style::default().fg(SEEKER))
-            .ratio(ratio as f64)
+            .ratio(ratio)
             .label(seeker),
         area,
     );
