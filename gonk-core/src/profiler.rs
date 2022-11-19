@@ -72,23 +72,41 @@ macro_rules! function {
     }};
 }
 
+#[inline(always)]
+pub fn profile(_name: &'static str) {
+    #[cfg(feature = "profile")]
+    let _drop = Dropper {
+        event: Event {
+            start: Some(std::time::Instant::now()),
+            end: None,
+        },
+        location: Location {
+            name: _name,
+            file: file!(),
+            line: line!(),
+        },
+    };
+}
+
 #[macro_export]
 macro_rules! profile {
     () => {
-        $crate::profile!($crate::function!());
+        $crate::profiler::profile($crate::function!());
+        // $crate::profile!($crate::function!());
     };
     ($name:expr) => {
-        let _drop = $crate::profiler::Dropper {
-            event: $crate::profiler::Event {
-                start: Some(std::time::Instant::now()),
-                end: None,
-            },
-            location: $crate::profiler::Location {
-                name: $name,
-                file: file!(),
-                line: line!(),
-            },
-        };
+        $crate::profiler::profile($name);
+        // let _drop = $crate::profiler::Dropper {
+        //     event: $crate::profiler::Event {
+        //         start: Some(std::time::Instant::now()),
+        //         end: None,
+        //     },
+        //     location: $crate::profiler::Location {
+        //         name: $name,
+        //         file: file!(),
+        //         line: line!(),
+        //     },
+        // };
     };
 }
 

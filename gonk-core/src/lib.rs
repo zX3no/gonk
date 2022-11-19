@@ -382,6 +382,7 @@ pub fn scan(path: String) -> JoinHandle<()> {
     }
 
     thread::spawn(|| {
+        profile!();
         //TODO: Write to a new file then delete the old database.
         //This way scanning can fail and all the files aren't lost.
 
@@ -721,6 +722,7 @@ impl RawSong {
     pub fn from_path(path: &'_ Path) -> Result<RawSong, String> {
         let ex = path.extension().unwrap();
         if ex == "flac" {
+            profile!("custom::decode");
             match read_metadata(path) {
                 Ok(metadata) => {
                     let number = metadata
@@ -763,6 +765,7 @@ impl RawSong {
                 Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
             }
         } else {
+            profile!("symphonia::decode");
             let file = match File::open(path) {
                 Ok(file) => file,
                 Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),

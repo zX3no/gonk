@@ -9,8 +9,19 @@ license = "CC0-1.0"
 
 [dependencies]
 crossbeam-channel = "0.5.6"
-gonk-core = {version = "0.2.0", path = "../gonk-core"}
-symphonia = { version = "0.5.1", default-features = false, features = ["flac", "mp3", "ogg", "vorbis"] }
+gonk-core = { version = "0.2.0", path = "../gonk-core" }
+symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
+    "flac",
+    "mp3",
+    "ogg",
+    "vorbis",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3.9", features = ["mmdeviceapi", "combaseapi", "devpkey", "audioclient", "synchapi"] }
+winapi = { version = "0.3.9", features = [
+    "mmdeviceapi",
+    "combaseapi",
+    "devpkey",
+    "audioclient",
+    "synchapi",
+] }
