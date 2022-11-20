@@ -188,13 +188,8 @@ impl Player {
             _ => (),
         }
     }
-    //Checks if the current song is finished. If yes, the next song is played.
-    pub fn update(&mut self) {
-        unsafe {
-            if STATE == State::Finished {
-                self.next();
-            }
-        }
+    pub fn is_finished(&self) -> bool {
+        unsafe { STATE == State::Finished }
     }
     pub fn seek_foward(&mut self) {
         let pos = (self.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX);

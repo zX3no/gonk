@@ -87,21 +87,21 @@ pub fn init() {
         );
         check(result).unwrap();
 
-        update_outputs(enumerator);
+        update_output_devices(enumerator);
 
         let ptr: usize = enumerator as usize;
         thread::spawn(move || {
-            //This is so stupid.
+            //HACK: Bypass Send requirement. This is stupid.
             let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
             loop {
-                update_outputs(enumerator);
+                update_output_devices(enumerator);
                 thread::sleep(Duration::from_millis(200));
             }
         });
     });
 }
 
-pub unsafe fn update_outputs(enumerator: *mut IMMDeviceEnumerator) {
+pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     let mut collection = null_mut();
     let result = (*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection);
     check(result).unwrap();
