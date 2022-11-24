@@ -1,5 +1,6 @@
 #![feature(test)]
 #![feature(const_slice_index)]
+#![feature(const_float_bits_conv)]
 #![allow(clippy::missing_safety_doc)]
 
 use flac_decoder::read_metadata;
@@ -52,6 +53,7 @@ pub use query::*;
 pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
+//TODO: Load the databse into memory if it is under a certain size?
 pub fn init() {
     profiler::init();
 
@@ -340,7 +342,7 @@ pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
             SETTINGS
                 .queue
                 .iter()
-                .map(|song| Song::from_unchecked(&song.into_bytes(), 0))
+                .map(|song| Song::from(&song.into_bytes(), 0))
                 .collect(),
             index,
             SETTINGS.elapsed,
@@ -366,7 +368,7 @@ pub fn mmap() -> Option<&'static Mmap> {
 
 static mut ERRORS: usize = 0;
 
-pub fn errors() -> usize {
+pub fn take_errors() -> usize {
     unsafe {
         let errors = ERRORS;
         ERRORS = 0;
@@ -505,122 +507,34 @@ impl Ord for Song {
 }
 
 impl Song {
+    //TODO: If the database is in memory this function can be const.
     pub fn from(bytes: &[u8], id: usize) -> Self {
-        debug_assert_eq!(bytes.len(), SONG_LEN);
-        unsafe {
-            let text = &bytes[..TEXT_LEN];
-            let artist_len =
-                u16::from_le_bytes(text.get(0..2).unwrap().try_into().unwrap()) as usize;
-            let artist = from_utf8_unchecked(text.get(2..artist_len + 2).unwrap());
+        debug_assert!(bytes.len() == SONG_LEN);
+        let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
+        let artist = artist(text);
+        let album = album(text);
+        let title = title(text);
+        let path = path(text);
 
-            let album_len = u16::from_le_bytes(
-                text.get(2 + artist_len..2 + artist_len + 2)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
-            ) as usize;
-            let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-            let album = from_utf8_unchecked(&text[album]);
+        let number = bytes[NUMBER_POS];
+        let disc = bytes[DISC_POS];
 
-            let title_len = u16::from_le_bytes(
-                text.get(2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
-            ) as usize;
-            let title = from_utf8_unchecked(
-                text.get(
-                    2 + artist_len + 2 + album_len + 2
-                        ..artist_len + 2 + album_len + 2 + title_len + 2,
-                )
-                .unwrap(),
-            );
+        let gain = f32::from_le_bytes([
+            bytes[SONG_LEN - 5],
+            bytes[SONG_LEN - 4],
+            bytes[SONG_LEN - 3],
+            bytes[SONG_LEN - 2],
+        ]);
 
-            let path_len = u16::from_le_bytes(
-                text.get(
-                    2 + artist_len + 2 + album_len + 2 + title_len
-                        ..2 + artist_len + 2 + album_len + 2 + title_len + 2,
-                )
-                .unwrap()
-                .try_into()
-                .unwrap(),
-            ) as usize;
-            let path = from_utf8_unchecked(
-                text.get(
-                    2 + artist_len + 2 + album_len + 2 + title_len + 2
-                        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2,
-                )
-                .unwrap(),
-            );
-
-            let number = bytes[NUMBER_POS];
-            let disc = bytes[DISC_POS];
-            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap());
-
-            Self {
-                artist: artist.to_string(),
-                album: album.to_string(),
-                title: title.to_string(),
-                path: path.to_string(),
-                number,
-                disc,
-                gain,
-                id,
-            }
-        }
-    }
-    pub unsafe fn from_unchecked(bytes: &[u8], id: usize) -> Self {
-        debug_assert_eq!(bytes.len(), SONG_LEN);
-        unsafe {
-            let text = &bytes[..TEXT_LEN];
-            let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
-            let artist = from_utf8_unchecked(&text[2..artist_len + 2]);
-
-            let album_len = u16::from_le_bytes(
-                text[2 + artist_len..2 + artist_len + 2]
-                    .try_into()
-                    .unwrap_unchecked(),
-            ) as usize;
-
-            let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-            let album = from_utf8_unchecked(&text[album]);
-
-            let title_len = u16::from_le_bytes(
-                text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
-                    .try_into()
-                    .unwrap_unchecked(),
-            ) as usize;
-
-            let title = from_utf8_unchecked(
-                &text[2 + artist_len + 2 + album_len + 2
-                    ..artist_len + 2 + album_len + 2 + title_len + 2],
-            );
-
-            let path_len = u16::from_le_bytes(
-                text[2 + artist_len + 2 + album_len + 2 + title_len
-                    ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
-                    .try_into()
-                    .unwrap_unchecked(),
-            ) as usize;
-
-            let path = from_utf8_unchecked(
-                &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
-                    ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
-            );
-
-            let number = bytes[NUMBER_POS];
-            let disc = bytes[DISC_POS];
-            let gain = f32::from_le_bytes(bytes[GAIN_POS].try_into().unwrap_unchecked());
-            Self {
-                artist: artist.to_string(),
-                album: album.to_string(),
-                title: title.to_string(),
-                path: path.to_string(),
-                number,
-                disc,
-                gain,
-                id,
-            }
+        Self {
+            artist: artist.to_string(),
+            album: album.to_string(),
+            title: title.to_string(),
+            path: path.to_string(),
+            number,
+            disc,
+            gain,
+            id,
         }
     }
 }

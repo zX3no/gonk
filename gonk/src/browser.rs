@@ -115,7 +115,7 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        let albums = unsafe { gonk_core::unsafe_albums_by_artist(artist) };
+        let albums = gonk_core::albums_by_artist(artist);
         browser.albums = Index::new(albums, Some(0));
         update_songs(browser);
     }
@@ -124,16 +124,14 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            unsafe {
-                let songs = gonk_core::songs_from_album_unchecked(artist, album)
-                    .into_iter()
-                    .map(|song| Item {
-                        name: format!("{}. {}", song.number, song.title),
-                        id: song.id,
-                    })
-                    .collect();
-                browser.songs = Index::new(songs, Some(0));
-            }
+            let songs = gonk_core::songs_from_album(artist, album)
+                .into_iter()
+                .map(|song| Item {
+                    name: format!("{}. {}", song.number, song.title),
+                    id: song.id,
+                })
+                .collect();
+            browser.songs = Index::new(songs, Some(0));
         }
     }
 }
@@ -144,7 +142,7 @@ pub fn get_selected(browser: &Browser) -> Vec<Song> {
             if let Some(song) = browser.songs.selected() {
                 return match browser.mode {
                     Mode::Artist => gonk_core::songs_by_artist(artist),
-                    Mode::Album => unsafe { gonk_core::songs_from_album_unchecked(artist, album) },
+                    Mode::Album => gonk_core::songs_from_album(artist, album),
                     Mode::Song => gonk_core::ids(&[song.id]),
                 };
             }

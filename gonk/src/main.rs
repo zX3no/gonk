@@ -174,7 +174,7 @@ fn main() {
                 search::refresh_results(&mut search);
 
                 if let Some(time) = scan_timer {
-                    let errors = gonk_core::errors();
+                    let errors = gonk_core::take_errors();
                     if errors == 0 {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",

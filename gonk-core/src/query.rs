@@ -2,22 +2,22 @@ use crate::*;
 use rayon::slice::ParallelSliceMut;
 use std::str::from_utf8_unchecked;
 
-const fn artist_len(text: &[u8]) -> u16 {
+pub const fn artist_len(text: &[u8]) -> u16 {
     u16::from_le_bytes([text[0], text[1]])
 }
 
-const fn album_len(text: &[u8], artist_len: usize) -> u16 {
+pub const fn album_len(text: &[u8], artist_len: usize) -> u16 {
     u16::from_le_bytes([text[2 + artist_len], text[2 + artist_len + 1]])
 }
 
-const fn title_len(text: &[u8], artist_len: usize, album_len: usize) -> u16 {
+pub const fn title_len(text: &[u8], artist_len: usize, album_len: usize) -> u16 {
     u16::from_le_bytes([
         text[2 + artist_len + 2 + album_len],
         text[2 + artist_len + 2 + album_len + 1],
     ])
 }
 
-const fn path_len(text: &[u8], artist_len: usize, album_len: usize, title_len: usize) -> u16 {
+pub const fn path_len(text: &[u8], artist_len: usize, album_len: usize, title_len: usize) -> u16 {
     u16::from_le_bytes([
         text[2 + artist_len + 2 + album_len + 2 + title_len],
         text[2 + artist_len + 2 + album_len + 2 + title_len + 1],
@@ -109,25 +109,6 @@ pub fn ids(ids: &[usize]) -> Vec<Song> {
     }
 }
 
-pub unsafe fn songs_from_album_unchecked(ar: &str, al: &str) -> Vec<Song> {
-    if let Some(mmap) = mmap() {
-        let mut songs = Vec::new();
-        let mut i = 0;
-        while (i + TEXT_LEN) <= mmap.len() {
-            let text = &mmap[i..i + TEXT_LEN];
-            let (artist, album) = artist_and_album(text);
-            if artist == ar && album == al {
-                songs.push(Song::from_unchecked(&mmap[i..i + SONG_LEN], i / SONG_LEN));
-            }
-            i += SONG_LEN;
-        }
-        songs.sort_unstable();
-        songs
-    } else {
-        Vec::new()
-    }
-}
-
 pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
     if let Some(mmap) = mmap() {
         let mut songs = Vec::new();
@@ -157,28 +138,6 @@ pub fn albums_by_artist(ar: &str) -> Vec<String> {
             }
             i += SONG_LEN;
         }
-        albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
-        albums.dedup();
-        albums
-    } else {
-        Vec::new()
-    }
-}
-
-pub unsafe fn unsafe_albums_by_artist(ar: &str) -> Vec<String> {
-    // bench::profile!();
-    if let Some(mmap) = mmap() {
-        let mut albums: Vec<String> = (0..len())
-            .filter_map(|i| {
-                let text = &mmap[i * SONG_LEN..i * SONG_LEN + TEXT_LEN];
-                let artist = artist(text);
-                if artist == ar {
-                    Some(album(text).to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
         albums.sort_unstable_by_key(|album| album.to_ascii_lowercase());
         albums.dedup();
         albums
