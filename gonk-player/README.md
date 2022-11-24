@@ -4,7 +4,6 @@ Input -> (Play song at path ...)
 
 API -> Decode Audio -> Send audio to operating system
 
-
 ```rust
 static mut DECODER: Decoder = Lazy::new(|| Decoder::new());
 
@@ -29,8 +28,6 @@ impl Player {
         DECODER.seek("+30 seconds");
     }
 }
-
-
 
 let packets = DECODER.next();
 

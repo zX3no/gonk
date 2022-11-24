@@ -1,5 +1,7 @@
 #![feature(test)]
+#![feature(const_slice_index)]
 #![allow(clippy::missing_safety_doc)]
+
 use flac_decoder::read_metadata;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};

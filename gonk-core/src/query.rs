@@ -24,69 +24,64 @@ const fn path_len(text: &[u8], artist_len: usize, album_len: usize, title_len: u
     ])
 }
 
-pub fn artist(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
+pub const fn artist(text: &[u8]) -> &str {
+    debug_assert!(text.len() == TEXT_LEN);
     let artist_len = artist_len(text) as usize;
-    unsafe { from_utf8_unchecked(&text[2..artist_len + 2]) }
-}
 
-pub fn album(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let artist_len = artist_len(text) as usize;
-    let album_len = album_len(text, artist_len) as usize;
-    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-    unsafe { from_utf8_unchecked(&text[album]) }
-}
-
-pub fn title(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let artist_len = artist_len(text) as usize;
-    let album_len = album_len(text, artist_len) as usize;
-    let title_len = title_len(text, artist_len, album_len) as usize;
     unsafe {
-        from_utf8_unchecked(
-            &text[2 + artist_len + 2 + album_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2],
-        )
+        let slice = text.get_unchecked(2..artist_len + 2);
+        from_utf8_unchecked(slice)
     }
 }
 
-pub fn path(text: &[u8]) -> &str {
-    debug_assert_eq!(text.len(), TEXT_LEN);
+pub const fn album(text: &[u8]) -> &str {
+    debug_assert!(text.len() == TEXT_LEN);
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+
+    unsafe {
+        let slice = text.get_unchecked(2 + artist_len + 2..artist_len + 2 + album_len + 2);
+        from_utf8_unchecked(slice)
+    }
+}
+
+pub const fn title(text: &[u8]) -> &str {
+    debug_assert!(text.len() == TEXT_LEN);
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+    let title_len = title_len(text, artist_len, album_len) as usize;
+
+    unsafe {
+        let slice = text.get_unchecked(
+            2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2,
+        );
+        from_utf8_unchecked(slice)
+    }
+}
+
+pub const fn path(text: &[u8]) -> &str {
+    debug_assert!(text.len() == TEXT_LEN);
     let artist_len = artist_len(text) as usize;
     let album_len = album_len(text, artist_len) as usize;
     let title_len = title_len(text, artist_len, album_len) as usize;
     let path_len = path_len(text, artist_len, album_len, title_len) as usize;
-    let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
-        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
-    unsafe { from_utf8_unchecked(&text[path]) }
-}
-
-pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
-    debug_assert_eq!(text.len(), TEXT_LEN);
-    let artist_len = artist_len(text) as usize;
-    let album_len = album_len(text, artist_len) as usize;
-    let artist = 2..artist_len + 2;
-    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
     unsafe {
-        (
-            from_utf8_unchecked(&text[artist]),
-            from_utf8_unchecked(&text[album]),
-        )
+        let slice = text.get_unchecked(
+            2 + artist_len + 2 + album_len + 2 + title_len + 2
+                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2,
+        );
+        from_utf8_unchecked(slice)
     }
 }
 
-pub unsafe fn artist_and_album_unchecked(text: &[u8]) -> (&str, &str) {
-    debug_assert_eq!(text.len(), TEXT_LEN);
+pub const fn artist_and_album(text: &[u8]) -> (&str, &str) {
+    debug_assert!(text.len() == TEXT_LEN);
     let artist_len = artist_len(text) as usize;
     let album_len = album_len(text, artist_len) as usize;
-    let artist = 2..artist_len + 2;
-    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
     unsafe {
-        (
-            from_utf8_unchecked(&text[artist]),
-            from_utf8_unchecked(&text[album]),
-        )
+        let artist = text.get_unchecked(2..artist_len + 2);
+        let album = text.get_unchecked(2 + artist_len + 2..artist_len + 2 + album_len + 2);
+        (from_utf8_unchecked(artist), from_utf8_unchecked(album))
     }
 }
 
@@ -120,7 +115,7 @@ pub unsafe fn songs_from_album_unchecked(ar: &str, al: &str) -> Vec<Song> {
         let mut i = 0;
         while (i + TEXT_LEN) <= mmap.len() {
             let text = &mmap[i..i + TEXT_LEN];
-            let (artist, album) = artist_and_album_unchecked(text);
+            let (artist, album) = artist_and_album(text);
             if artist == ar && album == al {
                 songs.push(Song::from_unchecked(&mmap[i..i + SONG_LEN], i / SONG_LEN));
             }
