@@ -32,12 +32,19 @@ use walkdir::{DirEntry, WalkDir};
 
 //TODO: Could this be stored in a more drive friendly size like 512?
 //522 + 1 + 1 + 4 = 528
+
+//TODO: Surely there is a better way of doing this...
 pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
 pub const TEXT_LEN: usize = 522;
 
-pub const NUMBER_POS: usize = SONG_LEN - 1 - 4 - 2;
-pub const DISC_POS: usize = SONG_LEN - 1 - 4 - 1;
-pub const GAIN_POS: Range<usize> = SONG_LEN - 1 - 4..SONG_LEN - 1;
+//522
+pub const NUMBER_POS: usize = SONG_LEN - 1 - size_of::<f32>() - size_of::<u8>();
+
+//523
+pub const DISC_POS: usize = SONG_LEN - 1 - size_of::<f32>();
+
+//524, 525, 526, 527
+pub const GAIN_POS: Range<usize> = SONG_LEN - size_of::<f32>()..SONG_LEN;
 
 mod flac_decoder;
 mod index;
@@ -78,6 +85,7 @@ pub fn init() {
     let mmap = unsafe { Mmap::map(&db).unwrap() };
     //Reset the database if the first song is invalid.
     if validate(&mmap).is_err() {
+        drop(mmap);
         log!("Database is corrupted. Resetting!");
         reset().unwrap();
     }
@@ -150,56 +158,65 @@ pub fn reset() -> io::Result<()> {
     fs::remove_file(database_path())
 }
 
-//TODO: CLEANUP
 fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
     if file.is_empty() {
         return Ok(());
     } else if file.len() < SONG_LEN {
         return Err("Invalid song")?;
     }
+
     let text = &file[..TEXT_LEN];
-    let artist_len = u16::from_le_bytes(text[0..2].try_into()?) as usize;
+
+    let artist_len = artist_len(text) as usize;
     if artist_len > TEXT_LEN {
         Err("Invalid u16")?;
     }
     let _artist = from_utf8(&text[2..artist_len + 2])?;
 
-    let album_len =
-        u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into()?) as usize;
+    let album_len = album_len(text, artist_len) as usize;
     if album_len > TEXT_LEN {
         Err("Invalid u16")?;
     }
-    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-    let _album = from_utf8(&text[album])?;
+    let _album = from_utf8(&text[2 + artist_len + 2..artist_len + 2 + album_len + 2])?;
 
-    let title_len = u16::from_le_bytes(
-        text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2].try_into()?,
-    ) as usize;
+    let title_len = title_len(text, artist_len, album_len) as usize;
     if title_len > TEXT_LEN {
         Err("Invalid u16")?;
     }
-    let title = 2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
-    let _title = from_utf8(&text[title])?;
+    let _title = from_utf8(
+        &text[2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2],
+    )?;
 
-    let path_len = u16::from_le_bytes(
-        text[2 + artist_len + 2 + album_len + 2 + title_len
-            ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
-            .try_into()?,
-    ) as usize;
+    let path_len = path_len(text, artist_len, album_len, title_len) as usize;
     if path_len > TEXT_LEN {
         Err("Invalid u16")?;
     }
-    let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
-        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
-    let _path = from_utf8(&text[path])?;
+    let _path = from_utf8(
+        &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
+            ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
+    )?;
 
     let _number = file[NUMBER_POS];
     let _disc = file[DISC_POS];
-    let _gain = f32::from_le_bytes(file[GAIN_POS].try_into()?);
+    let _gain = f32::from_le_bytes([
+        file[SONG_LEN - 5],
+        file[SONG_LEN - 4],
+        file[SONG_LEN - 3],
+        file[SONG_LEN - 2],
+    ]);
 
     Ok(())
 }
 
+// Settings Layout:
+//
+// Volume
+// Index
+// u16 (output_device length)
+// output_device
+// u16 (music_folder length)
+// music_folder
+// [RawSong]
 #[derive(Debug)]
 pub struct Settings {
     pub volume: u8,
@@ -221,23 +238,22 @@ impl Settings {
             queue: Vec::new(),
         }
     }
-    //TODO: CLEANUP
     pub fn from(bytes: Vec<u8>) -> Option<Self> {
         unsafe {
             let volume = bytes[0];
-            let index = u16::from_le_bytes(bytes[1..3].try_into().unwrap());
-            let elapsed = f32::from_le_bytes(bytes[3..7].try_into().unwrap());
+            let index = u16::from_le_bytes([bytes[1], bytes[2]]);
+            let elapsed = f32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
 
-            let start = 9;
-            let end = u16::from_le_bytes(bytes[7..start].try_into().unwrap()) as usize + start;
-            if end >= bytes.len() {
+            let output_device_len = u16::from_le_bytes([bytes[7], bytes[8]]) as usize + 9;
+            if output_device_len >= bytes.len() {
                 return None;
             }
-            let output_device = from_utf8_unchecked(&bytes[start..end]).to_string();
+            let output_device = from_utf8_unchecked(&bytes[9..output_device_len]).to_string();
 
-            let start = end + 2;
+            let start = output_device_len + size_of::<u16>();
             let music_folder_len =
-                u16::from_le_bytes(bytes[end..start].try_into().unwrap()) as usize;
+                u16::from_le_bytes([bytes[output_device_len], bytes[output_device_len + 1]])
+                    as usize;
             if music_folder_len >= bytes.len() {
                 return None;
             }
@@ -502,10 +518,10 @@ impl Song {
         let disc = bytes[DISC_POS];
 
         let gain = f32::from_le_bytes([
-            bytes[SONG_LEN - 5],
             bytes[SONG_LEN - 4],
             bytes[SONG_LEN - 3],
             bytes[SONG_LEN - 2],
+            bytes[SONG_LEN - 1],
         ]);
 
         Self {
@@ -571,29 +587,29 @@ impl RawSong {
 
         let mut text = [0; TEXT_LEN];
 
-        let len = (artist.len() as u16).to_le_bytes();
-        text[0..2].copy_from_slice(&len);
-        let start = 2;
-        let end = 2 + artist.len();
-        text[start..end].copy_from_slice(artist.as_bytes());
+        let artist_len = (artist.len() as u16).to_le_bytes();
+        text[0..2].copy_from_slice(&artist_len);
+        text[2..2 + artist.len()].copy_from_slice(artist.as_bytes());
 
-        let len = (album.len() as u16).to_le_bytes();
-        text[end..end + 2].copy_from_slice(&len);
-        let start = end + 2;
-        let end = start + album.len();
-        text[start..end].copy_from_slice(album.as_bytes());
+        let album_len = (album.len() as u16).to_le_bytes();
+        text[2 + artist.len()..2 + artist.len() + 2].copy_from_slice(&album_len);
+        text[2 + artist.len() + 2..2 + artist.len() + 2 + album.len()]
+            .copy_from_slice(album.as_bytes());
 
-        let len = (title.len() as u16).to_le_bytes();
-        text[end..end + 2].copy_from_slice(&len);
-        let start = end + 2;
-        let end = start + title.len();
-        text[start..end].copy_from_slice(title.as_bytes());
+        let title_len = (title.len() as u16).to_le_bytes();
+        text[2 + artist.len() + 2 + album.len()..2 + artist.len() + 2 + album.len() + 2]
+            .copy_from_slice(&title_len);
+        text[2 + artist.len() + 2 + album.len() + 2
+            ..2 + artist.len() + 2 + album.len() + 2 + title.len()]
+            .copy_from_slice(title.as_bytes());
 
-        let len = (path.len() as u16).to_le_bytes();
-        text[end..end + 2].copy_from_slice(&len);
-        let start = end + 2;
-        let end = start + path.len();
-        text[start..end].copy_from_slice(path.as_bytes());
+        let path_len = (path.len() as u16).to_le_bytes();
+        text[2 + artist.len() + 2 + album.len() + 2 + title.len()
+            ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2]
+            .copy_from_slice(&path_len);
+        text[2 + artist.len() + 2 + album.len() + 2 + title.len() + 2
+            ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2 + path.len()]
+            .copy_from_slice(path.as_bytes());
 
         Self {
             text,

@@ -397,7 +397,7 @@ impl Wasapi {
     }
 }
 
-pub unsafe fn new_decoder(
+pub unsafe fn create_decoder(
     path: &str,
     device: &Device,
     decoder: &mut Option<Symphonia>,
@@ -438,7 +438,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                     if g != 0.0 {
                         gain = g;
                     }
-                    new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
+                    create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                 }
                 Event::RestoreSong((path, g, elapsed)) => {
                     STATE = State::Paused;
@@ -446,7 +446,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                     if g != 0.0 {
                         gain = g;
                     }
-                    new_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
+                    create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                     if let Some(decoder) = &mut decoder {
                         decoder.seek(elapsed);
                     }

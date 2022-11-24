@@ -40,7 +40,7 @@ pub const fn album(text: &[u8]) -> &str {
     let album_len = album_len(text, artist_len) as usize;
 
     unsafe {
-        let slice = text.get_unchecked(2 + artist_len + 2..artist_len + 2 + album_len + 2);
+        let slice = text.get_unchecked(2 + artist_len + 2..2 + artist_len + 2 + album_len);
         from_utf8_unchecked(slice)
     }
 }
@@ -53,7 +53,7 @@ pub const fn title(text: &[u8]) -> &str {
 
     unsafe {
         let slice = text.get_unchecked(
-            2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2,
+            2 + artist_len + 2 + album_len + 2..2 + artist_len + 2 + album_len + 2 + title_len,
         );
         from_utf8_unchecked(slice)
     }
@@ -68,7 +68,7 @@ pub const fn path(text: &[u8]) -> &str {
     unsafe {
         let slice = text.get_unchecked(
             2 + artist_len + 2 + album_len + 2 + title_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2,
+                ..2 + artist_len + 2 + album_len + 2 + title_len + 2 + path_len,
         );
         from_utf8_unchecked(slice)
     }
@@ -79,8 +79,8 @@ pub const fn artist_and_album(text: &[u8]) -> (&str, &str) {
     let artist_len = artist_len(text) as usize;
     let album_len = album_len(text, artist_len) as usize;
     unsafe {
-        let artist = text.get_unchecked(2..artist_len + 2);
-        let album = text.get_unchecked(2 + artist_len + 2..artist_len + 2 + album_len + 2);
+        let artist = text.get_unchecked(2..2 + artist_len);
+        let album = text.get_unchecked(2 + artist_len + 2..2 + artist_len + 2 + album_len);
         (from_utf8_unchecked(artist), from_utf8_unchecked(album))
     }
 }
@@ -109,24 +109,6 @@ pub fn ids(ids: &[usize]) -> Vec<Song> {
     }
 }
 
-pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
-    if let Some(mmap) = mmap() {
-        let mut songs = Vec::new();
-        let mut i = 0;
-        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
-            let (artist, album) = artist_and_album(text);
-            if artist == ar && album == al {
-                songs.push(Song::from(&mmap[i..i + SONG_LEN], i / SONG_LEN));
-            }
-            i += SONG_LEN;
-        }
-        songs.sort_unstable();
-        songs
-    } else {
-        Vec::new()
-    }
-}
-
 pub fn albums_by_artist(ar: &str) -> Vec<String> {
     if let Some(mmap) = mmap() {
         let mut albums = Vec::new();
@@ -146,6 +128,24 @@ pub fn albums_by_artist(ar: &str) -> Vec<String> {
     }
 }
 
+pub fn songs_from_album(ar: &str, al: &str) -> Vec<Song> {
+    if let Some(mmap) = mmap() {
+        let mut songs = Vec::new();
+        let mut i = 0;
+        while let Some(text) = mmap.get(i..i + TEXT_LEN) {
+            let (artist, album) = artist_and_album(text);
+            if artist == ar && album == al {
+                songs.push(Song::from(&mmap[i..i + SONG_LEN], i / SONG_LEN));
+            }
+            i += SONG_LEN;
+        }
+        songs.sort_unstable();
+        songs
+    } else {
+        Vec::new()
+    }
+}
+
 pub fn songs_by_artist(ar: &str) -> Vec<Song> {
     if let Some(mmap) = mmap() {
         let mut songs = Vec::new();
@@ -153,8 +153,7 @@ pub fn songs_by_artist(ar: &str) -> Vec<Song> {
         while let Some(text) = mmap.get(i..i + TEXT_LEN) {
             let artist = artist(text);
             if artist == ar {
-                let song_bytes = &mmap[i..i + SONG_LEN];
-                songs.push(Song::from(song_bytes, i / SONG_LEN));
+                songs.push(Song::from(&mmap[i..i + SONG_LEN], i / SONG_LEN));
             }
             i += SONG_LEN;
         }

@@ -68,7 +68,7 @@ macro_rules! error {
     };
 }
 
-pub fn take_errors() -> usize{
+pub fn take_errors() -> usize {
     unsafe {
         let len = ERRORS.len();
         ERRORS = Vec::new();
@@ -78,7 +78,6 @@ pub fn take_errors() -> usize{
 
 pub fn write_errors() {
     unsafe {
-        dbg!(&ERRORS);
         if !ERRORS.is_empty() {
             let path = gonk_path().join("gonk.log");
             let errors = ERRORS.join("\n");
