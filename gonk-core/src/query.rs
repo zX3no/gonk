@@ -2,90 +2,73 @@ use crate::*;
 use rayon::slice::ParallelSliceMut;
 use std::str::from_utf8_unchecked;
 
+const fn artist_len(text: &[u8]) -> u16 {
+    u16::from_le_bytes([text[0], text[1]])
+}
+
+const fn album_len(text: &[u8], artist_len: usize) -> u16 {
+    u16::from_le_bytes([text[2 + artist_len], text[2 + artist_len + 1]])
+}
+
+const fn title_len(text: &[u8], artist_len: usize, album_len: usize) -> u16 {
+    u16::from_le_bytes([
+        text[2 + artist_len + 2 + album_len],
+        text[2 + artist_len + 2 + album_len + 1],
+    ])
+}
+
+const fn path_len(text: &[u8], artist_len: usize, album_len: usize, title_len: usize) -> u16 {
+    u16::from_le_bytes([
+        text[2 + artist_len + 2 + album_len + 2 + title_len],
+        text[2 + artist_len + 2 + album_len + 2 + title_len + 1],
+    ])
+}
+
 pub fn artist(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    unsafe {
-        let array: &[u8; 2] = &*(text[0..2].as_ptr() as *const [_; 2]);
-        let end = u16::from_le_bytes(*array) + 2;
-        from_utf8_unchecked(&text[2..end as usize])
-    }
+    let artist_len = artist_len(text) as usize;
+    unsafe { from_utf8_unchecked(&text[2..artist_len + 2]) }
 }
 
 pub fn album(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    unsafe {
-        let array: &[u8; 2] = &*(text[0..2].as_ptr() as *const [_; 2]);
-        let artist_len = u16::from_le_bytes(*array) as usize;
-
-        let array: &[u8; 2] =
-            &*(text[2 + artist_len..2 + artist_len + 2].as_ptr() as *const [_; 2]);
-        let album_len = u16::from_le_bytes(*array) as usize;
-
-        let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-        from_utf8_unchecked(&text[album])
-    }
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
+    unsafe { from_utf8_unchecked(&text[album]) }
 }
 
 pub fn title(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+    let title_len = title_len(text, artist_len, album_len) as usize;
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
-        let album_len =
-            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
-                as usize;
-
-        let title_len = u16::from_le_bytes(
-            text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
-                .try_into()
-                .unwrap(),
-        ) as usize;
-
-        let title =
-            2 + artist_len + 2 + album_len + 2..artist_len + 2 + album_len + 2 + title_len + 2;
-
-        from_utf8_unchecked(&text[title])
+        from_utf8_unchecked(
+            &text[2 + artist_len + 2 + album_len + 2
+                ..artist_len + 2 + album_len + 2 + title_len + 2],
+        )
     }
 }
 
 pub fn path(text: &[u8]) -> &str {
     debug_assert_eq!(text.len(), TEXT_LEN);
-    unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
-        let album_len =
-            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
-                as usize;
-
-        let title_len = u16::from_le_bytes(
-            text[2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2]
-                .try_into()
-                .unwrap(),
-        ) as usize;
-
-        let path_len = u16::from_le_bytes(
-            text[2 + artist_len + 2 + album_len + 2 + title_len
-                ..2 + artist_len + 2 + album_len + 2 + title_len + 2]
-                .try_into()
-                .unwrap(),
-        ) as usize;
-
-        let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
-            ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
-
-        from_utf8_unchecked(&text[path])
-    }
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+    let title_len = title_len(text, artist_len, album_len) as usize;
+    let path_len = path_len(text, artist_len, album_len, title_len) as usize;
+    let path = 2 + artist_len + 2 + album_len + 2 + title_len + 2
+        ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2;
+    unsafe { from_utf8_unchecked(&text[path]) }
 }
 
 pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
     debug_assert_eq!(text.len(), TEXT_LEN);
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+    let artist = 2..artist_len + 2;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap()) as usize;
-        let artist = 2..artist_len + 2;
-
-        let album_len =
-            u16::from_le_bytes(text[2 + artist_len..2 + artist_len + 2].try_into().unwrap())
-                as usize;
-        let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-
         (
             from_utf8_unchecked(&text[artist]),
             from_utf8_unchecked(&text[album]),
@@ -95,18 +78,11 @@ pub fn artist_and_album(text: &[u8]) -> (&str, &str) {
 
 pub unsafe fn artist_and_album_unchecked(text: &[u8]) -> (&str, &str) {
     debug_assert_eq!(text.len(), TEXT_LEN);
+    let artist_len = artist_len(text) as usize;
+    let album_len = album_len(text, artist_len) as usize;
+    let artist = 2..artist_len + 2;
+    let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
     unsafe {
-        let artist_len = u16::from_le_bytes(text[0..2].try_into().unwrap_unchecked()) as usize;
-        let artist = 2..artist_len + 2;
-
-        let album_len = u16::from_le_bytes(
-            text[2 + artist_len..2 + artist_len + 2]
-                .try_into()
-                .unwrap_unchecked(),
-        ) as usize;
-
-        let album = 2 + artist_len + 2..artist_len + 2 + album_len + 2;
-
         (
             from_utf8_unchecked(&text[artist]),
             from_utf8_unchecked(&text[album]),
