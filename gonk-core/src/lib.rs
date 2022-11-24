@@ -30,7 +30,8 @@ use symphonia::{
 };
 use walkdir::{DirEntry, WalkDir};
 
-//522 + 1 + 1 + 4
+//TODO: Could this be stored in a more drive friendly size like 512?
+//522 + 1 + 1 + 4 = 528
 pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
 pub const TEXT_LEN: usize = 522;
 
@@ -149,6 +150,7 @@ pub fn reset() -> io::Result<()> {
     fs::remove_file(database_path())
 }
 
+//TODO: CLEANUP
 fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
     if file.is_empty() {
         return Ok(());
@@ -219,6 +221,7 @@ impl Settings {
             queue: Vec::new(),
         }
     }
+    //TODO: CLEANUP
     pub fn from(bytes: Vec<u8>) -> Option<Self> {
         unsafe {
             let volume = bytes[0];
@@ -366,16 +369,6 @@ pub fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
 }
 
-static mut ERRORS: usize = 0;
-
-pub fn take_errors() -> usize {
-    unsafe {
-        let errors = ERRORS;
-        ERRORS = 0;
-        errors
-    }
-}
-
 /// Collect and add files to the database.
 /// This operation will truncate.
 ///
@@ -416,24 +409,13 @@ pub fn scan(path: String) -> JoinHandle<()> {
                     .map(|path| RawSong::from_path(path.path()))
                     .collect();
 
-                let errors: Vec<_> = songs.iter().filter(|song| song.is_err()).collect();
-                let error_count = errors.len();
-                let errors: String = errors
-                    .into_iter()
-                    .filter_map(|error| {
-                        if let Err(error) = error {
-                            Some(format!("{error}\n"))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                songs.iter().for_each(|song| {
+                    if let Err(err) = song {
+                        error!("{}", err);
+                    }
+                });
 
-                if error_count != 0 {
-                    let path = gonk_path().join("gonk.log");
-                    unsafe { ERRORS = error_count };
-                    fs::write(path, errors).unwrap();
-                }
+                log::write_errors();
 
                 let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
 
@@ -578,6 +560,13 @@ impl RawSong {
                 title.pop();
             }
             i += 1;
+        }
+
+        if i != 0 {
+            error!(
+                "Warning: {} overflowed {} bytes! Metadata will be truncated.",
+                path, SONG_LEN
+            );
         }
 
         let mut text = [0; TEXT_LEN];
