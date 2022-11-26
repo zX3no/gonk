@@ -51,6 +51,7 @@ mod index;
 mod playlist;
 mod query;
 
+pub mod data;
 pub mod log;
 pub mod profiler;
 
