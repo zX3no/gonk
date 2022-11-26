@@ -11,13 +11,16 @@
 )]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
+use gonk_core::gonk_path;
 use gonk_core::log;
 use gonk_core::Index;
+use gonk_core::ScanResult;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
+use std::fs;
 use std::{
     io::{stdout, Stdout},
     path::Path,
@@ -75,6 +78,7 @@ fn draw_log(f: &mut Frame) -> Rect {
             ),
             area[1],
         );
+
         area[0]
     } else {
         f.size()
@@ -166,39 +170,12 @@ fn main() {
         mode = Mode::Queue;
     }
 
+    let mut end_scan = false;
+
     loop {
         if let Some(h) = &scan_handle {
             if h.is_finished() {
-                browser::refresh(&mut browser);
-                search::refresh_cache(&mut search);
-                search::refresh_results(&mut search);
-
-                if let Some(time) = scan_timer {
-                    let errors = gonk_core::log::take_errors();
-                    if errors == 0 {
-                        log!(
-                            "Finished adding {} files in {:.2} seconds.",
-                            gonk_core::len(),
-                            time.elapsed().as_secs_f32()
-                        );
-                    } else {
-                        #[cfg(windows)]
-                        let dir = "See %appdata%/gonk/gonk.log for details.";
-
-                        #[cfg(unix)]
-                        let dir = "See .config/gonk/gonk.log for details.";
-
-                        let s = if errors == 1 { "" } else { "s" };
-
-                        log!(
-                            "Added {} files with {errors} error{s}. {dir}",
-                            gonk_core::len(),
-                        );
-                    }
-                }
-
-                scan_timer = None;
-                scan_handle = None;
+                end_scan = true;
             } else {
                 busy = true;
 
@@ -209,6 +186,54 @@ fn main() {
             }
         } else {
             busy = false;
+        }
+
+        if end_scan {
+            let h = scan_handle.take().unwrap();
+            let result = h.join().unwrap();
+
+            log::clear();
+
+            if let Some(time) = scan_timer {
+                match result {
+                    ScanResult::Completed => {
+                        log!(
+                            "Finished adding {} files in {:.2} seconds.",
+                            gonk_core::len(),
+                            time.elapsed().as_secs_f32()
+                        );
+                    }
+                    ScanResult::CompletedWithErrors(errors) => {
+                        #[cfg(windows)]
+                        let dir = "See %appdata%/gonk/gonk.log for details.";
+
+                        #[cfg(unix)]
+                        let dir = "See .config/gonk/gonk.log for details.";
+
+                        let len = errors.len();
+
+                        let s = if len == 1 { "" } else { "s" };
+
+                        log!(
+                            "Added {} files with {len} error{s}. {dir}",
+                            gonk_core::len() - len,
+                        );
+
+                        let path = gonk_path().join("gonk.log");
+                        let errors = errors.join("\n");
+                        fs::write(path, errors).unwrap();
+                    }
+                    ScanResult::Incomplete(error) => log!("{error}"),
+                }
+            }
+
+            browser::refresh(&mut browser);
+            search::refresh_cache(&mut search);
+            search::refresh_results(&mut search);
+
+            scan_timer = None;
+            scan_handle = None;
+            end_scan = false;
         }
 
         if last_tick.elapsed() >= Duration::from_millis(150) {

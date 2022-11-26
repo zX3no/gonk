@@ -386,11 +386,17 @@ pub fn mmap() -> Option<&'static Mmap> {
     unsafe { MMAP.as_ref() }
 }
 
+pub enum ScanResult {
+    Completed,
+    CompletedWithErrors(Vec<String>),
+    Incomplete(&'static str),
+}
+
 /// Collect and add files to the database.
 /// This operation will truncate.
 ///
 /// Returns `JoinHandle` so scans won't run concurrently.
-pub fn scan(path: String) -> JoinHandle<()> {
+pub fn scan(path: String) -> JoinHandle<ScanResult> {
     if let Some(mmap) = unsafe { MMAP.take() } {
         drop(mmap);
     }
@@ -426,13 +432,16 @@ pub fn scan(path: String) -> JoinHandle<()> {
                     .map(|path| RawSong::from_path(path.path()))
                     .collect();
 
-                songs.iter().for_each(|song| {
-                    if let Err(err) = song {
-                        error!("{}", err);
-                    }
-                });
-
-                log::write_errors();
+                let errors: Vec<String> = songs
+                    .iter()
+                    .filter_map(|song| {
+                        if let Err(err) = song {
+                            Some(err.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
 
                 let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
 
@@ -442,15 +451,18 @@ pub fn scan(path: String) -> JoinHandle<()> {
 
                 writer.flush().unwrap();
                 unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
+
+                if errors.is_empty() {
+                    ScanResult::Completed
+                } else {
+                    ScanResult::CompletedWithErrors(errors)
+                }
             }
-            //TODO: This message will be overwritten by the scanning finished message
-            //Buffer errors to avoid this.
             Err(_) => {
                 //Re-open the database as read only.
                 let db = OpenOptions::new().read(true).open(database_path()).unwrap();
                 unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
-
-                log!("Failed to scan folder, database is already open.");
+                ScanResult::Incomplete("Failed to scan folder, database is already open.")
             }
         }
     })
@@ -582,9 +594,10 @@ impl RawSong {
         }
 
         if i != 0 {
-            error!(
+            log!(
                 "Warning: {} overflowed {} bytes! Metadata will be truncated.",
-                path, SONG_LEN
+                path,
+                SONG_LEN
             );
         }
 

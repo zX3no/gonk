@@ -278,7 +278,7 @@ impl Wasapi {
         };
 
         if format.Format.nChannels < 2 {
-            panic!("Device has less than 2 channels.");
+            panic!("Ouput device has less than 2 channels.");
         }
 
         let mut default_period = zeroed();
