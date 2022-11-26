@@ -3,7 +3,7 @@
 #![feature(const_float_bits_conv)]
 #![allow(clippy::missing_safety_doc)]
 
-use flac_decoder::read_metadata;
+use flac_decoder::*;
 use memmap2::Mmap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
@@ -443,6 +443,8 @@ pub fn scan(path: String) -> JoinHandle<()> {
                 writer.flush().unwrap();
                 unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
             }
+            //TODO: This message will be overwritten by the scanning finished message
+            //Buffer errors to avoid this.
             Err(_) => {
                 //Re-open the database as read only.
                 let db = OpenOptions::new().read(true).open(database_path()).unwrap();

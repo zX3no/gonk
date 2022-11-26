@@ -1,3 +1,4 @@
+#![allow(unused)]
 use gonk_core::data::{Song, Text, S, T};
 
 /// A Chunk can hold a maximum of 4 songs.
