@@ -1,5 +1,8 @@
 #![allow(unused)]
-use gonk_core::data::{Song, Text, S, T};
+use gonk_core::{
+    data::{Song, Text, S, T},
+    db::Database,
+};
 
 /// A Chunk can hold a maximum of 4 songs.
 /// However a single song can span an entire chunk.
@@ -52,18 +55,23 @@ struct Chunk {
 }
 
 fn main() {
-    let text = T {
-        artist: "artist",
-        album: "album",
-        title: "title",
-        path: "path",
-    };
-    let song = S {
-        text,
-        number: 10,
-        disc: 1,
-        gain: 1.0,
-    };
-    dbg!(song.as_bytes());
-    dbg!(song.as_bytes().len());
+    // let text = T {
+    //     artist: "artist",
+    //     album: "album",
+    //     title: "title",
+    //     path: "path",
+    // };
+    // let song = S {
+    //     text,
+    //     number: 10,
+    //     disc: 1,
+    //     gain: 1.0,
+    // };
+    // dbg!(song.as_bytes());
+    // dbg!(song.as_bytes().len());
+
+    let albums = Database::album("Iglooghost", "XYZ");
+    dbg!(albums);
+
+    // dbg!(Database::artists());
 }

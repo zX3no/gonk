@@ -46,6 +46,8 @@ pub const DISC_POS: usize = SONG_LEN - 1 - size_of::<f32>();
 //524, 525, 526, 527
 pub const GAIN_POS: Range<usize> = SONG_LEN - size_of::<f32>()..SONG_LEN;
 
+pub mod db;
+
 mod flac_decoder;
 mod index;
 mod playlist;

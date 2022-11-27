@@ -19,6 +19,7 @@ memmap2 = "0.5.8"
 rayon = "1.6.0"
 walkdir = "2.3.2"
 once_cell = { version = "1.16.0", default-features = false }
+multimap = { version = "0.8.3", default-features = false }
 
 [dev-dependencies]
 tempfile = "*"
