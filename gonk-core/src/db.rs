@@ -66,6 +66,7 @@ impl Database {
 
             let mut albums = MultiMap::new();
 
+            //Add songs to albums.
             for song in songs {
                 albums.insert(
                     (song.artist, song.album),
@@ -79,6 +80,18 @@ impl Database {
                 )
             }
 
+            //Sort songs.
+            for (_, album) in &mut albums {
+                album.sort_unstable_by(|a, b| {
+                    if a.disc_number == b.disc_number {
+                        a.track_number.cmp(&b.track_number)
+                    } else {
+                        a.disc_number.cmp(&b.disc_number)
+                    }
+                });
+            }
+
+            //Add albums to artists.
             for ((artist, album), v) in albums {
                 data.insert(
                     artist,
@@ -88,22 +101,43 @@ impl Database {
                     },
                 );
             }
+
+            //Sort albums.
+            for (_, albums) in &mut data {
+                albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
+            }
         }
 
         Self { data }
     }
 
-    ///Get all items. (Artist, Albums)
-    pub fn collect() -> Vec<(&'static String, &'static Vec<Album>)> {
-        let db = unsafe { &DB.data };
-        db.iter_all().collect()
-    }
+    ///Browser queries.
 
     ///Get all aritist names.
     pub fn artists() -> Vec<&'static String> {
         let db = unsafe { &DB.data };
-        db.keys().collect()
+        //TODO: Can you sort keys?
+        let mut v = Vec::from_iter(db.keys());
+        v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
+        v
     }
+
+    ///Get all albums by an artist.
+    pub fn albums_by_artist(artist: &str) -> Vec<&'static Album> {
+        let db = unsafe { &DB.data };
+        if let Some(albums) = db.get_vec(artist) {
+            return albums.iter().collect();
+        }
+        Vec::new()
+    }
+
+    ///Search Queries
+
+    pub fn raw() -> &'static MultiMap<String, Album> {
+        unsafe { &DB.data }
+    }
+
+    ///
 
     ///Get albums by aritist.
     pub fn artist(artist: &str) -> Option<&'static Vec<Album>> {
@@ -122,15 +156,6 @@ impl Database {
             }
         }
         albums
-    }
-
-    ///Get all albums by an artist.
-    pub fn albums_by_artist(artist: &str) -> Vec<&'static Album> {
-        let db = unsafe { &DB.data };
-        if let Some(albums) = db.get_vec(artist) {
-            return albums.iter().collect();
-        }
-        Vec::new()
     }
 
     ///Get all albums names by an artist.
@@ -199,7 +224,7 @@ pub struct Album {
 }
 
 //TODO: Replace Song with MinimalSong.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
     pub disc_number: u8,
