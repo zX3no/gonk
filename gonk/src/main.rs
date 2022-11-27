@@ -145,7 +145,8 @@ fn main() {
     terminal.clear().unwrap();
 
     let (songs, index, elapsed) = gonk_core::get_queue();
-    let songs = Index::new(songs, index);
+    // let songs = Index::new(songs, index);
+    let songs = Index::default();
     let volume = gonk_core::volume();
     let device = gonk_core::output_device();
     let ui_index = index.unwrap_or(0);
@@ -265,14 +266,14 @@ fn main() {
             player.next();
         }
 
-        if player.songs.data != player_clone {
-            player_clone = player.songs.data.clone();
-            gonk_core::save_queue(
-                &player.songs.data,
-                player.songs.index().unwrap_or(0) as u16,
-                player.elapsed().as_secs_f32(),
-            );
-        }
+        // if player.songs.data != player_clone {
+        //     player_clone = player.songs.data.clone();
+        //     gonk_core::save_queue(
+        //         &player.songs.data,
+        //         player.songs.index().unwrap_or(0) as u16,
+        //         player.elapsed().as_secs_f32(),
+        //     );
+        // }
 
         terminal
             .draw(|f| {
@@ -443,7 +444,7 @@ fn main() {
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                playlist::add(&mut playlist, &songs);
+                                // playlist::add(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
                             Mode::Queue => {
@@ -465,7 +466,7 @@ fn main() {
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
                                 let songs = browser::get_selected(&browser);
-                                player.add(&songs);
+                                // player.add(&songs);
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
@@ -560,11 +561,11 @@ fn main() {
         }
     }
 
-    gonk_core::save_queue(
-        &player.songs.data,
-        player.songs.index().unwrap_or(0) as u16,
-        player.elapsed().as_secs_f32(),
-    );
+    // gonk_core::save_queue(
+    //     &player.songs.data,
+    //     player.songs.index().unwrap_or(0) as u16,
+    //     player.elapsed().as_secs_f32(),
+    // );
 
     disable_raw_mode().unwrap();
     execute!(

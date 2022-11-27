@@ -1,5 +1,5 @@
 use crate::{widgets::*, *};
-use gonk_core::Song;
+use gonk_core::{Database, Song};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Ordering;
 use tui::{
@@ -98,46 +98,47 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
 }
 
 pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
-    match search.mode {
-        Mode::Search => {
-            if !search.results.is_empty() {
-                search.mode = Mode::Select;
-                search.results.select(Some(0));
-            }
-            None
-        }
-        Mode::Select => search.results.selected().map(|item| match item {
-            Item::Song(song) => gonk_core::ids(&[song.id]),
-            Item::Album(album) => gonk_core::songs_from_album(&album.artist, &album.name),
-            Item::Artist(artist) => gonk_core::songs_by_artist(&artist.name),
-        }),
-    }
+    // match search.mode {
+    //     Mode::Search => {
+    //         if !search.results.is_empty() {
+    //             search.mode = Mode::Select;
+    //             search.results.select(Some(0));
+    //         }
+    //         None
+    //     }
+    //     Mode::Select => search.results.selected().map(|item| match item {
+    //         Item::Song(song) => gonk_core::ids(&[song.id]),
+    //         Item::Album(album) => gonk_core::songs_from_album(&album.artist, &album.name),
+    //         Item::Artist(artist) => gonk_core::songs_by_artist(&artist.name),
+    //     }),
+    // }
+    todo!()
 }
 
 pub fn refresh_cache(search: &mut Search) {
     search.cache = Vec::new();
 
-    let (artists, albums, songs) = gonk_core::artists_albums_and_songs();
+    // let (artists, albums, songs) = Database::artists_albums_songs();
 
-    for song in songs {
-        search.cache.push(Item::Song(MinSong {
-            name: song.title,
-            album: song.album,
-            artist: song.artist,
-            id: song.id,
-        }));
-    }
+    // for song in songs {
+    //     search.cache.push(Item::Song(MinSong {
+    //         name: song.title,
+    //         album: song.album,
+    //         artist: song.artist,
+    //         id: song.id,
+    //     }));
+    // }
 
-    for (artist, album) in albums {
-        search.cache.push(Item::Album(Album {
-            name: album,
-            artist,
-        }));
-    }
+    // for (artist, album) in albums {
+    //     search.cache.push(Item::Album(Album {
+    //         name: album,
+    //         artist,
+    //     }));
+    // }
 
-    for artist in artists {
-        search.cache.push(Item::Artist(Artist { name: artist }));
-    }
+    // for artist in artists {
+    //     search.cache.push(Item::Artist(Artist { name: artist }));
+    // }
 }
 
 pub fn get_item_accuracy(query: &str, item: &Item) -> f64 {
@@ -265,34 +266,34 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseE
                 draw_artist(f, &album.artist, h[1]);
             }
             Item::Artist(artist) => {
-                let albums = gonk_core::albums_by_artist(&artist.name);
+                // let albums = gonk_core::albums_by_artist(&artist.name);
 
-                search::draw_artist(f, &artist.name, h[0]);
+                // search::draw_artist(f, &artist.name, h[0]);
 
-                if albums.len() > 1 {
-                    let h_split = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                        .split(h[1]);
+                // if albums.len() > 1 {
+                //     let h_split = Layout::default()
+                //         .direction(Direction::Horizontal)
+                //         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                //         .split(h[1]);
 
-                    //Draw the first two albums.
-                    for (i, area) in h_split.iter().enumerate() {
-                        if let Some(album) = albums.get(i) {
-                            search::draw_album(f, album, &artist.name, *area);
-                        }
-                    }
-                } else if let Some(album) = albums.get(0) {
-                    //Draw the first album.
-                    search::draw_album(f, album, &artist.name, h[1]);
-                } else {
-                    f.render_widget(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_type(BorderType::Rounded)
-                            .title("Album"),
-                        h[1],
-                    );
-                };
+                //     //Draw the first two albums.
+                //     for (i, area) in h_split.iter().enumerate() {
+                //         if let Some(album) = albums.get(i) {
+                //             search::draw_album(f, album, &artist.name, *area);
+                //         }
+                //     }
+                // } else if let Some(album) = albums.get(0) {
+                //     //Draw the first album.
+                //     search::draw_album(f, album, &artist.name, h[1]);
+                // } else {
+                //     f.render_widget(
+                //         Block::default()
+                //             .borders(Borders::ALL)
+                //             .border_type(BorderType::Rounded)
+                //             .title("Album"),
+                //         h[1],
+                //     );
+                // };
             }
         }
         draw_results(search, f, v[2]);
@@ -341,142 +342,142 @@ fn draw_song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<Row> = gonk_core::songs_from_album(artist, album)
-        .iter()
-        .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.title))]))
-        .collect();
+    // let cells: Vec<Row> = gonk_core::songs_from_album(artist, album)
+    //     .iter()
+    //     .map(|song| Row::new(vec![Cell::from(format!("{}. {}", song.number, song.title))]))
+    //     .collect();
 
-    let table = Table::new(&cells)
-        .header(
-            Row::new(vec![Cell::from(Span::styled(
-                format!("{album} "),
-                Style::default().add_modifier(Modifier::ITALIC),
-            ))])
-            .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Album"),
-        )
-        .widths(&[Constraint::Percentage(100)]);
+    // let table = Table::new(&cells)
+    //     .header(
+    //         Row::new(vec![Cell::from(Span::styled(
+    //             format!("{album} "),
+    //             Style::default().add_modifier(Modifier::ITALIC),
+    //         ))])
+    //         .bottom_margin(1),
+    //     )
+    //     .block(
+    //         Block::default()
+    //             .borders(Borders::ALL)
+    //             .border_type(BorderType::Rounded)
+    //             .title("Album"),
+    //     )
+    //     .widths(&[Constraint::Percentage(100)]);
 
-    f.render_widget(table, area);
+    // f.render_widget(table, area);
 }
 
 fn draw_artist(f: &mut Frame, artist: &str, area: Rect) {
-    let albums = gonk_core::albums_by_artist(artist);
-    let cells: Vec<_> = albums
-        .iter()
-        .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
-        .collect();
+    // let albums = gonk_core::albums_by_artist(artist);
+    // let cells: Vec<_> = albums
+    //     .iter()
+    //     .map(|album| Row::new(vec![Cell::from(Span::raw(album))]))
+    //     .collect();
 
-    let table = Table::new(&cells)
-        .header(
-            Row::new(vec![Cell::from(Span::styled(
-                format!("{artist} "),
-                Style::default().add_modifier(Modifier::ITALIC),
-            ))])
-            .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Artist"),
-        )
-        .widths(&[Constraint::Percentage(100)]);
+    // let table = Table::new(&cells)
+    //     .header(
+    //         Row::new(vec![Cell::from(Span::styled(
+    //             format!("{artist} "),
+    //             Style::default().add_modifier(Modifier::ITALIC),
+    //         ))])
+    //         .bottom_margin(1),
+    //     )
+    //     .block(
+    //         Block::default()
+    //             .borders(Borders::ALL)
+    //             .border_type(BorderType::Rounded)
+    //             .title("Artist"),
+    //     )
+    //     .widths(&[Constraint::Percentage(100)]);
 
-    f.render_widget(table, area);
+    // f.render_widget(table, area);
 }
 
 fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
-    let get_cell = |item: &Item, selected: bool| -> Row {
-        let selected_cell = if selected {
-            Cell::from(">")
-        } else {
-            Cell::default()
-        };
+    // let get_cell = |item: &Item, selected: bool| -> Row {
+    //     let selected_cell = if selected {
+    //         Cell::from(">")
+    //     } else {
+    //         Cell::default()
+    //     };
 
-        match item {
-            Item::Song(song) => {
-                let song = gonk_core::get(song.id).unwrap();
-                Row::new(vec![
-                    selected_cell,
-                    Cell::from(song.title).style(Style::default().fg(TITLE)),
-                    Cell::from(song.album).style(Style::default().fg(ALBUM)),
-                    Cell::from(song.artist).style(Style::default().fg(ARTIST)),
-                ])
-            }
-            Item::Album(album) => Row::new(vec![
-                selected_cell,
-                Cell::from(Spans::from(vec![
-                    Span::styled(format!("{} - ", album.name), Style::default().fg(TITLE)),
-                    Span::styled(
-                        "Album",
-                        Style::default().fg(TITLE).add_modifier(Modifier::ITALIC),
-                    ),
-                ])),
-                Cell::from("").style(Style::default().fg(ALBUM)),
-                Cell::from(album.artist.clone()).style(Style::default().fg(ARTIST)),
-            ]),
-            Item::Artist(artist) => Row::new(vec![
-                selected_cell,
-                Cell::from(Spans::from(vec![
-                    Span::styled(format!("{} - ", artist.name), Style::default().fg(TITLE)),
-                    Span::styled(
-                        "Artist",
-                        Style::default().fg(TITLE).add_modifier(Modifier::ITALIC),
-                    ),
-                ])),
-                Cell::from("").style(Style::default().fg(ALBUM)),
-                Cell::from("").style(Style::default().fg(ARTIST)),
-            ]),
-        }
-    };
+    //     match item {
+    //         Item::Song(song) => {
+    //             let song = gonk_core::get(song.id).unwrap();
+    //             Row::new(vec![
+    //                 selected_cell,
+    //                 Cell::from(song.title).style(Style::default().fg(TITLE)),
+    //                 Cell::from(song.album).style(Style::default().fg(ALBUM)),
+    //                 Cell::from(song.artist).style(Style::default().fg(ARTIST)),
+    //             ])
+    //         }
+    //         Item::Album(album) => Row::new(vec![
+    //             selected_cell,
+    //             Cell::from(Spans::from(vec![
+    //                 Span::styled(format!("{} - ", album.name), Style::default().fg(TITLE)),
+    //                 Span::styled(
+    //                     "Album",
+    //                     Style::default().fg(TITLE).add_modifier(Modifier::ITALIC),
+    //                 ),
+    //             ])),
+    //             Cell::from("").style(Style::default().fg(ALBUM)),
+    //             Cell::from(album.artist.clone()).style(Style::default().fg(ARTIST)),
+    //         ]),
+    //         Item::Artist(artist) => Row::new(vec![
+    //             selected_cell,
+    //             Cell::from(Spans::from(vec![
+    //                 Span::styled(format!("{} - ", artist.name), Style::default().fg(TITLE)),
+    //                 Span::styled(
+    //                     "Artist",
+    //                     Style::default().fg(TITLE).add_modifier(Modifier::ITALIC),
+    //                 ),
+    //             ])),
+    //             Cell::from("").style(Style::default().fg(ALBUM)),
+    //             Cell::from("").style(Style::default().fg(ARTIST)),
+    //         ]),
+    //     }
+    // };
 
-    let rows: Vec<Row> = search
-        .results
-        .data
-        .iter()
-        .enumerate()
-        .map(|(i, item)| {
-            if let Some(s) = search.results.index() {
-                if s == i {
-                    return get_cell(item, true);
-                }
-            } else if i == 0 {
-                return get_cell(item, false);
-            }
-            get_cell(item, false)
-        })
-        .collect();
+    // let rows: Vec<Row> = search
+    //     .results
+    //     .data
+    //     .iter()
+    //     .enumerate()
+    //     .map(|(i, item)| {
+    //         if let Some(s) = search.results.index() {
+    //             if s == i {
+    //                 return get_cell(item, true);
+    //             }
+    //         } else if i == 0 {
+    //             return get_cell(item, false);
+    //         }
+    //         get_cell(item, false)
+    //     })
+    //     .collect();
 
-    let italic = Style::default().add_modifier(Modifier::ITALIC);
-    let table = Table::new(&rows)
-        .header(
-            Row::new(vec![
-                Cell::default(),
-                Cell::from("Name").style(italic),
-                Cell::from("Album").style(italic),
-                Cell::from("Artist").style(italic),
-            ])
-            .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
-        .widths(&[
-            Constraint::Length(1),
-            Constraint::Percentage(40),
-            Constraint::Percentage(40),
-            Constraint::Percentage(20),
-        ]);
+    // let italic = Style::default().add_modifier(Modifier::ITALIC);
+    // let table = Table::new(&rows)
+    //     .header(
+    //         Row::new(vec![
+    //             Cell::default(),
+    //             Cell::from("Name").style(italic),
+    //             Cell::from("Album").style(italic),
+    //             Cell::from("Artist").style(italic),
+    //         ])
+    //         .bottom_margin(1),
+    //     )
+    //     .block(
+    //         Block::default()
+    //             .borders(Borders::ALL)
+    //             .border_type(BorderType::Rounded),
+    //     )
+    //     .widths(&[
+    //         Constraint::Length(1),
+    //         Constraint::Percentage(40),
+    //         Constraint::Percentage(40),
+    //         Constraint::Percentage(20),
+    //     ]);
 
-    f.render_stateful_widget(table, area, &mut TableState::new(search.results.index()));
+    // f.render_stateful_widget(table, area, &mut TableState::new(search.results.index()));
 }
 
 fn draw_textbox(search: &Search, f: &mut Frame, area: Rect) {

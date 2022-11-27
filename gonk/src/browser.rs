@@ -1,7 +1,8 @@
 use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
 use crossterm::event::MouseEvent;
-use gonk_core::{Index, Song};
+use gonk_core::db::Album;
+use gonk_core::{db::Song, Database, Index};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     widgets::{Block, BorderType, Borders},
@@ -14,40 +15,39 @@ pub enum Mode {
     Song,
 }
 
-pub struct Item {
-    name: String,
-    id: usize,
-}
-
 pub struct Browser {
-    artists: Index<String>,
-    albums: Index<String>,
-    songs: Index<Item>,
+    artists: Index<&'static String>,
+    albums: Index<&'static Album>,
+    ///Title, (disc, number)
+    songs: Index<(String, (u8, u8))>,
     pub mode: Mode,
 }
 
 impl Browser {
     pub fn new() -> Self {
-        let artists = Index::new(gonk_core::artists(), Some(0));
+        let artists = Index::new(Database::artists(), Some(0));
+        let mut albums = Index::default();
+        let mut songs = Index::default();
 
-        let (albums, songs) = if let Some(first_artist) = artists.selected() {
-            let albums = Index::new(gonk_core::albums_by_artist(first_artist), Some(0));
+        if let Some(artist) = artists.selected() {
+            albums = Index::new(Database::albums_by_artist(artist), Some(0));
 
-            if let Some(first_album) = albums.selected() {
-                let songs = gonk_core::songs_from_album(first_artist, first_album)
-                    .into_iter()
-                    .map(|song| Item {
-                        name: format!("{}. {}", song.number, song.title),
-                        id: song.id,
-                    })
-                    .collect();
-                (albums, Index::new(songs, Some(0)))
-            } else {
-                (albums, Index::default())
+            if let Some(album) = albums.selected() {
+                songs = Index::new(
+                    album
+                        .songs
+                        .iter()
+                        .map(|song| {
+                            (
+                                format!("{}. {}", song.track_number, song.title),
+                                (song.disc_number, song.track_number),
+                            )
+                        })
+                        .collect(),
+                    Some(0),
+                );
             }
-        } else {
-            (Index::default(), Index::default())
-        };
+        }
 
         Self {
             artists,
@@ -97,7 +97,7 @@ impl Input for Browser {
 pub fn refresh(browser: &mut Browser) {
     browser.mode = Mode::Artist;
 
-    browser.artists = Index::new(gonk_core::artists(), Some(0));
+    browser.artists = Index::new(Database::artists(), Some(0));
     browser.albums = Index::default();
     browser.songs = Index::default();
 
@@ -115,7 +115,7 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        let albums = gonk_core::albums_by_artist(artist);
+        let albums = Database::albums_by_artist(artist);
         browser.albums = Index::new(albums, Some(0));
         update_songs(browser);
     }
@@ -124,11 +124,15 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs = gonk_core::songs_from_album(artist, album)
-                .into_iter()
-                .map(|song| Item {
-                    name: format!("{}. {}", song.number, song.title),
-                    id: song.id,
+            let songs = Database::album(artist, &album.title)
+                .unwrap()
+                .songs
+                .iter()
+                .map(|song| {
+                    (
+                        format!("{}. {}", song.track_number, song.title),
+                        (song.disc_number, song.track_number),
+                    )
                 })
                 .collect();
             browser.songs = Index::new(songs, Some(0));
@@ -136,14 +140,30 @@ pub fn update_songs(browser: &mut Browser) {
     }
 }
 
-pub fn get_selected(browser: &Browser) -> Vec<Song> {
+pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            if let Some(song) = browser.songs.selected() {
+            if let Some((_, (disc, number))) = browser.songs.selected() {
                 return match browser.mode {
-                    Mode::Artist => gonk_core::songs_by_artist(artist),
-                    Mode::Album => gonk_core::songs_from_album(artist, album),
-                    Mode::Song => gonk_core::ids(&[song.id]),
+                    Mode::Artist => {
+                        let albums = Database::artist(artist).unwrap();
+                        let mut songs = Vec::new();
+                        for album in albums {
+                            songs.extend(&album.songs);
+                        }
+                        songs
+                    }
+                    Mode::Album => {
+                        let album = Database::album(artist, &album.title).unwrap();
+                        let mut songs = Vec::new();
+                        for song in &album.songs {
+                            songs.push(song);
+                        }
+                        songs
+                    }
+                    Mode::Song => {
+                        vec![Database::song(artist, &album.title, *disc, *number).unwrap()]
+                    }
                 };
             }
         }
@@ -190,14 +210,14 @@ pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<Mous
         .albums
         .data
         .iter()
-        .map(|name| ListItem::new(name.as_str()))
+        .map(|name| ListItem::new(name.title.as_str()))
         .collect();
 
     let c: Vec<ListItem> = browser
         .songs
         .data
         .iter()
-        .map(|song| ListItem::new(song.name.as_str()))
+        .map(|(name, _)| ListItem::new(name.as_str()))
         .collect();
 
     let artists = list("─Aritst", &a, browser.mode == Mode::Artist);

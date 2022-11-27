@@ -1,6 +1,6 @@
 use crate::{
-    database_path, log, profile, reset, save_settings, settings_path, validate, Settings, Song,
-    SETTINGS, SONG_LEN,
+    database_path, log, profile, reset, save_settings, settings_path, validate, Settings, SETTINGS,
+    SONG_LEN,
 };
 use memmap2::Mmap;
 use multimap::MultiMap;
@@ -55,12 +55,12 @@ impl Database {
             //Waiting could be quite costly for large libraries.
 
             //Load all songs into memory.
-            let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
+            let songs: Vec<crate::OldSong> = (0..mmap.len() / SONG_LEN)
                 .into_par_iter()
                 .map(|i| {
                     let pos = i * SONG_LEN;
                     let bytes = &mmap[pos..pos + SONG_LEN];
-                    Song::from(bytes, i)
+                    crate::OldSong::from(bytes, i)
                 })
                 .collect();
 
@@ -69,7 +69,7 @@ impl Database {
             for song in songs {
                 albums.insert(
                     (song.artist, song.album),
-                    MinimalSong {
+                    Song {
                         title: song.title,
                         disc_number: song.disc,
                         track_number: song.number,
@@ -93,10 +93,22 @@ impl Database {
         Self { data }
     }
 
+    ///Get all items. (Artist, Albums)
+    pub fn collect() -> Vec<(&'static String, &'static Vec<Album>)> {
+        let db = unsafe { &DB.data };
+        db.iter_all().collect()
+    }
+
     ///Get all aritist names.
     pub fn artists() -> Vec<&'static String> {
         let db = unsafe { &DB.data };
         db.keys().collect()
+    }
+
+    ///Get albums by aritist.
+    pub fn artist(artist: &str) -> Option<&'static Vec<Album>> {
+        let db = unsafe { &DB.data };
+        db.get_vec(artist)
     }
 
     ///Get all album names.
@@ -143,7 +155,7 @@ impl Database {
     }
 
     ///Get all songs in the database.
-    pub fn songs() -> Vec<&'static MinimalSong> {
+    pub fn songs() -> Vec<&'static Song> {
         let db = unsafe { &DB.data };
         let mut songs = Vec::new();
         for (_, albums) in db.iter_all() {
@@ -155,7 +167,7 @@ impl Database {
     }
 
     ///Get an individual song in the database.
-    pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static MinimalSong> {
+    pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static Song> {
         profile!();
         let db = unsafe { &DB.data };
 
@@ -173,20 +185,6 @@ impl Database {
 
         None
     }
-
-    pub fn artists_albums_songs() -> (
-        Vec<&'static String>,
-        Vec<&'static String>,
-        Vec<&'static MinimalSong>,
-    ) {
-        profile!();
-
-        let artists = Database::artists();
-        let albums = Database::albums();
-        let songs = Database::songs();
-
-        (artists, albums, songs)
-    }
 }
 
 #[derive(Debug)]
@@ -197,12 +195,12 @@ pub struct Artist {
 #[derive(Debug)]
 pub struct Album {
     pub title: String,
-    pub songs: Vec<MinimalSong>,
+    pub songs: Vec<Song>,
 }
 
 //TODO: Replace Song with MinimalSong.
-#[derive(Debug)]
-pub struct MinimalSong {
+#[derive(Debug, Clone)]
+pub struct Song {
     pub title: String,
     pub disc_number: u8,
     pub track_number: u8,

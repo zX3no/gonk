@@ -69,18 +69,4 @@ fn main() {
     // };
     // dbg!(song.as_bytes());
     // dbg!(song.as_bytes().len());
-
-    // let albums = Database::song("Iglooghost", "XYZ", 1, 8);
-    // dbg!(albums);
-
-    let (artists, albums, songs) = Database::artists_albums_songs();
-    dbg!(songs);
-
-    // gonk_core::init();
-
-    // let song = gonk_core::artists_albums_and_songs();
-    // dbg!(song);
-
-    gonk_core::profiler::log();
-    // dbg!(Database::artists());
 }
