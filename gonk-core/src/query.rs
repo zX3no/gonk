@@ -86,6 +86,7 @@ pub const fn artist_and_album(text: &[u8]) -> (&str, &str) {
 }
 
 pub fn get(index: usize) -> Option<Song> {
+    profile!();
     if let Some(mmap) = mmap() {
         let start = SONG_LEN * index;
         let bytes = mmap.get(start..start + SONG_LEN)?;
@@ -181,6 +182,7 @@ pub fn artists() -> Vec<String> {
 }
 
 pub fn artists_albums_and_songs() -> (Vec<String>, Vec<(String, String)>, Vec<Song>) {
+    profile!();
     if let Some(mmap) = mmap() {
         let songs: Vec<Song> = (0..len())
             .into_par_iter()

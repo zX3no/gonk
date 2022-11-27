@@ -64,10 +64,7 @@ pub use query::*;
 pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
 
-//TODO: Load the databse into memory if it is under a certain size?
 pub fn init() {
-    profiler::init();
-
     match fs::read(settings_path()) {
         Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
             Some(settings) => unsafe { SETTINGS = settings },

@@ -4,7 +4,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub static mut EVENTS: Option<RwLock<HashMap<Location, Vec<Event>>>> = None;
+use once_cell::unsync::Lazy;
+
+pub static mut EVENTS: Lazy<RwLock<HashMap<Location, Vec<Event>>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Clone, Debug, Default)]
 pub struct Event {
@@ -47,7 +50,7 @@ pub struct Dropper {
 impl Drop for Dropper {
     #[inline(always)]
     fn drop(&mut self) {
-        let mut map = unsafe { EVENTS.as_mut().unwrap().write().unwrap() };
+        let mut map = unsafe { EVENTS.write().unwrap() };
         self.event.end = Some(Instant::now());
         match map.entry(self.location.clone()) {
             Entry::Occupied(mut entry) => {
@@ -110,14 +113,8 @@ macro_rules! profile {
     };
 }
 
-pub fn init() {
-    unsafe {
-        EVENTS = Some(RwLock::new(HashMap::default()));
-    }
-}
-
 pub fn log() {
-    let events = unsafe { EVENTS.as_ref().unwrap().read().unwrap() };
+    let events = unsafe { EVENTS.read().unwrap() };
 
     if events.is_empty() {
         return;
