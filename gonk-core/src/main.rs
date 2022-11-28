@@ -1,7 +1,10 @@
 #![allow(unused)]
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
+
 use gonk_core::{
     data::{Song, Text, S, T},
-    db::Database,
+    db::{Album, Database},
 };
 
 /// A Chunk can hold a maximum of 4 songs.
@@ -69,7 +72,4 @@ fn main() {
     // };
     // dbg!(song.as_bytes());
     // dbg!(song.as_bytes().len());
-
-    let results = Database::search("Testing");
-    dbg!(results);
 }

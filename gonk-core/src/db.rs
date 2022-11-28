@@ -1,13 +1,15 @@
 use crate::{
-    database_path, log, profile, reset, save_settings, settings_path, validate, Settings, SETTINGS,
-    SONG_LEN,
+    database_path, log, reset, save_settings, settings_path, validate, Settings, SETTINGS, SONG_LEN,
 };
 use memmap2::Mmap;
-use multimap::MultiMap;
 use once_cell::unsync::Lazy;
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use rayon::{
+    prelude::{IntoParallelIterator, ParallelIterator},
+    slice::ParallelSliceMut,
+};
 use std::{
     cmp::Ordering,
+    collections::{btree_map::Entry, BTreeMap},
     fs::{self, OpenOptions},
 };
 
@@ -21,13 +23,13 @@ use std::{
 pub static mut DB: Lazy<Database> = Lazy::new(|| unsafe { Database::new() });
 
 pub struct Database {
-    data: MultiMap<String, Album>,
+    data: BTreeMap<String, Vec<Album>>,
 }
 
 impl Database {
     //This should replace gonk_core::init();
     pub unsafe fn new() -> Self {
-        let mut data = MultiMap::new();
+        let mut data: BTreeMap<String, Vec<Album>> = BTreeMap::new();
 
         match fs::read(settings_path()) {
             Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
@@ -67,24 +69,27 @@ impl Database {
                 })
                 .collect();
 
-            let mut albums = MultiMap::new();
+            let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
 
             //Add songs to albums.
             for song in songs {
-                albums.insert(
-                    (song.artist, song.album),
-                    Song {
-                        title: song.title,
-                        disc_number: song.disc,
-                        track_number: song.number,
-                        path: song.path,
-                        gain: song.gain,
-                    },
-                )
+                let v = Song {
+                    title: song.title,
+                    disc_number: song.disc,
+                    track_number: song.number,
+                    path: song.path,
+                    gain: song.gain,
+                };
+                match albums.entry((song.artist, song.album)) {
+                    Entry::Occupied(mut entry) => entry.get_mut().push(v),
+                    Entry::Vacant(entry) => {
+                        entry.insert(vec![v]);
+                    }
+                }
             }
 
             //Sort songs.
-            for (_, album) in &mut albums {
+            albums.iter_mut().for_each(|(_, album)| {
                 album.sort_unstable_by(|a, b| {
                     if a.disc_number == b.disc_number {
                         a.track_number.cmp(&b.track_number)
@@ -92,29 +97,32 @@ impl Database {
                         a.disc_number.cmp(&b.disc_number)
                     }
                 });
-            }
+            });
 
             //Add albums to artists.
             for ((artist, album), v) in albums {
-                data.insert(
-                    artist,
-                    Album {
-                        title: album,
-                        songs: v,
-                    },
-                );
+                let v = Album {
+                    title: album,
+                    songs: v,
+                };
+                match data.entry(artist) {
+                    Entry::Occupied(mut entry) => entry.get_mut().push(v),
+                    Entry::Vacant(entry) => {
+                        entry.insert(vec![v]);
+                    }
+                }
             }
 
             //Sort albums.
-            for (_, albums) in &mut data {
+            data.iter_mut().for_each(|(_, albums)| {
                 albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
-            }
+            });
         }
 
         Self { data }
     }
 
-    ///Browser queries.
+    //Browser Queries:
 
     ///Get all aritist names.
     pub fn artists() -> Vec<&'static String> {
@@ -128,51 +136,17 @@ impl Database {
     ///Get all albums by an artist.
     pub fn albums_by_artist(artist: &str) -> Vec<&'static Album> {
         let db = unsafe { &DB.data };
-        if let Some(albums) = db.get_vec(artist) {
-            return albums.iter().collect();
+        if let Some(albums) = db.get(artist) {
+            albums.iter().collect()
+        } else {
+            Vec::new()
         }
-        Vec::new()
-    }
-
-    ///Search Queries
-
-    pub fn raw() -> &'static MultiMap<String, Album> {
-        unsafe { &DB.data }
-    }
-
-    ///
-
-    ///Get albums by aritist.
-    pub fn artist(artist: &str) -> Option<&'static Vec<Album>> {
-        let db = unsafe { &DB.data };
-        db.get_vec(artist)
-    }
-
-    ///Get all album names.
-    pub fn albums() -> Vec<&'static String> {
-        profile!();
-        let db = unsafe { &DB.data };
-        let mut albums = Vec::new();
-        for (_, al) in db.iter_all() {
-            for album in al {
-                albums.push(&album.title);
-            }
-        }
-        albums
-    }
-
-    ///Get all albums names by an artist.
-    pub fn album_names_by_artist(artist: &str) -> Vec<&'static String> {
-        Database::albums_by_artist(artist)
-            .iter()
-            .map(|album| &album.title)
-            .collect()
     }
 
     ///Get album by artist and album name.
     pub fn album(artist: &str, album: &str) -> Option<&'static Album> {
         let db = unsafe { &DB.data };
-        if let Some(albums) = db.get_vec(artist) {
+        if let Some(albums) = db.get(artist) {
             for al in albums {
                 if album == al.title {
                     return Some(al);
@@ -182,24 +156,11 @@ impl Database {
         None
     }
 
-    ///Get all songs in the database.
-    pub fn songs() -> Vec<&'static Song> {
-        let db = unsafe { &DB.data };
-        let mut songs = Vec::new();
-        for (_, albums) in db.iter_all() {
-            for album in albums {
-                songs.extend(&album.songs)
-            }
-        }
-        songs
-    }
-
     ///Get an individual song in the database.
     pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static Song> {
-        profile!();
         let db = unsafe { &DB.data };
 
-        if let Some(albums) = db.get_vec(artist) {
+        if let Some(albums) = db.get(artist) {
             for al in albums {
                 if al.title == album {
                     for song in &al.songs {
@@ -213,6 +174,14 @@ impl Database {
 
         None
     }
+
+    ///Get albums by aritist.
+    pub fn artist(artist: &str) -> Option<&'static Vec<Album>> {
+        let db = unsafe { &DB.data };
+        db.get(artist)
+    }
+
+    //Search Queries:
 
     ///Search the database and return the 25 most accurate matches.
     pub fn search(query: &str) -> Vec<Item> {
@@ -234,7 +203,7 @@ impl Database {
             }
         };
 
-        for (artist, albums) in db.iter_all() {
+        for (artist, albums) in db.iter() {
             cal(Item::Artist(artist));
             for album in albums {
                 cal(Item::Album((&album.title, artist)));
@@ -251,7 +220,7 @@ impl Database {
         }
 
         //Sort results by score.
-        results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+        results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
         if results.len() > 25 {
             //Remove the less accurate results.
@@ -287,6 +256,44 @@ impl Database {
 
         results.into_iter().map(|(item, _)| item).collect()
     }
+
+    //
+
+    pub fn raw() -> &'static BTreeMap<String, Vec<Album>> {
+        unsafe { &DB.data }
+    }
+
+    //Get all album names.
+    // pub fn albums() -> Vec<&'static String> {
+    //     let db = unsafe { &DB.data };
+    //     let mut albums = Vec::new();
+    //     for (_, al) in db.iter() {
+    //         for album in al {
+    //             albums.push(&album.title);
+    //         }
+    //     }
+    //     albums
+    // }
+
+    //Get all albums names by an artist.
+    // pub fn album_names_by_artist(artist: &str) -> Vec<&'static String> {
+    //     Database::albums_by_artist(artist)
+    //         .iter()
+    //         .map(|album| &album.title)
+    //         .collect()
+    // }
+
+    //Get all songs in the database.
+    // pub fn songs() -> Vec<&'static Song> {
+    //     let db = unsafe { &DB.data };
+    //     let mut songs = Vec::new();
+    //     for (_, albums) in db.iter() {
+    //         for album in albums {
+    //             songs.extend(&album.songs)
+    //         }
+    //     }
+    //     songs
+    // }
 }
 
 #[derive(Clone, Debug)]
