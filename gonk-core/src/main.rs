@@ -69,4 +69,7 @@ fn main() {
     // };
     // dbg!(song.as_bytes());
     // dbg!(song.as_bytes().len());
+
+    let results = Database::search("Testing");
+    dbg!(results);
 }

@@ -13,6 +13,7 @@ use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_core::gonk_path;
 use gonk_core::log;
+use gonk_core::Database;
 use gonk_core::Index;
 use gonk_core::ScanResult;
 use gonk_player::Player;
@@ -229,8 +230,7 @@ fn main() {
             }
 
             browser::refresh(&mut browser);
-            search::refresh_cache(&mut search);
-            search::refresh_results(&mut search);
+            search.results.data = Database::search(&search.query);
 
             scan_timer = None;
             scan_handle = None;
