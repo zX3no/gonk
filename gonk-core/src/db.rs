@@ -417,40 +417,64 @@ impl Database {
     ///Search the database and return the 25 most accurate matches.
     pub fn search(query: &str) -> Vec<Item> {
         let db = unsafe { &DB.data };
-
         let query = query.to_lowercase();
         let results = RwLock::new(Vec::new());
 
-        db.par_iter().for_each(|(artist, albums)| {
-            if let Some(result) = calc(&query, Item::Artist(artist)) {
-                results.write().unwrap().push(result);
+        //TODO: Cleanup
+        if query.is_empty() {
+            for (artist, albums) in db {
+                results.write().unwrap().push((Item::Artist(artist), 1.0));
+                for album in albums {
+                    results
+                        .write()
+                        .unwrap()
+                        .push((Item::Album((artist, &album.title)), 1.0));
+                    for song in &album.songs {
+                        results.write().unwrap().push((
+                            Item::Song((
+                                artist,
+                                &album.title,
+                                &song.title,
+                                song.disc_number,
+                                song.track_number,
+                            )),
+                            1.0,
+                        ));
+                    }
+                }
             }
-
-            for album in albums {
-                if let Some(result) = calc(&query, Item::Album((artist, &album.title))) {
+        } else {
+            db.par_iter().for_each(|(artist, albums)| {
+                if let Some(result) = calc(&query, Item::Artist(artist)) {
                     results.write().unwrap().push(result);
                 }
 
-                results.write().unwrap().extend(
-                    album
-                        .songs
-                        .iter()
-                        .filter_map(|song| {
-                            calc(
-                                &query,
-                                Item::Song((
-                                    artist,
-                                    &album.title,
-                                    &song.title,
-                                    song.disc_number,
-                                    song.track_number,
-                                )),
-                            )
-                        })
-                        .collect::<Vec<(Item, f64)>>(),
-                );
-            }
-        });
+                for album in albums {
+                    if let Some(result) = calc(&query, Item::Album((artist, &album.title))) {
+                        results.write().unwrap().push(result);
+                    }
+
+                    results.write().unwrap().extend(
+                        album
+                            .songs
+                            .iter()
+                            .filter_map(|song| {
+                                calc(
+                                    &query,
+                                    Item::Song((
+                                        artist,
+                                        &album.title,
+                                        &song.title,
+                                        song.disc_number,
+                                        song.track_number,
+                                    )),
+                                )
+                            })
+                            .collect::<Vec<(Item, f64)>>(),
+                    );
+                }
+            });
+        }
 
         let mut results = RwLock::into_inner(results).unwrap();
 
