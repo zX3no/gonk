@@ -1,6 +1,6 @@
 use crate::{
-    album, artist, database_path, log, path, save_settings, settings_path, title, validate,
-    RawSong, ScanResult, Settings, DISC_POS, NUMBER_POS, SETTINGS, SONG_LEN, TEXT_LEN,
+    album, artist, database_path, log, path, settings_path, title, validate, RawSong, ScanResult,
+    Settings, DISC_POS, NUMBER_POS, SONG_LEN, TEXT_LEN,
 };
 use memmap2::Mmap;
 use once_cell::unsync::Lazy;
@@ -11,17 +11,11 @@ use rayon::{
 use std::{
     cmp::Ordering,
     collections::{btree_map::Entry, BTreeMap},
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{self, BufWriter, Write},
     thread::{self, JoinHandle},
 };
 use walkdir::{DirEntry, WalkDir};
-
-//I don't like this being an option :?
-// pub static mut MMAP: Option<Mmap> = None;
-
-//It's probably unnecessary to have settings as a static.
-// pub static mut SETTINGS: Settings = Settings::default();
 
 //TODO: Maybe change this to a Once<_>?
 pub static mut DB: Lazy<Database> = Lazy::new(|| unsafe { Database::new() });
@@ -29,19 +23,21 @@ pub static mut DB: Lazy<Database> = Lazy::new(|| unsafe { Database::new() });
 pub struct Database {
     pub data: BTreeMap<String, Vec<Album>>,
     pub mmap: Option<Mmap>,
+    pub settings: Settings,
 }
 
 impl Database {
     //This should replace gonk_core::init();
     pub unsafe fn new() -> Self {
-        match fs::read(settings_path()) {
+        let mut settings = match fs::read(settings_path()) {
             Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
-                Some(settings) => SETTINGS = settings,
-                None => save_settings(),
+                Some(settings) => settings,
+                //Save the default settings when they are empty.
+                None => Settings::default().write().unwrap(),
             },
             //Save the default settings if nothing is found.
-            _ => save_settings(),
-        }
+            _ => Settings::default().write().unwrap(),
+        };
 
         //We only need write access to create the file.
         let db = OpenOptions::new()
@@ -58,7 +54,7 @@ impl Database {
         if valid.is_err() {
             log!("Database is corrupted. Resetting!");
             mmap = None;
-            SETTINGS = Settings::default();
+            settings = Settings::default().write().unwrap();
             fs::remove_file(settings_path()).unwrap();
             fs::remove_file(database_path()).unwrap();
         }
@@ -66,6 +62,7 @@ impl Database {
         Self {
             data: BTreeMap::new(),
             mmap,
+            settings,
         }
     }
 
@@ -76,7 +73,7 @@ impl Database {
     ///Reset the database.
     pub unsafe fn reset() -> io::Result<()> {
         DB.mmap = None;
-        SETTINGS = Settings::default();
+        DB.settings = Settings::default();
         fs::remove_file(settings_path())?;
         fs::remove_file(database_path())?;
         Ok(())
@@ -142,26 +139,18 @@ impl Database {
         });
     }
 
-    /// Collect and add files to the database.
-    /// This operation will truncate.
-    ///
-    /// Returns `JoinHandle` so scans won't run concurrently.
+    /// Collect songs and add them to the database.
     pub fn scan(path: String) -> JoinHandle<ScanResult> {
         if let Some(mmap) = unsafe { DB.mmap.take() } {
             drop(mmap);
         }
 
         thread::spawn(|| {
-            //TODO: Write to a new file then delete the old database.
-            //This way scanning can fail and all the files aren't lost.
+            let mut db_path = database_path();
+            db_path.pop();
+            db_path.push("temp.db");
 
-            //Open and truncate the database.
-            match OpenOptions::new()
-                .write(true)
-                .read(true)
-                .truncate(true)
-                .open(database_path())
-            {
+            match File::create(&db_path) {
                 Ok(file) => {
                     let mut writer = BufWriter::new(&file);
 
@@ -199,8 +188,21 @@ impl Database {
                     }
 
                     writer.flush().unwrap();
-                    unsafe { DB.mmap = Some(Mmap::map(&file).unwrap()) };
-                    unsafe { Database::build() };
+
+                    //Remove old database and replace it with new.
+                    fs::rename(db_path, database_path()).unwrap();
+
+                    unsafe {
+                        Database::build();
+
+                        let db = OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .create(true)
+                            .open(database_path())
+                            .unwrap();
+                        DB.mmap = Some(Mmap::map(&db).unwrap());
+                    };
 
                     if errors.is_empty() {
                         ScanResult::Completed
@@ -323,8 +325,6 @@ impl Database {
             results.drain(25..);
         }
 
-        // dbg!(&results);
-
         //Sort songs with equal score. Artist > Album > Song.
         results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
             if score_1 == score_2 {
@@ -353,43 +353,80 @@ impl Database {
         results.into_iter().map(|(item, _)| item).collect()
     }
 
-    //
+    //Settings:
 
-    pub fn raw() -> &'static BTreeMap<String, Vec<Album>> {
-        unsafe { &DB.data }
+    pub fn save_volume(new_volume: u8) {
+        unsafe {
+            DB.settings.volume = new_volume;
+            DB.settings.save().unwrap();
+        }
     }
 
-    //Get all album names.
-    // pub fn albums() -> Vec<&'static String> {
-    //     let db = unsafe { &DB.data };
-    //     let mut albums = Vec::new();
-    //     for (_, al) in db.iter() {
-    //         for album in al {
-    //             albums.push(&album.title);
-    //         }
-    //     }
-    //     albums
-    // }
+    pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
+        unsafe {
+            DB.settings.queue = queue.iter().map(RawSong::from).collect();
+            DB.settings.index = index;
+            DB.settings.elapsed = elapsed;
+            DB.settings.save().unwrap();
+        };
+    }
 
-    //Get all albums names by an artist.
-    // pub fn album_names_by_artist(artist: &str) -> Vec<&'static String> {
-    //     Database::albums_by_artist(artist)
-    //         .iter()
-    //         .map(|album| &album.title)
-    //         .collect()
-    // }
+    pub fn update_queue_state(index: u16, elapsed: f32) {
+        unsafe {
+            DB.settings.elapsed = elapsed;
+            DB.settings.index = index;
+            DB.settings.save().unwrap();
+        }
+    }
 
-    //Get all songs in the database.
-    // pub fn songs() -> Vec<&'static Song> {
-    //     let db = unsafe { &DB.data };
-    //     let mut songs = Vec::new();
-    //     for (_, albums) in db.iter() {
-    //         for album in albums {
-    //             songs.extend(&album.songs)
-    //         }
-    //     }
-    //     songs
-    // }
+    pub fn update_output_device(device: &str) {
+        unsafe {
+            DB.settings.output_device = device.to_string();
+            DB.settings.save().unwrap();
+        }
+    }
+
+    pub fn update_music_folder(folder: &str) {
+        unsafe {
+            DB.settings.music_folder = folder.replace('\\', "/");
+            DB.settings.save().unwrap();
+        }
+    }
+
+    pub fn get_saved_queue() -> (Vec<Song>, Option<usize>, f32) {
+        let settings = unsafe { &DB.settings };
+        let index = if settings.queue.is_empty() {
+            None
+        } else {
+            Some(settings.index as usize)
+        };
+
+        (
+            settings
+                .queue
+                .iter()
+                .map(|song| Song::from(&song.into_bytes()))
+                .collect(),
+            index,
+            settings.elapsed,
+        )
+    }
+
+    pub fn output_device() -> &'static str {
+        unsafe { &DB.settings.output_device }
+    }
+
+    pub fn music_folder() -> &'static str {
+        unsafe { &DB.settings.music_folder }
+    }
+
+    pub fn volume() -> u8 {
+        unsafe { DB.settings.volume }
+    }
+
+    pub unsafe fn raw() -> &'static BTreeMap<String, Vec<Album>> {
+        &DB.data
+    }
 }
 
 #[derive(Clone, Debug)]

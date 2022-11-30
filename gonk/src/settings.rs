@@ -1,5 +1,5 @@
 use crate::{widgets::*, Frame, Input};
-use gonk_core::Index;
+use gonk_core::{Database, Index};
 use gonk_player::{default_device, devices};
 use tui::{
     layout::Rect,
@@ -15,7 +15,7 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Self {
-        let wanted_device = gonk_core::output_device();
+        let wanted_device = Database::output_device();
         let devices = devices();
         let default = default_device().unwrap();
 

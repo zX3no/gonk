@@ -14,7 +14,6 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     str::{from_utf8, from_utf8_unchecked},
-    thread::{self},
     time::Instant,
 };
 use symphonia::{
@@ -57,8 +56,6 @@ pub mod profiler;
 pub use index::*;
 pub use playlist::*;
 
-pub static mut SETTINGS: Settings = Settings::default();
-
 pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {
         PathBuf::from(&env::var("APPDATA").unwrap())
@@ -93,26 +90,6 @@ pub fn database_path() -> PathBuf {
     }
 
     db
-}
-
-//Delete the settings and overwrite with updated values.
-pub fn save_settings() {
-    //Opening a thread takes 47us
-    //Opening the file takes 200us
-    thread::spawn(|| {
-        unsafe {
-            //Opening the same file twice may cause your computer to explode.
-            let file = File::options()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(settings_path())
-                .unwrap();
-
-            let writer = BufWriter::new(&file);
-            SETTINGS.write(writer).unwrap();
-        };
-    });
 }
 
 fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
@@ -251,7 +228,20 @@ impl Settings {
         }
         bytes
     }
-    pub fn write(&self, mut writer: BufWriter<&File>) -> io::Result<()> {
+    pub fn write(mut self) -> io::Result<Self> {
+        self.save()?;
+        Ok(self)
+    }
+    pub fn save(&mut self) -> io::Result<()> {
+        //Opening the same file twice may cause your computer to explode.
+        let file = File::options()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(settings_path())?;
+
+        let mut writer = BufWriter::new(file);
+
         writer.write_all(&[self.volume])?;
         writer.write_all(&self.index.to_le_bytes())?;
         writer.write_all(&self.elapsed.to_le_bytes())?;
@@ -267,76 +257,6 @@ impl Settings {
         }
         Ok(())
     }
-}
-
-pub fn save_volume(new_volume: u8) {
-    unsafe {
-        SETTINGS.volume = new_volume;
-        save_settings();
-    }
-}
-
-pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
-    unsafe {
-        SETTINGS.queue = queue.iter().map(RawSong::from).collect();
-        SETTINGS.index = index;
-        SETTINGS.elapsed = elapsed;
-        save_settings();
-    };
-}
-
-pub fn update_queue_state(index: u16, elapsed: f32) {
-    unsafe {
-        SETTINGS.elapsed = elapsed;
-        SETTINGS.index = index;
-        save_settings();
-    }
-}
-
-pub fn update_output_device(device: &str) {
-    unsafe {
-        SETTINGS.output_device = device.to_string();
-        save_settings();
-    }
-}
-
-pub fn update_music_folder(folder: &str) {
-    unsafe {
-        SETTINGS.music_folder = folder.replace('\\', "/");
-        save_settings();
-    }
-}
-
-pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
-    unsafe {
-        let index = if SETTINGS.queue.is_empty() {
-            None
-        } else {
-            Some(SETTINGS.index as usize)
-        };
-
-        (
-            SETTINGS
-                .queue
-                .iter()
-                .map(|song| Song::from(&song.into_bytes()))
-                .collect(),
-            index,
-            SETTINGS.elapsed,
-        )
-    }
-}
-
-pub fn output_device() -> &'static str {
-    unsafe { &SETTINGS.output_device }
-}
-
-pub fn music_folder() -> &'static str {
-    unsafe { &SETTINGS.music_folder }
-}
-
-pub fn volume() -> u8 {
-    unsafe { SETTINGS.volume }
 }
 
 pub enum ScanResult {

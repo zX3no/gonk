@@ -101,7 +101,7 @@ fn main() {
                 }
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
-                    gonk_core::update_music_folder(path.as_str());
+                    Database::update_music_folder(path.as_str());
                     scan_handle = Some(Database::scan(path));
                 } else {
                     return println!("Invalid path.");
@@ -146,12 +146,12 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = gonk_core::get_queue();
+    let (songs, index, elapsed) = Database::get_saved_queue();
 
     let songs = Index::new(songs, index);
 
-    let volume = gonk_core::volume();
-    let device = gonk_core::output_device();
+    let volume = Database::volume();
+    let device = Database::output_device();
     let ui_index = index.unwrap_or(0);
     let mut player = Player::new(device, volume, songs, elapsed);
     let mut player_clone = player.songs.data.clone();
@@ -250,7 +250,7 @@ fn main() {
             }
 
             //Update the time elapsed.
-            gonk_core::update_queue_state(
+            Database::update_queue_state(
                 player.songs.index().unwrap_or(0) as u16,
                 player.elapsed().as_secs_f32(),
             );
@@ -270,7 +270,7 @@ fn main() {
 
         if player.songs.data != player_clone {
             player_clone = player.songs.data.clone();
-            gonk_core::save_queue(
+            Database::save_queue(
                 &player.songs.data,
                 player.songs.index().unwrap_or(0) as u16,
                 player.elapsed().as_secs_f32(),
@@ -370,7 +370,7 @@ fn main() {
                         }
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                             if scan_handle.is_none() {
-                                let folder = gonk_core::music_folder().to_string();
+                                let folder = Database::music_folder().to_string();
                                 if folder.is_empty() {
                                     //TODO: I saw this flash by but I can't replicate it.
                                     gonk_core::log!(
@@ -388,11 +388,11 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            gonk_core::save_volume(player.volume());
+                            Database::save_volume(player.volume());
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            gonk_core::save_volume(player.volume());
+                            Database::save_volume(player.volume());
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,
@@ -574,7 +574,7 @@ fn main() {
         }
     }
 
-    gonk_core::save_queue(
+    Database::save_queue(
         &player.songs.data,
         player.songs.index().unwrap_or(0) as u16,
         player.elapsed().as_secs_f32(),
