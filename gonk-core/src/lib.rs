@@ -318,7 +318,7 @@ pub fn save_volume(new_volume: u8) {
     }
 }
 
-pub fn save_queue(queue: &[OldSong], index: u16, elapsed: f32) {
+pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
     unsafe {
         SETTINGS.queue = queue.iter().map(RawSong::from).collect();
         SETTINGS.index = index;
@@ -349,18 +349,19 @@ pub fn update_music_folder(folder: &str) {
     }
 }
 
-pub fn get_queue() -> (Vec<OldSong>, Option<usize>, f32) {
+pub fn get_queue() -> (Vec<Song>, Option<usize>, f32) {
     unsafe {
         let index = if SETTINGS.queue.is_empty() {
             None
         } else {
             Some(SETTINGS.index as usize)
         };
+
         (
             SETTINGS
                 .queue
                 .iter()
-                .map(|song| OldSong::from(&song.into_bytes(), 0))
+                .map(|song| Song::from(&song.into_bytes()))
                 .collect(),
             index,
             SETTINGS.elapsed,
@@ -464,91 +465,6 @@ pub fn scan(path: String) -> JoinHandle<ScanResult> {
             }
         }
     })
-}
-
-//TODO: REMOVE ME
-#[derive(Clone, Debug)]
-pub struct OldSong {
-    pub artist: String,
-    pub album: String,
-    pub title: String,
-    pub path: String,
-    pub number: u8,
-    pub disc: u8,
-    pub gain: f32,
-    pub id: usize,
-}
-
-impl PartialEq for OldSong {
-    fn eq(&self, other: &Self) -> bool {
-        self.artist == other.artist
-            && self.album == other.album
-            && self.title == other.title
-            && self.path == other.path
-            && self.number == other.number
-            && self.disc == other.disc
-            && self.gain == other.gain
-            && self.id == other.id
-    }
-}
-
-impl PartialOrd for OldSong {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.artist == other.artist {
-            if self.album == other.album {
-                if self.disc == other.disc {
-                    self.number.partial_cmp(&other.number)
-                } else {
-                    self.disc.partial_cmp(&other.disc)
-                }
-            } else {
-                self.album.partial_cmp(&other.album)
-            }
-        } else {
-            self.artist.partial_cmp(&other.artist)
-        }
-    }
-}
-
-impl Eq for OldSong {}
-
-impl Ord for OldSong {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl OldSong {
-    //TODO: If the database is in memory this function can be const.
-    pub fn from(bytes: &[u8], id: usize) -> Self {
-        debug_assert!(bytes.len() == SONG_LEN);
-        let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
-        let artist = artist(text);
-        let album = album(text);
-        let title = title(text);
-        let path = path(text);
-
-        let number = bytes[NUMBER_POS];
-        let disc = bytes[DISC_POS];
-
-        let gain = f32::from_le_bytes([
-            bytes[SONG_LEN - 4],
-            bytes[SONG_LEN - 3],
-            bytes[SONG_LEN - 2],
-            bytes[SONG_LEN - 1],
-        ]);
-
-        Self {
-            artist: artist.to_string(),
-            album: album.to_string(),
-            title: title.to_string(),
-            path: path.to_string(),
-            number,
-            disc,
-            gain,
-            id,
-        }
-    }
 }
 
 pub struct RawSong {
@@ -830,15 +746,15 @@ impl From<&'_ [u8]> for RawSong {
     }
 }
 
-impl From<&OldSong> for RawSong {
-    fn from(song: &OldSong) -> Self {
+impl From<&Song> for RawSong {
+    fn from(song: &Song) -> Self {
         RawSong::new(
             &song.artist,
             &song.album,
             &song.title,
             &song.path,
-            song.number,
-            song.disc,
+            song.track_number,
+            song.disc_number,
             song.gain,
         )
     }
@@ -998,12 +914,12 @@ mod tests {
         let mmap = unsafe { memmap2::Mmap::map(&file).unwrap() };
 
         b.iter(|| {
-            let songs: Vec<OldSong> = (0..mmap.len() / SONG_LEN)
+            let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
                 .into_par_iter()
                 .map(|i| {
                     let pos = i * SONG_LEN;
                     let bytes = &mmap[pos..pos + SONG_LEN];
-                    OldSong::from(bytes, i)
+                    Song::from(bytes)
                 })
                 .collect();
             assert_eq!(songs.len(), 10_000);
@@ -1059,11 +975,10 @@ mod tests {
                 let artist = artist(text);
                 if artist == "9999 artist" {
                     let song_bytes = &mmap[i..i + SONG_LEN];
-                    songs.push(OldSong::from(song_bytes, i / SONG_LEN));
+                    songs.push(Song::from(song_bytes));
                 }
                 i += SONG_LEN;
             }
-            songs.sort_unstable();
             assert_eq!(songs.len(), 1);
         });
     }
@@ -1087,11 +1002,10 @@ mod tests {
                 let artist = artist(text);
                 if artist == "artist" {
                     let song_bytes = &mmap[i..i + SONG_LEN];
-                    songs.push(OldSong::from(song_bytes, i / SONG_LEN));
+                    songs.push(Song::from(song_bytes));
                 }
                 i += SONG_LEN;
             }
-            songs.sort_unstable();
             assert_eq!(songs.len(), 10000);
         });
     }
@@ -1174,22 +1088,22 @@ mod tests {
             ("1000 artist", "1000 album")
         );
 
-        let song = OldSong::from(&db[..SONG_LEN], 0);
+        let song = Song::from(&db[..SONG_LEN]);
         assert_eq!(song.artist, "0 artist");
         assert_eq!(song.album, "0 album");
         assert_eq!(song.title, "0 title");
         assert_eq!(song.path, "0 path");
-        assert_eq!(song.number, 1);
-        assert_eq!(song.disc, 1);
+        assert_eq!(song.track_number, 1);
+        assert_eq!(song.disc_number, 1);
         assert_eq!(song.gain, 0.25);
 
-        let song = OldSong::from(&db[SONG_LEN * 9999..SONG_LEN * 10000], 9999);
+        let song = Song::from(&db[SONG_LEN * 9999..SONG_LEN * 10000]);
         assert_eq!(song.artist, "9999 artist");
         assert_eq!(song.album, "9999 album");
         assert_eq!(song.title, "9999 title");
         assert_eq!(song.path, "9999 path");
-        assert_eq!(song.number, 1);
-        assert_eq!(song.disc, 1);
+        assert_eq!(song.track_number, 1);
+        assert_eq!(song.disc_number, 1);
         assert_eq!(song.gain, 0.25);
     }
 }

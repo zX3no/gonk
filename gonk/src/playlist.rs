@@ -112,44 +112,44 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
             if let Some(selected) = playlist.playlists.selected() {
-                // let songs: Vec<Song> = selected
-                //     .songs
-                //     .data
-                //     .iter()
-                //     .map(|song| Song::from(&song.into_bytes(), 0))
-                //     .collect();
+                let songs: Vec<Song> = selected
+                    .songs
+                    .data
+                    .iter()
+                    .map(|song| Song::from(&song.into_bytes()))
+                    .collect();
 
-                // player.add(&songs);
+                player.add(songs);
             }
         }
         Mode::Song => {
             if let Some(selected) = playlist.playlists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    // player.add(&[Song::from(&song.into_bytes(), 0)]);
+                    player.add(vec![Song::from(&song.into_bytes())]);
                 }
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {
             let name = playlist.search_query.trim().to_string();
             let pos = playlist.playlists.data.iter().position(|p| p.name == name);
-            // let songs: Vec<RawSong> = playlist.song_buffer.iter().map(RawSong::from).collect();
+            let songs: Vec<RawSong> = playlist.song_buffer.iter().map(RawSong::from).collect();
 
-            // if let Some(pos) = pos {
-            //     let p = &mut playlist.playlists.data[pos];
-            //     p.songs.data.extend(songs);
-            //     p.songs.select(Some(0));
-            //     p.save();
-            //     playlist.playlists.select(Some(pos));
-            // } else {
-            //     let len = playlist.playlists.len();
-            //     playlist.playlists.data.push(RawPlaylist::new(&name, songs));
-            //     playlist.playlists.select(Some(len));
-            //     playlist.playlists.data[len].save();
-            // }
+            if let Some(pos) = pos {
+                let p = &mut playlist.playlists.data[pos];
+                p.songs.data.extend(songs);
+                p.songs.select(Some(0));
+                p.save();
+                playlist.playlists.select(Some(pos));
+            } else {
+                let len = playlist.playlists.len();
+                playlist.playlists.data.push(RawPlaylist::new(&name, songs));
+                playlist.playlists.select(Some(len));
+                playlist.playlists.data[len].save();
+            }
 
-            // //Reset everything.
-            // playlist.search_query = String::new();
-            // playlist.mode = Mode::Playlist;
+            //Reset everything.
+            playlist.search_query = String::new();
+            playlist.mode = Mode::Playlist;
         }
         Mode::Popup => (),
     }

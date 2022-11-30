@@ -1,16 +1,12 @@
 use crate::{widgets::*, *};
 use gonk_core::db::Item;
 use gonk_core::{Database, Song};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::cmp::Ordering;
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Span, Spans},
     widgets::{Block, BorderType, Borders, Paragraph},
 };
-
-const MIN_ACCURACY: f64 = 0.70;
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {
@@ -69,7 +65,7 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
     }
 }
 
-pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
+pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
     match search.mode {
         Mode::Search => {
             if !search.results.is_empty() {
@@ -79,17 +75,23 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<Song>> {
             None
         }
         Mode::Select => search.results.selected().map(|item| match item {
-            Item::Song(song) => {
-                // gonk_core::ids(&[song.id]);
-                todo!()
+            Item::Song((artist, album, _, disc, number)) => {
+                vec![Database::song(artist, album, *disc, *number).unwrap()]
             }
-            Item::Album(album) => {
-                // gonk_core::songs_from_album(&album.artist, &album.name);
-                todo!()
-            }
+            Item::Album((artist, album)) => Database::album(artist, album)
+                .unwrap()
+                .songs
+                .iter()
+                .collect(),
             Item::Artist(artist) => {
-                // gonk_core::songs_by_artist(&artist.name);
-                todo!()
+                let artist = Database::artist(artist).unwrap();
+                let mut songs = Vec::new();
+                for album in artist {
+                    for song in &album.songs {
+                        songs.push(song);
+                    }
+                }
+                songs
             }
         }),
     }

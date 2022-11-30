@@ -1,5 +1,6 @@
 use crate::{
-    database_path, log, reset, save_settings, settings_path, validate, Settings, SETTINGS, SONG_LEN,
+    album, artist, database_path, log, path, reset, save_settings, settings_path, title, validate,
+    Settings, DISC_POS, NUMBER_POS, SETTINGS, SONG_LEN, TEXT_LEN,
 };
 use memmap2::Mmap;
 use once_cell::unsync::Lazy;
@@ -60,12 +61,12 @@ impl Database {
             //Waiting could be quite costly for large libraries.
 
             //Load all songs into memory.
-            let songs: Vec<crate::OldSong> = (0..mmap.len() / SONG_LEN)
+            let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
                 .into_par_iter()
                 .map(|i| {
                     let pos = i * SONG_LEN;
                     let bytes = &mmap[pos..pos + SONG_LEN];
-                    crate::OldSong::from(bytes, i)
+                    Song::from(bytes)
                 })
                 .collect();
 
@@ -73,17 +74,10 @@ impl Database {
 
             //Add songs to albums.
             for song in songs {
-                let v = Song {
-                    title: song.title,
-                    disc_number: song.disc,
-                    track_number: song.number,
-                    path: song.path,
-                    gain: song.gain,
-                };
-                match albums.entry((song.artist, song.album)) {
-                    Entry::Occupied(mut entry) => entry.get_mut().push(v),
+                match albums.entry((song.artist.clone(), song.album.clone())) {
+                    Entry::Occupied(mut entry) => entry.get_mut().push(song),
                     Entry::Vacant(entry) => {
-                        entry.insert(vec![v]);
+                        entry.insert(vec![song]);
                     }
                 }
             }
@@ -323,10 +317,43 @@ pub struct Album {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
+    pub album: String,
+    pub artist: String,
     pub disc_number: u8,
     pub track_number: u8,
     pub path: String,
     pub gain: f32,
+}
+impl Song {
+    //TODO: If the database is in memory this function can be const.
+    pub fn from(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.len() == SONG_LEN);
+        let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
+        let artist = artist(text);
+        let album = album(text);
+        let title = title(text);
+        let path = path(text);
+
+        let track_number = bytes[NUMBER_POS];
+        let disc_number = bytes[DISC_POS];
+
+        let gain = f32::from_le_bytes([
+            bytes[SONG_LEN - 4],
+            bytes[SONG_LEN - 3],
+            bytes[SONG_LEN - 2],
+            bytes[SONG_LEN - 1],
+        ]);
+
+        Self {
+            artist: artist.to_string(),
+            album: album.to_string(),
+            title: title.to_string(),
+            path: path.to_string(),
+            track_number,
+            disc_number,
+            gain,
+        }
+    }
 }
 
 mod strsim {

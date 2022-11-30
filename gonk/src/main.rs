@@ -16,6 +16,7 @@ use gonk_core::log;
 use gonk_core::Database;
 use gonk_core::Index;
 use gonk_core::ScanResult;
+use gonk_core::Song;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -146,8 +147,9 @@ fn main() {
     terminal.clear().unwrap();
 
     let (songs, index, elapsed) = gonk_core::get_queue();
-    // let songs = Index::new(songs, index);
-    let songs = Index::default();
+
+    let songs = Index::new(songs, index);
+
     let volume = gonk_core::volume();
     let device = gonk_core::output_device();
     let ui_index = index.unwrap_or(0);
@@ -266,14 +268,15 @@ fn main() {
             player.next();
         }
 
-        // if player.songs.data != player_clone {
-        //     player_clone = player.songs.data.clone();
-        //     gonk_core::save_queue(
-        //         &player.songs.data,
-        //         player.songs.index().unwrap_or(0) as u16,
-        //         player.elapsed().as_secs_f32(),
-        //     );
-        // }
+        if player.songs.data != player_clone {
+            player_clone = player.songs.data.clone();
+            //TODO: Starting to see the problem with not storing artist and album with the songs.
+            // gonk_core::save_queue(
+            //     &player.songs.data,
+            //     player.songs.index().unwrap_or(0) as u16,
+            //     player.elapsed().as_secs_f32(),
+            // );
+        }
 
         terminal
             .draw(|f| {
@@ -436,20 +439,24 @@ fn main() {
                                     mode = Mode::Browser;
                                 }
                             }
-                            // Mode::Queue => mode = Mode::Browser,
                             Mode::Browser => mode = Mode::Queue,
                             Mode::Queue => (),
                             Mode::Settings => mode = Mode::Queue,
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
-                                let songs = browser::get_selected(&browser);
-                                // playlist::add(&mut playlist, &songs);
+                                //TODO: Rework
+                                let songs: Vec<Song> = browser::get_selected(&browser)
+                                    .into_iter()
+                                    .cloned()
+                                    .collect();
+                                playlist::add(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
                             Mode::Queue => {
                                 if let Some(index) = queue.ui.index() {
                                     if let Some(song) = player.songs.data.get(index) {
+                                        //TODO: Rework
                                         playlist::add(&mut playlist, &[song.clone()]);
                                         mode = Mode::Playlist;
                                     }
@@ -457,6 +464,8 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
+                                    //TODO: Rework
+                                    let songs: Vec<Song> = songs.into_iter().cloned().collect();
                                     playlist::add(&mut playlist, &songs);
                                     mode = Mode::Playlist;
                                 }
@@ -465,8 +474,11 @@ fn main() {
                         },
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
-                                let songs = browser::get_selected(&browser);
-                                // player.add(&songs);
+                                let songs = browser::get_selected(&browser)
+                                    .into_iter()
+                                    .cloned()
+                                    .collect();
+                                player.add(songs);
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
@@ -475,7 +487,8 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    player.add(&songs);
+                                    let songs = songs.into_iter().cloned().collect();
+                                    player.add(songs);
                                 }
                             }
                             Mode::Settings => {
@@ -561,11 +574,11 @@ fn main() {
         }
     }
 
-    // gonk_core::save_queue(
-    //     &player.songs.data,
-    //     player.songs.index().unwrap_or(0) as u16,
-    //     player.elapsed().as_secs_f32(),
-    // );
+    gonk_core::save_queue(
+        &player.songs.data,
+        player.songs.index().unwrap_or(0) as u16,
+        player.elapsed().as_secs_f32(),
+    );
 
     disable_raw_mode().unwrap();
     execute!(
