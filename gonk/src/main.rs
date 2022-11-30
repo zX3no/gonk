@@ -1,20 +1,6 @@
-#![warn(clippy::pedantic)]
-#![allow(
-    clippy::wildcard_imports,
-    clippy::float_cmp,
-    clippy::cast_lossless,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    clippy::match_same_arms
-)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_core::gonk_path;
-use gonk_core::log;
-use gonk_core::Index;
-use gonk_core::ScanResult;
+use gonk_core::*;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -86,7 +72,7 @@ fn draw_log(f: &mut Frame) -> Rect {
 }
 
 fn main() {
-    gonk_core::init();
+    unsafe { Database::build() };
 
     let mut scan_handle = None;
 
@@ -99,14 +85,14 @@ fn main() {
                 }
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
-                    gonk_core::update_music_folder(path.as_str());
-                    scan_handle = Some(gonk_core::scan(path));
+                    Database::update_music_folder(path.as_str());
+                    scan_handle = Some(Database::scan(path));
                 } else {
                     return println!("Invalid path.");
                 }
             }
             "reset" => {
-                return match gonk_core::reset() {
+                return match unsafe { Database::reset() } {
                     Ok(_) => println!("Files reset!"),
                     Err(e) => println!("Failed to reset database! {e}"),
                 };
@@ -144,10 +130,12 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = gonk_core::get_queue();
+    let (songs, index, elapsed) = Database::get_saved_queue();
+
     let songs = Index::new(songs, index);
-    let volume = gonk_core::volume();
-    let device = gonk_core::output_device();
+
+    let volume = Database::volume();
+    let device = Database::output_device();
     let ui_index = index.unwrap_or(0);
     let mut player = Player::new(device, volume, songs, elapsed);
     let mut player_clone = player.songs.data.clone();
@@ -199,7 +187,7 @@ fn main() {
                     ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            gonk_core::len(),
+                            Database::len(),
                             time.elapsed().as_secs_f32()
                         );
                     }
@@ -216,7 +204,7 @@ fn main() {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            gonk_core::len() - len,
+                            Database::len() - len,
                         );
 
                         let path = gonk_path().join("gonk.log");
@@ -228,8 +216,7 @@ fn main() {
             }
 
             browser::refresh(&mut browser);
-            search::refresh_cache(&mut search);
-            search::refresh_results(&mut search);
+            search.results.data = Database::search(&search.query);
 
             scan_timer = None;
             scan_handle = None;
@@ -247,7 +234,7 @@ fn main() {
             }
 
             //Update the time elapsed.
-            gonk_core::update_queue_state(
+            Database::update_queue_state(
                 player.songs.index().unwrap_or(0) as u16,
                 player.elapsed().as_secs_f32(),
             );
@@ -267,7 +254,7 @@ fn main() {
 
         if player.songs.data != player_clone {
             player_clone = player.songs.data.clone();
-            gonk_core::save_queue(
+            Database::save_queue(
                 &player.songs.data,
                 player.songs.index().unwrap_or(0) as u16,
                 player.elapsed().as_secs_f32(),
@@ -367,13 +354,14 @@ fn main() {
                         }
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                             if scan_handle.is_none() {
-                                let folder = gonk_core::music_folder().to_string();
+                                let folder = Database::music_folder().to_string();
                                 if folder.is_empty() {
+                                    //TODO: I saw this flash by but I can't replicate it.
                                     gonk_core::log!(
                                         "Nothing to scan! Add a folder with 'gonk add /path/'"
                                     );
                                 } else {
-                                    scan_handle = Some(gonk_core::scan(folder));
+                                    scan_handle = Some(Database::scan(folder));
                                     playlist.playlists = Index::from(gonk_core::playlists());
                                 }
                             }
@@ -384,11 +372,11 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            gonk_core::save_volume(player.volume());
+                            Database::save_volume(player.volume());
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            gonk_core::save_volume(player.volume());
+                            Database::save_volume(player.volume());
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,
@@ -435,14 +423,16 @@ fn main() {
                                     mode = Mode::Browser;
                                 }
                             }
-                            // Mode::Queue => mode = Mode::Browser,
                             Mode::Browser => mode = Mode::Queue,
                             Mode::Queue => (),
                             Mode::Settings => mode = Mode::Queue,
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
-                                let songs = browser::get_selected(&browser);
+                                let songs: Vec<Song> = browser::get_selected(&browser)
+                                    .into_iter()
+                                    .cloned()
+                                    .collect();
                                 playlist::add(&mut playlist, &songs);
                                 mode = Mode::Playlist;
                             }
@@ -456,6 +446,7 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
+                                    let songs: Vec<Song> = songs.into_iter().cloned().collect();
                                     playlist::add(&mut playlist, &songs);
                                     mode = Mode::Playlist;
                                 }
@@ -464,8 +455,11 @@ fn main() {
                         },
                         KeyCode::Enter => match mode {
                             Mode::Browser => {
-                                let songs = browser::get_selected(&browser);
-                                player.add(&songs);
+                                let songs = browser::get_selected(&browser)
+                                    .into_iter()
+                                    .cloned()
+                                    .collect();
+                                player.add(songs);
                             }
                             Mode::Queue => {
                                 if let Some(i) = queue.ui.index() {
@@ -474,7 +468,8 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    player.add(&songs);
+                                    let songs = songs.into_iter().cloned().collect();
+                                    player.add(songs);
                                 }
                             }
                             Mode::Settings => {
@@ -560,7 +555,7 @@ fn main() {
         }
     }
 
-    gonk_core::save_queue(
+    Database::save_queue(
         &player.songs.data,
         player.songs.index().unwrap_or(0) as u16,
         player.elapsed().as_secs_f32(),
@@ -574,5 +569,5 @@ fn main() {
     )
     .unwrap();
 
-    gonk_core::profiler::log();
+    gonk_core::profiler::print();
 }

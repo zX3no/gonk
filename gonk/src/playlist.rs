@@ -1,7 +1,8 @@
 use crate::{widgets::*, *};
 use crossterm::event::MouseEvent;
-use gonk_core::{Index, RawPlaylist, RawSong, Song};
+use gonk_core::{Index, RawPlaylist, Song};
 use gonk_player::Player;
+use std::mem;
 use tui::layout::Alignment;
 use tui::style::{Color, Modifier, Style};
 use tui::text::Span;
@@ -116,35 +117,39 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                     .songs
                     .data
                     .iter()
-                    .map(|song| Song::from(&song.into_bytes(), 0))
+                    .map(|song| Song::from(&song.as_bytes()))
                     .collect();
 
-                player.add(&songs);
+                player.add(songs);
             }
         }
         Mode::Song => {
             if let Some(selected) = playlist.playlists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    player.add(&[Song::from(&song.into_bytes(), 0)]);
+                    player.add(vec![Song::from(&song.as_bytes())]);
                 }
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {
+            //Find the index of the playlist
             let name = playlist.search_query.trim().to_string();
             let pos = playlist.playlists.data.iter().position(|p| p.name == name);
-            let songs: Vec<RawSong> = playlist.song_buffer.iter().map(RawSong::from).collect();
 
+            let songs = mem::take(&mut playlist.song_buffer);
+
+            //If the playlist exists
             if let Some(pos) = pos {
-                let p = &mut playlist.playlists.data[pos];
-                p.songs.data.extend(songs);
-                p.songs.select(Some(0));
-                p.save();
+                let pl = &mut playlist.playlists.data[pos];
+                pl.extend(songs);
+                pl.songs.select(Some(0));
+                pl.save();
                 playlist.playlists.select(Some(pos));
             } else {
+                //If the playlist does not exist create it.
                 let len = playlist.playlists.len();
                 playlist.playlists.data.push(RawPlaylist::new(&name, songs));
-                playlist.playlists.select(Some(len));
                 playlist.playlists.data[len].save();
+                playlist.playlists.select(Some(len));
             }
 
             //Reset everything.
@@ -188,6 +193,7 @@ fn delete_song(playlist: &mut Playlist) {
                 playlist.playlists.remove(i);
             }
         }
+        playlist.mode = PlaylistMode::Playlist;
         playlist.delete = false;
     }
 }

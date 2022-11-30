@@ -6,17 +6,16 @@ use std::{
 
 use once_cell::unsync::Lazy;
 
-pub static mut EVENTS: Lazy<RwLock<HashMap<Location, Vec<Event>>>> =
+static mut EVENTS: Lazy<RwLock<HashMap<Location, Vec<Event>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Clone, Debug, Default)]
-pub struct Event {
+struct Event {
     pub start: Option<Instant>,
     pub end: Option<Instant>,
 }
 
 impl Event {
-    /// # Safety
     pub unsafe fn elapsed(&self) -> Duration {
         self.end
             .unwrap_unchecked()
@@ -25,7 +24,7 @@ impl Event {
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Default)]
-pub struct Location {
+struct Location {
     pub name: &'static str,
     pub file: &'static str,
     pub line: u32,
@@ -42,7 +41,7 @@ struct Score {
     pub count: usize,
 }
 
-pub struct Dropper {
+struct Dropper {
     pub event: Event,
     pub location: Location,
 }
@@ -75,6 +74,7 @@ macro_rules! function {
     }};
 }
 
+//HACK: cfg doesn't work in macros.
 #[inline(always)]
 pub fn profile(_name: &'static str) {
     #[cfg(feature = "profile")]
@@ -95,25 +95,14 @@ pub fn profile(_name: &'static str) {
 macro_rules! profile {
     () => {
         $crate::profiler::profile($crate::function!());
-        // $crate::profile!($crate::function!());
     };
     ($name:expr) => {
         $crate::profiler::profile($name);
-        // let _drop = $crate::profiler::Dropper {
-        //     event: $crate::profiler::Event {
-        //         start: Some(std::time::Instant::now()),
-        //         end: None,
-        //     },
-        //     location: $crate::profiler::Location {
-        //         name: $name,
-        //         file: file!(),
-        //         line: line!(),
-        //     },
-        // };
     };
 }
 
-pub fn log() {
+///Print the profiler events.
+pub fn print() {
     let events = unsafe { EVENTS.read().unwrap() };
 
     if events.is_empty() {

@@ -1,4 +1,4 @@
-use crate::{database_path, Index, RawSong, SONG_LEN};
+use crate::{database_path, raw_song::*, Index, Song, SONG_LEN};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
@@ -15,17 +15,27 @@ pub struct RawPlaylist {
 }
 
 impl RawPlaylist {
-    pub fn new(name: &str, data: Vec<RawSong>) -> Self {
+    pub fn new(name: &str, songs: Vec<Song>) -> Self {
         let mut path = database_path();
         path.pop();
         path.push(format!("{name}.playlist"));
 
+        let songs: Vec<RawSong> = songs.into_iter().map(|song| RawSong::from(&song)).collect();
+
         Self {
             path,
             name: name.to_string(),
-            songs: Index::from(data),
+            songs: Index::from(songs),
         }
     }
+    pub fn extend<I: IntoIterator<Item = Song>>(&mut self, iter: I) {
+        let iter = iter.into_iter().map(|song| RawSong::from(&song));
+        self.songs.data.extend(iter);
+    }
+    pub fn extend_raw<I: IntoIterator<Item = RawSong>>(&mut self, iter: I) {
+        self.songs.data.extend(iter);
+    }
+    //TODO: Why is the file handle being reopened so much.
     pub fn save(&self) {
         //Delete the contents of the file and overwrite with new settings.
         let file = File::create(&self.path).unwrap();
@@ -36,7 +46,7 @@ impl RawPlaylist {
         bytes.extend((self.name.len() as u16).to_le_bytes());
         bytes.extend(self.name.as_bytes());
         for song in &self.songs.data {
-            bytes.extend(song.into_bytes());
+            bytes.extend(song.as_bytes());
         }
 
         writer.write_all(&bytes).unwrap();

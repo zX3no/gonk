@@ -121,6 +121,7 @@ impl Player {
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
+            unsafe { STATE == State::Playing };
             self.s
                 .send(Event::PlaySong((song.path.clone(), song.gain)))
                 .unwrap();
@@ -166,8 +167,8 @@ impl Player {
             self.songs = Index::new(vec![playing], Some(0));
         }
     }
-    pub fn add(&mut self, songs: &[Song]) {
-        self.songs.data.extend(songs.to_vec());
+    pub fn add(&mut self, songs: Vec<Song>) {
+        self.songs.data.extend(songs);
         if self.songs.selected().is_none() {
             self.songs.select(Some(0));
             self.play_index(0);

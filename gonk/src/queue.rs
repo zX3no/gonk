@@ -222,7 +222,7 @@ fn draw_body(
         .map(|song| {
             Row::new(vec![
                 Cell::from(""),
-                Cell::from(song.number.to_string()).style(Style::default().fg(NUMBER)),
+                Cell::from(song.track_number.to_string()).style(Style::default().fg(NUMBER)),
                 Cell::from(song.title.as_str()).style(Style::default().fg(TITLE)),
                 Cell::from(song.album.as_str()).style(Style::default().fg(ALBUM)),
                 Cell::from(song.artist.as_str()).style(Style::default().fg(ARTIST)),
@@ -241,7 +241,7 @@ fn draw_body(
                                 .fg(Color::White)
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
-                        Cell::from(song.number.to_string())
+                        Cell::from(song.track_number.to_string())
                             .style(Style::default().bg(NUMBER).fg(Color::Black)),
                         Cell::from(song.title.as_str())
                             .style(Style::default().bg(TITLE).fg(Color::Black)),
@@ -257,7 +257,8 @@ fn draw_body(
                                 .fg(Color::White)
                                 .add_modifier(Modifier::DIM | Modifier::BOLD),
                         ),
-                        Cell::from(song.number.to_string()).style(Style::default().fg(NUMBER)),
+                        Cell::from(song.track_number.to_string())
+                            .style(Style::default().fg(NUMBER)),
                         Cell::from(song.title.as_str()).style(Style::default().fg(TITLE)),
                         Cell::from(song.album.as_str()).style(Style::default().fg(ALBUM)),
                         Cell::from(song.artist.as_str()).style(Style::default().fg(ARTIST)),
@@ -272,7 +273,8 @@ fn draw_body(
                     if let Some(song) = songs.get(ui_index) {
                         let row = Row::new(vec![
                             Cell::default(),
-                            Cell::from(song.number.to_string()).style(Style::default().bg(NUMBER)),
+                            Cell::from(song.track_number.to_string())
+                                .style(Style::default().bg(NUMBER)),
                             Cell::from(song.title.as_str()).style(Style::default().bg(TITLE)),
                             Cell::from(song.album.as_str()).style(Style::default().bg(ALBUM)),
                             Cell::from(song.artist.as_str()).style(Style::default().bg(ARTIST)),
