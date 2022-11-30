@@ -70,9 +70,9 @@ pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
         .iter()
         .map(|name| {
             if *name == settings.current_device {
-                ListItem::new(*name)
+                ListItem::new(*name).style(Style::default().add_modifier(Modifier::BOLD))
             } else {
-                ListItem::new(*name).style(Style::default().add_modifier(Modifier::DIM))
+                ListItem::new(*name)
             }
         })
         .collect();
