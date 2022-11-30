@@ -486,7 +486,6 @@ impl Database {
             results.par_drain(25..);
         }
 
-        //Sort songs with equal score. Artist > Album > Song.
         results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
             if score_1 == score_2 {
                 match item_1 {
@@ -499,8 +498,12 @@ impl Database {
                         Item::Album(_) => Ordering::Equal,
                         Item::Artist(_) => Ordering::Greater,
                     },
-                    Item::Song(_) => match item_2 {
-                        Item::Song(_) => Ordering::Equal,
+                    Item::Song((_, _, _, disc_a, number_a)) => match item_2 {
+                        Item::Song((_, _, _, disc_b, number_b)) => match disc_a.cmp(disc_b) {
+                            Ordering::Less => Ordering::Less,
+                            Ordering::Equal => number_a.cmp(number_b),
+                            Ordering::Greater => Ordering::Greater,
+                        },
                         Item::Album(_) | Item::Artist(_) => Ordering::Greater,
                     },
                 }
@@ -618,7 +621,7 @@ mod strsim {
             .count();
 
         let jaro_winkler_distance =
-            jaro_distance + (0.2 * prefix_length as f64 * (1.0 - jaro_distance));
+            jaro_distance + (0.15 * prefix_length as f64 * (1.0 - jaro_distance));
 
         jaro_winkler_distance.clamp(0.0, 1.0)
     }

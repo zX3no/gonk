@@ -166,4 +166,7 @@ fn main() {
     // };
     // dbg!(song.as_bytes());
     // dbg!(song.as_bytes().len());
+
+    unsafe { Database::build() };
+    Database::search("good morning captain");
 }
