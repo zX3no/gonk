@@ -326,8 +326,6 @@ impl Database {
                     fs::rename(db_path, database_path()).unwrap();
 
                     unsafe {
-                        Database::build();
-
                         let db = OpenOptions::new()
                             .read(true)
                             .write(true)
@@ -335,6 +333,8 @@ impl Database {
                             .open(database_path())
                             .unwrap();
                         DB.mmap = Some(Mmap::map(&db).unwrap());
+
+                        Database::build();
                     };
 
                     if errors.is_empty() {
