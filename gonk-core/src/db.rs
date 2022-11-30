@@ -1,7 +1,4 @@
-use crate::{
-    album, artist, database_path, log, path, settings_path, title, validate, RawSong, ScanResult,
-    Settings, DISC_POS, NUMBER_POS, SONG_LEN, TEXT_LEN,
-};
+use crate::{settings::Settings, *};
 use memmap2::Mmap;
 use once_cell::unsync::Lazy;
 use rayon::{
@@ -20,8 +17,90 @@ use std::{
 };
 use walkdir::{DirEntry, WalkDir};
 
+const MIN_ACCURACY: f64 = 0.70;
+
+//TODO: Rework
+//TODO: Could this be stored in a more drive friendly size like 512?
+//522 + 1 + 1 + 4 = 528
+pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
+pub const TEXT_LEN: usize = 522;
+pub const NUMBER_POS: usize = SONG_LEN - 1 - size_of::<f32>() - size_of::<u8>();
+pub const DISC_POS: usize = SONG_LEN - 1 - size_of::<f32>();
+pub const GAIN_POS: Range<usize> = SONG_LEN - size_of::<f32>()..SONG_LEN;
+
 //TODO: Maybe change this to a Once<_>?
 pub static mut DB: Lazy<Database> = Lazy::new(|| unsafe { Database::new() });
+
+#[derive(Clone, Debug)]
+pub enum Item {
+    ///(Artist, Album, Name, Disc Number, Track Number)
+    Song((&'static String, &'static String, &'static String, u8, u8)),
+    ///(Artist, Album)
+    Album((&'static String, &'static String)),
+    ///(Artist)
+    Artist(&'static String),
+}
+
+pub enum ScanResult {
+    Completed,
+    CompletedWithErrors(Vec<String>),
+    Incomplete(&'static str),
+}
+
+#[derive(Debug)]
+pub struct Artist {
+    pub albums: Vec<Album>,
+}
+
+#[derive(Debug)]
+pub struct Album {
+    pub title: String,
+    pub songs: Vec<Song>,
+}
+
+//TODO: Replace Song with MinimalSong.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Song {
+    pub title: String,
+    pub album: String,
+    pub artist: String,
+    pub disc_number: u8,
+    pub track_number: u8,
+    pub path: String,
+    pub gain: f32,
+}
+
+impl Song {
+    //TODO: If the database is in memory this function can be const.
+    pub fn from(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.len() == SONG_LEN);
+        let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
+        let artist = artist(text);
+        let album = album(text);
+        let title = title(text);
+        let path = path(text);
+
+        let track_number = bytes[NUMBER_POS];
+        let disc_number = bytes[DISC_POS];
+
+        let gain = f32::from_le_bytes([
+            bytes[SONG_LEN - 4],
+            bytes[SONG_LEN - 3],
+            bytes[SONG_LEN - 2],
+            bytes[SONG_LEN - 1],
+        ]);
+
+        Self {
+            artist: artist.to_string(),
+            album: album.to_string(),
+            title: title.to_string(),
+            path: path.to_string(),
+            track_number,
+            disc_number,
+            gain,
+        }
+    }
+}
 
 pub struct Database {
     pub data: BTreeMap<String, Vec<Album>>,
@@ -51,7 +130,7 @@ impl Database {
             .unwrap();
 
         let mut mmap = Some(Mmap::map(&db).unwrap());
-        let valid = validate(mmap.as_ref().unwrap());
+        let valid = Database::validate(mmap.as_ref().unwrap());
 
         //Reset the database if the first song is invalid.
         if valid.is_err() {
@@ -67,6 +146,57 @@ impl Database {
             mmap,
             settings,
         }
+    }
+
+    fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
+        if file.is_empty() {
+            return Ok(());
+        } else if file.len() < SONG_LEN {
+            return Err("Invalid song")?;
+        }
+
+        let text = &file[..TEXT_LEN];
+
+        let artist_len = artist_len(text) as usize;
+        if artist_len > TEXT_LEN {
+            Err("Invalid u16")?;
+        }
+        let _artist = from_utf8(&text[2..artist_len + 2])?;
+
+        let album_len = album_len(text, artist_len) as usize;
+        if album_len > TEXT_LEN {
+            Err("Invalid u16")?;
+        }
+        let _album = from_utf8(&text[2 + artist_len + 2..artist_len + 2 + album_len + 2])?;
+
+        let title_len = title_len(text, artist_len, album_len) as usize;
+        if title_len > TEXT_LEN {
+            Err("Invalid u16")?;
+        }
+        let _title = from_utf8(
+            &text[2 + artist_len + 2 + album_len + 2
+                ..artist_len + 2 + album_len + 2 + title_len + 2],
+        )?;
+
+        let path_len = path_len(text, artist_len, album_len, title_len) as usize;
+        if path_len > TEXT_LEN {
+            Err("Invalid u16")?;
+        }
+        let _path = from_utf8(
+            &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
+                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
+        )?;
+
+        let _number = file[NUMBER_POS];
+        let _disc = file[DISC_POS];
+        let _gain = f32::from_le_bytes([
+            file[SONG_LEN - 5],
+            file[SONG_LEN - 4],
+            file[SONG_LEN - 3],
+            file[SONG_LEN - 2],
+        ]);
+
+        Ok(())
     }
 
     pub fn len() -> usize {
@@ -187,7 +317,7 @@ impl Database {
                     let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
 
                     for song in songs {
-                        writer.write_all(&song.into_bytes()).unwrap();
+                        writer.write_all(&song.as_bytes()).unwrap();
                     }
 
                     writer.flush().unwrap();
@@ -412,7 +542,7 @@ impl Database {
             settings
                 .queue
                 .iter()
-                .map(|song| Song::from(&song.into_bytes()))
+                .map(|song| Song::from(&song.as_bytes()))
                 .collect(),
             index,
             settings.elapsed,
@@ -447,72 +577,6 @@ pub fn calc(query: &str, input: Item) -> Option<(Item, f64)> {
         Some((input, acc))
     } else {
         None
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Item {
-    ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((&'static String, &'static String, &'static String, u8, u8)),
-    ///(Artist, Album)
-    Album((&'static String, &'static String)),
-    ///(Artist)
-    Artist(&'static String),
-}
-
-const MIN_ACCURACY: f64 = 0.70;
-
-#[derive(Debug)]
-pub struct Artist {
-    pub albums: Vec<Album>,
-}
-
-#[derive(Debug)]
-pub struct Album {
-    pub title: String,
-    pub songs: Vec<Song>,
-}
-
-//TODO: Replace Song with MinimalSong.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Song {
-    pub title: String,
-    pub album: String,
-    pub artist: String,
-    pub disc_number: u8,
-    pub track_number: u8,
-    pub path: String,
-    pub gain: f32,
-}
-impl Song {
-    //TODO: If the database is in memory this function can be const.
-    pub fn from(bytes: &[u8]) -> Self {
-        debug_assert!(bytes.len() == SONG_LEN);
-        let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
-        let artist = artist(text);
-        let album = album(text);
-        let title = title(text);
-        let path = path(text);
-
-        let track_number = bytes[NUMBER_POS];
-        let disc_number = bytes[DISC_POS];
-
-        let gain = f32::from_le_bytes([
-            bytes[SONG_LEN - 4],
-            bytes[SONG_LEN - 3],
-            bytes[SONG_LEN - 2],
-            bytes[SONG_LEN - 1],
-        ]);
-
-        Self {
-            artist: artist.to_string(),
-            album: album.to_string(),
-            title: title.to_string(),
-            path: path.to_string(),
-            track_number,
-            disc_number,
-            gain,
-        }
     }
 }
 

@@ -1,11 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_core::gonk_path;
-use gonk_core::log;
-use gonk_core::Database;
-use gonk_core::Index;
-use gonk_core::ScanResult;
-use gonk_core::Song;
+use gonk_core::*;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -434,7 +429,6 @@ fn main() {
                         },
                         KeyCode::Enter if shift => match mode {
                             Mode::Browser => {
-                                //TODO: Rework
                                 let songs: Vec<Song> = browser::get_selected(&browser)
                                     .into_iter()
                                     .cloned()
@@ -445,7 +439,6 @@ fn main() {
                             Mode::Queue => {
                                 if let Some(index) = queue.ui.index() {
                                     if let Some(song) = player.songs.data.get(index) {
-                                        //TODO: Rework
                                         playlist::add(&mut playlist, &[song.clone()]);
                                         mode = Mode::Playlist;
                                     }
@@ -453,7 +446,6 @@ fn main() {
                             }
                             Mode::Search => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    //TODO: Rework
                                     let songs: Vec<Song> = songs.into_iter().cloned().collect();
                                     playlist::add(&mut playlist, &songs);
                                     mode = Mode::Playlist;
@@ -577,5 +569,5 @@ fn main() {
     )
     .unwrap();
 
-    gonk_core::profiler::log();
+    gonk_core::profiler::print();
 }
