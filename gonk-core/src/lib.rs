@@ -4,19 +4,17 @@
 #![allow(clippy::missing_safety_doc)]
 
 use flac_decoder::*;
-use memmap2::Mmap;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
     env,
     error::Error,
     fmt::Debug,
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     io::{self, BufWriter, Write},
     mem::size_of,
     ops::Range,
     path::{Path, PathBuf},
     str::{from_utf8, from_utf8_unchecked},
-    thread::{self, JoinHandle},
+    thread::{self},
     time::Instant,
 };
 use symphonia::{
@@ -28,7 +26,6 @@ use symphonia::{
     },
     default::get_probe,
 };
-use walkdir::{DirEntry, WalkDir};
 
 //TODO: Could this be stored in a more drive friendly size like 512?
 //522 + 1 + 1 + 4 = 528
@@ -60,36 +57,7 @@ pub mod profiler;
 pub use index::*;
 pub use playlist::*;
 
-pub static mut MMAP: Option<Mmap> = None;
 pub static mut SETTINGS: Settings = Settings::default();
-
-pub fn init() {
-    match fs::read(settings_path()) {
-        Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
-            Some(settings) => unsafe { SETTINGS = settings },
-            None => save_settings(),
-        },
-        //Save the default settings if nothing is found.
-        _ => save_settings(),
-    }
-
-    //We only need write access to create the file.
-    let db = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(database_path())
-        .unwrap();
-
-    let mmap = unsafe { Mmap::map(&db).unwrap() };
-    //Reset the database if the first song is invalid.
-    if validate(&mmap).is_err() {
-        drop(mmap);
-        log!("Database is corrupted. Resetting!");
-        reset().unwrap();
-    }
-    unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
-}
 
 pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {
@@ -145,16 +113,6 @@ pub fn save_settings() {
             SETTINGS.write(writer).unwrap();
         };
     });
-}
-
-pub fn reset() -> io::Result<()> {
-    if let Some(mmap) = unsafe { MMAP.take() } {
-        drop(mmap);
-    }
-
-    unsafe { SETTINGS = Settings::default() };
-    fs::remove_file(settings_path())?;
-    fs::remove_file(database_path())
 }
 
 fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
@@ -381,90 +339,10 @@ pub fn volume() -> u8 {
     unsafe { SETTINGS.volume }
 }
 
-pub fn mmap() -> Option<&'static Mmap> {
-    unsafe { MMAP.as_ref() }
-}
-
 pub enum ScanResult {
     Completed,
     CompletedWithErrors(Vec<String>),
     Incomplete(&'static str),
-}
-
-/// Collect and add files to the database.
-/// This operation will truncate.
-///
-/// Returns `JoinHandle` so scans won't run concurrently.
-pub fn scan(path: String) -> JoinHandle<ScanResult> {
-    if let Some(mmap) = unsafe { MMAP.take() } {
-        drop(mmap);
-    }
-
-    thread::spawn(|| {
-        profile!();
-        //TODO: Write to a new file then delete the old database.
-        //This way scanning can fail and all the files aren't lost.
-
-        //Open and truncate the database.
-        match OpenOptions::new()
-            .write(true)
-            .read(true)
-            .truncate(true)
-            .open(database_path())
-        {
-            Ok(file) => {
-                let mut writer = BufWriter::new(&file);
-
-                let paths: Vec<DirEntry> = WalkDir::new(path)
-                    .into_iter()
-                    .flatten()
-                    .filter(|path| match path.path().extension() {
-                        Some(ex) => {
-                            matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
-                        }
-                        None => false,
-                    })
-                    .collect();
-
-                let songs: Vec<_> = paths
-                    .into_par_iter()
-                    .map(|path| RawSong::from_path(path.path()))
-                    .collect();
-
-                let errors: Vec<String> = songs
-                    .iter()
-                    .filter_map(|song| {
-                        if let Err(err) = song {
-                            Some(err.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
-
-                for song in songs {
-                    writer.write_all(&song.into_bytes()).unwrap();
-                }
-
-                writer.flush().unwrap();
-                unsafe { MMAP = Some(Mmap::map(&file).unwrap()) };
-
-                if errors.is_empty() {
-                    ScanResult::Completed
-                } else {
-                    ScanResult::CompletedWithErrors(errors)
-                }
-            }
-            Err(_) => {
-                //Re-open the database as read only.
-                let db = OpenOptions::new().read(true).open(database_path()).unwrap();
-                unsafe { MMAP = Some(Mmap::map(&db).unwrap()) };
-                ScanResult::Incomplete("Failed to scan folder, database is already open.")
-            }
-        }
-    })
 }
 
 pub struct RawSong {
@@ -843,14 +721,6 @@ pub const fn artist_and_album(text: &[u8]) -> (&str, &str) {
     }
 }
 
-pub fn len() -> usize {
-    if let Some(mmap) = mmap() {
-        mmap.len() / SONG_LEN
-    } else {
-        0
-    }
-}
-
 pub fn bench<F>(func: F)
 where
     F: Fn(),
@@ -887,7 +757,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use rayon::prelude::ParallelSliceMut;
+    use rayon::prelude::{IntoParallelIterator, ParallelIterator, ParallelSliceMut};
     extern crate test;
     use tempfile::tempfile;
     use test::Bencher;

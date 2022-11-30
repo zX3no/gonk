@@ -1,6 +1,6 @@
 use crate::{
-    album, artist, database_path, log, path, reset, save_settings, settings_path, title, validate,
-    Settings, DISC_POS, NUMBER_POS, SETTINGS, SONG_LEN, TEXT_LEN,
+    album, artist, database_path, log, path, save_settings, settings_path, title, validate,
+    RawSong, ScanResult, Settings, DISC_POS, NUMBER_POS, SETTINGS, SONG_LEN, TEXT_LEN,
 };
 use memmap2::Mmap;
 use once_cell::unsync::Lazy;
@@ -12,7 +12,10 @@ use std::{
     cmp::Ordering,
     collections::{btree_map::Entry, BTreeMap},
     fs::{self, OpenOptions},
+    io::{self, BufWriter, Write},
+    thread::{self, JoinHandle},
 };
+use walkdir::{DirEntry, WalkDir};
 
 //I don't like this being an option :?
 // pub static mut MMAP: Option<Mmap> = None;
@@ -24,14 +27,13 @@ use std::{
 pub static mut DB: Lazy<Database> = Lazy::new(|| unsafe { Database::new() });
 
 pub struct Database {
-    data: BTreeMap<String, Vec<Album>>,
+    pub data: BTreeMap<String, Vec<Album>>,
+    pub mmap: Option<Mmap>,
 }
 
 impl Database {
     //This should replace gonk_core::init();
     pub unsafe fn new() -> Self {
-        let mut data: BTreeMap<String, Vec<Album>> = BTreeMap::new();
-
         match fs::read(settings_path()) {
             Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
                 Some(settings) => SETTINGS = settings,
@@ -49,71 +51,171 @@ impl Database {
             .open(database_path())
             .unwrap();
 
-        let mmap = Mmap::map(&db).unwrap();
+        let mut mmap = Some(Mmap::map(&db).unwrap());
+        let valid = validate(mmap.as_ref().unwrap());
 
         //Reset the database if the first song is invalid.
-        if validate(&mmap).is_err() {
-            drop(mmap);
+        if valid.is_err() {
             log!("Database is corrupted. Resetting!");
-            reset().unwrap();
-        } else {
-            //TODO: Maybe do this on another thread.
-            //Waiting could be quite costly for large libraries.
-
-            //Load all songs into memory.
-            let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
-                .into_par_iter()
-                .map(|i| {
-                    let pos = i * SONG_LEN;
-                    let bytes = &mmap[pos..pos + SONG_LEN];
-                    Song::from(bytes)
-                })
-                .collect();
-
-            let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
-
-            //Add songs to albums.
-            for song in songs {
-                match albums.entry((song.artist.clone(), song.album.clone())) {
-                    Entry::Occupied(mut entry) => entry.get_mut().push(song),
-                    Entry::Vacant(entry) => {
-                        entry.insert(vec![song]);
-                    }
-                }
-            }
-
-            //Sort songs.
-            albums.iter_mut().for_each(|(_, album)| {
-                album.sort_unstable_by(|a, b| {
-                    if a.disc_number == b.disc_number {
-                        a.track_number.cmp(&b.track_number)
-                    } else {
-                        a.disc_number.cmp(&b.disc_number)
-                    }
-                });
-            });
-
-            //Add albums to artists.
-            for ((artist, album), v) in albums {
-                let v = Album {
-                    title: album,
-                    songs: v,
-                };
-                match data.entry(artist) {
-                    Entry::Occupied(mut entry) => entry.get_mut().push(v),
-                    Entry::Vacant(entry) => {
-                        entry.insert(vec![v]);
-                    }
-                }
-            }
-
-            //Sort albums.
-            data.iter_mut().for_each(|(_, albums)| {
-                albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
-            });
+            mmap = None;
+            SETTINGS = Settings::default();
+            fs::remove_file(settings_path()).unwrap();
+            fs::remove_file(database_path()).unwrap();
         }
 
-        Self { data }
+        Self {
+            data: BTreeMap::new(),
+            mmap,
+        }
+    }
+
+    pub fn len() -> usize {
+        unsafe { DB.mmap.as_ref().unwrap().len() / SONG_LEN }
+    }
+
+    ///Reset the database.
+    pub unsafe fn reset() -> io::Result<()> {
+        DB.mmap = None;
+        SETTINGS = Settings::default();
+        fs::remove_file(settings_path())?;
+        fs::remove_file(database_path())?;
+        Ok(())
+    }
+
+    ///Refresh the in memory database with songs from the physical one.
+    pub unsafe fn build() {
+        //TODO: Maybe do this on another thread.
+        //Waiting could be quite costly for large libraries.
+
+        let mmap = DB.mmap.as_ref().unwrap();
+
+        //Load all songs into memory.
+        let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
+            .into_par_iter()
+            .map(|i| {
+                let pos = i * SONG_LEN;
+                let bytes = &mmap[pos..pos + SONG_LEN];
+                Song::from(bytes)
+            })
+            .collect();
+
+        let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
+
+        //Add songs to albums.
+        for song in songs {
+            match albums.entry((song.artist.clone(), song.album.clone())) {
+                Entry::Occupied(mut entry) => entry.get_mut().push(song),
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![song]);
+                }
+            }
+        }
+
+        //Sort songs.
+        albums.iter_mut().for_each(|(_, album)| {
+            album.sort_unstable_by(|a, b| {
+                if a.disc_number == b.disc_number {
+                    a.track_number.cmp(&b.track_number)
+                } else {
+                    a.disc_number.cmp(&b.disc_number)
+                }
+            });
+        });
+
+        //Add albums to artists.
+        for ((artist, album), v) in albums {
+            let v = Album {
+                title: album,
+                songs: v,
+            };
+            match DB.data.entry(artist) {
+                Entry::Occupied(mut entry) => entry.get_mut().push(v),
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![v]);
+                }
+            }
+        }
+
+        //Sort albums.
+        DB.data.iter_mut().for_each(|(_, albums)| {
+            albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
+        });
+    }
+
+    /// Collect and add files to the database.
+    /// This operation will truncate.
+    ///
+    /// Returns `JoinHandle` so scans won't run concurrently.
+    pub fn scan(path: String) -> JoinHandle<ScanResult> {
+        if let Some(mmap) = unsafe { DB.mmap.take() } {
+            drop(mmap);
+        }
+
+        thread::spawn(|| {
+            //TODO: Write to a new file then delete the old database.
+            //This way scanning can fail and all the files aren't lost.
+
+            //Open and truncate the database.
+            match OpenOptions::new()
+                .write(true)
+                .read(true)
+                .truncate(true)
+                .open(database_path())
+            {
+                Ok(file) => {
+                    let mut writer = BufWriter::new(&file);
+
+                    let paths: Vec<DirEntry> = WalkDir::new(path)
+                        .into_iter()
+                        .flatten()
+                        .filter(|path| match path.path().extension() {
+                            Some(ex) => {
+                                matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
+                            }
+                            None => false,
+                        })
+                        .collect();
+
+                    let songs: Vec<_> = paths
+                        .into_par_iter()
+                        .map(|path| RawSong::from_path(path.path()))
+                        .collect();
+
+                    let errors: Vec<String> = songs
+                        .iter()
+                        .filter_map(|song| {
+                            if let Err(err) = song {
+                                Some(err.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
+
+                    for song in songs {
+                        writer.write_all(&song.into_bytes()).unwrap();
+                    }
+
+                    writer.flush().unwrap();
+                    unsafe { DB.mmap = Some(Mmap::map(&file).unwrap()) };
+                    unsafe { Database::build() };
+
+                    if errors.is_empty() {
+                        ScanResult::Completed
+                    } else {
+                        ScanResult::CompletedWithErrors(errors)
+                    }
+                }
+                Err(_) => {
+                    //Re-open the database as read only.
+                    let db = OpenOptions::new().read(true).open(database_path()).unwrap();
+                    unsafe { DB.mmap = Some(Mmap::map(&db).unwrap()) };
+                    ScanResult::Incomplete("Failed to scan folder, database is already open.")
+                }
+            }
+        })
     }
 
     //Browser Queries:

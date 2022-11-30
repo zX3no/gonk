@@ -88,7 +88,7 @@ fn draw_log(f: &mut Frame) -> Rect {
 }
 
 fn main() {
-    gonk_core::init();
+    unsafe { Database::build() };
 
     let mut scan_handle = None;
 
@@ -102,13 +102,13 @@ fn main() {
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
                     gonk_core::update_music_folder(path.as_str());
-                    scan_handle = Some(gonk_core::scan(path));
+                    scan_handle = Some(Database::scan(path));
                 } else {
                     return println!("Invalid path.");
                 }
             }
             "reset" => {
-                return match gonk_core::reset() {
+                return match unsafe { Database::reset() } {
                     Ok(_) => println!("Files reset!"),
                     Err(e) => println!("Failed to reset database! {e}"),
                 };
@@ -203,7 +203,7 @@ fn main() {
                     ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            gonk_core::len(),
+                            Database::len(),
                             time.elapsed().as_secs_f32()
                         );
                     }
@@ -220,7 +220,7 @@ fn main() {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            gonk_core::len() - len,
+                            Database::len() - len,
                         );
 
                         let path = gonk_path().join("gonk.log");
@@ -270,12 +270,11 @@ fn main() {
 
         if player.songs.data != player_clone {
             player_clone = player.songs.data.clone();
-            //TODO: Starting to see the problem with not storing artist and album with the songs.
-            // gonk_core::save_queue(
-            //     &player.songs.data,
-            //     player.songs.index().unwrap_or(0) as u16,
-            //     player.elapsed().as_secs_f32(),
-            // );
+            gonk_core::save_queue(
+                &player.songs.data,
+                player.songs.index().unwrap_or(0) as u16,
+                player.elapsed().as_secs_f32(),
+            );
         }
 
         terminal
@@ -373,11 +372,12 @@ fn main() {
                             if scan_handle.is_none() {
                                 let folder = gonk_core::music_folder().to_string();
                                 if folder.is_empty() {
+                                    //TODO: I saw this flash by but I can't replicate it.
                                     gonk_core::log!(
                                         "Nothing to scan! Add a folder with 'gonk add /path/'"
                                     );
                                 } else {
-                                    scan_handle = Some(gonk_core::scan(folder));
+                                    scan_handle = Some(Database::scan(folder));
                                     playlist.playlists = Index::from(gonk_core::playlists());
                                 }
                             }

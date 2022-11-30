@@ -2,6 +2,7 @@ use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
 use crossterm::event::MouseEvent;
 use gonk_core::db::Album;
+use gonk_core::profile;
 use gonk_core::{db::Song, Database, Index};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -60,6 +61,7 @@ impl Browser {
 
 impl Input for Browser {
     fn up(&mut self) {
+        profile!();
         match self.mode {
             Mode::Artist => self.artists.up(),
             Mode::Album => self.albums.up(),
@@ -69,6 +71,7 @@ impl Input for Browser {
     }
 
     fn down(&mut self) {
+        profile!();
         match self.mode {
             Mode::Artist => self.artists.down(),
             Mode::Album => self.albums.down(),
@@ -172,6 +175,7 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
 }
 
 pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
+    profile!();
     let size = area.width / 3;
     let rem = area.width % 3;
 
