@@ -2,7 +2,7 @@ use crate::{Event, State, Symphonia, VOLUME_REDUCTION};
 use core::slice;
 use crossbeam_channel::Receiver;
 use std::ffi::OsString;
-use std::mem::{transmute, zeroed};
+use std::mem::{size_of, transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
@@ -193,8 +193,12 @@ pub unsafe fn check(result: i32) -> Result<(), String> {
         );
         debug_assert!(result != 0);
         let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-        let msg = String::from_utf16(&buf[..b - 2]).unwrap();
-        Err(msg)
+        if let Some(slice) = &buf.get(..b - 2) {
+            let msg = String::from_utf16(slice).unwrap();
+            Err(msg)
+        } else {
+            Err("Failed to get error message")?
+        }
     } else {
         Ok(())
     }
