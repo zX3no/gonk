@@ -28,7 +28,6 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - size_of::<f32>() - size_of::<u8>();
 pub const DISC_POS: usize = SONG_LEN - 1 - size_of::<f32>();
 pub const GAIN_POS: Range<usize> = SONG_LEN - size_of::<f32>()..SONG_LEN;
 
-//TODO: Maybe change this to a Once<_>?
 pub static mut DB: Lazy<Database> = Lazy::new(|| unsafe { Database::new() });
 
 #[derive(Clone, Debug)]
@@ -58,7 +57,6 @@ pub struct Album {
     pub songs: Vec<Song>,
 }
 
-//TODO: Replace Song with MinimalSong.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
@@ -71,7 +69,6 @@ pub struct Song {
 }
 
 impl Song {
-    //TODO: If the database is in memory this function can be const.
     pub fn from(bytes: &[u8]) -> Self {
         debug_assert!(bytes.len() == SONG_LEN);
         let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
@@ -129,20 +126,23 @@ impl Database {
             .open(database_path())
             .unwrap();
 
-        let mut mmap = Some(Mmap::map(&db).unwrap());
-        let valid = Database::validate(mmap.as_ref().unwrap());
+        let mmap = Mmap::map(&db).unwrap();
+        let mut data = BTreeMap::new();
 
         //Reset the database if the first song is invalid.
-        if valid.is_err() {
+        let mmap = if Database::validate(&mmap).is_err() {
             log!("Database is corrupted. Resetting!");
-            mmap = None;
             settings = Settings::default().write().unwrap();
             fs::remove_file(settings_path()).unwrap();
             fs::remove_file(database_path()).unwrap();
-        }
+            None
+        } else {
+            Database::build(&mmap, &mut data);
+            Some(mmap)
+        };
 
         Self {
-            data: BTreeMap::new(),
+            data,
             mmap,
             settings,
         }
@@ -213,11 +213,9 @@ impl Database {
     }
 
     ///Refresh the in memory database with songs from the physical one.
-    pub unsafe fn build() {
+    pub unsafe fn build(mmap: &Mmap, data: &mut BTreeMap<String, Vec<Album>>) {
         //TODO: Maybe do this on another thread.
         //Waiting could be quite costly for large libraries.
-
-        let mmap = DB.mmap.as_ref().unwrap();
 
         //Load all songs into memory.
         let songs: Vec<Song> = (0..mmap.len() / SONG_LEN)
@@ -258,7 +256,7 @@ impl Database {
                 title: album,
                 songs: v,
             };
-            match DB.data.entry(artist) {
+            match data.entry(artist) {
                 Entry::Occupied(mut entry) => entry.get_mut().push(v),
                 Entry::Vacant(entry) => {
                     entry.insert(vec![v]);
@@ -267,7 +265,7 @@ impl Database {
         }
 
         //Sort albums.
-        DB.data.iter_mut().for_each(|(_, albums)| {
+        data.iter_mut().for_each(|(_, albums)| {
             albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
         });
     }
@@ -332,9 +330,9 @@ impl Database {
                             .create(true)
                             .open(database_path())
                             .unwrap();
-                        DB.mmap = Some(Mmap::map(&db).unwrap());
-
-                        Database::build();
+                        let mmap = Mmap::map(&db).unwrap();
+                        Database::build(&mmap, &mut DB.data);
+                        DB.mmap = Some(mmap);
                     };
 
                     if errors.is_empty() {
@@ -358,7 +356,6 @@ impl Database {
     ///Get all aritist names.
     pub fn artists() -> Vec<&'static String> {
         let db = unsafe { &DB.data };
-        //TODO: Can you sort keys?
         let mut v = Vec::from_iter(db.keys());
         v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
         v

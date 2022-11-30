@@ -72,8 +72,6 @@ fn draw_log(f: &mut Frame) -> Rect {
 }
 
 fn main() {
-    unsafe { Database::build() };
-
     let mut scan_handle = None;
 
     let args: Vec<String> = std::env::args().skip(1).collect();
