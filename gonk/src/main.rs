@@ -1,14 +1,3 @@
-#![warn(clippy::pedantic)]
-#![allow(
-    clippy::wildcard_imports,
-    clippy::float_cmp,
-    clippy::cast_lossless,
-    clippy::too_many_lines,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    clippy::match_same_arms
-)]
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_core::gonk_path;

@@ -5,7 +5,9 @@ use crate::{
 use memmap2::Mmap;
 use once_cell::unsync::Lazy;
 use rayon::{
-    prelude::{IntoParallelIterator, ParallelIterator},
+    prelude::{
+        IntoParallelIterator, IntoParallelRefIterator, ParallelDrainRange, ParallelIterator,
+    },
     slice::ParallelSliceMut,
 };
 use std::{
@@ -13,6 +15,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap},
     fs::{self, File, OpenOptions},
     io::{self, BufWriter, Write},
+    sync::RwLock,
     thread::{self, JoinHandle},
 };
 use walkdir::{DirEntry, WalkDir};
@@ -286,43 +289,47 @@ impl Database {
         let db = unsafe { &DB.data };
 
         let query = query.to_lowercase();
-        let mut results = Vec::new();
+        let results = RwLock::new(Vec::new());
 
-        //Calculate if the input string is close to the query.
-        let mut cal = |input: Item| {
-            let str = match input {
-                Item::Artist(artist) => artist,
-                Item::Album((_, album)) => album,
-                Item::Song((_, _, song, _, _)) => song,
-            };
-            let acc = strsim::jaro_winkler(&query, &str.to_lowercase());
-            if acc > MIN_ACCURACY {
-                results.push((input, acc));
+        db.par_iter().for_each(|(artist, albums)| {
+            if let Some(result) = calc(&query, Item::Artist(artist)) {
+                results.write().unwrap().push(result);
             }
-        };
 
-        for (artist, albums) in db.iter() {
-            cal(Item::Artist(artist));
             for album in albums {
-                cal(Item::Album((artist, &album.title)));
-                for song in &album.songs {
-                    cal(Item::Song((
-                        artist,
-                        &album.title,
-                        &song.title,
-                        song.disc_number,
-                        song.track_number,
-                    )));
+                if let Some(result) = calc(&query, Item::Album((artist, &album.title))) {
+                    results.write().unwrap().push(result);
                 }
+
+                results.write().unwrap().extend(
+                    album
+                        .songs
+                        .iter()
+                        .filter_map(|song| {
+                            calc(
+                                &query,
+                                Item::Song((
+                                    artist,
+                                    &album.title,
+                                    &song.title,
+                                    song.disc_number,
+                                    song.track_number,
+                                )),
+                            )
+                        })
+                        .collect::<Vec<(Item, f64)>>(),
+                );
             }
-        }
+        });
+
+        let mut results = RwLock::into_inner(results).unwrap();
 
         //Sort results by score.
         results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
         if results.len() > 25 {
             //Remove the less accurate results.
-            results.drain(25..);
+            results.par_drain(25..);
         }
 
         //Sort songs with equal score. Artist > Album > Song.
@@ -426,6 +433,20 @@ impl Database {
 
     pub unsafe fn raw() -> &'static BTreeMap<String, Vec<Album>> {
         &DB.data
+    }
+}
+
+pub fn calc(query: &str, input: Item) -> Option<(Item, f64)> {
+    let str = match input {
+        Item::Artist(artist) => artist,
+        Item::Album((_, album)) => album,
+        Item::Song((_, _, song, _, _)) => song,
+    };
+    let acc = strsim::jaro_winkler(query, &str.to_lowercase());
+    if acc > MIN_ACCURACY {
+        Some((input, acc))
+    } else {
+        None
     }
 }
 
