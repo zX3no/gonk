@@ -76,7 +76,10 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
         }
         Mode::Select => search.results.selected().map(|item| match item {
             Item::Song((artist, album, _, disc, number)) => {
-                vec![Database::song(artist, album, *disc, *number).unwrap()]
+                match Database::song(artist, album, *disc, *number) {
+                    Some(song) => vec![song],
+                    None => panic!("{:?}", item),
+                }
             }
             Item::Album((artist, album)) => Database::album(artist, album)
                 .unwrap()
@@ -142,11 +145,11 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseE
 
     if let Some(item) = item {
         match item {
-            Item::Song((name, album, artist, _, _)) => {
+            Item::Song((artist, album, name, _, _)) => {
                 search::draw_song(f, name, album, artist, h[0]);
                 draw_album(f, album, artist, h[1]);
             }
-            Item::Album((album, artist)) => {
+            Item::Album((artist, album)) => {
                 search::draw_album(f, album, artist, h[0]);
                 draw_artist(f, artist, h[1]);
             }
@@ -293,13 +296,13 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
         };
 
         match item {
-            Item::Song((name, album, artist, _, _)) => Row::new(vec![
+            Item::Song((artist, album, name, _, _)) => Row::new(vec![
                 selected_cell,
                 Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
                 Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
                 Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
             ]),
-            Item::Album((album, artist)) => Row::new(vec![
+            Item::Album((artist, album)) => Row::new(vec![
                 selected_cell,
                 Cell::from(Spans::from(vec![
                     Span::styled(format!("{album} - "), Style::default().fg(TITLE)),

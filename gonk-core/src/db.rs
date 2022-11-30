@@ -292,8 +292,8 @@ impl Database {
         let mut cal = |input: Item| {
             let str = match input {
                 Item::Artist(artist) => artist,
-                Item::Album((album, _)) => album,
-                Item::Song((song, _, _, _, _)) => song,
+                Item::Album((_, album)) => album,
+                Item::Song((_, _, song, _, _)) => song,
             };
             let acc = strsim::jaro_winkler(&query, &str.to_lowercase());
             if acc > MIN_ACCURACY {
@@ -304,12 +304,12 @@ impl Database {
         for (artist, albums) in db.iter() {
             cal(Item::Artist(artist));
             for album in albums {
-                cal(Item::Album((&album.title, artist)));
+                cal(Item::Album((artist, &album.title)));
                 for song in &album.songs {
                     cal(Item::Song((
-                        &song.title,
-                        &album.title,
                         artist,
+                        &album.title,
+                        &song.title,
                         song.disc_number,
                         song.track_number,
                     )));
@@ -431,9 +431,9 @@ impl Database {
 
 #[derive(Clone, Debug)]
 pub enum Item {
-    ///(Name, Album, Artist, Disc Number, Track Number)
+    ///(Artist, Album, Name, Disc Number, Track Number)
     Song((&'static String, &'static String, &'static String, u8, u8)),
-    ///(Album, Artist)
+    ///(Artist, Album)
     Album((&'static String, &'static String)),
     ///(Artist)
     Artist(&'static String),
