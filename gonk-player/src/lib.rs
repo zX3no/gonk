@@ -121,6 +121,7 @@ impl Player {
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
+            unsafe { STATE == State::Playing };
             self.s
                 .send(Event::PlaySong((song.path.clone(), song.gain)))
                 .unwrap();
