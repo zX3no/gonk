@@ -1,6 +1,4 @@
-#![feature(test)]
-#![feature(const_slice_index)]
-#![feature(const_float_bits_conv)]
+#![feature(extend_one, test, const_float_bits_conv, const_slice_index)]
 #![allow(clippy::missing_safety_doc)]
 use db::*;
 use raw_song::*;

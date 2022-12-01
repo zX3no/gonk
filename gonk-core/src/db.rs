@@ -417,63 +417,42 @@ impl Database {
         let query = query.to_lowercase();
         let results = RwLock::new(Vec::new());
 
-        //TODO: Cleanup
-        if query.is_empty() {
-            for (artist, albums) in db {
-                results.write().unwrap().push((Item::Artist(artist), 1.0));
-                for album in albums {
-                    results
-                        .write()
-                        .unwrap()
-                        .push((Item::Album((artist, &album.title)), 1.0));
-                    for song in &album.songs {
-                        results.write().unwrap().push((
-                            Item::Song((
-                                artist,
-                                &album.title,
-                                &song.title,
-                                song.disc_number,
-                                song.track_number,
-                            )),
-                            1.0,
-                        ));
-                    }
-                }
-            }
-        } else {
-            db.par_iter().for_each(|(artist, albums)| {
-                if let Some(result) = calc(&query, Item::Artist(artist)) {
-                    results.write().unwrap().push(result);
-                }
-
-                for album in albums {
-                    if let Some(result) = calc(&query, Item::Album((artist, &album.title))) {
-                        results.write().unwrap().push(result);
-                    }
-
-                    results.write().unwrap().extend(
-                        album
-                            .songs
-                            .iter()
-                            .filter_map(|song| {
-                                calc(
-                                    &query,
-                                    Item::Song((
-                                        artist,
-                                        &album.title,
-                                        &song.title,
-                                        song.disc_number,
-                                        song.track_number,
-                                    )),
-                                )
-                            })
-                            .collect::<Vec<(Item, f64)>>(),
+        db.par_iter().for_each(|(artist, albums)| {
+            for album in albums {
+                for song in &album.songs {
+                    let song = jaro(
+                        &query,
+                        Item::Song((
+                            artist,
+                            &album.title,
+                            &song.title,
+                            song.disc_number,
+                            song.track_number,
+                        )),
                     );
+                    results.write().unwrap().push(song);
                 }
-            });
-        }
+                let album = jaro(&query, Item::Album((artist, &album.title)));
+                results.write().unwrap().push(album);
+            }
+            let artist = jaro(&query, Item::Artist(artist));
+            results.write().unwrap().push(artist);
+        });
 
-        let mut results = RwLock::into_inner(results).unwrap();
+        let results = RwLock::into_inner(results).unwrap();
+
+        let mut results: Vec<_> = if query.is_empty() {
+            results
+                .into_iter()
+                .take(25)
+                .filter_map(|x| match x {
+                    Ok(_) => None,
+                    Err(x) => Some(x),
+                })
+                .collect()
+        } else {
+            results.into_iter().flatten().collect()
+        };
 
         //Sort results by score.
         results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
@@ -590,7 +569,7 @@ impl Database {
     }
 }
 
-pub fn calc(query: &str, input: Item) -> Option<(Item, f64)> {
+pub fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     let str = match input {
         Item::Artist(artist) => artist,
         Item::Album((_, album)) => album,
@@ -598,9 +577,9 @@ pub fn calc(query: &str, input: Item) -> Option<(Item, f64)> {
     };
     let acc = strsim::jaro_winkler(query, &str.to_lowercase());
     if acc > MIN_ACCURACY {
-        Some((input, acc))
+        Ok((input, acc))
     } else {
-        None
+        Err((input, acc))
     }
 }
 

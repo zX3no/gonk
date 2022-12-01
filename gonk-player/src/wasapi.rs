@@ -2,7 +2,7 @@ use crate::{Event, State, Symphonia, VOLUME_REDUCTION};
 use core::slice;
 use crossbeam_channel::Receiver;
 use std::ffi::OsString;
-use std::mem::{size_of, transmute, zeroed};
+use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
@@ -89,9 +89,9 @@ pub fn init() {
 
         update_output_devices(enumerator);
 
+        //HACK: Not a hack apparently.
         let ptr: usize = enumerator as usize;
         thread::spawn(move || {
-            //HACK: Bypass Send requirement. This is stupid.
             let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
             loop {
                 update_output_devices(enumerator);
