@@ -78,14 +78,13 @@ pub fn init() {
         CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
 
         let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-        let result = CoCreateInstance(
+        check(CoCreateInstance(
             &CLSID_MMDeviceEnumerator,
             null_mut(),
             CLSCTX_ALL,
             &IMMDeviceEnumerator::uuidof(),
             &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-        );
-        check(result).unwrap();
+        ));
 
         update_output_devices(enumerator);
 
@@ -103,12 +102,11 @@ pub fn init() {
 
 pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     let mut collection = null_mut();
-    let result = (*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection);
-    check(result).unwrap();
+
+    check((*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection));
 
     let mut count: u32 = zeroed();
-    let result = (*collection).GetCount(&mut count as *mut u32 as *const u32);
-    check(result).unwrap();
+    check((*collection).GetCount(&mut count as *mut u32 as *const u32));
 
     if count == 0 {
         panic!("No output devices.");
@@ -119,20 +117,18 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     for i in 0..count {
         //Get IMMDevice.
         let mut device = null_mut();
-        let result = (*collection).Item(i, &mut device);
-        check(result).unwrap();
+        check((*collection).Item(i, &mut device));
 
         //Get name.
         let mut store = null_mut();
-        let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-        check(result).unwrap();
+        check((*device).OpenPropertyStore(STGM_READ, &mut store));
+
         let mut prop = zeroed();
         //This is slow. Around 250us.
-        let result = (*store).GetValue(
+        check((*store).GetValue(
             &DEVPKEY_Device_FriendlyName as *const _ as *const _,
             &mut prop,
-        );
-        check(result).unwrap();
+        ));
 
         let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
         let name = utf16_string(ptr_utf16);
@@ -148,24 +144,22 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 
     //Default default device.
     let mut device: *mut IMMDevice = null_mut();
-    let result = (*enumerator).GetDefaultAudioEndpoint(
+    check((*enumerator).GetDefaultAudioEndpoint(
         eRender,
         eConsole,
         &mut device as *mut *mut IMMDevice,
-    );
+    ));
     //TODO: This can crash when there are no devices.
-    check(result).unwrap();
 
     //Get default device name.
     let mut store = null_mut();
-    let result = (*device).OpenPropertyStore(STGM_READ, &mut store);
-    check(result).unwrap();
+    check((*device).OpenPropertyStore(STGM_READ, &mut store));
+
     let mut prop = zeroed();
-    let result = (*store).GetValue(
+    check((*store).GetValue(
         &DEVPKEY_Device_FriendlyName as *const _ as *const _,
         &mut prop,
-    );
-    check(result).unwrap();
+    ));
 
     let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
     let name = utf16_string(ptr_utf16);
@@ -179,7 +173,9 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 }
 
 ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-pub unsafe fn check(result: i32) -> Result<(), String> {
+#[inline]
+#[track_caller]
+pub unsafe fn check(result: i32) {
     if result != 0 {
         let mut buf = [0u16; 2048];
         let result = FormatMessageW(
@@ -195,12 +191,10 @@ pub unsafe fn check(result: i32) -> Result<(), String> {
         let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
         if let Some(slice) = &buf.get(..b - 2) {
             let msg = String::from_utf16(slice).unwrap();
-            Err(msg)
+            panic!("{msg}");
         } else {
-            Err("Failed to get error message")?
+            panic!("Failed to get error message");
         }
-    } else {
-        Ok(())
     }
 }
 
@@ -237,13 +231,13 @@ impl Wasapi {
 
         let audio_client: *mut IAudioClient = {
             let mut audio_client = null_mut();
-            let result = (*device.inner).Activate(
+            check((*device.inner).Activate(
                 &IID_IAudioClient,
                 CLSCTX_ALL,
                 null_mut(),
                 &mut audio_client,
-            );
-            check(result).unwrap();
+            ));
+
             assert!(!audio_client.is_null());
             audio_client as *mut _
         };
@@ -289,7 +283,7 @@ impl Wasapi {
         let mut _min_period = zeroed();
         (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
 
-        let result = (*audio_client).Initialize(
+        check((*audio_client).Initialize(
             AUDCLNT_SHAREMODE_SHARED,
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK
                 | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
@@ -299,13 +293,11 @@ impl Wasapi {
             default_period,
             &format as *const _ as *const WAVEFORMATEX,
             null(),
-        );
-        check(result).unwrap();
+        ));
 
         let mut audio_clock_ptr = null_mut();
-        let result =
-            (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr);
-        check(result).unwrap();
+        check((*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr));
+
         let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
 
         //This must be set for some reason.
@@ -313,9 +305,8 @@ impl Wasapi {
         (*audio_client).SetEventHandle(h_event);
 
         let mut renderclient_ptr = null_mut();
-        let result =
-            (*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr);
-        check(result).unwrap();
+        check((*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr));
+
         let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
 
         (*audio_client).Start();
@@ -330,12 +321,10 @@ impl Wasapi {
     }
     pub unsafe fn buffer_frame_count(&mut self) -> usize {
         let mut padding_count = zeroed();
-        let result = (*self.audio_client).GetCurrentPadding(&mut padding_count);
-        check(result).unwrap();
+        check((*self.audio_client).GetCurrentPadding(&mut padding_count));
 
         let mut buffer_frame_count = zeroed();
-        let result = (*self.audio_client).GetBufferSize(&mut buffer_frame_count);
-        check(result).unwrap();
+        check((*self.audio_client).GetBufferSize(&mut buffer_frame_count));
 
         (buffer_frame_count - padding_count) as usize
     }
@@ -379,13 +368,11 @@ impl Wasapi {
         debug_assert_eq!(nbr_bytes, data.len());
 
         let mut buffer_ptr = null_mut();
-        let result = (*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr);
-        check(result).unwrap();
+        check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
 
         let buffer_slice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
         buffer_slice.copy_from_slice(data);
         (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
-        check(result).unwrap();
     }
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
@@ -393,10 +380,10 @@ impl Wasapi {
     pub unsafe fn set_sample_rate(&mut self, new: u32) -> Result<(), ()> {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
         let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
-
-        match check(result) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(()),
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(())
         }
     }
 }

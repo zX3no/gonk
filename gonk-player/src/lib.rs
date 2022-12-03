@@ -4,6 +4,7 @@
     non_upper_case_globals,
     non_snake_case
 )]
+#![feature(try_trait_v2)]
 use crossbeam_channel::{bounded, Sender};
 use gonk_core::{Index, Song};
 use std::fs::File;
