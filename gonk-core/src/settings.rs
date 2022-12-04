@@ -17,6 +17,8 @@ use std::{
 // [RawSong]
 #[derive(Debug)]
 pub struct Settings {
+    pub file: File,
+
     pub volume: u8,
     pub index: u16,
     pub elapsed: f32,
@@ -26,8 +28,14 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub const fn default() -> Self {
+    pub fn default() -> Self {
         Self {
+            file: File::options()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(settings_path())
+                .unwrap(),
             volume: 15,
             index: 0,
             elapsed: 0.0,
@@ -66,6 +74,12 @@ impl Settings {
             }
 
             Some(Self {
+                file: File::options()
+                    .write(true)
+                    .truncate(true)
+                    .create(true)
+                    .open(settings_path())
+                    .unwrap(),
                 index,
                 volume,
                 output_device,
@@ -97,14 +111,7 @@ impl Settings {
         Ok(self)
     }
     pub fn save(&mut self) -> io::Result<()> {
-        //Opening the same file twice may cause your computer to explode.
-        let file = File::options()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(settings_path())?;
-
-        let mut writer = BufWriter::new(file);
+        let mut writer = BufWriter::new(&self.file);
 
         writer.write_all(&[self.volume])?;
         writer.write_all(&self.index.to_le_bytes())?;

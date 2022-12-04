@@ -128,7 +128,7 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = Database::get_saved_queue();
+    let (songs, index, elapsed) = Database::queue();
 
     let songs = Index::new(songs, index);
 
@@ -370,11 +370,11 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            Database::save_volume(player.volume());
+                            Database::set_volume(player.volume());
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            Database::save_volume(player.volume());
+                            Database::set_volume(player.volume());
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,

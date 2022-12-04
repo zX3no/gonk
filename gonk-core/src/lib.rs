@@ -100,10 +100,10 @@ mod tests {
         let mut db = Vec::new();
         for i in 0..10_000 {
             let song = RawSong::new(
-                &format!("{} artist", i),
-                &format!("{} album", i),
-                &format!("{} title", i),
-                &format!("{} path", i),
+                &format!("{i} artist"),
+                &format!("{i} album"),
+                &format!("{i} title"),
+                &format!("{i} path"),
                 1,
                 1,
                 0.25,

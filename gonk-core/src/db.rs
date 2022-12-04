@@ -494,12 +494,42 @@ impl Database {
     }
 
     //Settings:
+    pub fn output_device() -> &'static str {
+        unsafe { &DB.settings.output_device }
+    }
 
-    pub fn save_volume(new_volume: u8) {
+    pub fn music_folder() -> &'static str {
+        unsafe { &DB.settings.music_folder }
+    }
+
+    pub fn volume() -> u8 {
+        unsafe { DB.settings.volume }
+    }
+
+    pub fn set_volume(volume: u8) {
         unsafe {
-            DB.settings.volume = new_volume;
+            DB.settings.volume = volume;
             DB.settings.save().unwrap();
         }
+    }
+
+    pub fn queue() -> (Vec<Song>, Option<usize>, f32) {
+        let settings = unsafe { &DB.settings };
+        let index = if settings.queue.is_empty() {
+            None
+        } else {
+            Some(settings.index as usize)
+        };
+
+        (
+            settings
+                .queue
+                .iter()
+                .map(|song| Song::from(&song.as_bytes()))
+                .collect(),
+            index,
+            settings.elapsed,
+        )
     }
 
     pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
@@ -532,41 +562,6 @@ impl Database {
             DB.settings.save().unwrap();
         }
     }
-
-    pub fn get_saved_queue() -> (Vec<Song>, Option<usize>, f32) {
-        let settings = unsafe { &DB.settings };
-        let index = if settings.queue.is_empty() {
-            None
-        } else {
-            Some(settings.index as usize)
-        };
-
-        (
-            settings
-                .queue
-                .iter()
-                .map(|song| Song::from(&song.as_bytes()))
-                .collect(),
-            index,
-            settings.elapsed,
-        )
-    }
-
-    pub fn output_device() -> &'static str {
-        unsafe { &DB.settings.output_device }
-    }
-
-    pub fn music_folder() -> &'static str {
-        unsafe { &DB.settings.music_folder }
-    }
-
-    pub fn volume() -> u8 {
-        unsafe { DB.settings.volume }
-    }
-
-    pub unsafe fn raw() -> &'static BTreeMap<String, Vec<Album>> {
-        &DB.data
-    }
 }
 
 pub fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
@@ -593,7 +588,7 @@ mod strsim {
         let prefix_length = a
             .chars()
             .zip(b.chars())
-            .take_while(|&(ref a_elem, ref b_elem)| a_elem == b_elem)
+            .take_while(|(a_elem, b_elem)| a_elem == b_elem)
             .count();
 
         let jaro_winkler_distance =

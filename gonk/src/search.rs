@@ -78,7 +78,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
             Item::Song((artist, album, _, disc, number)) => {
                 match Database::song(artist, album, *disc, *number) {
                     Some(song) => vec![song],
-                    None => panic!("{:?}", item),
+                    None => panic!("{item:?}"),
                 }
             }
             Item::Album((artist, album)) => Database::album(artist, album)
