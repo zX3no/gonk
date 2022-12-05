@@ -3,74 +3,74 @@ use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
 use gonk_core::db::Database;
-use gonk_core::RawSong;
+use gonk_core::*;
 
-// #[repr(packed)]
-#[derive(Default, Debug)]
-pub struct Song {
-    pub text: Text,
-    pub number: u8,
-    pub disc: u8,
-    pub gain: f32,
-    pub padding: Vec<u8>,
-}
+// // #[repr(packed)]
+// #[derive(Default, Debug)]
+// pub struct Song {
+//     pub text: Text,
+//     pub number: u8,
+//     pub disc: u8,
+//     pub gain: f32,
+//     pub padding: Vec<u8>,
+// }
 
-// #[repr(packed)]
-#[derive(Default, Debug)]
-pub struct Text {
-    pub artist_len: u16,
-    pub album_len: u16,
-    pub title_len: u16,
-    pub path_len: u16,
-    pub artist: &'static str,
-    pub album: &'static str,
-    pub title: &'static str,
-    pub path: &'static str,
-    pub padding: Vec<u8>,
-}
+// // #[repr(packed)]
+// #[derive(Default, Debug)]
+// pub struct Text {
+//     pub artist_len: u16,
+//     pub album_len: u16,
+//     pub title_len: u16,
+//     pub path_len: u16,
+//     pub artist: &'static str,
+//     pub album: &'static str,
+//     pub title: &'static str,
+//     pub path: &'static str,
+//     pub padding: Vec<u8>,
+// }
 
-#[derive(Default, Debug)]
-pub struct S {
-    pub text: T,
-    pub number: u8,
-    pub disc: u8,
-    pub gain: f32,
-}
+// #[derive(Default, Debug)]
+// pub struct S {
+//     pub text: T,
+//     pub number: u8,
+//     pub disc: u8,
+//     pub gain: f32,
+// }
 
-impl S {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        [
-            self.text.as_bytes().as_slice(),
-            &[self.number, self.disc],
-            self.gain.to_le_bytes().as_slice(),
-        ]
-        .concat()
-    }
-}
+// impl S {
+//     pub fn as_bytes(&self) -> Vec<u8> {
+//         [
+//             self.text.as_bytes().as_slice(),
+//             &[self.number, self.disc],
+//             self.gain.to_le_bytes().as_slice(),
+//         ]
+//         .concat()
+//     }
+// }
 
-#[derive(Default, Debug)]
-pub struct T {
-    pub artist: &'static str,
-    pub album: &'static str,
-    pub title: &'static str,
-    pub path: &'static str,
-}
+// #[derive(Default, Debug)]
+// pub struct T {
+//     pub artist: &'static str,
+//     pub album: &'static str,
+//     pub title: &'static str,
+//     pub path: &'static str,
+// }
 
-impl T {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        [
-            (self.artist.len() as u16).to_le_bytes().as_slice(),
-            (self.album.len() as u16).to_le_bytes().as_slice(),
-            (self.title.len() as u16).to_le_bytes().as_slice(),
-            (self.path.len() as u16).to_le_bytes().as_slice(),
-            self.artist.as_bytes(),
-            self.album.as_bytes(),
-            self.title.as_bytes(),
-            self.path.as_bytes(),
-        ]
-        .concat()
-    }
-}
+// impl T {
+//     pub fn as_bytes(&self) -> Vec<u8> {
+//         [
+//             (self.artist.len() as u16).to_le_bytes().as_slice(),
+//             (self.album.len() as u16).to_le_bytes().as_slice(),
+//             (self.title.len() as u16).to_le_bytes().as_slice(),
+//             (self.path.len() as u16).to_le_bytes().as_slice(),
+//             self.artist.as_bytes(),
+//             self.album.as_bytes(),
+//             self.title.as_bytes(),
+//             self.path.as_bytes(),
+//         ]
+//         .concat()
+//     }
+// }
 
 // pub const unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
 //     ::std::slice::from_raw_parts((p as *const T) as *const u8, ::std::mem::size_of::<T>())
@@ -145,13 +145,13 @@ impl T {
 ///
 /// How large should a chunk be?
 /// 64, 128, 256, 512?
-struct Chunk {
-    position_1: u16,
-    position_2: u16,
-    position_3: u16,
-    position_4: u16,
-    songs: Vec<S>,
-}
+// struct Chunk {
+//     position_1: u16,
+//     position_2: u16,
+//     position_3: u16,
+//     position_4: u16,
+//     songs: Vec<S>,
+// }
 
 //TODO: Currently errors are not propergated in the database.
 //I would like some kind of stacktrace to make it easier to hunt things down.
@@ -162,4 +162,37 @@ struct Chunk {
 //Worst of all, using a B-Tree to cache the songs wasn't the cause of the
 //performance issue. I still have no idea really.
 
-fn main() {}
+fn main() {
+    // let settings = unsafe { Settings::new() };
+    let song  = Song {
+    title: "Interstellar (Original Motion Picture Soundtrack)  (Expanded Edition)".to_string(),
+    album: "Interstellar (Original Motion Picture Soundtrack)  (Expanded Edition)".to_string(),
+    artist: "Hans Zimmer".to_string(),
+    disc_number: 1,
+    track_number: 7,
+    path: "D:/OneDrive/Music\\Hans Zimmer\\Interstellar (Original Motion Picture Soundtrack)  (Expanded Edition)\\07. Hans Zimmer - The Wormhole.flac".to_string(),
+    gain: 0.8679606,
+    };
+    let b = song_to_bytes(
+        &song.artist,
+        &song.album,
+        &song.title,
+        &song.path,
+        song.track_number,
+        song.disc_number,
+        song.gain,
+    );
+    let s = bytes_to_song(&b);
+    let b2 = song_to_bytes(
+        &s.artist,
+        &s.album,
+        &s.title,
+        &s.path,
+        s.track_number,
+        s.disc_number,
+        s.gain,
+    );
+    let s2 = bytes_to_song(&b2);
+    assert_eq!(song, s);
+    assert_eq!(s, s2);
+}

@@ -1,4 +1,3 @@
-use crate::{database_path, raw_song::*, Index, Song, SONG_LEN};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
@@ -7,11 +6,13 @@ use std::{
 };
 use walkdir::WalkDir;
 
+use crate::*;
+
 #[derive(Debug)]
 pub struct RawPlaylist {
     pub name: String,
     pub path: PathBuf,
-    pub songs: Index<RawSong>,
+    pub songs: Index<[u8; SONG_LEN]>,
 }
 
 impl RawPlaylist {
@@ -20,21 +21,24 @@ impl RawPlaylist {
         path.pop();
         path.push(format!("{name}.playlist"));
 
-        let songs: Vec<RawSong> = songs.into_iter().map(|song| RawSong::from(&song)).collect();
+        // let songs: Vec<RawSong> = songs.into_iter().map(|song| RawSong::from(&song)).collect();
 
-        Self {
-            path,
-            name: name.to_string(),
-            songs: Index::from(songs),
-        }
+        // Self {
+        //     path,
+        //     name: name.to_string(),
+        //     songs: Index::from(songs),
+        // }
+        todo!();
     }
     pub fn extend<I: IntoIterator<Item = Song>>(&mut self, iter: I) {
-        let iter = iter.into_iter().map(|song| RawSong::from(&song));
-        self.songs.data.extend(iter);
+        // let iter = iter.into_iter().map(|song| RawSong::from(&song));
+        // self.songs.data.extend(iter);
+        todo!();
     }
-    pub fn extend_raw<I: IntoIterator<Item = RawSong>>(&mut self, iter: I) {
-        self.songs.data.extend(iter);
-    }
+    // pub fn extend_raw<I: IntoIterator<Item = RawSong>>(&mut self, iter: I) {
+    //     todo!();
+    //     self.songs.data.extend(iter);
+    // }
     //TODO: Why is the file handle being reopened so much.
     pub fn save(&self) {
         //Delete the contents of the file and overwrite with new settings.
@@ -46,8 +50,9 @@ impl RawPlaylist {
         bytes.extend((self.name.len() as u16).to_le_bytes());
         bytes.extend(self.name.as_bytes());
         for song in &self.songs.data {
-            bytes.extend(song.as_bytes());
+            // bytes.extend(song.as_bytes());
         }
+        todo!();
 
         writer.write_all(&bytes).unwrap();
         writer.flush().unwrap();
@@ -64,10 +69,11 @@ impl From<&[u8]> for RawPlaylist {
             let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
 
             let mut i = name_len + 2;
-            let mut songs = Vec::new();
+            let mut songs: Vec<[u8; SONG_LEN]> = Vec::new();
 
             while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-                songs.push(RawSong::from(bytes));
+                // todo!();
+                // songs.push(RawSong::from_bytes(bytes).unwrap());
                 i += SONG_LEN;
             }
 

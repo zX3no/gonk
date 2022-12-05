@@ -19,6 +19,7 @@ pub fn u32_le(reader: &mut BufReader<File>) -> u32 {
     u32::from_le_bytes(buffer)
 }
 
+
 pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, Box<dyn Error>> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);

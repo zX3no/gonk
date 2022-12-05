@@ -129,7 +129,8 @@ fn main() {
 
     let (songs, index, elapsed) = Database::queue();
 
-    let songs = Index::new(songs, index);
+    // let songs = Index::new(songs, index);
+    let songs = Index::default();
 
     let volume = Database::volume();
     let device = Database::output_device();

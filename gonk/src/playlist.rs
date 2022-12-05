@@ -113,15 +113,16 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
             if let Some(selected) = playlist.playlists.selected() {
-                let songs: Vec<Song> = selected.songs.data.iter().map(Song::from).collect();
-
-                player.add(songs);
+                // let songs: Vec<Song> = selected.songs.data.iter().map(Song::from).collect();
+                // player.add(songs);
+                todo!();
             }
         }
         Mode::Song => {
             if let Some(selected) = playlist.playlists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    player.add(vec![Song::from(song)]);
+                    // player.add(vec![Song::from(song)]);
+                    todo!();
                 }
             }
         }
@@ -419,58 +420,59 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
         horizontal[0],
         &mut ListState::new(playlist.playlists.index()),
     );
+    todo!();
 
-    if let Some(selected) = playlist.playlists.selected() {
-        let content: Vec<Row> = selected
-            .songs
-            .data
-            .iter()
-            .map(|song| {
-                Row::new(vec![
-                    Span::styled(song.title(), Style::default().fg(TITLE)),
-                    Span::styled(song.album(), Style::default().fg(ALBUM)),
-                    Span::styled(song.artist(), Style::default().fg(ARTIST)),
-                ])
-            })
-            .collect();
+    // if let Some(selected) = playlist.playlists.selected() {
+    //     let content: Vec<Row> = selected
+    //         .songs
+    //         .data
+    //         .iter()
+    //         .map(|song| {
+    //             Row::new(vec![
+    //                 Span::styled(song.title(), Style::default().fg(TITLE)),
+    //                 Span::styled(song.album(), Style::default().fg(ALBUM)),
+    //                 Span::styled(song.artist(), Style::default().fg(ARTIST)),
+    //             ])
+    //         })
+    //         .collect();
 
-        let table = Table::new(&content)
-            .widths(&[
-                Constraint::Percentage(42),
-                Constraint::Percentage(30),
-                Constraint::Percentage(28),
-            ])
-            .block(
-                Block::default()
-                    .title("─Songs")
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            );
+    //     let table = Table::new(&content)
+    //         .widths(&[
+    //             Constraint::Percentage(42),
+    //             Constraint::Percentage(30),
+    //             Constraint::Percentage(28),
+    //         ])
+    //         .block(
+    //             Block::default()
+    //                 .title("─Songs")
+    //                 .borders(Borders::ALL)
+    //                 .border_type(BorderType::Rounded),
+    //         );
 
-        let table = if let Mode::Song = playlist.mode {
-            table.highlight_symbol(">")
-        } else {
-            table.highlight_symbol("")
-        };
+    //     let table = if let Mode::Song = playlist.mode {
+    //         table.highlight_symbol(">")
+    //     } else {
+    //         table.highlight_symbol("")
+    //     };
 
-        f.render_stateful_widget(
-            table,
-            horizontal[1],
-            &mut TableState::new(selected.songs.index()),
-        );
-    } else {
-        f.render_widget(
-            Block::default()
-                .title("─Songs")
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-            horizontal[1],
-        );
-    }
+    //     f.render_stateful_widget(
+    //         table,
+    //         horizontal[1],
+    //         &mut TableState::new(selected.songs.index()),
+    //     );
+    // } else {
+    //     f.render_widget(
+    //         Block::default()
+    //             .title("─Songs")
+    //             .borders(Borders::ALL)
+    //             .border_type(BorderType::Rounded),
+    //         horizontal[1],
+    //     );
+    // }
 
-    if playlist.delete {
-        draw_delete_popup(playlist, f);
-    } else if let Mode::Popup = playlist.mode {
-        draw_popup(playlist, f);
-    }
+    // if playlist.delete {
+    //     draw_delete_popup(playlist, f);
+    // } else if let Mode::Popup = playlist.mode {
+    //     draw_popup(playlist, f);
+    // }
 }

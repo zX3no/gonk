@@ -1,4 +1,6 @@
-use crate::{settings::Settings, *};
+use crate::Song;
+use crate::{flac_decoder::read_metadata, settings::Settings, *};
+use crate::{log, profile};
 use memmap2::Mmap;
 use once_cell::unsync::Lazy;
 use rayon::{
@@ -7,13 +9,26 @@ use rayon::{
     },
     slice::ParallelSliceMut,
 };
+use std::ffi::OsString;
+use std::str::from_utf8;
 use std::{
     cmp::Ordering,
     collections::{btree_map::Entry, BTreeMap},
     fs::{self, File, OpenOptions},
     io::{self, BufWriter, Write},
+    path::Path,
     sync::RwLock,
     thread::{self, JoinHandle},
+};
+use std::{fmt::Debug, mem::size_of};
+use symphonia::{
+    core::{
+        formats::FormatOptions,
+        io::{MediaSourceStream, MediaSourceStreamOptions},
+        meta::{Limit, MetadataOptions, MetadataRevision, StandardTagKey},
+        probe::Hint,
+    },
+    default::get_probe,
 };
 use walkdir::{DirEntry, WalkDir};
 
@@ -46,6 +61,288 @@ pub enum ScanResult {
     Incomplete(&'static str),
 }
 
+pub fn bytes_to_song(bytes: &[u8]) -> Song {
+    debug_assert!(bytes.len() == SONG_LEN);
+
+    let text = bytes.get(..TEXT_LEN).unwrap();
+    debug_assert!(text.len() == TEXT_LEN);
+
+    let artist_len = u16::from_le_bytes([text[0], text[1]]) as usize;
+    let album_len = u16::from_le_bytes([text[2 + artist_len], text[2 + artist_len + 1]]) as usize;
+    let title_len = u16::from_le_bytes([
+        text[2 + artist_len + 2 + album_len],
+        text[2 + artist_len + 2 + album_len + 1],
+    ]) as usize;
+    let path_len = u16::from_le_bytes([
+        text[2 + artist_len + 2 + album_len + 2 + title_len],
+        text[2 + artist_len + 2 + album_len + 2 + title_len + 1],
+    ]) as usize;
+
+    let slice = text.get(2..artist_len + 2).unwrap();
+    let artist = from_utf8(slice).unwrap();
+
+    let slice = text
+        .get(2 + artist_len + 2..2 + artist_len + 2 + album_len)
+        .unwrap();
+    let album = from_utf8(slice).unwrap();
+
+    let slice = text
+        .get(2 + artist_len + 2..2 + artist_len + 2 + album_len)
+        .unwrap();
+    let title = from_utf8(slice).unwrap();
+
+    let slice = text
+        .get(
+            2 + artist_len + 2 + album_len + 2 + title_len + 2
+                ..2 + artist_len + 2 + album_len + 2 + title_len + 2 + path_len,
+        )
+        .unwrap();
+    let path = from_utf8(slice).unwrap();
+
+    let track_number = bytes[NUMBER_POS];
+    let disc_number = bytes[DISC_POS];
+
+    let gain = f32::from_le_bytes([
+        bytes[SONG_LEN - 4],
+        bytes[SONG_LEN - 3],
+        bytes[SONG_LEN - 2],
+        bytes[SONG_LEN - 1],
+    ]);
+
+    Song {
+        title: title.to_string(),
+        album: album.to_string(),
+        artist: artist.to_string(),
+        disc_number,
+        track_number,
+        path: path.to_string(),
+        gain,
+    }
+}
+
+pub fn song_to_bytes(
+    artist: &str,
+    album: &str,
+    title: &str,
+    path: &str,
+    number: u8,
+    disc: u8,
+    gain: f32,
+) -> [u8; SONG_LEN] {
+    let mut song = [0; SONG_LEN];
+
+    if path.len() > TEXT_LEN {
+        //If there is invalid utf8 in the panic message, rust will panic.
+        panic!("PATH IS TOO LONG! {:?}", OsString::from(path));
+    }
+
+    let mut artist = artist.to_string();
+    let mut album = album.to_string();
+    let mut title = title.to_string();
+
+    //Forcefully fit the artist, album, title and path into 522 bytes.
+    //There are 4 u16s included in the text so those are subtracted too.
+    let mut i = 0;
+    while artist.len() + album.len() + title.len() + path.len() > TEXT_LEN - (4 * size_of::<u16>())
+    {
+        if i % 3 == 0 {
+            artist.pop();
+        } else if i % 3 == 1 {
+            album.pop();
+        } else {
+            title.pop();
+        }
+        i += 1;
+    }
+
+    if i != 0 {
+        log!(
+            "Warning: {} overflowed {} bytes! Metadata will be truncated.",
+            path,
+            SONG_LEN
+        );
+    }
+
+    let artist_len = (artist.len() as u16).to_le_bytes();
+    song[0..2].copy_from_slice(&artist_len);
+    song[2..2 + artist.len()].copy_from_slice(artist.as_bytes());
+
+    let album_len = (album.len() as u16).to_le_bytes();
+    song[2 + artist.len()..2 + artist.len() + 2].copy_from_slice(&album_len);
+    song[2 + artist.len() + 2..2 + artist.len() + 2 + album.len()]
+        .copy_from_slice(album.as_bytes());
+
+    let title_len = (title.len() as u16).to_le_bytes();
+    song[2 + artist.len() + 2 + album.len()..2 + artist.len() + 2 + album.len() + 2]
+        .copy_from_slice(&title_len);
+    song[2 + artist.len() + 2 + album.len() + 2
+        ..2 + artist.len() + 2 + album.len() + 2 + title.len()]
+        .copy_from_slice(title.as_bytes());
+
+    let path_len = (path.len() as u16).to_le_bytes();
+    song[2 + artist.len() + 2 + album.len() + 2 + title.len()
+        ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2]
+        .copy_from_slice(&path_len);
+    song[2 + artist.len() + 2 + album.len() + 2 + title.len() + 2
+        ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2 + path.len()]
+        .copy_from_slice(path.as_bytes());
+
+    song[NUMBER_POS] = number;
+    song[DISC_POS] = disc;
+    song[GAIN_POS].copy_from_slice(&gain.to_le_bytes());
+
+    song
+}
+
+pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
+    let ex = path.extension().unwrap();
+    if ex == "flac" {
+        match read_metadata(path) {
+            Ok(metadata) => {
+                let number = metadata
+                    .get("TRACKNUMBER")
+                    .unwrap_or(&String::from("1"))
+                    .parse()
+                    .unwrap_or(1);
+
+                let disc = metadata
+                    .get("DISCNUMBER")
+                    .unwrap_or(&String::from("1"))
+                    .parse()
+                    .unwrap_or(1);
+
+                let mut gain = 0.0;
+                if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
+                    let g = db.replace(" dB", "");
+                    if let Ok(db) = g.parse::<f32>() {
+                        gain = 10.0f32.powf(db / 20.0);
+                    }
+                }
+
+                let artist = match metadata.get("ALBUMARTIST") {
+                    Some(artist) => artist.as_str(),
+                    None => match metadata.get("ARTIST") {
+                        Some(artist) => artist.as_str(),
+                        None => "Unknown Artist",
+                    },
+                };
+
+                let album = match metadata.get("ALBUM") {
+                    Some(album) => album.as_str(),
+                    None => "Unknown Album",
+                };
+
+                let title = match metadata.get("TITLE") {
+                    Some(title) => title.as_str(),
+                    None => "Unknown Title",
+                };
+
+                Ok(song_to_bytes(
+                    artist,
+                    album,
+                    title,
+                    path.to_str().unwrap(),
+                    number,
+                    disc,
+                    gain,
+                ))
+            }
+            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+        }
+    } else {
+        profile!("symphonia::decode");
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+        };
+
+        let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
+
+        let mut probe = match get_probe().format(
+            &Hint::new(),
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions {
+                limit_visual_bytes: Limit::Maximum(1),
+                ..Default::default()
+            },
+        ) {
+            Ok(probe) => probe,
+            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+        };
+
+        let mut title = String::from("Unknown Title");
+        let mut album = String::from("Unknown Album");
+        let mut artist = String::from("Unknown Artist");
+        let mut number = 1;
+        let mut disc = 1;
+        let mut gain = 0.0;
+
+        let mut update_metadata = |metadata: &MetadataRevision| {
+            for tag in metadata.tags() {
+                if let Some(std_key) = tag.std_key {
+                    match std_key {
+                        StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
+                        StandardTagKey::Artist if artist == "Unknown Artist" => {
+                            artist = tag.value.to_string()
+                        }
+                        StandardTagKey::Album => album = tag.value.to_string(),
+                        StandardTagKey::TrackTitle => title = tag.value.to_string(),
+                        StandardTagKey::TrackNumber => {
+                            let num = tag.value.to_string();
+                            if let Some((num, _)) = num.split_once('/') {
+                                number = num.parse().unwrap_or(1);
+                            } else {
+                                number = num.parse().unwrap_or(1);
+                            }
+                        }
+                        StandardTagKey::DiscNumber => {
+                            let num = tag.value.to_string();
+                            if let Some((num, _)) = num.split_once('/') {
+                                disc = num.parse().unwrap_or(1);
+                            } else {
+                                disc = num.parse().unwrap_or(1);
+                            }
+                        }
+                        StandardTagKey::ReplayGainTrackGain => {
+                            let db = tag
+                                .value
+                                .to_string()
+                                .split(' ')
+                                .next()
+                                .unwrap()
+                                .parse()
+                                .unwrap_or(0.0);
+
+                            gain = 10.0f32.powf(db / 20.0);
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        };
+
+        if let Some(metadata) = probe.format.metadata().skip_to_latest() {
+            update_metadata(metadata);
+        } else if let Some(mut metadata) = probe.metadata.get() {
+            let metadata = metadata.skip_to_latest().unwrap();
+            update_metadata(metadata);
+        } else {
+            //Probably a WAV file that doesn't have metadata.
+        }
+
+        Ok(song_to_bytes(
+            &artist,
+            &album,
+            &title,
+            path.to_str().unwrap(),
+            number,
+            disc,
+            gain,
+        ))
+    }
+}
+
 pub struct Database {
     pub data: BTreeMap<String, Vec<Album>>,
     pub mmap: Option<Mmap>,
@@ -66,77 +363,13 @@ impl Database {
         let mmap = Mmap::map(&db).unwrap();
         let mut data = BTreeMap::new();
 
-        //Reset the database if the first song is invalid.
-        let mmap = if Database::validate(&mmap).is_err() {
-            log!("Database is corrupted. Resetting!");
-            fs::remove_file(settings_path()).unwrap();
-            fs::remove_file(database_path()).unwrap();
-            None
-        } else {
-            Database::build(&mmap, &mut data);
-            Some(mmap)
-        };
+        Database::build(&mmap, &mut data);
 
         Self {
             data,
-            mmap,
+            mmap: Some(mmap),
             settings: Settings::new(),
         }
-    }
-
-    fn validate(file: &[u8]) -> Result<(), Box<dyn Error>> {
-        if file.is_empty() {
-            return Ok(());
-        } else if file.len() < SONG_LEN {
-            return Err("Invalid song")?;
-        }
-
-        let text = &file[..TEXT_LEN];
-
-        if text.len() != TEXT_LEN {
-            Err("Invalid text segment")?;
-        }
-
-        let artist_len = artist_len(text) as usize;
-        if artist_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _artist = from_utf8(&text[2..artist_len + 2])?;
-
-        let album_len = album_len(text, artist_len) as usize;
-        if album_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _album = from_utf8(&text[2 + artist_len + 2..artist_len + 2 + album_len + 2])?;
-
-        let title_len = title_len(text, artist_len, album_len) as usize;
-        if title_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _title = from_utf8(
-            &text[2 + artist_len + 2 + album_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2],
-        )?;
-
-        let path_len = path_len(text, artist_len, album_len, title_len) as usize;
-        if path_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _path = from_utf8(
-            &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
-        )?;
-
-        let _number = file[NUMBER_POS];
-        let _disc = file[DISC_POS];
-        let _gain = f32::from_le_bytes([
-            file[SONG_LEN - 5],
-            file[SONG_LEN - 4],
-            file[SONG_LEN - 3],
-            file[SONG_LEN - 2],
-        ]);
-
-        Ok(())
     }
 
     pub fn len() -> usize {
@@ -162,9 +395,11 @@ impl Database {
             .map(|i| {
                 let pos = i * SONG_LEN;
                 let bytes = &mmap[pos..pos + SONG_LEN];
-                Song::from(bytes)
+                bytes_to_song(bytes)
             })
             .collect();
+
+        // dbg!(&songs);
 
         let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
 
@@ -237,7 +472,13 @@ impl Database {
 
                     let songs: Vec<_> = paths
                         .into_par_iter()
-                        .map(|path| RawSong::from_path(path.path()))
+                        .map(|dir| {
+                            //
+                            let bytes = path_to_bytes(dir.path());
+                            dbg!(bytes_to_song(bytes.as_ref().unwrap()));
+
+                            bytes
+                        })
                         .collect();
 
                     let errors: Vec<String> = songs
@@ -251,10 +492,10 @@ impl Database {
                         })
                         .collect();
 
-                    let songs: Vec<RawSong> = songs.into_iter().flatten().collect();
+                    let songs: Vec<_> = songs.into_iter().flatten().collect();
 
                     for song in songs {
-                        writer.write_all(&song.as_bytes()).unwrap();
+                        writer.write_all(&song).unwrap();
                     }
 
                     writer.flush().unwrap();
@@ -452,7 +693,7 @@ impl Database {
         }
     }
 
-    pub fn queue() -> (Vec<Song>, Option<usize>, f32) {
+    pub fn queue() -> (&'static Vec<Song>, Option<usize>, f32) {
         let settings = unsafe { &DB.settings };
         let index = if settings.queue.is_empty() {
             None
@@ -460,16 +701,12 @@ impl Database {
             Some(settings.index as usize)
         };
 
-        (
-            settings.queue.iter().map(Song::from).collect(),
-            index,
-            settings.elapsed,
-        )
+        (&settings.queue, index, settings.elapsed)
     }
 
     pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
         unsafe {
-            DB.settings.queue = queue.iter().map(RawSong::from).collect();
+            DB.settings.queue = queue.to_vec();
             DB.settings.index = index;
             DB.settings.elapsed = elapsed;
             DB.settings.save().unwrap();

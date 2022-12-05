@@ -1,4 +1,4 @@
-use crate::{settings_path, RawSong, SONG_LEN};
+use crate::*;
 use std::{
     fs::File,
     io::{self, BufWriter, Read, Write},
@@ -24,7 +24,7 @@ pub struct Settings {
     pub elapsed: f32,
     pub output_device: String,
     pub music_folder: String,
-    pub queue: Vec<RawSong>,
+    pub queue: Vec<Song>,
 }
 
 impl Settings {
@@ -40,10 +40,69 @@ impl Settings {
             panic!();
         };
 
-        if bytes.is_empty() {
+        if bytes.len() < size_of::<u8>() + size_of::<u16>() + size_of::<f32>() {
             Self::default(file)
         } else {
-            Self::from_bytes(&bytes, file)
+            let volume = bytes[0];
+            let index = u16::from_le_bytes([bytes[1], bytes[2]]);
+            let elapsed = f32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
+
+            let output_device_len = u16::from_le_bytes([bytes[7], bytes[8]]) as usize + 9;
+            if output_device_len >= bytes.len() {
+                return Self::default(file);
+            }
+            let output_device = from_utf8_unchecked(&bytes[9..output_device_len]).to_string();
+
+            let start = output_device_len + size_of::<u16>();
+            let music_folder_len =
+                u16::from_le_bytes([bytes[output_device_len], bytes[output_device_len + 1]])
+                    as usize;
+            if music_folder_len >= bytes.len() {
+                return Self::default(file);
+            }
+            let music_folder =
+                from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
+
+            let mut queue = Vec::new();
+            // let mut i = start + music_folder_len;
+            // while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+            //     let text = bytes.get(..TEXT_LEN).unwrap();
+            //     let artist = artist(text);
+            //     let album = album(text);
+            //     let title = title(text);
+            //     let path = path(text);
+
+            //     let track_number = bytes[NUMBER_POS];
+            //     let disc_number = bytes[DISC_POS];
+
+            //     let gain = f32::from_le_bytes([
+            //         bytes[SONG_LEN - 4],
+            //         bytes[SONG_LEN - 3],
+            //         bytes[SONG_LEN - 2],
+            //         bytes[SONG_LEN - 1],
+            //     ]);
+            //     queue.push(Song {
+            //         title: title.to_string(),
+            //         album: album.to_string(),
+            //         artist: artist.to_string(),
+            //         disc_number,
+            //         track_number,
+            //         path: path.to_string(),
+            //         gain,
+            //     });
+
+            //     i += SONG_LEN;
+            // }
+
+            Self {
+                file,
+                index,
+                volume,
+                output_device,
+                music_folder,
+                elapsed,
+                queue,
+            }
         }
     }
     pub fn default(file: File) -> Self {
@@ -55,41 +114,6 @@ impl Settings {
             output_device: String::new(),
             music_folder: String::new(),
             queue: Vec::new(),
-        }
-    }
-    pub unsafe fn from_bytes(bytes: &[u8], file: File) -> Self {
-        let volume = bytes[0];
-        let index = u16::from_le_bytes([bytes[1], bytes[2]]);
-        let elapsed = f32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
-
-        let output_device_len = u16::from_le_bytes([bytes[7], bytes[8]]) as usize + 9;
-        if output_device_len >= bytes.len() {
-            return Self::default(file);
-        }
-        let output_device = from_utf8_unchecked(&bytes[9..output_device_len]).to_string();
-
-        let start = output_device_len + size_of::<u16>();
-        let music_folder_len =
-            u16::from_le_bytes([bytes[output_device_len], bytes[output_device_len + 1]]) as usize;
-        if music_folder_len >= bytes.len() {
-            return Self::default(file);
-        }
-        let music_folder = from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
-
-        let mut queue = Vec::new();
-        let mut i = start + music_folder_len;
-        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            queue.push(RawSong::from(bytes));
-            i += SONG_LEN;
-        }
-        Self {
-            file,
-            index,
-            volume,
-            output_device,
-            music_folder,
-            elapsed,
-            queue,
         }
     }
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -105,7 +129,16 @@ impl Settings {
         bytes.extend(self.music_folder.as_bytes());
 
         for song in &self.queue {
-            bytes.extend(song.as_bytes());
+            let b= song_to_bytes(
+                &song.artist,
+                &song.album,
+                &song.title,
+                &song.path,
+                song.track_number,
+                song.disc_number,
+                song.gain,
+            );
+            bytes.extend(b);
         }
         bytes
     }
@@ -128,7 +161,16 @@ impl Settings {
         writer.write_all(self.music_folder.as_bytes())?;
 
         for song in &self.queue {
-            writer.write_all(&song.as_bytes())?;
+            let bytes = song_to_bytes(
+                &song.artist,
+                &song.album,
+                &song.title,
+                &song.path,
+                song.track_number,
+                song.disc_number,
+                song.gain,
+            );
+            writer.write_all(&bytes)?;
         }
         Ok(())
     }
