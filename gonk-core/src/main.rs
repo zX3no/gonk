@@ -1,9 +1,7 @@
 #![allow(unused)]
+use gonk_core::db::{Album, Database};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
-
-use gonk_core::db::Database;
-use gonk_core::RawSong;
 
 // #[repr(packed)]
 #[derive(Default, Debug)]
@@ -153,13 +151,21 @@ struct Chunk {
     songs: Vec<S>,
 }
 
-//TODO: Currently errors are not propergated in the database.
-//I would like some kind of stacktrace to make it easier to hunt things down.
-//
-//I would also like safe version of all functions.
-//
-//Really none of the effort is worth it. I think a total re-write is in order.
-//Worst of all, using a B-Tree to cache the songs wasn't the cause of the
-//performance issue. I still have no idea really.
+fn main() {
+    // let text = T {
+    //     artist: "artist",
+    //     album: "album",
+    //     title: "title",
+    //     path: "path",
+    // };
+    // let song = S {
+    //     text,
+    //     number: 10,
+    //     disc: 1,
+    //     gain: 1.0,
+    // };
+    // dbg!(song.as_bytes());
+    // dbg!(song.as_bytes().len());
 
-fn main() {}
+    Database::search("good morning captain");
+}

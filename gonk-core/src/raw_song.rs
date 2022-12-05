@@ -1,8 +1,5 @@
 use crate::{flac_decoder::*, Song, DISC_POS, GAIN_POS, NUMBER_POS};
 use crate::{log, profile, SONG_LEN, TEXT_LEN};
-use std::error::Error;
-use std::ffi::OsString;
-use std::str::from_utf8;
 use std::{fmt::Debug, fs::File, mem::size_of, path::Path, str::from_utf8_unchecked};
 use symphonia::{
     core::{
@@ -32,8 +29,7 @@ impl RawSong {
         gain: f32,
     ) -> Self {
         if path.len() > TEXT_LEN {
-            //If there is invalid utf8 in the panic message, rust will panic.
-            panic!("PATH IS TOO LONG! {:?}", OsString::from(path));
+            panic!("PATH IS TOO LONG! {path}")
         }
 
         let mut artist = artist.to_string();
@@ -118,45 +114,6 @@ impl RawSong {
     }
     pub fn path(&self) -> &str {
         path(&self.text)
-    }
-    pub fn validate(&self) -> Result<(), Box<dyn Error>> {
-        let text = &self.text;
-
-        if text.len() != TEXT_LEN {
-            Err("Invalid text segment")?;
-        }
-
-        let artist_len = artist_len(text) as usize;
-        if artist_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _artist = from_utf8(&text[2..artist_len + 2])?;
-
-        let album_len = album_len(text, artist_len) as usize;
-        if album_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _album = from_utf8(&text[2 + artist_len + 2..artist_len + 2 + album_len + 2])?;
-
-        let title_len = title_len(text, artist_len, album_len) as usize;
-        if title_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _title = from_utf8(
-            &text[2 + artist_len + 2 + album_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2],
-        )?;
-
-        let path_len = path_len(text, artist_len, album_len, title_len) as usize;
-        if path_len > TEXT_LEN {
-            Err("Invalid u16")?;
-        }
-        let _path = from_utf8(
-            &text[2 + artist_len + 2 + album_len + 2 + title_len + 2
-                ..artist_len + 2 + album_len + 2 + title_len + 2 + path_len + 2],
-        )?;
-
-        Ok(())
     }
     pub fn from_path(path: &'_ Path) -> Result<RawSong, String> {
         let ex = path.extension().unwrap();
@@ -381,7 +338,6 @@ pub const fn artist(text: &[u8]) -> &str {
 
 pub const fn album(text: &[u8]) -> &str {
     debug_assert!(text.len() == TEXT_LEN);
-
     let artist_len = artist_len(text) as usize;
     let album_len = album_len(text, artist_len) as usize;
 

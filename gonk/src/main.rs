@@ -110,10 +110,11 @@ fn main() {
     }
 
     //Disable raw mode when the program panics.
+    let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         disable_raw_mode().unwrap();
         execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-        eprintln!("{panic_info}");
+        orig_hook(panic_info);
         std::process::exit(1);
     }));
 
@@ -127,7 +128,7 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = Database::queue();
+    let (songs, index, elapsed) = Database::get_saved_queue();
 
     let songs = Index::new(songs, index);
 
@@ -369,11 +370,11 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            Database::set_volume(player.volume());
+                            Database::save_volume(player.volume());
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            Database::set_volume(player.volume());
+                            Database::save_volume(player.volume());
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,
