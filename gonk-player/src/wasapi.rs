@@ -173,6 +173,7 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 }
 
 ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
+//TODO: I think these panics don't work?
 #[inline]
 #[track_caller]
 pub unsafe fn check(result: i32) {

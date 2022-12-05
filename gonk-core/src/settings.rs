@@ -1,7 +1,7 @@
 use crate::{settings_path, RawSong, SONG_LEN};
 use std::{
     fs::File,
-    io::{self, BufWriter, Write},
+    io::{self, BufWriter, Read, Write},
     mem::size_of,
     str::from_utf8_unchecked,
 };
@@ -28,14 +28,27 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn default() -> Self {
+    pub unsafe fn new() -> Self {
+        let mut file = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(settings_path())
+            .unwrap();
+        let mut bytes = Vec::new();
+        let Ok(_) = file.read_to_end(&mut bytes) else {
+            panic!();
+        };
+
+        if bytes.is_empty() {
+            Self::default(file)
+        } else {
+            Self::from_bytes(&bytes, file)
+        }
+    }
+    pub fn default(file: File) -> Self {
         Self {
-            file: File::options()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(settings_path())
-                .unwrap(),
+            file,
             volume: 15,
             index: 0,
             elapsed: 0.0,
@@ -44,49 +57,39 @@ impl Settings {
             queue: Vec::new(),
         }
     }
-    pub fn from(bytes: Vec<u8>) -> Option<Self> {
-        unsafe {
-            let volume = bytes[0];
-            let index = u16::from_le_bytes([bytes[1], bytes[2]]);
-            let elapsed = f32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
+    pub unsafe fn from_bytes(bytes: &[u8], file: File) -> Self {
+        let volume = bytes[0];
+        let index = u16::from_le_bytes([bytes[1], bytes[2]]);
+        let elapsed = f32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
 
-            let output_device_len = u16::from_le_bytes([bytes[7], bytes[8]]) as usize + 9;
-            if output_device_len >= bytes.len() {
-                return None;
-            }
-            let output_device = from_utf8_unchecked(&bytes[9..output_device_len]).to_string();
+        let output_device_len = u16::from_le_bytes([bytes[7], bytes[8]]) as usize + 9;
+        if output_device_len >= bytes.len() {
+            return Self::default(file);
+        }
+        let output_device = from_utf8_unchecked(&bytes[9..output_device_len]).to_string();
 
-            let start = output_device_len + size_of::<u16>();
-            let music_folder_len =
-                u16::from_le_bytes([bytes[output_device_len], bytes[output_device_len + 1]])
-                    as usize;
-            if music_folder_len >= bytes.len() {
-                return None;
-            }
-            let music_folder =
-                from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
+        let start = output_device_len + size_of::<u16>();
+        let music_folder_len =
+            u16::from_le_bytes([bytes[output_device_len], bytes[output_device_len + 1]]) as usize;
+        if music_folder_len >= bytes.len() {
+            return Self::default(file);
+        }
+        let music_folder = from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
 
-            let mut queue = Vec::new();
-            let mut i = start + music_folder_len;
-            while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-                queue.push(RawSong::from(bytes));
-                i += SONG_LEN;
-            }
-
-            Some(Self {
-                file: File::options()
-                    .write(true)
-                    .truncate(true)
-                    .create(true)
-                    .open(settings_path())
-                    .unwrap(),
-                index,
-                volume,
-                output_device,
-                music_folder,
-                elapsed,
-                queue,
-            })
+        let mut queue = Vec::new();
+        let mut i = start + music_folder_len;
+        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+            queue.push(RawSong::from(bytes));
+            i += SONG_LEN;
+        }
+        Self {
+            file,
+            index,
+            volume,
+            output_device,
+            music_folder,
+            elapsed,
+            queue,
         }
     }
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -111,6 +114,7 @@ impl Settings {
         Ok(self)
     }
     pub fn save(&mut self) -> io::Result<()> {
+        self.file.set_len(0).unwrap();
         let mut writer = BufWriter::new(&self.file);
 
         writer.write_all(&[self.volume])?;

@@ -1,9 +1,8 @@
 use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Input};
 use crossterm::event::MouseEvent;
-use gonk_core::db::Album;
 use gonk_core::profile;
-use gonk_core::{db::Song, Database, Index};
+use gonk_core::{Album, Database, Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     widgets::{Block, BorderType, Borders},

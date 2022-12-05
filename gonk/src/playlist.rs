@@ -113,12 +113,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
             if let Some(selected) = playlist.playlists.selected() {
-                let songs: Vec<Song> = selected
-                    .songs
-                    .data
-                    .iter()
-                    .map(|song| Song::from(&song.as_bytes()))
-                    .collect();
+                let songs: Vec<Song> = selected.songs.data.iter().map(Song::from).collect();
 
                 player.add(songs);
             }
@@ -126,7 +121,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Song => {
             if let Some(selected) = playlist.playlists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    player.add(vec![Song::from(&song.as_bytes())]);
+                    player.add(vec![Song::from(song)]);
                 }
             }
         }

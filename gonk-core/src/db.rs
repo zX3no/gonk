@@ -46,59 +46,6 @@ pub enum ScanResult {
     Incomplete(&'static str),
 }
 
-#[derive(Debug)]
-pub struct Artist {
-    pub albums: Vec<Album>,
-}
-
-#[derive(Debug)]
-pub struct Album {
-    pub title: String,
-    pub songs: Vec<Song>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Song {
-    pub title: String,
-    pub album: String,
-    pub artist: String,
-    pub disc_number: u8,
-    pub track_number: u8,
-    pub path: String,
-    pub gain: f32,
-}
-
-impl Song {
-    pub fn from(bytes: &[u8]) -> Self {
-        debug_assert!(bytes.len() == SONG_LEN);
-        let text = unsafe { bytes.get_unchecked(..TEXT_LEN) };
-        let artist = artist(text);
-        let album = album(text);
-        let title = title(text);
-        let path = path(text);
-
-        let track_number = bytes[NUMBER_POS];
-        let disc_number = bytes[DISC_POS];
-
-        let gain = f32::from_le_bytes([
-            bytes[SONG_LEN - 4],
-            bytes[SONG_LEN - 3],
-            bytes[SONG_LEN - 2],
-            bytes[SONG_LEN - 1],
-        ]);
-
-        Self {
-            artist: artist.to_string(),
-            album: album.to_string(),
-            title: title.to_string(),
-            path: path.to_string(),
-            track_number,
-            disc_number,
-            gain,
-        }
-    }
-}
-
 pub struct Database {
     pub data: BTreeMap<String, Vec<Album>>,
     pub mmap: Option<Mmap>,
@@ -108,16 +55,6 @@ pub struct Database {
 impl Database {
     //This should replace gonk_core::init();
     pub unsafe fn new() -> Self {
-        let mut settings = match fs::read(settings_path()) {
-            Ok(bytes) if !bytes.is_empty() => match Settings::from(bytes) {
-                Some(settings) => settings,
-                //Save the default settings when they are empty.
-                None => Settings::default().write().unwrap(),
-            },
-            //Save the default settings if nothing is found.
-            _ => Settings::default().write().unwrap(),
-        };
-
         //We only need write access to create the file.
         let db = OpenOptions::new()
             .read(true)
@@ -132,7 +69,6 @@ impl Database {
         //Reset the database if the first song is invalid.
         let mmap = if Database::validate(&mmap).is_err() {
             log!("Database is corrupted. Resetting!");
-            settings = Settings::default().write().unwrap();
             fs::remove_file(settings_path()).unwrap();
             fs::remove_file(database_path()).unwrap();
             None
@@ -144,7 +80,7 @@ impl Database {
         Self {
             data,
             mmap,
-            settings,
+            settings: Settings::new(),
         }
     }
 
@@ -156,6 +92,10 @@ impl Database {
         }
 
         let text = &file[..TEXT_LEN];
+
+        if text.len() != TEXT_LEN {
+            Err("Invalid text segment")?;
+        }
 
         let artist_len = artist_len(text) as usize;
         if artist_len > TEXT_LEN {
@@ -206,8 +146,7 @@ impl Database {
     ///Reset the database.
     pub unsafe fn reset() -> io::Result<()> {
         DB.mmap = None;
-        DB.settings = Settings::default();
-        fs::remove_file(settings_path())?;
+        DB.settings.file.set_len(0)?;
         fs::remove_file(database_path())?;
         Ok(())
     }
@@ -522,11 +461,7 @@ impl Database {
         };
 
         (
-            settings
-                .queue
-                .iter()
-                .map(|song| Song::from(&song.as_bytes()))
-                .collect(),
+            settings.queue.iter().map(Song::from).collect(),
             index,
             settings.elapsed,
         )
@@ -561,6 +496,10 @@ impl Database {
             DB.settings.music_folder = folder.replace('\\', "/");
             DB.settings.save().unwrap();
         }
+    }
+
+    pub fn raw() -> &'static BTreeMap<String, Vec<Album>> {
+        unsafe { &DB.data }
     }
 }
 
