@@ -1,3 +1,7 @@
+//! A flac decoder
+//!
+//! Currently only supports reading metadata.
+//!
 use std::{
     collections::HashMap,
     error::Error,

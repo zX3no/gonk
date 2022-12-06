@@ -1,6 +1,11 @@
+//! Lazy Static
+//!
+//! There are no guarantees on safety when using `BasedCell`.
+//!
+//! It wouldn't be based otherwise would it?.
 use std::{
     fmt::Debug,
-    mem::{self},
+    mem,
     ops::{Deref, DerefMut},
     sync::Once,
 };
@@ -30,9 +35,6 @@ impl<T> BasedCell<T> {
         self as *const BasedCell<T> as *const T as *mut T
     }
 }
-
-unsafe impl<T> Send for BasedCell<T> {}
-unsafe impl<T> Sync for BasedCell<T> {}
 
 pub struct Lazy<T, F = fn() -> T> {
     pub data: BasedCell<Option<T>>,

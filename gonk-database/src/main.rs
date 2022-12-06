@@ -1,6 +1,6 @@
-use gonk_database::*;
+use gonk_database::{vdb::Database, *};
 
-static mut DB: Lazy<Database> = Lazy::new(|| read_database().unwrap());
+static mut DB: Lazy<Database> = Lazy::new(|| vdb::create().unwrap());
 
 fn main() {
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -9,6 +9,6 @@ fn main() {
     }));
 
     unsafe {
-        dbg!(artist(&DB, "Iglooghost"));
+        dbg!(vdb::artist(&DB, "Iglooghost"));
     }
 }
