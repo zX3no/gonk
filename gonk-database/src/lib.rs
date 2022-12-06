@@ -17,13 +17,16 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     str::from_utf8,
-    sync::RwLock,
+    sync::{Once, RwLock},
     thread::{self, JoinHandle},
 };
 use walkdir::{DirEntry, WalkDir};
 
 pub mod flac_decoder;
+pub mod lazy;
 pub mod strsim;
+
+pub use lazy::*;
 
 pub const SONG_LEN: usize = TEXT_LEN + size_of::<u8>() + size_of::<u8>() + size_of::<f32>();
 pub const TEXT_LEN: usize = 522;
@@ -149,6 +152,10 @@ pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>>
         return Err("Invalid path length")?;
     };
     let path = from_utf8(slice)?;
+
+    if !(path.ends_with("flac") | path.ends_with("mp3") | path.ends_with("ogg")) {
+        return Err("Path requires an audio file extension")?;
+    }
 
     let track_number = bytes.get(NUMBER_POS).ok_or("Invalid track")?;
     let disc_number = bytes.get(DISC_POS).ok_or("Invalid disc")?;
@@ -296,7 +303,7 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
     }
 }
 
-type Database = BTreeMap<String, Vec<Album>>;
+pub type Database = BTreeMap<String, Vec<Album>>;
 
 //Browser Queries:
 
@@ -522,7 +529,7 @@ pub fn read_database() -> Result<Database, Box<dyn Error + Send + Sync>> {
 pub enum ScanResult {
     Completed,
     CompletedWithErrors(Vec<String>),
-    Incomplete(&'static str),
+    FileInUse,
 }
 
 pub fn create_database(path: impl ToString) -> JoinHandle<ScanResult> {
@@ -582,7 +589,7 @@ pub fn create_database(path: impl ToString) -> JoinHandle<ScanResult> {
                     ScanResult::CompletedWithErrors(errors)
                 }
             }
-            Err(_) => ScanResult::Incomplete("Failed to scan folder, database is already open."),
+            Err(_) => ScanResult::FileInUse,
         }
     })
 }
@@ -643,6 +650,6 @@ pub fn create_database_single(path: impl ToString) -> ScanResult {
                 ScanResult::CompletedWithErrors(errors)
             }
         }
-        Err(_) => ScanResult::Incomplete("Failed to scan folder, database is already open."),
+        Err(_) => ScanResult::FileInUse,
     }
 }

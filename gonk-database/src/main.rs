@@ -1,12 +1,14 @@
 use gonk_database::*;
+
+static mut DB: Lazy<Database> = Lazy::new(|| read_database().unwrap());
+
 fn main() {
     std::panic::set_hook(Box::new(move |panic_info| {
         eprintln!("{panic_info}");
         std::process::exit(1);
     }));
 
-    // let result = create_database_single("D:\\OneDrive\\Music");
-    let db = read_database().unwrap();
-    let artists = artist(&db, "Iglooghost");
-    dbg!(artists);
+    unsafe {
+        dbg!(artist(&DB, "Iglooghost"));
+    }
 }
