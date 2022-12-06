@@ -7,6 +7,6 @@ fn main() {
 
     // let result = create_database_single("D:\\OneDrive\\Music");
     let db = read_database().unwrap();
-    let artists = db.artists();
+    let artists = artist(&db, "Iglooghost");
     dbg!(artists);
 }
