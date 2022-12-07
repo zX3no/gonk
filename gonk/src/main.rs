@@ -50,7 +50,7 @@ pub trait Input {
 }
 
 fn draw_log(f: &mut Frame) -> Rect {
-    if let Some(msg) = log::message() {
+    if let Some(msg) = log::last_message() {
         let area = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(2), Constraint::Length(3)])

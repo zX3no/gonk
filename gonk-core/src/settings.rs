@@ -1,24 +1,17 @@
-use crate::*;
+use crate::{
+    db::{bytes_to_song, song_to_bytes, SONG_LEN},
+    *,
+};
 use std::{
     fs::File,
-    io::{self, BufWriter, Read, Write},
+    io::{BufWriter, Read, Write},
     mem::size_of,
-    str::from_utf8_unchecked,
 };
 
-// Settings Layout:
-//
-// Volume
-// Index
-// u16 (output_device length)
-// output_device
-// u16 (music_folder length)
-// music_folder
-// [RawSong]
+static mut FILE: Lazy<File> = Lazy::new(|| File::open(settings_path()).unwrap());
+
 #[derive(Debug)]
 pub struct Settings {
-    pub file: File,
-
     pub volume: u8,
     pub index: u16,
     pub elapsed: f32,
@@ -27,151 +20,104 @@ pub struct Settings {
     pub queue: Vec<Song>,
 }
 
-impl Settings {
-    pub unsafe fn new() -> Self {
-        let mut file = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(settings_path())
-            .unwrap();
-        let mut bytes = Vec::new();
-        let Ok(_) = file.read_to_end(&mut bytes) else {
-            panic!();
-        };
+pub fn new() -> Result<Settings, Box<dyn Error + Send + Sync>> {
+    // let bytes = fs::read(settings_path())?;
+    let mut bytes = Vec::new();
+    let _ = unsafe { FILE.read_to_end(&mut bytes)? };
 
-        if bytes.len() < size_of::<u8>() + size_of::<u16>() + size_of::<f32>() {
-            Self::default(file)
-        } else {
-            let volume = bytes[0];
-            let index = u16::from_le_bytes([bytes[1], bytes[2]]);
-            let elapsed = f32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
+    let volume = bytes.first().ok_or("Volume is invalid.")?;
 
-            let output_device_len = u16::from_le_bytes([bytes[7], bytes[8]]) as usize + 9;
-            if output_device_len >= bytes.len() {
-                return Self::default(file);
-            }
-            let output_device = from_utf8_unchecked(&bytes[9..output_device_len]).to_string();
+    let slice = bytes.get(1..3).ok_or("Index is invalid.")?;
+    let index = u16::from_le_bytes(slice.try_into()?);
 
-            let start = output_device_len + size_of::<u16>();
-            let music_folder_len =
-                u16::from_le_bytes([bytes[output_device_len], bytes[output_device_len + 1]])
-                    as usize;
-            if music_folder_len >= bytes.len() {
-                return Self::default(file);
-            }
-            let music_folder =
-                from_utf8_unchecked(&bytes[start..start + music_folder_len]).to_string();
+    let slice = bytes.get(3..7).ok_or("Elapsed is invalid.")?;
+    let elapsed = f32::from_le_bytes(slice.try_into()?);
 
-            let mut queue = Vec::new();
-            // let mut i = start + music_folder_len;
-            // while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            //     let text = bytes.get(..TEXT_LEN).unwrap();
-            //     let artist = artist(text);
-            //     let album = album(text);
-            //     let title = title(text);
-            //     let path = path(text);
+    let slice = bytes.get(7..9).ok_or("Output length device is invalid")?;
+    let output_device_len = u16::from_le_bytes(slice.try_into()?) as usize + 9;
+    let slice = bytes
+        .get(9..output_device_len)
+        .ok_or("Ouput device is invalid")?;
+    let output_device = from_utf8(slice)?.to_string();
 
-            //     let track_number = bytes[NUMBER_POS];
-            //     let disc_number = bytes[DISC_POS];
+    let slice = bytes
+        .get(output_device_len..output_device_len + 2)
+        .ok_or("Music folder length is invalid")?;
+    let music_folder_len = u16::from_le_bytes(slice.try_into()?) as usize;
 
-            //     let gain = f32::from_le_bytes([
-            //         bytes[SONG_LEN - 4],
-            //         bytes[SONG_LEN - 3],
-            //         bytes[SONG_LEN - 2],
-            //         bytes[SONG_LEN - 1],
-            //     ]);
-            //     queue.push(Song {
-            //         title: title.to_string(),
-            //         album: album.to_string(),
-            //         artist: artist.to_string(),
-            //         disc_number,
-            //         track_number,
-            //         path: path.to_string(),
-            //         gain,
-            //     });
+    let start = output_device_len + size_of::<u16>();
+    let slice = &bytes
+        .get(start..start + music_folder_len)
+        .ok_or("Music folder is invalid")?;
+    let music_folder = from_utf8(slice)?.to_string();
 
-            //     i += SONG_LEN;
-            // }
-
-            Self {
-                file,
-                index,
-                volume,
-                output_device,
-                music_folder,
-                elapsed,
-                queue,
-            }
-        }
+    let mut queue = Vec::new();
+    let mut i = start + music_folder_len;
+    while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+        let song = bytes_to_song(bytes)?;
+        queue.push(song);
+        i += SONG_LEN;
     }
-    pub fn default(file: File) -> Self {
-        Self {
-            file,
-            volume: 15,
-            index: 0,
-            elapsed: 0.0,
-            output_device: String::new(),
-            music_folder: String::new(),
-            queue: Vec::new(),
-        }
+
+    Ok(Settings {
+        index,
+        volume: *volume,
+        output_device,
+        music_folder,
+        elapsed,
+        queue,
+    })
+}
+
+pub fn save(settings: &Settings) -> Result<(), Box<dyn Error>> {
+    let mut bytes = Vec::new();
+    bytes.push(settings.volume);
+    bytes.extend(settings.index.to_le_bytes());
+    bytes.extend(settings.elapsed.to_le_bytes());
+
+    bytes.extend((settings.output_device.len() as u16).to_le_bytes());
+    bytes.extend(settings.output_device.as_bytes());
+
+    bytes.extend((settings.music_folder.len() as u16).to_le_bytes());
+    bytes.extend(settings.music_folder.as_bytes());
+
+    for song in &settings.queue {
+        let song = song_to_bytes(
+            &song.artist,
+            &song.album,
+            &song.title,
+            &song.path,
+            song.track_number,
+            song.disc_number,
+            song.gain,
+        );
+        bytes.extend(song);
     }
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.push(self.volume);
-        bytes.extend(self.index.to_le_bytes());
-        bytes.extend(self.elapsed.to_le_bytes());
+    unsafe { FILE.set_len(0)? };
+    let mut writer = unsafe { BufWriter::new(&*FILE) };
 
-        bytes.extend((self.output_device.len() as u16).to_le_bytes());
-        bytes.extend(self.output_device.as_bytes());
+    writer.write_all(&[settings.volume])?;
+    writer.write_all(&settings.index.to_le_bytes())?;
+    writer.write_all(&settings.elapsed.to_le_bytes())?;
 
-        bytes.extend((self.music_folder.len() as u16).to_le_bytes());
-        bytes.extend(self.music_folder.as_bytes());
+    writer.write_all(&(settings.output_device.len() as u16).to_le_bytes())?;
+    writer.write_all(settings.output_device.as_bytes())?;
 
-        for song in &self.queue {
-            let b= song_to_bytes(
-                &song.artist,
-                &song.album,
-                &song.title,
-                &song.path,
-                song.track_number,
-                song.disc_number,
-                song.gain,
-            );
-            bytes.extend(b);
-        }
-        bytes
+    writer.write_all(&(settings.music_folder.len() as u16).to_le_bytes())?;
+    writer.write_all(settings.music_folder.as_bytes())?;
+
+    for song in &settings.queue {
+        let bytes = song_to_bytes(
+            &song.artist,
+            &song.album,
+            &song.title,
+            &song.path,
+            song.track_number,
+            song.disc_number,
+            song.gain,
+        );
+        writer.write_all(&bytes)?;
     }
-    pub fn write(mut self) -> io::Result<Self> {
-        self.save()?;
-        Ok(self)
-    }
-    pub fn save(&mut self) -> io::Result<()> {
-        self.file.set_len(0).unwrap();
-        let mut writer = BufWriter::new(&self.file);
 
-        writer.write_all(&[self.volume])?;
-        writer.write_all(&self.index.to_le_bytes())?;
-        writer.write_all(&self.elapsed.to_le_bytes())?;
-
-        writer.write_all(&(self.output_device.len() as u16).to_le_bytes())?;
-        writer.write_all(self.output_device.as_bytes())?;
-
-        writer.write_all(&(self.music_folder.len() as u16).to_le_bytes())?;
-        writer.write_all(self.music_folder.as_bytes())?;
-
-        for song in &self.queue {
-            let bytes = song_to_bytes(
-                &song.artist,
-                &song.album,
-                &song.title,
-                &song.path,
-                song.track_number,
-                song.disc_number,
-                song.gain,
-            );
-            writer.write_all(&bytes)?;
-        }
-        Ok(())
-    }
+    Ok(())
 }

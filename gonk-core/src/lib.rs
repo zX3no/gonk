@@ -1,106 +1,43 @@
-#![feature(extend_one, test, const_float_bits_conv, const_slice_index)]
-#![allow(clippy::missing_safety_doc)]
-use std::{env, fmt::Debug, fs, ops::Range, path::PathBuf, str::from_utf8_unchecked};
-
-mod flac_decoder;
-mod index;
-mod playlist;
+//! The database is split into two parts:
+//! The virtual and the physical.
+//!
+//! The physical database is a file on disk that stores song information.
+//! This information includes the artist, album, title, disc number, track number, path and replay gain.
+//!
+//! The virtual database is an in memory key value store.
+//! It is used for quering artists, albums and songs.
+//!
+//! `Lazy` is my implementation of lazy statics.
+//!
+//! `Index` is a wrapper over a `Vec<T>` plus an index. Kind of like a circular buffer but the data is usually constant.
+//! It's useful for moving up and down the selection of a UI element.
+use std::{
+    env,
+    error::Error,
+    ffi::OsString,
+    fs,
+    mem::size_of,
+    ops::Range,
+    path::{Path, PathBuf},
+    str::from_utf8,
+};
 
 pub mod db;
+pub mod flac_decoder;
+pub mod index;
+pub mod lazy;
 pub mod log;
 pub mod profiler;
 pub mod settings;
+pub mod strsim;
+pub mod vdb;
 
-pub use db::*;
+pub use flac_decoder::*;
 pub use index::*;
-pub use playlist::*;
-pub use settings::*;
+pub use lazy::*;
 
-pub const fn artist_len(text: &[u8]) -> u16 {
-    u16::from_le_bytes([text[0], text[1]])
-}
-
-pub const fn album_len(text: &[u8], artist_len: usize) -> u16 {
-    u16::from_le_bytes([text[2 + artist_len], text[2 + artist_len + 1]])
-}
-
-pub const fn title_len(text: &[u8], artist_len: usize, album_len: usize) -> u16 {
-    u16::from_le_bytes([
-        text[2 + artist_len + 2 + album_len],
-        text[2 + artist_len + 2 + album_len + 1],
-    ])
-}
-
-pub const fn path_len(text: &[u8], artist_len: usize, album_len: usize, title_len: usize) -> u16 {
-    u16::from_le_bytes([
-        text[2 + artist_len + 2 + album_len + 2 + title_len],
-        text[2 + artist_len + 2 + album_len + 2 + title_len + 1],
-    ])
-}
-
-pub const fn artist(text: &[u8]) -> &str {
-    debug_assert!(text.len() == TEXT_LEN);
-    let artist_len = artist_len(text) as usize;
-
-    unsafe {
-        let slice = text.get_unchecked(2..artist_len + 2);
-        from_utf8_unchecked(slice)
-    }
-}
-
-pub const fn album(text: &[u8]) -> &str {
-    debug_assert!(text.len() == TEXT_LEN);
-
-    let artist_len = artist_len(text) as usize;
-    let album_len = album_len(text, artist_len) as usize;
-
-    unsafe {
-        let slice = text.get_unchecked(2 + artist_len + 2..2 + artist_len + 2 + album_len);
-        from_utf8_unchecked(slice)
-    }
-}
-
-pub const fn title(text: &[u8]) -> &str {
-    debug_assert!(text.len() == TEXT_LEN);
-    let artist_len = artist_len(text) as usize;
-    let album_len = album_len(text, artist_len) as usize;
-    let title_len = title_len(text, artist_len, album_len) as usize;
-
-    unsafe {
-        let slice = text.get_unchecked(
-            2 + artist_len + 2 + album_len + 2..2 + artist_len + 2 + album_len + 2 + title_len,
-        );
-        from_utf8_unchecked(slice)
-    }
-}
-
-pub const fn path(text: &[u8]) -> &str {
-    debug_assert!(text.len() == TEXT_LEN);
-    let artist_len = artist_len(text) as usize;
-    let album_len = album_len(text, artist_len) as usize;
-    let title_len = title_len(text, artist_len, album_len) as usize;
-    let path_len = path_len(text, artist_len, album_len, title_len) as usize;
-    unsafe {
-        let slice = text.get_unchecked(
-            2 + artist_len + 2 + album_len + 2 + title_len + 2
-                ..2 + artist_len + 2 + album_len + 2 + title_len + 2 + path_len,
-        );
-        from_utf8_unchecked(slice)
-    }
-}
-
-#[derive(Debug)]
-pub struct Artist {
-    pub albums: Vec<Album>,
-}
-
-#[derive(Debug)]
-pub struct Album {
-    pub title: String,
-    pub songs: Vec<Song>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default)]
+const MIN_ACCURACY: f64 = 0.70;
+#[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
     pub album: String,
@@ -109,6 +46,17 @@ pub struct Song {
     pub track_number: u8,
     pub path: String,
     pub gain: f32,
+}
+
+#[derive(Debug)]
+pub struct Album {
+    pub title: String,
+    pub songs: Vec<Song>,
+}
+
+#[derive(Debug)]
+pub struct Artist {
+    pub albums: Vec<Album>,
 }
 
 pub fn gonk_path() -> PathBuf {
@@ -127,8 +75,7 @@ pub fn gonk_path() -> PathBuf {
 }
 
 pub fn settings_path() -> PathBuf {
-    let mut path = database_path();
-    path.pop();
+    let mut path = gonk_path();
     path.push("settings.db");
     path
 }

@@ -1,3 +1,7 @@
+//! A flac decoder
+//!
+//! Currently only supports reading metadata.
+//!
 use std::{
     collections::HashMap,
     error::Error,
@@ -18,7 +22,6 @@ pub fn u32_le(reader: &mut BufReader<File>) -> u32 {
     reader.read_exact(&mut buffer).unwrap();
     u32::from_le_bytes(buffer)
 }
-
 
 pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, Box<dyn Error>> {
     let file = File::open(path)?;

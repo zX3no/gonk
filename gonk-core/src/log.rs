@@ -1,13 +1,19 @@
-use once_cell::unsync::Lazy;
+//! TODO: Cleanup
+//!
+//!
+use crate::Lazy;
 use std::{sync::Once, time::Instant};
 
+#[doc(hidden)]
 pub static ONCE: Once = Once::new();
 
+#[doc(hidden)]
 pub static mut LOG: Lazy<Log> = Lazy::new(|| Log {
     messages: Vec::new(),
     timer: Instant::now(),
 });
 
+#[doc(hidden)]
 pub struct Log {
     pub messages: Vec<String>,
     pub timer: Instant,
@@ -46,7 +52,7 @@ pub fn clear() {
     }
 }
 
-pub fn message() -> Option<&'static str> {
+pub fn last_message() -> Option<&'static str> {
     if let Some(message) = unsafe { LOG.messages.last() } {
         Some(message.as_str())
     } else {
