@@ -36,6 +36,7 @@ impl<T> BasedCell<T> {
     }
 }
 
+///If used on an immutable static, bad things will happen :)
 pub struct Lazy<T, F = fn() -> T> {
     pub data: BasedCell<Option<T>>,
     function: F,

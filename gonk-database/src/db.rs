@@ -114,28 +114,26 @@ pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>>
     }
 
     //Find the positions of the data.
-
-    let Some(text) = bytes.get(..TEXT_LEN) else {
-        return Err("Could not get text segment")?;
-    };
+    let text = bytes.get(..TEXT_LEN).ok_or("Could not get text segment")?;
 
     let artist_len = u16::from_le_bytes([text[0], text[1]]) as usize;
-
-    let Some(slice) = text.get(2 + artist_len..2 + artist_len + 2) else{
-        return Err("Artist length is corrupted")?;
-    };
-
+    let slice = text
+        .get(2 + artist_len..2 + artist_len + 2)
+        .ok_or("Artist length is corrupted")?;
     let album_len = u16::from_le_bytes(slice.try_into()?) as usize;
 
-    let Some(slice) = text.get(2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2) else{
-        return Err("Album length is corrupted")?;
-    };
+    let slice = text
+        .get(2 + artist_len + 2 + album_len..2 + artist_len + 2 + album_len + 2)
+        .ok_or("Album length is corrupted")?;
 
     let title_len = u16::from_le_bytes(slice.try_into()?) as usize;
 
-    let Some(slice) = text.get(2 + artist_len + 2 + album_len + 2 + title_len..2 + artist_len + 2 + album_len + 2 + title_len + 2) else{
-        return Err("Title length is corrupted")?;
-    };
+    let slice = text
+        .get(
+            2 + artist_len + 2 + album_len + 2 + title_len
+                ..2 + artist_len + 2 + album_len + 2 + title_len + 2,
+        )
+        .ok_or("Title length is corrupted")?;
 
     let path_len = u16::from_le_bytes(slice.try_into()?) as usize;
 
@@ -144,20 +142,21 @@ pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>>
     let slice = text.get(2..artist_len + 2).ok_or("Invalid artist length")?;
     let artist = from_utf8(slice)?;
 
-    let Some(slice) = text.get(2 + artist_len + 2..2 + artist_len + 2 + album_len) else{
-        return Err("Invalid album length")?;
-    };
+    let slice = text
+        .get(2 + artist_len + 2..2 + artist_len + 2 + album_len)
+        .ok_or("Invalid album length")?;
     let album = from_utf8(slice)?;
 
-    let Some(slice) = text.get(2 + artist_len + 2 + album_len + 2..2 + artist_len + 2 + album_len + 2 + title_len) else{
-        return Err("Invalid title length")?;
-    };
+    let slice = text
+        .get(2 + artist_len + 2 + album_len + 2..2 + artist_len + 2 + album_len + 2 + title_len)
+        .ok_or("Invalid title length")?;
     let title = from_utf8(slice)?;
-
-    let Some(slice) = text.get(2 + artist_len + 2 + album_len + 2 + title_len + 2
-                ..2 + artist_len + 2 + album_len + 2 + title_len + 2 + path_len) else {
-        return Err("Invalid path length")?;
-    };
+    let slice = text
+        .get(
+            2 + artist_len + 2 + album_len + 2 + title_len + 2
+                ..2 + artist_len + 2 + album_len + 2 + title_len + 2 + path_len,
+        )
+        .ok_or("Invalid path length")?;
     let path = from_utf8(slice)?;
 
     if !(path.ends_with("flac") | path.ends_with("mp3") | path.ends_with("ogg")) {

@@ -26,6 +26,7 @@ pub mod db;
 pub mod flac_decoder;
 pub mod index;
 pub mod lazy;
+pub mod settings;
 pub mod strsim;
 pub mod vdb;
 
@@ -34,18 +35,6 @@ pub use index::*;
 pub use lazy::*;
 
 const MIN_ACCURACY: f64 = 0.70;
-
-#[derive(Debug)]
-pub struct Artist {
-    pub albums: Vec<Album>,
-}
-
-#[derive(Debug)]
-pub struct Album {
-    pub title: String,
-    pub songs: Vec<Song>,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
@@ -57,14 +46,15 @@ pub struct Song {
     pub gain: f32,
 }
 
-#[derive(Clone, Debug)]
-pub enum Item<'a> {
-    ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((&'a String, &'a String, &'a String, u8, u8)),
-    ///(Artist, Album)
-    Album((&'a String, &'a String)),
-    ///(Artist)
-    Artist(&'a String),
+#[derive(Debug)]
+pub struct Album {
+    pub title: String,
+    pub songs: Vec<Song>,
+}
+
+#[derive(Debug)]
+pub struct Artist {
+    pub albums: Vec<Album>,
 }
 
 pub fn gonk_path() -> PathBuf {

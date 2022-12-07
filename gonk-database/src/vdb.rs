@@ -119,7 +119,15 @@ pub fn artist<'a>(db: &'a Database, artist: &str) -> Option<&'a Vec<Album>> {
     db.get(artist)
 }
 
-//Search Queries:
+#[derive(Clone, Debug)]
+pub enum Item<'a> {
+    ///(Artist, Album, Name, Disc Number, Track Number)
+    Song((&'a String, &'a String, &'a String, u8, u8)),
+    ///(Artist, Album)
+    Album((&'a String, &'a String)),
+    ///(Artist)
+    Artist(&'a String),
+}
 
 fn jaro<'a>(query: &str, input: Item<'a>) -> Result<(Item<'a>, f64), (Item<'a>, f64)> {
     let str = match input {
