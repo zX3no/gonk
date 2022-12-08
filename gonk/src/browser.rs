@@ -117,7 +117,7 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        let albums = unsafe { vdb::albums_by_artist(&VDB, &artist).unwrap() };
+        let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
         browser.albums = StaticIndex::new(albums);
         update_songs(browser);
     }
@@ -126,8 +126,7 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs = unsafe { vdb::album(&VDB, artist, &album.title) }
-                .unwrap()
+            let songs = unsafe { vdb::album(&VDB, artist, &album.title).unwrap() }
                 .songs
                 .iter()
                 .map(|song| {

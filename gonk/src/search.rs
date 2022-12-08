@@ -1,5 +1,5 @@
 use crate::{widgets::*, *};
-use gonk_core::Song;
+use gonk_core::{vdb::Item, Song};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -11,17 +11,6 @@ use tui::{
 pub enum Mode {
     Search,
     Select,
-}
-
-//TODO: REMOVE ME
-#[derive(Clone, Debug)]
-pub enum Item {
-    ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((String, String, String, u8, u8)),
-    ///(Artist, Album)
-    Album((String, String)),
-    ///(Artist)
-    Artist(String),
 }
 
 pub struct Search {
@@ -39,7 +28,7 @@ impl Search {
             mode: Mode::Search,
             results: Index::default(),
         };
-        // search.results = unsafe { vdb::search(&VDB, &search.query) };
+        *search.results = unsafe { vdb::search(&VDB, &search.query) };
         search
     }
 }
@@ -113,7 +102,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
     if search.query_changed {
         search.query_changed = !search.query_changed;
-        // search.results = unsafe { vdb::search(&VDB, &search.query) };
+        *search.results = unsafe { vdb::search(&VDB, &search.query) };
     }
 
     let v = Layout::default()

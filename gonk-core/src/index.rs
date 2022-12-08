@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+//TODO: There is probably a more generic way to do both
 #[derive(Debug, Default)]
 pub struct StaticIndex<T: 'static> {
     slice: &'static [T],
@@ -13,7 +14,7 @@ impl<T> StaticIndex<T> {
     pub fn new(slice: &'static [T]) -> Self {
         Self {
             slice,
-            index: if slice.is_empty() { Some(0) } else { None },
+            index: if slice.is_empty() { None } else { Some(0) },
         }
     }
     pub fn index(&self) -> Option<usize> {

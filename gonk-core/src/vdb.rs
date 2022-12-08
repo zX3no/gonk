@@ -83,7 +83,7 @@ pub fn albums_by_artist(db: &'static Database, artist: &str) -> Option<&'static 
 }
 
 ///Get album by artist and album name.
-pub fn album<'a>(db: &'a Database, artist: &str, album: &str) -> Option<&'a Album> {
+pub fn album(db: &'static Database, artist: &str, album: &str) -> Option<&'static Album> {
     if let Some(albums) = db.get(artist) {
         for al in albums {
             if album == al.title {
@@ -123,16 +123,16 @@ pub fn artist<'a>(db: &'a Database, artist: &str) -> Option<&'a Vec<Album>> {
 }
 
 #[derive(Clone, Debug)]
-pub enum Item<'a> {
+pub enum Item {
     ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((&'a String, &'a String, &'a String, u8, u8)),
+    Song((&'static String, &'static String, &'static String, u8, u8)),
     ///(Artist, Album)
-    Album((&'a String, &'a String)),
+    Album((&'static String, &'static String)),
     ///(Artist)
-    Artist(&'a String),
+    Artist(&'static String),
 }
 
-fn jaro<'a>(query: &str, input: Item<'a>) -> Result<(Item<'a>, f64), (Item<'a>, f64)> {
+fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     let str = match input {
         Item::Artist(artist) => artist,
         Item::Album((_, album)) => album,
@@ -147,7 +147,7 @@ fn jaro<'a>(query: &str, input: Item<'a>) -> Result<(Item<'a>, f64), (Item<'a>, 
 }
 
 ///Search the database and return the 25 most accurate matches.
-pub fn search<'a>(db: &'a Database, query: &str) -> Vec<Item<'a>> {
+pub fn search(db: &'static Database, query: &str) -> Vec<Item> {
     let query = query.to_lowercase();
     let results = RwLock::new(Vec::new());
 

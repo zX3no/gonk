@@ -242,7 +242,7 @@ fn main() {
             //Update the time elapsed.
             persist.index = player.songs.index().unwrap_or(0) as u16;
             persist.elapsed = player.elapsed().as_secs_f32();
-            persist.save();
+            persist.save().unwrap();
 
             //Update the list of output devices.
             settings.update();
@@ -561,7 +561,7 @@ fn main() {
     persist.queue = (*player.songs).to_vec();
     persist.index = player.songs.index().unwrap_or(0) as u16;
     persist.elapsed = player.elapsed().as_secs_f32();
-    persist.save();
+    persist.save().unwrap();
 
     disable_raw_mode().unwrap();
     execute!(
