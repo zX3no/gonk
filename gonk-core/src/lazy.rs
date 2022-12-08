@@ -10,8 +10,6 @@ use std::{
     sync::Once,
 };
 
-static ONCE: Once = Once::new();
-
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct BasedCell<T: ?Sized> {
@@ -40,6 +38,7 @@ impl<T> BasedCell<T> {
 pub struct Lazy<T, F = fn() -> T> {
     pub data: BasedCell<Option<T>>,
     function: F,
+    once: Once,
 }
 
 impl<T, F> Lazy<T, F> {
@@ -47,6 +46,7 @@ impl<T, F> Lazy<T, F> {
         Self {
             data: BasedCell::new(None),
             function: f,
+            once: Once::new(),
         }
     }
 }
@@ -55,7 +55,7 @@ impl<T, F: Fn() -> T> Deref for Lazy<T, F> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        ONCE.call_once(|| {
+        self.once.call_once(|| {
             let f = &self.function;
             let t = f();
             self.data.replace(Some(t));
@@ -67,7 +67,7 @@ impl<T, F: Fn() -> T> Deref for Lazy<T, F> {
 
 impl<T, F: Fn() -> T> DerefMut for Lazy<T, F> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        ONCE.call_once(|| {
+        self.once.call_once(|| {
             let f = &self.function;
             let t = f();
             self.data.replace(Some(t));

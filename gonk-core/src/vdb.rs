@@ -75,8 +75,11 @@ pub fn artists(db: &Database) -> Vec<&String> {
 }
 
 ///Get all albums by an artist.
-pub fn albums_by_artist<'a>(db: &'a Database, artist: &str) -> Option<&'a Vec<Album>> {
-    db.get(artist)
+pub fn albums_by_artist(db: &'static Database, artist: &str) -> Option<&'static [Album]> {
+    match db.get(artist) {
+        Some(albums) => Some(albums.as_slice()),
+        None => None,
+    }
 }
 
 ///Get album by artist and album name.

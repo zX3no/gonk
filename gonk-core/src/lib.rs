@@ -27,6 +27,7 @@ pub mod flac_decoder;
 pub mod index;
 pub mod lazy;
 pub mod log;
+pub mod playlist;
 pub mod profiler;
 pub mod settings;
 pub mod strsim;
@@ -48,13 +49,13 @@ pub struct Song {
     pub gain: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Album {
     pub title: String,
     pub songs: Vec<Song>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Artist {
     pub albums: Vec<Album>,
 }

@@ -1,4 +1,4 @@
-//! A flac decoder
+//! FLAC decoder
 //!
 //! Currently only supports reading metadata.
 //!

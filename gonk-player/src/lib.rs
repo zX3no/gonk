@@ -141,7 +141,7 @@ impl Player {
             return;
         }
 
-        self.songs.data.remove(index);
+        self.songs.remove(index);
 
         if let Some(playing) = self.songs.index() {
             let len = self.songs.len();
@@ -164,12 +164,12 @@ impl Player {
     }
     pub fn clear_except_playing(&mut self) {
         if let Some(index) = self.songs.index() {
-            let playing = self.songs.data.remove(index);
+            let playing = self.songs.remove(index);
             self.songs = Index::new(vec![playing], Some(0));
         }
     }
     pub fn add(&mut self, songs: Vec<Song>) {
-        self.songs.data.extend(songs);
+        self.songs.extend(songs);
         if self.songs.selected().is_none() {
             self.songs.select(Some(0));
             self.play_index(0);

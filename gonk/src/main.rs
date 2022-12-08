@@ -1,6 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_core::*;
+use gonk_core::{vdb, *};
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -71,10 +71,13 @@ fn draw_log(f: &mut Frame) -> Rect {
     }
 }
 
+static mut VDB: Lazy<vdb::Database> = Lazy::new(|| vdb::create().unwrap());
+
 fn main() {
+    let mut persist = gonk_core::settings::Settings::new();
+    let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_handle = None;
 
-    let args: Vec<String> = std::env::args().skip(1).collect();
     if !args.is_empty() {
         match args[0].as_str() {
             "add" => {
@@ -83,14 +86,14 @@ fn main() {
                 }
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
-                    Database::update_music_folder(path.as_str());
-                    scan_handle = Some(Database::scan(path));
+                    persist.music_folder = path.clone();
+                    scan_handle = Some(db::create(path));
                 } else {
                     return println!("Invalid path.");
                 }
             }
             "reset" => {
-                return match unsafe { Database::reset() } {
+                return match gonk_core::db::reset() {
                     Ok(_) => println!("Files reset!"),
                     Err(e) => println!("Failed to reset database! {e}"),
                 };
@@ -127,21 +130,26 @@ fn main() {
     enable_raw_mode().unwrap();
     terminal.clear().unwrap();
 
-    let (songs, index, elapsed) = Database::queue();
+    let index = if persist.queue.is_empty() {
+        None
+    } else {
+        Some(persist.index as usize)
+    };
 
-    // let songs = Index::new(songs, index);
-    let songs = Index::default();
-
-    let volume = Database::volume();
-    let device = Database::output_device();
+    let songs = Index::new(persist.queue.clone(), index);
     let ui_index = index.unwrap_or(0);
-    let mut player = Player::new(device, volume, songs, elapsed);
-    let mut player_clone = player.songs.data.clone();
+    let mut player = Player::new(
+        &persist.output_device,
+        persist.volume,
+        songs,
+        persist.elapsed,
+    );
+    let mut player_clone = player.songs.clone();
 
     let mut queue = Queue::new(ui_index);
     let mut browser = Browser::new();
     let mut playlist = Playlist::new();
-    let mut settings = Settings::new();
+    let mut settings = Settings::new(&persist.output_device);
     let mut search = Search::new();
 
     let mut mode = Mode::Browser;
@@ -182,14 +190,14 @@ fn main() {
 
             if let Some(time) = scan_timer {
                 match result {
-                    ScanResult::Completed => {
+                    db::ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            Database::len(),
+                            db::len().unwrap(),
                             time.elapsed().as_secs_f32()
                         );
                     }
-                    ScanResult::CompletedWithErrors(errors) => {
+                    db::ScanResult::CompletedWithErrors(errors) => {
                         #[cfg(windows)]
                         let dir = "See %appdata%/gonk/gonk.log for details.";
 
@@ -202,19 +210,19 @@ fn main() {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            Database::len() - len,
+                            db::len().unwrap() - len,
                         );
 
                         let path = gonk_path().join("gonk.log");
                         let errors = errors.join("\n");
                         fs::write(path, errors).unwrap();
                     }
-                    ScanResult::Incomplete(error) => log!("{error}"),
+                    db::ScanResult::FileInUse => log!("Could not update database, file in use."),
                 }
             }
 
             browser::refresh(&mut browser);
-            search.results.data = Database::search(&search.query);
+            // search.results = unsafe { vdb::search(&VDB, &search.query) };
 
             scan_timer = None;
             scan_handle = None;
@@ -232,10 +240,9 @@ fn main() {
             }
 
             //Update the time elapsed.
-            Database::update_queue_state(
-                player.songs.index().unwrap_or(0) as u16,
-                player.elapsed().as_secs_f32(),
-            );
+            persist.index = player.songs.index().unwrap_or(0) as u16;
+            persist.elapsed = player.elapsed().as_secs_f32();
+            persist.save();
 
             //Update the list of output devices.
             settings.update();
@@ -250,13 +257,12 @@ fn main() {
             player.next();
         }
 
-        if player.songs.data != player_clone {
-            player_clone = player.songs.data.clone();
-            Database::save_queue(
-                &player.songs.data,
-                player.songs.index().unwrap_or(0) as u16,
-                player.elapsed().as_secs_f32(),
-            );
+        if *player.songs != player_clone {
+            player_clone = player.songs.clone();
+
+            persist.queue = (*player.songs).to_vec();
+            persist.index = player.songs.index().unwrap_or(0) as u16;
+            persist.elapsed = player.elapsed().as_secs_f32();
         }
 
         terminal
@@ -352,15 +358,14 @@ fn main() {
                         }
                         KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                             if scan_handle.is_none() {
-                                let folder = Database::music_folder().to_string();
-                                if folder.is_empty() {
+                                if persist.music_folder.is_empty() {
                                     //TODO: I saw this flash by but I can't replicate it.
                                     gonk_core::log!(
                                         "Nothing to scan! Add a folder with 'gonk add /path/'"
                                     );
                                 } else {
-                                    scan_handle = Some(Database::scan(folder));
-                                    playlist.playlists = Index::from(gonk_core::playlists());
+                                    scan_handle = Some(db::create(persist.music_folder.clone()));
+                                    // playlist.playlists = Index::from(gonk_core::playlists());
                                 }
                             }
                         }
@@ -370,11 +375,11 @@ fn main() {
                         KeyCode::Char('d') => player.next(),
                         KeyCode::Char('w') => {
                             player.volume_up();
-                            Database::set_volume(player.volume());
+                            persist.volume = player.volume();
                         }
                         KeyCode::Char('s') => {
                             player.volume_down();
-                            Database::set_volume(player.volume());
+                            persist.volume = player.volume();
                         }
                         KeyCode::Char(',') => mode = Mode::Settings,
                         KeyCode::Char('.') => mode = Mode::Playlist,
@@ -436,7 +441,7 @@ fn main() {
                             }
                             Mode::Queue => {
                                 if let Some(index) = queue.ui.index() {
-                                    if let Some(song) = player.songs.data.get(index) {
+                                    if let Some(song) = player.songs.get(index) {
                                         playlist::add(&mut playlist, &[song.clone()]);
                                         mode = Mode::Playlist;
                                     }
@@ -553,11 +558,10 @@ fn main() {
         }
     }
 
-    Database::save_queue(
-        &player.songs.data,
-        player.songs.index().unwrap_or(0) as u16,
-        player.elapsed().as_secs_f32(),
-    );
+    persist.queue = (*player.songs).to_vec();
+    persist.index = player.songs.index().unwrap_or(0) as u16;
+    persist.elapsed = player.elapsed().as_secs_f32();
+    persist.save();
 
     disable_raw_mode().unwrap();
     execute!(

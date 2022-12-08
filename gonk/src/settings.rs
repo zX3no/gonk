@@ -1,5 +1,5 @@
 use crate::{widgets::*, Frame, Input};
-use gonk_core::{Database, Index};
+use gonk_core::Index;
 use gonk_player::{default_device, devices};
 use tui::{
     layout::Rect,
@@ -14,8 +14,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn new() -> Self {
-        let wanted_device = Database::output_device();
+    pub fn new(wanted_device: &str) -> Self {
         let devices = devices();
         let default = default_device().unwrap();
 
@@ -66,7 +65,6 @@ impl Input for Settings {
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
     let items: Vec<ListItem> = settings
         .devices
-        .data
         .iter()
         .map(|name| {
             if *name == settings.current_device {

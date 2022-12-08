@@ -26,6 +26,17 @@ pub enum ScanResult {
     FileInUse,
 }
 
+pub fn len() -> Result<usize, Box<dyn Error>> {
+    let bytes = fs::read(database_path())?;
+    Ok(bytes.len() / db::SONG_LEN)
+}
+
+pub fn reset() -> Result<(), Box<dyn Error>> {
+    fs::remove_file(settings_path())?;
+    fs::remove_file(database_path())?;
+    Ok(())
+}
+
 pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
     let path = path.to_string();
     thread::spawn(|| {
@@ -87,6 +98,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
         }
     })
 }
+
 pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
     let bytes = fs::read(database_path())?;
 

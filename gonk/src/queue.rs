@@ -214,8 +214,7 @@ fn draw_body(
         return None;
     }
 
-    let (songs, player_index, ui_index) =
-        (&player.songs.data, player.songs.index(), queue.ui.index());
+    let (songs, player_index, ui_index) = (&player.songs, player.songs.index(), queue.ui.index());
 
     let mut items: Vec<Row> = songs
         .iter()

@@ -1,6 +1,6 @@
 use crate::{widgets::*, *};
 use crossterm::event::MouseEvent;
-use gonk_core::{Index, RawPlaylist, Song};
+use gonk_core::{playlist::RawPlaylist, Index, Song};
 use gonk_player::Player;
 use std::mem;
 use tui::layout::Alignment;
@@ -32,7 +32,8 @@ pub struct Playlist {
 
 impl Playlist {
     pub fn new() -> Self {
-        let playlists = gonk_core::playlists();
+        // let playlists = gonk_core::playlists();
+        let playlists = vec![RawPlaylist::default()];
 
         Self {
             mode: Mode::Playlist,
@@ -113,7 +114,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
             if let Some(selected) = playlist.playlists.selected() {
-                // let songs: Vec<Song> = selected.songs.data.iter().map(Song::from).collect();
+                // let songs: Vec<Song> = selected.songs.iter().map(Song::from).collect();
                 // player.add(songs);
                 todo!();
             }
@@ -129,22 +130,22 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Popup if !playlist.song_buffer.is_empty() => {
             //Find the index of the playlist
             let name = playlist.search_query.trim().to_string();
-            let pos = playlist.playlists.data.iter().position(|p| p.name == name);
+            let pos = playlist.playlists.iter().position(|p| p.name == name);
 
             let songs = mem::take(&mut playlist.song_buffer);
 
             //If the playlist exists
             if let Some(pos) = pos {
-                let pl = &mut playlist.playlists.data[pos];
-                pl.extend(songs);
-                pl.songs.select(Some(0));
-                pl.save();
+                let pl = &mut playlist.playlists[pos];
+                // pl.extend(songs);
+                // pl.songs.select(Some(0));
+                // pl.save();
                 playlist.playlists.select(Some(pos));
             } else {
                 //If the playlist does not exist create it.
                 let len = playlist.playlists.len();
-                playlist.playlists.data.push(RawPlaylist::new(&name, songs));
-                playlist.playlists.data[len].save();
+                // playlist.playlists.push(RawPlaylist::new(&name, songs));
+                // playlist.playlists[len].save();
                 playlist.playlists.select(Some(len));
             }
 
@@ -178,16 +179,16 @@ pub fn add(playlist: &mut Playlist, songs: &[gonk_core::Song]) {
 
 fn delete_song(playlist: &mut Playlist) {
     if let Some(i) = playlist.playlists.index() {
-        let selected = &mut playlist.playlists.data[i];
+        let selected = &mut playlist.playlists[i];
 
         if let Some(j) = selected.songs.index() {
             selected.songs.remove(j);
-            selected.save();
+            // selected.save();
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                selected.delete();
-                playlist.playlists.remove(i);
+                // selected.delete();
+                playlist.playlists.remove_and_move(i);
             }
         }
         playlist.mode = PlaylistMode::Playlist;
@@ -197,8 +198,8 @@ fn delete_song(playlist: &mut Playlist) {
 
 fn delete_playlist(playlist: &mut Playlist) {
     if let Some(index) = playlist.playlists.index() {
-        playlist.playlists.data[index].delete();
-        playlist.playlists.remove(index);
+        // playlist.playlists[index].delete();
+        playlist.playlists.remove_and_move(index);
         playlist.delete = false;
     }
 }
@@ -267,7 +268,6 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
             playlist.changed = false;
             let eq = playlist
                 .playlists
-                .data
                 .iter()
                 .any(|p| p.name == playlist.search_query);
             playlist.search_result = if eq {
@@ -394,7 +394,6 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
 
     let items: Vec<ListItem> = playlist
         .playlists
-        .data
         .iter()
         .map(|p| p.name.clone())
         .map(ListItem::new)
@@ -425,7 +424,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
     // if let Some(selected) = playlist.playlists.selected() {
     //     let content: Vec<Row> = selected
     //         .songs
-    //         .data
+    //
     //         .iter()
     //         .map(|song| {
     //             Row::new(vec![
