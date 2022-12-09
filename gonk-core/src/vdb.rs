@@ -151,9 +151,7 @@ pub fn search(db: &'static Database, query: &str) -> Vec<Item> {
     let query = query.to_lowercase();
     let results = RwLock::new(Vec::new());
 
-    let iter = db.par_iter();
-
-    iter.for_each(|(artist, albums)| {
+    db.par_iter().for_each(|(artist, albums)| {
         for album in albums {
             for song in &album.songs {
                 let song = jaro(

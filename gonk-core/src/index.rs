@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 //TODO: There is probably a more generic way to do both
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct StaticIndex<T: 'static> {
     slice: &'static [T],
     index: Option<usize>,
@@ -64,6 +64,15 @@ impl<T> DerefMut for StaticIndex<T> {
     }
 }
 
+impl<T> Default for StaticIndex<T> {
+    fn default() -> Self {
+        Self {
+            slice: &[],
+            index: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Index<T> {
     data: Vec<T>,
@@ -79,12 +88,10 @@ impl<T> Index<T> {
             return;
         }
 
-        if let Some(index) = &mut self.index {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = self.data.len() - 1;
-            }
+        match self.index {
+            Some(0) => self.index = Some(self.data.len() - 1),
+            Some(n) => self.index = Some(n - 1),
+            None => (),
         }
     }
     pub fn down(&mut self) {
@@ -92,12 +99,10 @@ impl<T> Index<T> {
             return;
         }
 
-        if let Some(index) = &mut self.index {
-            if *index + 1 < self.data.len() {
-                *index += 1;
-            } else {
-                *index = 0;
-            }
+        match self.index {
+            Some(n) if n + 1 < self.data.len() => self.index = Some(n + 1),
+            Some(_) => self.index = Some(0),
+            None => (),
         }
     }
     pub fn up_with_len(&mut self, len: usize) {
@@ -133,18 +138,10 @@ impl<T> Index<T> {
     pub fn index(&self) -> Option<usize> {
         self.index
     }
-    // pub fn len(&self) -> usize {
-    //     self.data.len()
-    // }
     pub fn select(&mut self, i: Option<usize>) {
         self.index = i;
     }
-    // pub fn is_empty(&self) -> bool {
-    //     self.data.is_empty()
-    // }
-    // pub fn as_slice(&self) -> &[T] {
-    //     &self.data
-    // }
+    //TODO: This is only used once maybe remove
     pub fn remove_and_move(&mut self, index: usize) {
         self.data.remove(index);
         let len = self.len();
@@ -157,6 +154,13 @@ impl<T> Index<T> {
                 self.index = None;
             }
         }
+        // let _ = self.remove(index);
+        // let len = self.len();
+        // match self.index {
+        //     Some(selected) if selected == 0 && index == 0 => self.index = Some(0),
+        //     Some(_) if len == 0 => self.index = None,
+        //     _ => self.index = Some(len.saturating_sub(1)),
+        // }
     }
 }
 
