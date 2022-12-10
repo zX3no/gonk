@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{
     fs::File,
-    io::{BufWriter, Read, Write},
+    io::{BufWriter, Read, Seek, Write},
     mem::size_of,
 };
 
@@ -86,21 +86,11 @@ impl Settings {
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        let mut bytes = Vec::new();
-        bytes.push(self.volume);
-        bytes.extend(self.index.to_le_bytes());
-        bytes.extend(self.elapsed.to_le_bytes());
+        unsafe {
+            FILE.set_len(0)?;
+            FILE.rewind()?;
+        };
 
-        bytes.extend((self.output_device.len() as u16).to_le_bytes());
-        bytes.extend(self.output_device.as_bytes());
-
-        bytes.extend((self.music_folder.len() as u16).to_le_bytes());
-        bytes.extend(self.music_folder.as_bytes());
-
-        for song in &self.queue {
-            bytes.extend(song.to_bytes());
-        }
-        unsafe { FILE.set_len(0)? };
         let mut writer = unsafe { BufWriter::new(&*FILE) };
 
         writer.write_all(&[self.volume])?;
@@ -116,6 +106,8 @@ impl Settings {
         for song in &self.queue {
             writer.write_all(&song.to_bytes())?;
         }
+
+        writer.flush()?;
 
         Ok(())
     }
