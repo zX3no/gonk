@@ -70,7 +70,7 @@ pub fn draw(queue: &mut Queue, player: &mut Player, f: &mut Frame, event: Option
 
     let row_bounds = draw_body(queue, player, f, chunks[1]);
 
-    if log::message().is_none() {
+    if log::last_message().is_none() {
         draw_seeker(player, f, chunks[2]);
     }
 
@@ -194,7 +194,7 @@ fn draw_body(
     f: &mut Frame,
     area: Rect,
 ) -> Option<(usize, usize)> {
-    if log::message().is_some() && player.songs.is_empty() {
+    if log::last_message().is_some() && player.songs.is_empty() {
         f.render_widget(
             Block::default()
                 .border_type(BorderType::Rounded)
@@ -214,8 +214,7 @@ fn draw_body(
         return None;
     }
 
-    let (songs, player_index, ui_index) =
-        (&player.songs.data, player.songs.index(), queue.ui.index());
+    let (songs, player_index, ui_index) = (&player.songs, player.songs.index(), queue.ui.index());
 
     let mut items: Vec<Row> = songs
         .iter()

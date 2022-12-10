@@ -1,9 +1,8 @@
 use crate::widgets::{List, ListItem, ListState};
-use crate::{Frame, Input};
+use crate::{Frame, Input, VDB};
 use crossterm::event::MouseEvent;
-use gonk_core::db::Album;
-use gonk_core::profile;
-use gonk_core::{db::Song, Database, Index};
+use gonk_core::{profile, vdb, StaticIndex};
+use gonk_core::{Album, Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     widgets::{Block, BorderType, Borders},
@@ -18,7 +17,7 @@ pub enum Mode {
 
 pub struct Browser {
     artists: Index<&'static String>,
-    albums: Index<&'static Album>,
+    albums: StaticIndex<Album>,
     ///Title, (disc, number)
     songs: Index<(String, (u8, u8))>,
     pub mode: Mode,
@@ -26,12 +25,12 @@ pub struct Browser {
 
 impl Browser {
     pub fn new() -> Self {
-        let artists = Index::new(Database::artists(), Some(0));
-        let mut albums = Index::default();
+        let artists = Index::new(unsafe { vdb::artists(&VDB) }, Some(0));
+        let mut albums: StaticIndex<Album> = StaticIndex::default();
         let mut songs = Index::default();
 
         if let Some(artist) = artists.selected() {
-            albums = Index::new(Database::albums_by_artist(artist), Some(0));
+            albums = StaticIndex::new(unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() });
 
             if let Some(album) = albums.selected() {
                 songs = Index::new(
@@ -100,8 +99,8 @@ impl Input for Browser {
 pub fn refresh(browser: &mut Browser) {
     browser.mode = Mode::Artist;
 
-    browser.artists = Index::new(Database::artists(), Some(0));
-    browser.albums = Index::default();
+    browser.artists = Index::new(unsafe { vdb::artists(&VDB) }, Some(0));
+    browser.albums = StaticIndex::default();
     browser.songs = Index::default();
 
     update_albums(browser);
@@ -118,8 +117,8 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        let albums = Database::albums_by_artist(artist);
-        browser.albums = Index::new(albums, Some(0));
+        let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
+        browser.albums = StaticIndex::new(albums);
         update_songs(browser);
     }
 }
@@ -127,8 +126,7 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs = Database::album(artist, &album.title)
-                .unwrap()
+            let songs = unsafe { vdb::album(&VDB, artist, &album.title).unwrap() }
                 .songs
                 .iter()
                 .map(|song| {
@@ -149,7 +147,7 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
             if let Some((_, (disc, number))) = browser.songs.selected() {
                 return match browser.mode {
                     Mode::Artist => {
-                        let albums = Database::artist(artist).unwrap();
+                        let albums = unsafe { vdb::artist(&VDB, artist).unwrap() };
                         let mut songs = Vec::new();
                         for album in albums {
                             songs.extend(&album.songs);
@@ -157,7 +155,7 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
                         songs
                     }
                     Mode::Album => {
-                        let album = Database::album(artist, &album.title).unwrap();
+                        let album = unsafe { vdb::album(&VDB, artist, &album.title).unwrap() };
                         let mut songs = Vec::new();
                         for song in &album.songs {
                             songs.push(song);
@@ -165,7 +163,9 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
                         songs
                     }
                     Mode::Song => {
-                        vec![Database::song(artist, &album.title, *disc, *number).unwrap()]
+                        vec![unsafe {
+                            vdb::song(&VDB, artist, &album.title, *disc, *number).unwrap()
+                        }]
                     }
                 };
             }
@@ -205,21 +205,18 @@ pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<Mous
 
     let a: Vec<ListItem> = browser
         .artists
-        .data
         .iter()
         .map(|name| ListItem::new(name.as_str()))
         .collect();
 
     let b: Vec<ListItem> = browser
         .albums
-        .data
         .iter()
         .map(|name| ListItem::new(name.title.as_str()))
         .collect();
 
     let c: Vec<ListItem> = browser
         .songs
-        .data
         .iter()
         .map(|(name, _)| ListItem::new(name.as_str()))
         .collect();

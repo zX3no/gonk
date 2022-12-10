@@ -1,10 +1,12 @@
+//! TODO: Cleanup
+//!
+//!
+use crate::Lazy;
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::RwLock,
     time::{Duration, Instant},
 };
-
-use once_cell::unsync::Lazy;
 
 static mut EVENTS: Lazy<RwLock<HashMap<Location, Vec<Event>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
@@ -151,5 +153,5 @@ pub fn print() {
         string.push_str(&format!("   - max: {:?}\n\n", score.max));
     }
 
-    println!("{}", string);
+    println!("{string}");
 }

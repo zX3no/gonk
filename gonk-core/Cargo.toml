@@ -2,23 +2,16 @@
 name = "gonk-core"
 version = "0.2.0"
 edition = "2021"
-authors = ["Bay"]
-description = "Database for gonk"
-repository = "https://github.com/zX3no/gonk"
-readme = "../README.md"
-license = "CC0-1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+rayon = "1.6.0"
+walkdir = "2.3.2"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",
     "mp3",
     "ogg",
     "vorbis",
 ] }
-memmap2 = "0.5.8"
-rayon = "1.6.0"
-walkdir = "2.3.2"
-once_cell = { version = "1.16.0", default-features = false }
-
-[features]
-profile = []

@@ -1,6 +1,5 @@
 use crate::{widgets::*, *};
-use gonk_core::db::Item;
-use gonk_core::{Database, Song};
+use gonk_core::{vdb::Item, Song};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -29,7 +28,7 @@ impl Search {
             mode: Mode::Search,
             results: Index::default(),
         };
-        search.results.data = Database::search(&search.query);
+        *search.results = unsafe { vdb::search(&VDB, &search.query) };
         search
     }
 }
@@ -76,18 +75,18 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
         }
         Mode::Select => search.results.selected().map(|item| match item {
             Item::Song((artist, album, _, disc, number)) => {
-                match Database::song(artist, album, *disc, *number) {
+                match unsafe { vdb::song(&VDB, artist, album, *disc, *number) } {
                     Some(song) => vec![song],
-                    None => panic!("{:?}", item),
+                    None => panic!("{item:?}"),
                 }
             }
-            Item::Album((artist, album)) => Database::album(artist, album)
+            Item::Album((artist, album)) => unsafe { vdb::album(&VDB, artist, album) }
                 .unwrap()
                 .songs
                 .iter()
                 .collect(),
             Item::Artist(artist) => {
-                let artist = Database::artist(artist).unwrap();
+                let artist = unsafe { vdb::artist(&VDB, artist).unwrap() };
                 let mut songs = Vec::new();
                 for album in artist {
                     for song in &album.songs {
@@ -103,7 +102,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
 pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
     if search.query_changed {
         search.query_changed = !search.query_changed;
-        search.results.data = Database::search(&search.query);
+        *search.results = unsafe { vdb::search(&VDB, &search.query) };
     }
 
     let v = Layout::default()
@@ -140,7 +139,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseE
     let item = if search.results.selected().is_some() {
         search.results.selected()
     } else {
-        search.results.data.first()
+        search.results.first()
     };
 
     if let Some(item) = item {
@@ -154,7 +153,7 @@ pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseE
                 draw_artist(f, artist, h[1]);
             }
             Item::Artist(artist) => {
-                let albums = Database::albums_by_artist(artist);
+                let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
 
                 search::draw_artist(f, artist, h[0]);
 
@@ -230,8 +229,7 @@ fn draw_song(f: &mut Frame, name: &str, album: &str, artist: &str, area: Rect) {
 }
 
 fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
-    let cells: Vec<Row> = Database::album(artist, album)
-        .unwrap()
+    let cells: Vec<Row> = unsafe { vdb::album(&VDB, artist, album).unwrap() }
         .songs
         .iter()
         .map(|song| {
@@ -262,7 +260,7 @@ fn draw_album(f: &mut Frame, album: &str, artist: &str, area: Rect) {
 }
 
 fn draw_artist(f: &mut Frame, artist: &str, area: Rect) {
-    let albums = Database::albums_by_artist(artist);
+    let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
     let cells: Vec<_> = albums
         .iter()
         .map(|album| Row::new(vec![Cell::from(Span::raw(&album.title))]))
@@ -287,8 +285,8 @@ fn draw_artist(f: &mut Frame, artist: &str, area: Rect) {
     f.render_widget(table, area);
 }
 
-fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
-    let get_cell = |item: &Item, selected: bool| -> Row {
+fn draw_results<'a>(search: &'a Search, f: &mut Frame, area: Rect) {
+    let get_cell = |item: &'a Item, selected: bool| -> Row {
         let selected_cell = if selected {
             Cell::from(">")
         } else {
@@ -331,7 +329,6 @@ fn draw_results(search: &Search, f: &mut Frame, area: Rect) {
 
     let rows: Vec<Row> = search
         .results
-        .data
         .iter()
         .enumerate()
         .map(|(i, item)| {

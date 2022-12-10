@@ -1,5 +1,14 @@
-use crate::{database_path, raw_song::*, Index, Song, SONG_LEN};
+//! Muisc Playlists
+//!
+//! Each playlist has it's own file.
+//!
+use crate::{
+    database_path,
+    db::{bytes_to_song, SONG_LEN},
+    Index, Song,
+};
 use std::{
+    error::Error,
     fs::{self, File},
     io::{BufWriter, Write},
     path::PathBuf,
@@ -7,84 +16,83 @@ use std::{
 };
 use walkdir::WalkDir;
 
-#[derive(Debug)]
-pub struct RawPlaylist {
+#[derive(Debug, Default)]
+pub struct Playlist {
     pub name: String,
     pub path: PathBuf,
-    pub songs: Index<RawSong>,
+    pub songs: Index<Song>,
 }
 
-impl RawPlaylist {
-    pub fn new(name: &str, songs: Vec<Song>) -> Self {
+pub fn new(name: &str, songs: Vec<Song>) -> Playlist {
+    let mut path = database_path();
+    path.pop();
+    path.push(format!("{name}.playlist"));
+
+    Playlist {
+        path,
+        name: name.to_string(),
+        songs: Index::from(songs),
+    }
+}
+
+fn from_slice(bytes: &[u8]) -> Result<Playlist, Box<dyn Error + Send + Sync>> {
+    unsafe {
+        let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap()) as usize;
+        let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
+
+        let mut i = name_len + 2;
+        let mut songs = Vec::new();
+
+        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+            songs.push(bytes_to_song(bytes)?);
+            i += SONG_LEN;
+        }
+
         let mut path = database_path();
         path.pop();
         path.push(format!("{name}.playlist"));
 
-        let songs: Vec<RawSong> = songs.into_iter().map(|song| RawSong::from(&song)).collect();
-
-        Self {
-            path,
+        Ok(Playlist {
             name: name.to_string(),
+            path,
             songs: Index::from(songs),
-        }
-    }
-    pub fn extend<I: IntoIterator<Item = Song>>(&mut self, iter: I) {
-        let iter = iter.into_iter().map(|song| RawSong::from(&song));
-        self.songs.data.extend(iter);
-    }
-    pub fn extend_raw<I: IntoIterator<Item = RawSong>>(&mut self, iter: I) {
-        self.songs.data.extend(iter);
-    }
-    //TODO: Why is the file handle being reopened so much.
-    pub fn save(&self) {
-        //Delete the contents of the file and overwrite with new settings.
-        let file = File::create(&self.path).unwrap();
-        let mut writer = BufWriter::new(file);
-
-        //Convert to bytes.
-        let mut bytes = Vec::new();
-        bytes.extend((self.name.len() as u16).to_le_bytes());
-        bytes.extend(self.name.as_bytes());
-        for song in &self.songs.data {
-            bytes.extend(song.as_bytes());
-        }
-
-        writer.write_all(&bytes).unwrap();
-        writer.flush().unwrap();
-    }
-    pub fn delete(&self) {
-        fs::remove_file(&self.path).unwrap();
+        })
     }
 }
 
-impl From<&[u8]> for RawPlaylist {
-    fn from(bytes: &[u8]) -> Self {
-        unsafe {
-            let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap()) as usize;
-            let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
+// pub fn extend<I: IntoIterator<Item = Song>>(&mut self, iter: I) {
+//     let iter = iter.into_iter().map(|song| RawSong::from(&song));
+//     self.songs.data.extend(iter);
+// }
+// pub fn extend_raw<I: IntoIterator<Item = RawSong>>(&mut self, iter: I) {
+//     self.songs.data.extend(iter);
+// }
 
-            let mut i = name_len + 2;
-            let mut songs = Vec::new();
+//TODO: Why is the file handle being reopened so much.
+pub fn save(playlist: &Playlist) -> std::io::Result<()> {
+    //Delete the contents of the file and overwrite with new settings.
+    let file = File::create(&playlist.path)?;
+    let mut writer = BufWriter::new(file);
 
-            while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-                songs.push(RawSong::from(bytes));
-                i += SONG_LEN;
-            }
-
-            let mut path = database_path();
-            path.pop();
-            path.push(format!("{name}.playlist"));
-
-            Self {
-                name: name.to_string(),
-                path,
-                songs: Index::from(songs),
-            }
-        }
+    //Convert to bytes.
+    let mut bytes = Vec::new();
+    bytes.extend((playlist.name.len() as u16).to_le_bytes());
+    bytes.extend(playlist.name.as_bytes());
+    for song in playlist.songs.iter() {
+        bytes.extend(song.to_bytes());
     }
+
+    writer.write_all(&bytes)?;
+    writer.flush()?;
+
+    Ok(())
 }
 
-pub fn playlists() -> Vec<RawPlaylist> {
+pub fn delete(playlist: &Playlist) -> std::io::Result<()> {
+    fs::remove_file(&playlist.path)
+}
+
+pub fn playlists() -> Result<Vec<Playlist>, Box<dyn Error + Send + Sync>> {
     let mut path = database_path();
     path.pop();
 
@@ -98,6 +106,6 @@ pub fn playlists() -> Vec<RawPlaylist> {
             None => false,
         })
         .flat_map(|entry| fs::read(entry.path()))
-        .map(|bytes| RawPlaylist::from(bytes.as_slice()))
+        .map(|bytes| from_slice(bytes.as_slice()))
         .collect()
 }
