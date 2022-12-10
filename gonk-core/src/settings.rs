@@ -1,5 +1,5 @@
 use crate::{
-    db::{bytes_to_song, song_to_bytes, SONG_LEN},
+    db::{bytes_to_song, SONG_LEN},
     *,
 };
 use std::{
@@ -98,16 +98,7 @@ impl Settings {
         bytes.extend(self.music_folder.as_bytes());
 
         for song in &self.queue {
-            let song = song_to_bytes(
-                &song.artist,
-                &song.album,
-                &song.title,
-                &song.path,
-                song.track_number,
-                song.disc_number,
-                song.gain,
-            );
-            bytes.extend(song);
+            bytes.extend(song.to_bytes());
         }
         unsafe { FILE.set_len(0)? };
         let mut writer = unsafe { BufWriter::new(&*FILE) };
@@ -123,16 +114,7 @@ impl Settings {
         writer.write_all(self.music_folder.as_bytes())?;
 
         for song in &self.queue {
-            let bytes = song_to_bytes(
-                &song.artist,
-                &song.album,
-                &song.title,
-                &song.path,
-                song.track_number,
-                song.disc_number,
-                song.gain,
-            );
-            writer.write_all(&bytes)?;
+            writer.write_all(&song.to_bytes())?;
         }
 
         Ok(())

@@ -22,6 +22,14 @@ use std::{
     str::from_utf8,
 };
 
+pub use crate::{
+    db::{Album, Artist, Song},
+    playlist::Playlist,
+};
+pub use flac_decoder::*;
+pub use index::*;
+pub use lazy::*;
+
 pub mod db;
 pub mod flac_decoder;
 pub mod index;
@@ -32,33 +40,6 @@ pub mod profiler;
 pub mod settings;
 pub mod strsim;
 pub mod vdb;
-
-pub use flac_decoder::*;
-pub use index::*;
-pub use lazy::*;
-
-const MIN_ACCURACY: f64 = 0.70;
-#[derive(Debug, Clone, PartialEq)]
-pub struct Song {
-    pub title: String,
-    pub album: String,
-    pub artist: String,
-    pub disc_number: u8,
-    pub track_number: u8,
-    pub path: String,
-    pub gain: f32,
-}
-
-#[derive(Debug, Default)]
-pub struct Album {
-    pub title: String,
-    pub songs: Vec<Song>,
-}
-
-#[derive(Debug, Default)]
-pub struct Artist {
-    pub albums: Vec<Album>,
-}
 
 pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {

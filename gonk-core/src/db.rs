@@ -19,6 +19,98 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - size_of::<f32>() - size_of::<u8>();
 pub const DISC_POS: usize = SONG_LEN - 1 - size_of::<f32>();
 pub const GAIN_POS: Range<usize> = SONG_LEN - size_of::<f32>()..SONG_LEN;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Song {
+    pub title: String,
+    pub album: String,
+    pub artist: String,
+    pub disc_number: u8,
+    pub track_number: u8,
+    pub path: String,
+    pub gain: f32,
+}
+
+impl Song {
+    pub fn to_bytes(&self) -> [u8; SONG_LEN] {
+        let mut song = [0; SONG_LEN];
+
+        if self.path.len() > TEXT_LEN {
+            //If there is invalid utf8 in the panic message, rust will panic.
+            panic!("PATH IS TOO LONG! {:?}", OsString::from(&self.path));
+        }
+
+        let mut artist = self.artist.to_string();
+        let mut album = self.album.to_string();
+        let mut title = self.title.to_string();
+        let path = self.path.to_string();
+
+        //Forcefully fit the artist, album, title and path into 522 bytes.
+        //There are 4 u16s included in the text so those are subtracted too.
+        let mut i = 0;
+        while artist.len() + album.len() + title.len() + path.len()
+            > TEXT_LEN - (4 * size_of::<u16>())
+        {
+            if i % 3 == 0 {
+                artist.pop();
+            } else if i % 3 == 1 {
+                album.pop();
+            } else {
+                title.pop();
+            }
+            i += 1;
+        }
+
+        if i != 0 {
+            // log!(
+            //     "Warning: {} overflowed {} bytes! Metadata will be truncated.",
+            //     path,
+            //     SONG_LEN
+            // );
+        }
+
+        let artist_len = (artist.len() as u16).to_le_bytes();
+        song[0..2].copy_from_slice(&artist_len);
+        song[2..2 + artist.len()].copy_from_slice(artist.as_bytes());
+
+        let album_len = (album.len() as u16).to_le_bytes();
+        song[2 + artist.len()..2 + artist.len() + 2].copy_from_slice(&album_len);
+        song[2 + artist.len() + 2..2 + artist.len() + 2 + album.len()]
+            .copy_from_slice(album.as_bytes());
+
+        let title_len = (title.len() as u16).to_le_bytes();
+        song[2 + artist.len() + 2 + album.len()..2 + artist.len() + 2 + album.len() + 2]
+            .copy_from_slice(&title_len);
+        song[2 + artist.len() + 2 + album.len() + 2
+            ..2 + artist.len() + 2 + album.len() + 2 + title.len()]
+            .copy_from_slice(title.as_bytes());
+
+        let path_len = (path.len() as u16).to_le_bytes();
+        song[2 + artist.len() + 2 + album.len() + 2 + title.len()
+            ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2]
+            .copy_from_slice(&path_len);
+        song[2 + artist.len() + 2 + album.len() + 2 + title.len() + 2
+            ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2 + path.len()]
+            .copy_from_slice(path.as_bytes());
+
+        song[NUMBER_POS] = self.track_number;
+        song[DISC_POS] = self.disc_number;
+        song[GAIN_POS].copy_from_slice(&self.gain.to_le_bytes());
+
+        song
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Album {
+    pub title: String,
+    pub songs: Vec<Song>,
+}
+
+#[derive(Debug, Default)]
+pub struct Artist {
+    pub albums: Vec<Album>,
+}
+
 #[derive(Debug)]
 pub enum ScanResult {
     Completed,
@@ -191,80 +283,6 @@ pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>>
     })
 }
 
-pub fn song_to_bytes(
-    artist: &str,
-    album: &str,
-    title: &str,
-    path: &str,
-    number: u8,
-    disc: u8,
-    gain: f32,
-) -> [u8; SONG_LEN] {
-    let mut song = [0; SONG_LEN];
-
-    if path.len() > TEXT_LEN {
-        //If there is invalid utf8 in the panic message, rust will panic.
-        panic!("PATH IS TOO LONG! {:?}", OsString::from(path));
-    }
-
-    let mut artist = artist.to_string();
-    let mut album = album.to_string();
-    let mut title = title.to_string();
-
-    //Forcefully fit the artist, album, title and path into 522 bytes.
-    //There are 4 u16s included in the text so those are subtracted too.
-    let mut i = 0;
-    while artist.len() + album.len() + title.len() + path.len() > TEXT_LEN - (4 * size_of::<u16>())
-    {
-        if i % 3 == 0 {
-            artist.pop();
-        } else if i % 3 == 1 {
-            album.pop();
-        } else {
-            title.pop();
-        }
-        i += 1;
-    }
-
-    if i != 0 {
-        // log!(
-        //     "Warning: {} overflowed {} bytes! Metadata will be truncated.",
-        //     path,
-        //     SONG_LEN
-        // );
-    }
-
-    let artist_len = (artist.len() as u16).to_le_bytes();
-    song[0..2].copy_from_slice(&artist_len);
-    song[2..2 + artist.len()].copy_from_slice(artist.as_bytes());
-
-    let album_len = (album.len() as u16).to_le_bytes();
-    song[2 + artist.len()..2 + artist.len() + 2].copy_from_slice(&album_len);
-    song[2 + artist.len() + 2..2 + artist.len() + 2 + album.len()]
-        .copy_from_slice(album.as_bytes());
-
-    let title_len = (title.len() as u16).to_le_bytes();
-    song[2 + artist.len() + 2 + album.len()..2 + artist.len() + 2 + album.len() + 2]
-        .copy_from_slice(&title_len);
-    song[2 + artist.len() + 2 + album.len() + 2
-        ..2 + artist.len() + 2 + album.len() + 2 + title.len()]
-        .copy_from_slice(title.as_bytes());
-
-    let path_len = (path.len() as u16).to_le_bytes();
-    song[2 + artist.len() + 2 + album.len() + 2 + title.len()
-        ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2]
-        .copy_from_slice(&path_len);
-    song[2 + artist.len() + 2 + album.len() + 2 + title.len() + 2
-        ..2 + artist.len() + 2 + album.len() + 2 + title.len() + 2 + path.len()]
-        .copy_from_slice(path.as_bytes());
-
-    song[NUMBER_POS] = number;
-    song[DISC_POS] = disc;
-    song[GAIN_POS].copy_from_slice(&gain.to_le_bytes());
-
-    song
-}
-
 pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
     let extension = path.extension().ok_or("Path is not audio")?;
 
@@ -297,8 +315,8 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
         let mut title = String::from("Unknown Title");
         let mut album = String::from("Unknown Album");
         let mut artist = String::from("Unknown Artist");
-        let mut number = 1;
-        let mut disc = 1;
+        let mut track_number = 1;
+        let mut disc_number = 1;
         let mut gain = 0.0;
 
         let mut metadata_revision = probe.format.metadata();
@@ -311,27 +329,29 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
                 Some(metadata) => match metadata.skip_to_latest() {
                     Some(metadata) => metadata,
                     None => {
-                        return Ok(song_to_bytes(
-                            &artist,
-                            &album,
-                            &title,
-                            path.to_str().ok_or("Invalid UTF-8 in path.")?,
-                            number,
-                            disc,
+                        let song = Song {
+                            title,
+                            album,
+                            artist,
+                            disc_number,
+                            track_number,
+                            path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
                             gain,
-                        ))
+                        };
+                        return Ok(song.to_bytes());
                     }
                 },
                 None => {
-                    return Ok(song_to_bytes(
-                        &artist,
-                        &album,
-                        &title,
-                        path.to_str().ok_or("Invalid UTF-8 in path.")?,
-                        number,
-                        disc,
+                    let song = Song {
+                        title,
+                        album,
+                        artist,
+                        disc_number,
+                        track_number,
+                        path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
                         gain,
-                    ))
+                    };
+                    return Ok(song.to_bytes());
                 }
             },
         };
@@ -348,17 +368,17 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
                     StandardTagKey::TrackNumber => {
                         let num = tag.value.to_string();
                         if let Some((num, _)) = num.split_once('/') {
-                            number = num.parse().unwrap_or(1);
+                            track_number = num.parse().unwrap_or(1);
                         } else {
-                            number = num.parse().unwrap_or(1);
+                            track_number = num.parse().unwrap_or(1);
                         }
                     }
                     StandardTagKey::DiscNumber => {
                         let num = tag.value.to_string();
                         if let Some((num, _)) = num.split_once('/') {
-                            disc = num.parse().unwrap_or(1);
+                            disc_number = num.parse().unwrap_or(1);
                         } else {
-                            disc = num.parse().unwrap_or(1);
+                            disc_number = num.parse().unwrap_or(1);
                         }
                     }
                     StandardTagKey::ReplayGainTrackGain => {
@@ -372,26 +392,27 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
             }
         }
 
-        return Ok(song_to_bytes(
-            &artist,
-            &album,
-            &title,
-            path.to_str().ok_or("Invalid UTF-8 in path.")?,
-            number,
-            disc,
+        let song = Song {
+            title,
+            album,
+            artist,
+            disc_number,
+            track_number,
+            path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
             gain,
-        ));
+        };
+        return Ok(song.to_bytes());
     }
 
     match read_metadata(path) {
         Ok(metadata) => {
-            let number = metadata
+            let track_number = metadata
                 .get("TRACKNUMBER")
                 .unwrap_or(&String::from("1"))
                 .parse()
                 .unwrap_or(1);
 
-            let disc = metadata
+            let disc_number = metadata
                 .get("DISCNUMBER")
                 .unwrap_or(&String::from("1"))
                 .parse()
@@ -423,15 +444,16 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
                 None => "Unknown Title",
             };
 
-            Ok(song_to_bytes(
-                artist,
-                album,
-                title,
-                path.to_str().unwrap(),
-                number,
-                disc,
+            let song = Song {
+                title: title.to_string(),
+                album: album.to_string(),
+                artist: artist.to_string(),
+                disc_number,
+                track_number,
+                path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
                 gain,
-            ))
+            };
+            Ok(song.to_bytes())
         }
         Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
     }

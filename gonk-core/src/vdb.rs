@@ -4,7 +4,7 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
-use crate::*;
+use crate::{db::*, *};
 use rayon::{
     prelude::{IntoParallelRefIterator, ParallelDrainRange, ParallelIterator},
     slice::ParallelSliceMut,
@@ -15,6 +15,9 @@ use std::{
     error::Error,
     sync::RwLock,
 };
+
+const MIN_ACCURACY: f64 = 0.70;
+
 pub type Database = BTreeMap<String, Vec<Album>>;
 
 pub fn create() -> Result<Database, Box<dyn Error + Send + Sync>> {

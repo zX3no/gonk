@@ -1,6 +1,6 @@
 use crate::{widgets::*, *};
 use crossterm::event::MouseEvent;
-use gonk_core::{playlist::RawPlaylist, Index, Song};
+use gonk_core::{Index, Song};
 use gonk_player::Player;
 use std::mem;
 use tui::layout::Alignment;
@@ -20,7 +20,7 @@ pub enum Mode {
 
 pub struct Playlist {
     pub mode: Mode,
-    pub playlists: Index<RawPlaylist>,
+    pub lists: Index<gonk_core::Playlist>,
     pub song_buffer: Vec<Song>,
     pub search_query: String,
     pub search_result: String,
@@ -32,12 +32,11 @@ pub struct Playlist {
 
 impl Playlist {
     pub fn new() -> Self {
-        // let playlists = gonk_core::playlists();
-        let playlists = vec![RawPlaylist::default()];
+        let playlists = gonk_core::playlist::playlists().unwrap();
 
         Self {
             mode: Mode::Playlist,
-            playlists: Index::from(playlists),
+            lists: Index::from(playlists),
             song_buffer: Vec::new(),
             changed: false,
             search_query: String::new(),
@@ -54,10 +53,10 @@ impl Input for Playlist {
         if !self.delete {
             match self.mode {
                 Mode::Playlist => {
-                    self.playlists.up();
+                    self.lists.up();
                 }
                 Mode::Song => {
-                    if let Some(selected) = self.playlists.selected_mut() {
+                    if let Some(selected) = self.lists.selected_mut() {
                         selected.songs.up();
                     }
                 }
@@ -70,10 +69,10 @@ impl Input for Playlist {
         if !self.delete {
             match self.mode {
                 Mode::Playlist => {
-                    self.playlists.down();
+                    self.lists.down();
                 }
                 Mode::Song => {
-                    if let Some(selected) = self.playlists.selected_mut() {
+                    if let Some(selected) = self.lists.selected_mut() {
                         selected.songs.down();
                     }
                 }
@@ -95,7 +94,7 @@ impl Input for Playlist {
             self.yes = false;
         } else {
             match self.mode {
-                Mode::Playlist if self.playlists.selected().is_some() => self.mode = Mode::Song,
+                Mode::Playlist if self.lists.selected().is_some() => self.mode = Mode::Song,
                 _ => (),
             }
         }
@@ -113,40 +112,37 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Playlist if playlist.delete => delete_playlist(playlist),
         Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
-            if let Some(selected) = playlist.playlists.selected() {
-                // let songs: Vec<Song> = selected.songs.iter().map(Song::from).collect();
-                // player.add(songs);
-                todo!();
+            if let Some(selected) = playlist.lists.selected() {
+                player.add(selected.songs.clone());
             }
         }
         Mode::Song => {
-            if let Some(selected) = playlist.playlists.selected() {
+            if let Some(selected) = playlist.lists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    // player.add(vec![Song::from(song)]);
-                    todo!();
+                    player.add(vec![song.clone()]);
                 }
             }
         }
         Mode::Popup if !playlist.song_buffer.is_empty() => {
             //Find the index of the playlist
             let name = playlist.search_query.trim().to_string();
-            let pos = playlist.playlists.iter().position(|p| p.name == name);
+            let pos = playlist.lists.iter().position(|p| p.name == name);
 
             let songs = mem::take(&mut playlist.song_buffer);
 
             //If the playlist exists
             if let Some(pos) = pos {
-                let pl = &mut playlist.playlists[pos];
-                // pl.extend(songs);
-                // pl.songs.select(Some(0));
-                // pl.save();
-                playlist.playlists.select(Some(pos));
+                let pl = &mut playlist.lists[pos];
+                pl.songs.extend(songs);
+                pl.songs.select(Some(0));
+                gonk_core::playlist::save(pl).unwrap();
+                playlist.lists.select(Some(pos));
             } else {
                 //If the playlist does not exist create it.
-                let len = playlist.playlists.len();
-                // playlist.playlists.push(RawPlaylist::new(&name, songs));
-                // playlist.playlists[len].save();
-                playlist.playlists.select(Some(len));
+                let len = playlist.lists.len();
+                playlist.lists.push(gonk_core::playlist::new(&name, songs));
+                gonk_core::playlist::save(&playlist.lists[len]).unwrap();
+                playlist.lists.select(Some(len));
             }
 
             //Reset everything.
@@ -178,17 +174,17 @@ pub fn add(playlist: &mut Playlist, songs: &[gonk_core::Song]) {
 }
 
 fn delete_song(playlist: &mut Playlist) {
-    if let Some(i) = playlist.playlists.index() {
-        let selected = &mut playlist.playlists[i];
+    if let Some(i) = playlist.lists.index() {
+        let selected = &mut playlist.lists[i];
 
         if let Some(j) = selected.songs.index() {
             selected.songs.remove(j);
-            // selected.save();
+            gonk_core::playlist::save(selected).unwrap();
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                // selected.delete();
-                playlist.playlists.remove_and_move(i);
+                gonk_core::playlist::delete(selected).unwrap();
+                playlist.lists.remove_and_move(i);
             }
         }
         playlist.mode = PlaylistMode::Playlist;
@@ -197,9 +193,9 @@ fn delete_song(playlist: &mut Playlist) {
 }
 
 fn delete_playlist(playlist: &mut Playlist) {
-    if let Some(index) = playlist.playlists.index() {
+    if let Some(index) = playlist.lists.index() {
         // playlist.playlists[index].delete();
-        playlist.playlists.remove_and_move(index);
+        playlist.lists.remove_and_move(index);
         playlist.delete = false;
     }
 }
@@ -267,7 +263,7 @@ pub fn draw_popup(playlist: &mut Playlist, f: &mut Frame) {
         if playlist.changed {
             playlist.changed = false;
             let eq = playlist
-                .playlists
+                .lists
                 .iter()
                 .any(|p| p.name == playlist.search_query);
             playlist.search_result = if eq {
@@ -393,7 +389,7 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
     }
 
     let items: Vec<ListItem> = playlist
-        .playlists
+        .lists
         .iter()
         .map(|p| p.name.clone())
         .map(ListItem::new)
@@ -417,61 +413,59 @@ pub fn draw(playlist: &mut Playlist, area: Rect, f: &mut Frame, event: Option<Mo
     f.render_stateful_widget(
         list,
         horizontal[0],
-        &mut ListState::new(playlist.playlists.index()),
+        &mut ListState::new(playlist.lists.index()),
     );
-    todo!();
 
-    // if let Some(selected) = playlist.playlists.selected() {
-    //     let content: Vec<Row> = selected
-    //         .songs
-    //
-    //         .iter()
-    //         .map(|song| {
-    //             Row::new(vec![
-    //                 Span::styled(song.title(), Style::default().fg(TITLE)),
-    //                 Span::styled(song.album(), Style::default().fg(ALBUM)),
-    //                 Span::styled(song.artist(), Style::default().fg(ARTIST)),
-    //             ])
-    //         })
-    //         .collect();
+    if let Some(selected) = playlist.lists.selected() {
+        let content: Vec<Row> = selected
+            .songs
+            .iter()
+            .map(|song| {
+                Row::new(vec![
+                    Span::styled(&song.title, Style::default().fg(TITLE)),
+                    Span::styled(&song.album, Style::default().fg(ALBUM)),
+                    Span::styled(&song.artist, Style::default().fg(ARTIST)),
+                ])
+            })
+            .collect();
 
-    //     let table = Table::new(&content)
-    //         .widths(&[
-    //             Constraint::Percentage(42),
-    //             Constraint::Percentage(30),
-    //             Constraint::Percentage(28),
-    //         ])
-    //         .block(
-    //             Block::default()
-    //                 .title("─Songs")
-    //                 .borders(Borders::ALL)
-    //                 .border_type(BorderType::Rounded),
-    //         );
+        let table = Table::new(&content)
+            .widths(&[
+                Constraint::Percentage(42),
+                Constraint::Percentage(30),
+                Constraint::Percentage(28),
+            ])
+            .block(
+                Block::default()
+                    .title("─Songs")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            );
 
-    //     let table = if let Mode::Song = playlist.mode {
-    //         table.highlight_symbol(">")
-    //     } else {
-    //         table.highlight_symbol("")
-    //     };
+        let table = if let Mode::Song = playlist.mode {
+            table.highlight_symbol(">")
+        } else {
+            table.highlight_symbol("")
+        };
 
-    //     f.render_stateful_widget(
-    //         table,
-    //         horizontal[1],
-    //         &mut TableState::new(selected.songs.index()),
-    //     );
-    // } else {
-    //     f.render_widget(
-    //         Block::default()
-    //             .title("─Songs")
-    //             .borders(Borders::ALL)
-    //             .border_type(BorderType::Rounded),
-    //         horizontal[1],
-    //     );
-    // }
+        f.render_stateful_widget(
+            table,
+            horizontal[1],
+            &mut TableState::new(selected.songs.index()),
+        );
+    } else {
+        f.render_widget(
+            Block::default()
+                .title("─Songs")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+            horizontal[1],
+        );
+    }
 
-    // if playlist.delete {
-    //     draw_delete_popup(playlist, f);
-    // } else if let Mode::Popup = playlist.mode {
-    //     draw_popup(playlist, f);
-    // }
+    if playlist.delete {
+        draw_delete_popup(playlist, f);
+    } else if let Mode::Popup = playlist.mode {
+        draw_popup(playlist, f);
+    }
 }
