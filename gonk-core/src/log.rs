@@ -10,13 +10,11 @@ pub static ONCE: Once = Once::new();
 #[doc(hidden)]
 pub static mut LOG: Lazy<Log> = Lazy::new(|| Log {
     messages: Vec::new(),
-    timer: Instant::now(),
 });
 
 #[doc(hidden)]
 pub struct Log {
-    pub messages: Vec<String>,
-    pub timer: Instant,
+    pub messages: Vec<(String, Instant)>,
 }
 
 #[macro_export]
@@ -29,17 +27,23 @@ macro_rules! log {
         ONCE.call_once(|| {
             thread::spawn(|| loop {
                 thread::sleep(Duration::from_millis(16));
-                unsafe {
-                    if LOG.timer.elapsed() >= Duration::from_millis(2500) {
-                        LOG.messages.pop();
-                        LOG.timer = Instant::now();
+
+                if let Some((_, instant)) = unsafe { LOG.messages.last() } {
+                    if instant.elapsed() >= Duration::from_millis(2500) {
+                        unsafe { LOG.messages.pop() };
+
+                        //Reset the next messages since they run paralell.
+                        //Not a good way of doing this.
+                        if let Some((_, instant)) = unsafe { LOG.messages.last_mut() } {
+                            *instant = Instant::now();
+                        }
                     }
                 }
             });
         });
 
         unsafe {
-            LOG.messages.push(format_args!($($arg)*).to_string());
+            LOG.messages.push((format_args!($($arg)*).to_string(), Instant::now()));
         }
     }
     };
@@ -48,12 +52,11 @@ macro_rules! log {
 pub fn clear() {
     unsafe {
         LOG.messages = Vec::new();
-        LOG.timer = Instant::now();
     }
 }
 
 pub fn last_message() -> Option<&'static str> {
-    if let Some(message) = unsafe { LOG.messages.last() } {
+    if let Some((message, _)) = unsafe { LOG.messages.last() } {
         Some(message.as_str())
     } else {
         None

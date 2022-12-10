@@ -76,6 +76,7 @@ static mut VDB: Lazy<vdb::Database> = Lazy::new(|| vdb::create().unwrap());
 fn main() {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut scan_timer = Instant::now();
     let mut scan_handle = None;
 
     if !args.is_empty() {
@@ -88,6 +89,7 @@ fn main() {
                 if Path::new(&path).exists() {
                     persist.music_folder = path.clone();
                     scan_handle = Some(db::create(path));
+                    scan_timer = Instant::now();
                 } else {
                     return println!("Invalid path.");
                 }
@@ -154,9 +156,7 @@ fn main() {
 
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
-    let mut busy = false;
     let mut dots: usize = 1;
-    let mut scan_timer: Option<Instant> = None;
     let mut focused = true;
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
@@ -164,37 +164,20 @@ fn main() {
         mode = Mode::Queue;
     }
 
-    let mut end_scan = false;
-
     loop {
-        if let Some(h) = &scan_handle {
-            if h.is_finished() {
-                end_scan = true;
-            } else {
-                busy = true;
+        if let Some(handle) = &scan_handle {
+            if handle.is_finished() {
+                let handle = scan_handle.take().unwrap();
+                let result = handle.join().unwrap();
 
-                if scan_timer.is_none() {
-                    scan_timer = Some(Instant::now());
-                    log!("Scanning for files.");
-                }
-            }
-        } else {
-            busy = false;
-        }
+                log::clear();
 
-        if end_scan {
-            let h = scan_handle.take().unwrap();
-            let result = h.join().unwrap();
-
-            log::clear();
-
-            if let Some(time) = scan_timer {
                 match result {
                     db::ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            db::len().unwrap(),
-                            time.elapsed().as_secs_f32()
+                            db::len(),
+                            scan_timer.elapsed().as_secs_f32()
                         );
                     }
                     db::ScanResult::CompletedWithErrors(errors) => {
@@ -205,32 +188,32 @@ fn main() {
                         let dir = "See .config/gonk/gonk.log for details.";
 
                         let len = errors.len();
-
                         let s = if len == 1 { "" } else { "s" };
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            db::len().unwrap() - len,
+                            db::len().saturating_sub(len)
                         );
 
                         let path = gonk_path().join("gonk.log");
                         let errors = errors.join("\n");
                         fs::write(path, errors).unwrap();
                     }
-                    db::ScanResult::FileInUse => log!("Could not update database, file in use."),
+                    db::ScanResult::FileInUse => {
+                        log!("Could not update database, file in use.")
+                    }
                 }
+
+                browser::refresh(&mut browser);
+                search.results = Index::from(unsafe { vdb::search(&VDB, &search.query) });
+
+                //No need to reset scan_timer since it's reset with new scans.
+                scan_handle = None;
             }
-
-            browser::refresh(&mut browser);
-            // search.results = unsafe { vdb::search(&VDB, &search.query) };
-
-            scan_timer = None;
-            scan_handle = None;
-            end_scan = false;
         }
 
         if last_tick.elapsed() >= Duration::from_millis(150) {
-            if busy && scan_timer.is_some() {
+            if scan_handle.is_some() {
                 if dots < 3 {
                     dots += 1;
                 } else {
@@ -365,7 +348,9 @@ fn main() {
                                     );
                                 } else {
                                     scan_handle = Some(db::create(persist.music_folder.clone()));
-                                    // playlist.playlists = Index::from(gonk_core::playlists());
+                                    scan_timer = Instant::now();
+                                    playlist.lists =
+                                        Index::from(gonk_core::playlist::playlists().unwrap());
                                 }
                             }
                         }

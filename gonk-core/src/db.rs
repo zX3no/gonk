@@ -19,6 +19,8 @@ pub const NUMBER_POS: usize = SONG_LEN - 1 - size_of::<f32>() - size_of::<u8>();
 pub const DISC_POS: usize = SONG_LEN - 1 - size_of::<f32>();
 pub const GAIN_POS: Range<usize> = SONG_LEN - size_of::<f32>()..SONG_LEN;
 
+static mut LEN: usize = 0;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
@@ -61,11 +63,11 @@ impl Song {
         }
 
         if i != 0 {
-            // log!(
-            //     "Warning: {} overflowed {} bytes! Metadata will be truncated.",
-            //     path,
-            //     SONG_LEN
-            // );
+            log!(
+                "Warning: {} overflowed {} bytes! Metadata will be truncated.",
+                path,
+                SONG_LEN
+            );
         }
 
         let artist_len = (artist.len() as u16).to_le_bytes();
@@ -118,9 +120,8 @@ pub enum ScanResult {
     FileInUse,
 }
 
-pub fn len() -> Result<usize, Box<dyn Error>> {
-    let bytes = fs::read(database_path())?;
-    Ok(bytes.len() / db::SONG_LEN)
+pub fn len() -> usize {
+    unsafe { LEN }
 }
 
 pub fn reset() -> Result<(), Box<dyn Error>> {
@@ -192,9 +193,20 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 }
 
 pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
-    let bytes = fs::read(database_path())?;
+    let bytes = match fs::read(database_path()) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return match error.kind() {
+                std::io::ErrorKind::NotFound => Ok(Vec::new()),
+                _ => Err(error)?,
+            }
+        }
+    };
 
+    //This may not represent the amount of songs in the database.
     let song_count = bytes.len() / db::SONG_LEN;
+    //Keep track of the database size.
+    unsafe { LEN = song_count };
 
     if bytes.len() % db::SONG_LEN != 0 {
         return Err("Size of database is incorrect")?;

@@ -1,3 +1,7 @@
+//! Music player settings
+//!
+//! Stores the volume, state of the queue and output device
+//!
 use crate::{
     db::{bytes_to_song, SONG_LEN},
     *,
@@ -31,7 +35,6 @@ impl Settings {
     pub fn new() -> Settings {
         match Settings::read() {
             Ok(settings) => settings,
-            //TODO: File related error migth show up?
             Err(_) => Settings::default(),
         }
     }
@@ -112,76 +115,3 @@ impl Settings {
         Ok(())
     }
 }
-
-/*
-
-pub fn save_volume(new_volume: u8) {
-    unsafe {
-        DB.settings.volume = new_volume;
-        DB.settings.save().unwrap();
-    }
-}
-
-pub fn save_queue(queue: &[Song], index: u16, elapsed: f32) {
-    unsafe {
-        DB.settings.queue = queue.iter().map(RawSong::from).collect();
-        DB.settings.index = index;
-        DB.settings.elapsed = elapsed;
-        DB.settings.save().unwrap();
-    };
-}
-
-pub fn update_queue_state(index: u16, elapsed: f32) {
-    unsafe {
-        DB.settings.elapsed = elapsed;
-        DB.settings.index = index;
-        DB.settings.save().unwrap();
-    }
-}
-
-pub fn update_output_device(device: &str) {
-    unsafe {
-        DB.settings.output_device = device.to_string();
-        DB.settings.save().unwrap();
-    }
-}
-
-pub fn update_music_folder(folder: &str) {
-    unsafe {
-        DB.settings.music_folder = folder.replace('\\', "/");
-        DB.settings.save().unwrap();
-    }
-}
-
-pub fn get_saved_queue() -> (Vec<Song>, Option<usize>, f32) {
-    let settings = unsafe { &DB.settings };
-    let index = if settings.queue.is_empty() {
-        None
-    } else {
-        Some(settings.index as usize)
-    };
-
-    (
-        settings
-            .queue
-            .iter()
-            .map(|song| Song::from(&song.as_bytes()))
-            .collect(),
-        index,
-        settings.elapsed,
-    )
-}
-
-pub fn output_device() -> &'static str {
-    unsafe { &DB.settings.output_device }
-}
-
-pub fn music_folder() -> &'static str {
-    unsafe { &DB.settings.music_folder }
-}
-
-pub fn volume() -> u8 {
-    unsafe { DB.settings.volume }
-}
-
-*/
