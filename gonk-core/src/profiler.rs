@@ -153,5 +153,5 @@ pub fn print() {
         string.push_str(&format!("   - max: {:?}\n\n", score.max));
     }
 
-    println!("{}", string);
+    println!("{string}");
 }

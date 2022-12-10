@@ -77,7 +77,7 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
             Item::Song((artist, album, _, disc, number)) => {
                 match unsafe { vdb::song(&VDB, artist, album, *disc, *number) } {
                     Some(song) => vec![song],
-                    None => panic!("{:?}", item),
+                    None => panic!("{item:?}"),
                 }
             }
             Item::Album((artist, album)) => unsafe { vdb::album(&VDB, artist, album) }
