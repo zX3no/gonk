@@ -96,7 +96,7 @@ fn main() {
             }
             "reset" => {
                 return match gonk_core::db::reset() {
-                    Ok(_) => println!("Files reset!"),
+                    Ok(_) => println!("Database reset!"),
                     Err(e) => println!("Failed to reset database! {e}"),
                 };
             }
@@ -169,6 +169,7 @@ fn main() {
             if handle.is_finished() {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
+                unsafe { *VDB = vdb::create().unwrap() };
 
                 log::clear();
 
@@ -205,7 +206,7 @@ fn main() {
                 }
 
                 browser::refresh(&mut browser);
-                search.results = Index::from(unsafe { vdb::search(&VDB, &search.query) });
+                search.results = Index::new(unsafe { vdb::search(&VDB, &search.query) }, Some(0));
 
                 //No need to reset scan_timer since it's reset with new scans.
                 scan_handle = None;

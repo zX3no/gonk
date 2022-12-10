@@ -21,7 +21,7 @@ static mut FILE: Lazy<File> = Lazy::new(|| {
         .unwrap()
 });
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Settings {
     pub volume: u8,
     pub index: u16,
@@ -29,6 +29,19 @@ pub struct Settings {
     pub output_device: String,
     pub music_folder: String,
     pub queue: Vec<Song>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            volume: 15,
+            index: Default::default(),
+            elapsed: Default::default(),
+            output_device: Default::default(),
+            music_folder: Default::default(),
+            queue: Default::default(),
+        }
+    }
 }
 
 impl Settings {

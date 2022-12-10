@@ -126,7 +126,9 @@ pub fn len() -> usize {
 
 pub fn reset() -> Result<(), Box<dyn Error>> {
     fs::remove_file(settings_path())?;
-    fs::remove_file(database_path())?;
+    if database_path().exists() {
+        fs::remove_file(database_path())?;
+    }
     Ok(())
 }
 
