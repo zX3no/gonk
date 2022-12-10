@@ -167,8 +167,7 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
     }
 }
 
-//HACK: For some reason songs: &[] was causing rls to stop working.
-pub fn add(playlist: &mut Playlist, songs: &[gonk_core::Song]) {
+pub fn add(playlist: &mut Playlist, songs: &[Song]) {
     playlist.song_buffer = songs.to_vec();
     playlist.mode = Mode::Popup;
 }
