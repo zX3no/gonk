@@ -3,7 +3,11 @@
 //! A sample buffer of 20ms is filled for audio backends to use.
 //!
 use crate::{State, ELAPSED, STATE};
-use core::{mem::MaybeUninit, ops::Deref};
+use core::{
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+};
+use rb::{Consumer, Producer, RbProducer, SpscRb, RB};
 use ringbuf::SharedRb;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -24,40 +28,77 @@ use symphonia::{
     default::get_probe,
 };
 
-type Consumer = ringbuf::Consumer<f32, Arc<SharedRb<f32, Vec<MaybeUninit<f32>>>>>;
-
 pub struct Decoder {
     symphonia: Arc<RwLock<Symphonia>>,
-    cons: Consumer,
+    cons: Consumer<f32>,
+    // prod: Producer<f32>,
 }
 
 impl Decoder {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        let symphonia = Symphonia::new(path).unwrap();
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+        let symphonia = Symphonia::new(path)?;
         let ring_len = ((20 * symphonia.sample_rate() as usize) / 1000) * symphonia.channels();
-        let rb = ringbuf::HeapRb::<f32>::new(ring_len);
-        let (mut prod, cons) = rb.split();
+        // let rb = ringbuf::HeapRb::<f32>::new(ring_len);
+        // let (mut prod, cons) = rb.split();
+
+        let rb = SpscRb::new(ring_len);
+        let (prod, cons) = (rb.producer(), rb.consumer());
 
         let symphonia = Arc::new(RwLock::new(symphonia));
         let sym = symphonia.clone();
 
         //Constantly fill the buffer with new samples.
         thread::spawn(move || loop {
-            if let Some(packet) = sym.write().unwrap().next_packet() {
-                //TODO: This should be blocking right?
-                prod.push_slice(packet.samples());
-            }
+            // thread::sleep(Duration::from_millis(50));
+            let Some(packet) = sym.write().unwrap().next_packet() else {
+                continue;
+            };
+            // eprintln!("write");
+
+            prod.write_blocking(packet.samples()).unwrap();
         });
 
-        Self { symphonia, cons }
+        Ok(Self {
+            symphonia,
+            cons,
+            // prod,
+        })
+    }
+    //I hate needing to do this...
+    pub fn duration(&self) -> Duration {
+        self.symphonia.read().unwrap().duration()
+    }
+    pub fn sample_rate(&self) -> u32 {
+        self.symphonia.read().unwrap().sample_rate()
+    }
+    pub fn refill(&mut self) {
+        // if !self.overflow.is_empty() {
+        //     // self.prod.write_()
+        // }
+
+        // let mut sym = self.symphonia.write().unwrap();
+
+        // let Some(packet) = sym.next_packet() else {
+        //     return;
+        // };
+
+        // if self.prod.write(packet.samples()).is_err() {
+        //     self.overflow.extend_from_slice(packet.samples());
+        // };
     }
 }
 
 impl Deref for Decoder {
-    type Target = Consumer;
+    type Target = Consumer<f32>;
 
     fn deref(&self) -> &Self::Target {
         &self.cons
+    }
+}
+
+impl DerefMut for Decoder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.cons
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::{decoder::Decoder, Event, State, VOLUME_REDUCTION};
-use core::slice;
+use core::{ffi::c_void, slice};
 use crossbeam_channel::Receiver;
+use rb::RbConsumer;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
@@ -8,9 +9,6 @@ use std::ptr::{null, null_mut};
 use std::sync::Once;
 use std::thread;
 use std::time::Duration;
-use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
-use winapi::shared::guiddef::GUID;
-use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
 use winapi::um::audiosessiontypes::{
     AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
@@ -26,9 +24,15 @@ use winapi::um::winbase::{
     FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS,
 };
 use winapi::um::winnt::HRESULT;
+use winapi::{shared::devpkey::DEVPKEY_Device_FriendlyName, um::synchapi::WaitForSingleObject};
+use winapi::{shared::guiddef::GUID, um::winbase::INFINITE};
+use winapi::{
+    shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
+    um::winbase::WAIT_OBJECT_0,
+};
 use winapi::{Interface, RIDL};
 
-const MAX_BUFFER_SIZE: usize = 1024;
+const MAX_BUFFER_SIZE: usize = 48_000;
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
@@ -223,6 +227,9 @@ pub struct Wasapi {
     pub format: WAVEFORMATEXTENSIBLE,
 
     pub buffer: Vec<u8>,
+    pub static_buffer: Box<[u8; MAX_BUFFER_SIZE]>,
+
+    pub h_event: *mut c_void,
 }
 
 impl Wasapi {
@@ -324,6 +331,8 @@ impl Wasapi {
             render_client,
             format,
             buffer: Vec::new(),
+            static_buffer: Box::new([0; MAX_BUFFER_SIZE]),
+            h_event,
         }
     }
     pub unsafe fn buffer_frame_count(&mut self) -> usize {
@@ -336,16 +345,19 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, sym: &mut Decoder, gain: f32) {
+    pub unsafe fn fill_buffer(&mut self, decoder: &mut Decoder, gain: f32) {
         let block_align = self.format.Format.nBlockAlign as usize;
         let channels = self.format.Format.nChannels as usize;
-        let channel_align = block_align / channels;
-        let gain = if gain == 0.0 { 0.5 } else { gain };
+        // let gain = if gain == 0.0 { 0.5 } else { gain };
         let buffer_frame_count = self.buffer_frame_count();
 
         if buffer_frame_count > self.buffer.len() {
             self.buffer.resize(buffer_frame_count * block_align, 0);
         }
+
+        //the buffer is something sent to the output device.
+        //buffer_frame_count is the amount of frames in a buffer.
+        //a frame is ...
 
         let mut frames_written = 0;
         while frames_written < buffer_frame_count {
@@ -356,30 +368,55 @@ impl Wasapi {
                 [frames_written * block_align..(frames_written + frames) * block_align]
                 .chunks_exact_mut(block_align)
             {
-                for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
-                    // let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
-                    // let smp_bytes = smp.to_le_bytes();
-                    // debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
-                    // out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
+                for out_smp_bytes in out_frame.chunks_exact_mut(block_align / channels) {
+                    // let smp = decoder.pop().unwrap_or(0.0) * VOLUME * gain;
+                    let mut f = [0.0];
+                    let _ = decoder.read(&mut f);
+                    let smp_bytes = (f[0] * VOLUME * gain).to_le_bytes();
+                    debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
+                    out_smp_bytes[..4].copy_from_slice(&smp_bytes);
                 }
             }
 
             frames_written += frames;
         }
 
-        // Write the output buffer to the device.
-        debug_assert!(self.buffer.len() >= buffer_frame_count * block_align);
-        let data = &self.buffer[0..buffer_frame_count * block_align];
+        let buffer_size = buffer_frame_count * block_align;
+        /*
 
-        let nbr_bytes = buffer_frame_count * block_align;
-        debug_assert_eq!(nbr_bytes, data.len());
+        // debug_assert!(buffer_size > MAX_BUFFER_SIZE);
+        if buffer_size > MAX_BUFFER_SIZE {
+            panic!("{buffer_size} {MAX_BUFFER_SIZE}");
+        }
+
+        let data = &mut self.static_buffer;
+
+        //Iterate over every block.
+        for frame in data.chunks_exact_mut(block_align) {
+            //Iterate over every channel align something?
+            for value in frame.chunks_exact_mut(block_align / channels) {
+                //Iterate over every 4 bytes (size of float)
+                for sample in value.chunks_mut(4) {
+                    let sample_bytes = (decoder.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
+                    sample.copy_from_slice(&sample_bytes);
+                }
+            }
+        }
+        */
+
+        let data = &self.buffer;
 
         let mut buffer_ptr = null_mut();
         check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
 
-        let buffer_slice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
-        buffer_slice.copy_from_slice(data);
+        slice::from_raw_parts_mut(buffer_ptr, buffer_size).copy_from_slice(&data[..buffer_size]);
+
         (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
+
+        let result = unsafe { WaitForSingleObject(self.h_event, INFINITE) };
+        if result != WAIT_OBJECT_0 {
+            panic!();
+        }
     }
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
@@ -402,22 +439,22 @@ pub unsafe fn create_decoder(
     wasapi: &mut Wasapi,
     sample_rate: &mut u32,
 ) {
-    // match Decoder::new(path) {
-    //     Ok(sym) => {
-    //         DURATION = sym.duration();
+    match Decoder::new(path) {
+        Ok(d) => {
+            DURATION = d.duration();
 
-    //         let new = sym.sample_rate();
-    //         if *sample_rate != new {
-    //             if wasapi.set_sample_rate(new).is_err() {
-    //                 *wasapi = Wasapi::new(device, Some(new));
-    //             };
-    //             *sample_rate = new;
-    //         }
+            let new = d.sample_rate();
+            if *sample_rate != new {
+                if wasapi.set_sample_rate(new).is_err() {
+                    *wasapi = Wasapi::new(device, Some(new));
+                };
+                *sample_rate = new;
+            }
 
-    //         *decoder = Some(sym);
-    //     }
-    //     Err(err) => gonk_core::log!("{}", err),
-    // }
+            *decoder = Some(d);
+        }
+        Err(err) => gonk_core::log!("{}", err),
+    }
 }
 
 //TODO: Devices with 4 channels don't play correctly?
@@ -474,12 +511,13 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
         //HACK: Don't overwork the thread.
         //Updating the elapsed time is not that important.
         //Filling the buffer here is probably not good.
-        thread::sleep(Duration::from_millis(2));
+        // thread::sleep(Duration::from_millis(2));
 
         //Update the elapsed time and fill the output buffer.
         if let State::Playing = STATE {
             if let Some(decoder) = &mut decoder {
                 // ELAPSED = decoder.elapsed();
+                // decoder.refill();
                 wasapi.fill_buffer(decoder, gain);
             }
         }
