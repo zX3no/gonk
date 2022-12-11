@@ -1,4 +1,4 @@
-use crate::{Event, State, Symphonia, VOLUME_REDUCTION};
+use crate::{decoder::Decoder, Event, State, VOLUME_REDUCTION};
 use core::slice;
 use crossbeam_channel::Receiver;
 use std::ffi::OsString;
@@ -173,7 +173,6 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 }
 
 ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-//TODO: I think these panics don't work?
 #[inline]
 #[track_caller]
 pub unsafe fn check(result: i32) {
@@ -312,6 +311,13 @@ impl Wasapi {
 
         (*audio_client).Start();
 
+        //TODO: Ringbuffer
+        // let ms = 20;
+        // let ring_len = ((ms * format.Format.nSamplesPerSec as usize) / 1000)
+        //     * format.Format.nChannels as usize;
+        // let rb = ringbuf::HeapRb::<f32>::new(ring_len);
+        // let (mut prod, mut cons) = rb.split();
+
         Self {
             audio_client,
             audio_clock_adjust,
@@ -330,7 +336,7 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, sym: &mut Symphonia, gain: f32) {
+    pub unsafe fn fill_buffer(&mut self, sym: &mut Decoder, gain: f32) {
         let block_align = self.format.Format.nBlockAlign as usize;
         let channels = self.format.Format.nChannels as usize;
         let channel_align = block_align / channels;
@@ -351,10 +357,10 @@ impl Wasapi {
                 .chunks_exact_mut(block_align)
             {
                 for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
-                    let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
-                    let smp_bytes = smp.to_le_bytes();
-                    debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
-                    out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
+                    // let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
+                    // let smp_bytes = smp.to_le_bytes();
+                    // debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
+                    // out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
                 }
             }
 
@@ -392,33 +398,33 @@ impl Wasapi {
 pub unsafe fn create_decoder(
     path: &str,
     device: &Device,
-    decoder: &mut Option<Symphonia>,
+    decoder: &mut Option<Decoder>,
     wasapi: &mut Wasapi,
     sample_rate: &mut u32,
 ) {
-    match Symphonia::new(path) {
-        Ok(sym) => {
-            DURATION = sym.duration();
+    // match Decoder::new(path) {
+    //     Ok(sym) => {
+    //         DURATION = sym.duration();
 
-            let new = sym.sample_rate();
-            if *sample_rate != new {
-                if wasapi.set_sample_rate(new).is_err() {
-                    *wasapi = Wasapi::new(device, Some(new));
-                };
-                *sample_rate = new;
-            }
+    //         let new = sym.sample_rate();
+    //         if *sample_rate != new {
+    //             if wasapi.set_sample_rate(new).is_err() {
+    //                 *wasapi = Wasapi::new(device, Some(new));
+    //             };
+    //             *sample_rate = new;
+    //         }
 
-            *decoder = Some(sym);
-        }
-        Err(err) => gonk_core::log!("{}", err),
-    }
+    //         *decoder = Some(sym);
+    //     }
+    //     Err(err) => gonk_core::log!("{}", err),
+    // }
 }
 
 //TODO: Devices with 4 channels don't play correctly?
 pub unsafe fn new(device: &Device, r: Receiver<Event>) {
     let mut wasapi = Wasapi::new(device, None);
     let mut sample_rate = wasapi.format.Format.nSamplesPerSec;
-    let mut decoder: Option<Symphonia> = None;
+    let mut decoder: Option<Decoder> = None;
     let mut gain = 0.50;
 
     loop {
@@ -440,12 +446,12 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                     }
                     create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                     if let Some(decoder) = &mut decoder {
-                        decoder.seek(elapsed);
+                        // decoder.seek(elapsed);
                     }
                 }
                 Event::Seek(pos) => {
                     if let Some(decoder) = &mut decoder {
-                        decoder.seek(pos);
+                        // decoder.seek(pos);
                     }
                 }
                 Event::Play => STATE = State::Playing,
@@ -473,7 +479,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
         //Update the elapsed time and fill the output buffer.
         if let State::Playing = STATE {
             if let Some(decoder) = &mut decoder {
-                ELAPSED = decoder.elapsed();
+                // ELAPSED = decoder.elapsed();
                 wasapi.fill_buffer(decoder, gain);
             }
         }

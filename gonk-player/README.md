@@ -5,12 +5,12 @@ Input -> (Play song at path ...)
 API -> Decode Audio -> Send audio to operating system
 
 ```rust
-static mut DECODER: Decoder = Lazy::new(|| Decoder::new());
-
 static mut WASAPI: Wasapi = Lazy::new(|| Wasapi::new());
+
 
 struct Player {
     songs: Index<Song>,
+    decoder: Decoder,
 }
 
 impl Player {
@@ -19,17 +19,35 @@ impl Player {
     }
     fn next(&self) {
         self.songs.next();
-        DECODER.load(self.songs.playing())
+        self.decoder.load(self.songs.playing())
     }
     fn play() {
-        DECODER.load("D:/Test.flac");
+        self.decoder.load("D:/Test.flac");
     }
     fn seek() {
-        DECODER.seek("+30 seconds");
+        self.decoder.seek("+30 seconds");
     }
 }
 
-let packets = DECODER.next();
+struct Decoder {
+    symphonia: Arc<RwLock<Symphonia>>,
+    //A new ring buffer will need to be constructed every song.
+    //Since the sample rates vary, the size required to buffer 20ms will change.
+    ringbuf: Ringbuf,
+}
+
+impl Decoder {
+    fn new() {
+        thread::spawn(|| {
+            //Push samples into the buffer.
+            ringbuf.push(syphonia.decode());
+        });
+    }
+    fn seek(&self) {
+        self.symphonia.seek();
+        self.ringbuf.clear();
+    }
+}
 
 WASAPI.set_output_device("Output 3");
 WASAPI.set_sample_rate(44100);
