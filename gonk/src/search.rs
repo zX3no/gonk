@@ -50,11 +50,17 @@ impl Input for Search {
 pub fn on_backspace(search: &mut Search, shift: bool) {
     match search.mode {
         Mode::Search => {
+            //You can't delete nothing
+            if search.query.is_empty() {
+                return;
+            }
+
             if shift {
                 search.query.clear();
             } else {
                 search.query.pop();
             }
+
             search.query_changed = true;
         }
         Mode::Select => {

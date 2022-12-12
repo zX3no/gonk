@@ -1,7 +1,6 @@
 use crate::{decoder::Decoder, Event, State, VOLUME_REDUCTION};
 use core::{ffi::c_void, slice};
 use crossbeam_channel::Receiver;
-use rb::RbConsumer;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
@@ -32,7 +31,6 @@ use winapi::{
 };
 use winapi::{Interface, RIDL};
 
-const MAX_BUFFER_SIZE: usize = 48_000;
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
@@ -226,8 +224,7 @@ pub struct Wasapi {
     pub render_client: *mut IAudioRenderClient,
     pub format: WAVEFORMATEXTENSIBLE,
 
-    pub buffer: Vec<u8>,
-    pub static_buffer: Box<[u8; MAX_BUFFER_SIZE]>,
+    pub buffer: Vec<f32>,
 
     pub h_event: *mut c_void,
 }
@@ -331,7 +328,6 @@ impl Wasapi {
             render_client,
             format,
             buffer: Vec::new(),
-            static_buffer: Box::new([0; MAX_BUFFER_SIZE]),
             h_event,
         }
     }
@@ -345,71 +341,44 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, decoder: &mut Decoder, gain: f32) {
+    pub unsafe fn fill_buffer(
+        &mut self,
+        decoder: &mut Decoder,
+        gain: f32,
+        cons: &mut ringbuf::Consumer<
+            f32,
+            std::sync::Arc<ringbuf::SharedRb<f32, std::vec::Vec<std::mem::MaybeUninit<f32>>>>,
+        >,
+    ) {
         let block_align = self.format.Format.nBlockAlign as usize;
-        let channels = self.format.Format.nChannels as usize;
-        // let gain = if gain == 0.0 { 0.5 } else { gain };
+        let gain = if gain == 0.0 { 0.5 } else { gain };
         let buffer_frame_count = self.buffer_frame_count();
-
-        if buffer_frame_count > self.buffer.len() {
-            self.buffer.resize(buffer_frame_count * block_align, 0);
-        }
-
-        //the buffer is something sent to the output device.
-        //buffer_frame_count is the amount of frames in a buffer.
-        //a frame is ...
-
-        let mut frames_written = 0;
-        while frames_written < buffer_frame_count {
-            let frames = (buffer_frame_count - frames_written).min(MAX_BUFFER_SIZE);
-
-            debug_assert!((frames_written + frames) * block_align <= self.buffer.len());
-            for out_frame in &mut self.buffer
-                [frames_written * block_align..(frames_written + frames) * block_align]
-                .chunks_exact_mut(block_align)
-            {
-                for out_smp_bytes in out_frame.chunks_exact_mut(block_align / channels) {
-                    // let smp = decoder.pop().unwrap_or(0.0) * VOLUME * gain;
-                    let mut f = [0.0];
-                    let _ = decoder.read(&mut f);
-                    let smp_bytes = (f[0] * VOLUME * gain).to_le_bytes();
-                    debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
-                    out_smp_bytes[..4].copy_from_slice(&smp_bytes);
-                }
-            }
-
-            frames_written += frames;
-        }
-
         let buffer_size = buffer_frame_count * block_align;
-        /*
 
-        // debug_assert!(buffer_size > MAX_BUFFER_SIZE);
-        if buffer_size > MAX_BUFFER_SIZE {
-            panic!("{buffer_size} {MAX_BUFFER_SIZE}");
-        }
-
-        let data = &mut self.static_buffer;
-
-        //Iterate over every block.
-        for frame in data.chunks_exact_mut(block_align) {
-            //Iterate over every channel align something?
-            for value in frame.chunks_exact_mut(block_align / channels) {
-                //Iterate over every 4 bytes (size of float)
-                for sample in value.chunks_mut(4) {
-                    let sample_bytes = (decoder.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
-                    sample.copy_from_slice(&sample_bytes);
-                }
-            }
-        }
-        */
-
-        let data = &self.buffer;
+        let _channels = self.format.Format.nChannels as usize;
 
         let mut buffer_ptr = null_mut();
         check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
 
-        slice::from_raw_parts_mut(buffer_ptr, buffer_size).copy_from_slice(&data[..buffer_size]);
+        let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
+
+        // let bytes = slice.len() / 4;
+        // if self.buffer.capacity() < bytes {
+        //     self.buffer.resize(bytes, 0.0);
+        // }
+        // let bytes: Vec<[u8; 4]> = self
+        //     .buffer
+        //     .iter()
+        //     .map(|f| (f * VOLUME * gain).to_le_bytes())
+        //     .collect();
+
+        for sample in slice.chunks_mut(4) {
+            let sample_bytes = (cons.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
+            sample[0] = sample_bytes[0];
+            sample[1] = sample_bytes[1];
+            sample[2] = sample_bytes[2];
+            sample[3] = sample_bytes[3];
+        }
 
         (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
 
@@ -431,6 +400,8 @@ impl Wasapi {
         }
     }
 }
+
+const MAX_BUFFER_SIZE: usize = 1024;
 
 pub unsafe fn create_decoder(
     path: &str,
@@ -518,7 +489,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
             if let Some(decoder) = &mut decoder {
                 // ELAPSED = decoder.elapsed();
                 // decoder.refill();
-                wasapi.fill_buffer(decoder, gain);
+                // wasapi.fill_buffer(decoder, gain);
             }
         }
     }

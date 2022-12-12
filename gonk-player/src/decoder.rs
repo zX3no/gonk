@@ -6,9 +6,11 @@ use crate::{State, ELAPSED, STATE};
 use core::{
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
+    pin::Pin,
+    ptr::addr_of_mut,
 };
-use rb::{Consumer, Producer, RbProducer, SpscRb, RB};
-use ringbuf::SharedRb;
+use gonk_core::Lazy;
+use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use std::{fs::File, path::Path};
@@ -29,48 +31,42 @@ use symphonia::{
 };
 
 pub struct Decoder {
-    symphonia: Arc<RwLock<Symphonia>>,
-    cons: Consumer<f32>,
-    // prod: Producer<f32>,
+    pub symphonia: Symphonia,
 }
 
 impl Decoder {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
-        let symphonia = Symphonia::new(path)?;
-        let ring_len = ((20 * symphonia.sample_rate() as usize) / 1000) * symphonia.channels();
-        // let rb = ringbuf::HeapRb::<f32>::new(ring_len);
-        // let (mut prod, cons) = rb.split();
-
-        let rb = SpscRb::new(ring_len);
-        let (prod, cons) = (rb.producer(), rb.consumer());
-
-        let symphonia = Arc::new(RwLock::new(symphonia));
-        let sym = symphonia.clone();
-
-        //Constantly fill the buffer with new samples.
-        thread::spawn(move || loop {
-            // thread::sleep(Duration::from_millis(50));
-            let Some(packet) = sym.write().unwrap().next_packet() else {
-                continue;
-            };
-            // eprintln!("write");
-
-            prod.write_blocking(packet.samples()).unwrap();
-        });
-
-        Ok(Self {
-            symphonia,
-            cons,
-            // prod,
-        })
+        let mut symphonia = Symphonia::new(path)?;
+        Ok(Self { symphonia })
     }
     //I hate needing to do this...
     pub fn duration(&self) -> Duration {
-        self.symphonia.read().unwrap().duration()
+        // self.symphonia.read().unwrap().duration()
+        Duration::from_secs(0)
     }
     pub fn sample_rate(&self) -> u32 {
-        self.symphonia.read().unwrap().sample_rate()
+        // self.symphonia.read().unwrap().sample_rate()
+        44100
     }
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&self) -> f32 {
+        let slice = &mut [0.0];
+        // let _ = self.cons.read(slice);
+        slice[0]
+    }
+    // #[allow(clippy::should_implement_trait)]
+    // pub fn next(&mut self) -> Option<f32> {
+    //     if self.buf.is_empty() {
+    //         match self.symphonia.write().unwrap().next_packet() {
+    //             Some(packet) => self.buf = VecDeque::from(packet.samples().to_vec()),
+    //             None => {
+    //                 return None;
+    //             }
+    //         }
+    //     }
+
+    //     self.buf.pop_front()
+    // }
     pub fn refill(&mut self) {
         // if !self.overflow.is_empty() {
         //     // self.prod.write_()
@@ -88,19 +84,19 @@ impl Decoder {
     }
 }
 
-impl Deref for Decoder {
-    type Target = Consumer<f32>;
+// impl Deref for Decoder {
+//     type Target = Consumer<f32>;
 
-    fn deref(&self) -> &Self::Target {
-        &self.cons
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         &self.cons
+//     }
+// }
 
-impl DerefMut for Decoder {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.cons
-    }
-}
+// impl DerefMut for Decoder {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.cons
+//     }
+// }
 
 pub struct Symphonia {
     format_reader: Box<dyn FormatReader>,
