@@ -1,13 +1,13 @@
 use crate::{decoder::Decoder, Event, State, VOLUME_REDUCTION};
 use core::{ffi::c_void, slice};
 use crossbeam_channel::Receiver;
-use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::sync::Once;
 use std::thread;
 use std::time::Duration;
+use std::{ffi::OsString, pin::Pin};
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
 use winapi::um::audiosessiontypes::{
     AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
@@ -315,13 +315,6 @@ impl Wasapi {
 
         (*audio_client).Start();
 
-        //TODO: Ringbuffer
-        // let ms = 20;
-        // let ring_len = ((ms * format.Format.nSamplesPerSec as usize) / 1000)
-        //     * format.Format.nChannels as usize;
-        // let rb = ringbuf::HeapRb::<f32>::new(ring_len);
-        // let (mut prod, mut cons) = rb.split();
-
         Self {
             audio_client,
             audio_clock_adjust,
@@ -383,7 +376,7 @@ impl Wasapi {
 pub unsafe fn create_decoder(
     path: &str,
     device: &Device,
-    decoder: &mut Option<Decoder>,
+    decoder: &mut Option<Pin<Box<Decoder>>>,
     wasapi: &mut Wasapi,
     sample_rate: &mut usize,
 ) {
@@ -409,7 +402,7 @@ pub unsafe fn create_decoder(
 pub unsafe fn new(device: &Device, r: Receiver<Event>) {
     let mut wasapi = Wasapi::new(device, None);
     let mut sample_rate = wasapi.format.Format.nSamplesPerSec as usize;
-    let mut decoder: Option<Decoder> = None;
+    let mut decoder: Option<Pin<Box<Decoder>>> = None;
     let mut gain = 0.50;
 
     loop {
@@ -431,12 +424,12 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                     }
                     create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
                     if let Some(decoder) = &mut decoder {
-                        // decoder.seek(elapsed);
+                        decoder.seek(elapsed);
                     }
                 }
                 Event::Seek(pos) => {
                     if let Some(decoder) = &mut decoder {
-                        // decoder.seek(pos);
+                        decoder.seek(pos);
                     }
                 }
                 Event::Play => STATE = State::Playing,
@@ -464,9 +457,8 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
         //Update the elapsed time and fill the output buffer.
         if let State::Playing = STATE {
             if let Some(decoder) = &mut decoder {
-                // ELAPSED = decoder.elapsed();
-                // decoder.refill();
-                // wasapi.fill_buffer(decoder, gain);
+                ELAPSED = decoder.elapsed();
+                wasapi.fill_buffer(decoder, gain);
             }
         }
     }

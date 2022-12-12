@@ -31,88 +31,24 @@ use symphonia::{
 
 type Consumer = ringbuf::Consumer<f32, Arc<ringbuf::SharedRb<f32, Vec<MaybeUninit<f32>>>>>;
 
-pub fn new_leak(
-    path: impl AsRef<Path>,
-) -> Result<&'static mut Decoder, Box<dyn std::error::Error>> {
-    let symphonia = Symphonia::new(path)?;
-
-    let millis = 20;
-    let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
-    let rb = HeapRb::<f32>::new(ring_len);
-    let (mut prod, cons) = rb.split();
-
-    let mut boxed = Box::new(Decoder { symphonia, cons });
-
-    let cast: usize = addr_of_mut!(boxed.symphonia) as usize;
-
-    thread::spawn(move || {
-        let sym = cast as *mut Symphonia;
-        loop {
-            if let Some(packet) = unsafe { (*sym).next_packet() } {
-                for sample in packet.samples() {
-                    //Wait until we can fit the packet into the buffer.
-                    loop {
-                        match prod.push(*sample) {
-                            Ok(_) => break,
-                            Err(_) => continue,
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    Ok(Box::leak(boxed))
-}
-
-pub fn new(path: impl AsRef<Path>) -> Result<Pin<Box<Decoder>>, Box<dyn std::error::Error>> {
-    let symphonia = Symphonia::new(path)?;
-
-    let millis = 20;
-    let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
-
-    let rb = HeapRb::<f32>::new(ring_len);
-    let (mut prod, cons) = rb.split();
-
-    let mut boxed = Box::pin(Decoder { symphonia, cons });
-
-    let cast: usize = addr_of_mut!(boxed.symphonia) as usize;
-
-    thread::spawn(move || {
-        let sym = cast as *mut Symphonia;
-        loop {
-            if let Some(packet) = unsafe { (*sym).next_packet() } {
-                for sample in packet.samples() {
-                    //Wait until we can fit the packet into the buffer.
-                    loop {
-                        match prod.push(*sample) {
-                            Ok(_) => break,
-                            Err(_) => continue,
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    Ok(boxed)
-}
-
 pub struct Decoder {
-    pub symphonia: Symphonia,
+    symphonia: Symphonia,
     cons: Consumer,
 }
 
 impl Decoder {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut symphonia = Symphonia::new(path)?;
-        let cast: usize = addr_of_mut!(symphonia) as usize;
+    pub fn new(path: impl AsRef<Path>) -> Result<Pin<Box<Self>>, Box<dyn std::error::Error>> {
+        let symphonia = Symphonia::new(path)?;
 
         let millis = 20;
         let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
 
         let rb = HeapRb::<f32>::new(ring_len);
         let (mut prod, cons) = rb.split();
+
+        let mut boxed = Box::pin(Decoder { symphonia, cons });
+
+        let cast: usize = addr_of_mut!(boxed.symphonia) as usize;
 
         thread::spawn(move || {
             let sym = cast as *mut Symphonia;
@@ -130,7 +66,8 @@ impl Decoder {
                 }
             }
         });
-        Ok(Self { symphonia, cons })
+
+        Ok(boxed)
     }
     //I hate needing to do this...
     pub fn duration(&self) -> Duration {
@@ -138,6 +75,12 @@ impl Decoder {
     }
     pub fn sample_rate(&self) -> usize {
         self.symphonia.sample_rate()
+    }
+    pub fn elapsed(&self) -> Duration {
+        self.symphonia.elapsed()
+    }
+    pub fn seek(&mut self, pos: f32) {
+        self.symphonia.seek(pos);
     }
 }
 
