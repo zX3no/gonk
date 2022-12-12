@@ -4,13 +4,11 @@
 //!
 use crate::{State, ELAPSED, STATE};
 use core::{
-    mem::MaybeUninit,
     ops::{Deref, DerefMut},
     pin::Pin,
     ptr::addr_of_mut,
 };
-use ringbuf::HeapRb;
-use std::sync::Arc;
+use rb::{RbProducer, SpscRb, RB};
 use std::time::Duration;
 use std::{fs::File, path::Path};
 use std::{io::ErrorKind, thread};
@@ -29,11 +27,9 @@ use symphonia::{
     default::get_probe,
 };
 
-type Consumer = ringbuf::Consumer<f32, Arc<ringbuf::SharedRb<f32, Vec<MaybeUninit<f32>>>>>;
-
 pub struct Decoder {
     symphonia: Symphonia,
-    cons: Consumer,
+    cons: rb::Consumer<f32>,
 }
 
 impl Decoder {
@@ -43,25 +39,25 @@ impl Decoder {
         let millis = 20;
         let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
 
-        let rb = HeapRb::<f32>::new(ring_len);
-        let (mut prod, cons) = rb.split();
+        let rb = SpscRb::new(ring_len);
+        let (prod, cons) = (rb.producer(), rb.consumer());
+
+        // let rb = HeapRb::<f32>::new(ring_len);
+        // let (mut prod, cons) = rb.split();
 
         let mut boxed = Box::pin(Decoder { symphonia, cons });
 
+        //TODO: This will stop working when the decoder is turning to none.
+        //I also to use something that will block.
         let cast: usize = addr_of_mut!(boxed.symphonia) as usize;
-
         thread::spawn(move || {
             let sym = cast as *mut Symphonia;
             loop {
+                thread::sleep(Duration::from_millis(2));
                 if let Some(packet) = unsafe { (*sym).next_packet() } {
                     for sample in packet.samples() {
                         //Wait until we can fit the packet into the buffer.
-                        loop {
-                            match prod.push(*sample) {
-                                Ok(_) => break,
-                                Err(_) => continue,
-                            }
-                        }
+                        prod.write_blocking(&[*sample]).unwrap();
                     }
                 }
             }
@@ -85,7 +81,7 @@ impl Decoder {
 }
 
 impl Deref for Decoder {
-    type Target = Consumer;
+    type Target = rb::Consumer<f32>;
 
     fn deref(&self) -> &Self::Target {
         &self.cons

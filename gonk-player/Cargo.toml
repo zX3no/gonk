@@ -16,7 +16,7 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "ogg",
     "vorbis",
 ] }
-ringbuf = "*"
+rb = "*"
 
 
 [target.'cfg(target_os = "windows")'.dependencies]

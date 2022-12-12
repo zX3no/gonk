@@ -1,6 +1,7 @@
 use crate::{decoder::Decoder, Event, State, VOLUME_REDUCTION};
 use core::{ffi::c_void, slice};
 use crossbeam_channel::Receiver;
+use rb::RbConsumer;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
@@ -347,8 +348,10 @@ impl Wasapi {
 
         let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
+        let buffer = &mut [0.0];
         for sample in slice.chunks_mut(4) {
-            let sample_bytes = (decoder.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
+            let _ = decoder.read(buffer);
+            let sample_bytes = (buffer[0] * VOLUME * gain).to_le_bytes();
             sample.copy_from_slice(&sample_bytes);
         }
 
@@ -452,7 +455,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
         //HACK: Don't overwork the thread.
         //Updating the elapsed time is not that important.
         //Filling the buffer here is probably not good.
-        // thread::sleep(Duration::from_millis(2));
+        thread::sleep(Duration::from_millis(2));
 
         //Update the elapsed time and fill the output buffer.
         if let State::Playing = STATE {
