@@ -43,7 +43,7 @@ const KSDATAFORMAT_SUBTYPE_IEEE_FLOAT: GUID = GUID {
     Data4: [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
 };
 
-const COMMON_SAMPLE_RATES: [u32; 13] = [
+const COMMON_SAMPLE_RATES: [usize; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
 ];
 
@@ -230,7 +230,7 @@ pub struct Wasapi {
 }
 
 impl Wasapi {
-    pub unsafe fn new(device: &Device, sample_rate: Option<u32>) -> Self {
+    pub unsafe fn new(device: &Device, sample_rate: Option<usize>) -> Self {
         init();
 
         let audio_client: *mut IAudioClient = {
@@ -253,8 +253,8 @@ impl Wasapi {
         //Update format to desired sample rate.
         if let Some(sample_rate) = sample_rate {
             assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-            format.nSamplesPerSec = sample_rate;
-            format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+            format.nSamplesPerSec = sample_rate as u32;
+            format.nAvgBytesPerSec = sample_rate as u32 * format.nBlockAlign as u32;
         }
 
         if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
@@ -341,15 +341,7 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(
-        &mut self,
-        decoder: &mut Decoder,
-        gain: f32,
-        cons: &mut ringbuf::Consumer<
-            f32,
-            std::sync::Arc<ringbuf::SharedRb<f32, std::vec::Vec<std::mem::MaybeUninit<f32>>>>,
-        >,
-    ) {
+    pub unsafe fn fill_buffer(&mut self, decoder: &mut Decoder, gain: f32) {
         let block_align = self.format.Format.nBlockAlign as usize;
         let gain = if gain == 0.0 { 0.5 } else { gain };
         let buffer_frame_count = self.buffer_frame_count();
@@ -362,22 +354,9 @@ impl Wasapi {
 
         let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
-        // let bytes = slice.len() / 4;
-        // if self.buffer.capacity() < bytes {
-        //     self.buffer.resize(bytes, 0.0);
-        // }
-        // let bytes: Vec<[u8; 4]> = self
-        //     .buffer
-        //     .iter()
-        //     .map(|f| (f * VOLUME * gain).to_le_bytes())
-        //     .collect();
-
         for sample in slice.chunks_mut(4) {
-            let sample_bytes = (cons.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
-            sample[0] = sample_bytes[0];
-            sample[1] = sample_bytes[1];
-            sample[2] = sample_bytes[2];
-            sample[3] = sample_bytes[3];
+            let sample_bytes = (decoder.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
+            sample.copy_from_slice(&sample_bytes);
         }
 
         (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
@@ -390,7 +369,7 @@ impl Wasapi {
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
     #[allow(clippy::result_unit_err)]
-    pub unsafe fn set_sample_rate(&mut self, new: u32) -> Result<(), ()> {
+    pub unsafe fn set_sample_rate(&mut self, new: usize) -> Result<(), ()> {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
         let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
         if result == 0 {
@@ -401,14 +380,12 @@ impl Wasapi {
     }
 }
 
-const MAX_BUFFER_SIZE: usize = 1024;
-
 pub unsafe fn create_decoder(
     path: &str,
     device: &Device,
     decoder: &mut Option<Decoder>,
     wasapi: &mut Wasapi,
-    sample_rate: &mut u32,
+    sample_rate: &mut usize,
 ) {
     match Decoder::new(path) {
         Ok(d) => {
@@ -431,7 +408,7 @@ pub unsafe fn create_decoder(
 //TODO: Devices with 4 channels don't play correctly?
 pub unsafe fn new(device: &Device, r: Receiver<Event>) {
     let mut wasapi = Wasapi::new(device, None);
-    let mut sample_rate = wasapi.format.Format.nSamplesPerSec;
+    let mut sample_rate = wasapi.format.Format.nSamplesPerSec as usize;
     let mut decoder: Option<Decoder> = None;
     let mut gain = 0.50;
 

@@ -9,9 +9,8 @@ use core::{
     pin::Pin,
     ptr::addr_of_mut,
 };
-use gonk_core::Lazy;
-use std::collections::VecDeque;
-use std::sync::{Arc, RwLock};
+use ringbuf::HeapRb;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{fs::File, path::Path};
 use std::{io::ErrorKind, thread};
@@ -30,73 +29,131 @@ use symphonia::{
     default::get_probe,
 };
 
+type Consumer = ringbuf::Consumer<f32, Arc<ringbuf::SharedRb<f32, Vec<MaybeUninit<f32>>>>>;
+
+pub fn new_leak(
+    path: impl AsRef<Path>,
+) -> Result<&'static mut Decoder, Box<dyn std::error::Error>> {
+    let symphonia = Symphonia::new(path)?;
+
+    let millis = 20;
+    let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
+    let rb = HeapRb::<f32>::new(ring_len);
+    let (mut prod, cons) = rb.split();
+
+    let mut boxed = Box::new(Decoder { symphonia, cons });
+
+    let cast: usize = addr_of_mut!(boxed.symphonia) as usize;
+
+    thread::spawn(move || {
+        let sym = cast as *mut Symphonia;
+        loop {
+            if let Some(packet) = unsafe { (*sym).next_packet() } {
+                for sample in packet.samples() {
+                    //Wait until we can fit the packet into the buffer.
+                    loop {
+                        match prod.push(*sample) {
+                            Ok(_) => break,
+                            Err(_) => continue,
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(Box::leak(boxed))
+}
+
+pub fn new(path: impl AsRef<Path>) -> Result<Pin<Box<Decoder>>, Box<dyn std::error::Error>> {
+    let symphonia = Symphonia::new(path)?;
+
+    let millis = 20;
+    let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
+
+    let rb = HeapRb::<f32>::new(ring_len);
+    let (mut prod, cons) = rb.split();
+
+    let mut boxed = Box::pin(Decoder { symphonia, cons });
+
+    let cast: usize = addr_of_mut!(boxed.symphonia) as usize;
+
+    thread::spawn(move || {
+        let sym = cast as *mut Symphonia;
+        loop {
+            if let Some(packet) = unsafe { (*sym).next_packet() } {
+                for sample in packet.samples() {
+                    //Wait until we can fit the packet into the buffer.
+                    loop {
+                        match prod.push(*sample) {
+                            Ok(_) => break,
+                            Err(_) => continue,
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(boxed)
+}
+
 pub struct Decoder {
     pub symphonia: Symphonia,
+    cons: Consumer,
 }
 
 impl Decoder {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut symphonia = Symphonia::new(path)?;
-        Ok(Self { symphonia })
+        let cast: usize = addr_of_mut!(symphonia) as usize;
+
+        let millis = 20;
+        let ring_len = ((millis * symphonia.sample_rate()) / 1000) * symphonia.channels();
+
+        let rb = HeapRb::<f32>::new(ring_len);
+        let (mut prod, cons) = rb.split();
+
+        thread::spawn(move || {
+            let sym = cast as *mut Symphonia;
+            loop {
+                if let Some(packet) = unsafe { (*sym).next_packet() } {
+                    for sample in packet.samples() {
+                        //Wait until we can fit the packet into the buffer.
+                        loop {
+                            match prod.push(*sample) {
+                                Ok(_) => break,
+                                Err(_) => continue,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        Ok(Self { symphonia, cons })
     }
     //I hate needing to do this...
     pub fn duration(&self) -> Duration {
-        // self.symphonia.read().unwrap().duration()
-        Duration::from_secs(0)
+        self.symphonia.duration()
     }
-    pub fn sample_rate(&self) -> u32 {
-        // self.symphonia.read().unwrap().sample_rate()
-        44100
-    }
-    #[allow(clippy::should_implement_trait)]
-    pub fn next(&self) -> f32 {
-        let slice = &mut [0.0];
-        // let _ = self.cons.read(slice);
-        slice[0]
-    }
-    // #[allow(clippy::should_implement_trait)]
-    // pub fn next(&mut self) -> Option<f32> {
-    //     if self.buf.is_empty() {
-    //         match self.symphonia.write().unwrap().next_packet() {
-    //             Some(packet) => self.buf = VecDeque::from(packet.samples().to_vec()),
-    //             None => {
-    //                 return None;
-    //             }
-    //         }
-    //     }
-
-    //     self.buf.pop_front()
-    // }
-    pub fn refill(&mut self) {
-        // if !self.overflow.is_empty() {
-        //     // self.prod.write_()
-        // }
-
-        // let mut sym = self.symphonia.write().unwrap();
-
-        // let Some(packet) = sym.next_packet() else {
-        //     return;
-        // };
-
-        // if self.prod.write(packet.samples()).is_err() {
-        //     self.overflow.extend_from_slice(packet.samples());
-        // };
+    pub fn sample_rate(&self) -> usize {
+        self.symphonia.sample_rate()
     }
 }
 
-// impl Deref for Decoder {
-//     type Target = Consumer<f32>;
+impl Deref for Decoder {
+    type Target = Consumer;
 
-//     fn deref(&self) -> &Self::Target {
-//         &self.cons
-//     }
-// }
+    fn deref(&self) -> &Self::Target {
+        &self.cons
+    }
+}
 
-// impl DerefMut for Decoder {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.cons
-//     }
-// }
+impl DerefMut for Decoder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.cons
+    }
+}
 
 pub struct Symphonia {
     format_reader: Box<dyn FormatReader>,
@@ -147,8 +204,8 @@ impl Symphonia {
         let time = tb.calc_time(self.duration);
         Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
     }
-    pub fn sample_rate(&self) -> u32 {
-        self.track.codec_params.sample_rate.unwrap()
+    pub fn sample_rate(&self) -> usize {
+        self.track.codec_params.sample_rate.unwrap() as usize
     }
     pub fn channels(&self) -> usize {
         self.track.codec_params.channels.unwrap().count()
