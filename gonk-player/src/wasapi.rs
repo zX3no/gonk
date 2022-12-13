@@ -1,14 +1,12 @@
-use crate::{decoder::Decoder, Event, State, VOLUME_REDUCTION};
+use crate::{decoder::Symphonia, State, INIT, VOLUME_REDUCTION};
 use core::{ffi::c_void, slice};
-use crossbeam_channel::Receiver;
 use rb::RbConsumer;
+use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
-use std::sync::Once;
 use std::thread;
 use std::time::Duration;
-use std::{ffi::OsString, pin::Pin};
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
 use winapi::um::audiosessiontypes::{
     AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
@@ -48,7 +46,6 @@ const COMMON_SAMPLE_RATES: [usize; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
 ];
 
-static INIT: Once = Once::new();
 //TODO: It is very slow to collect devices
 //I'm not sure if this is necessary though.
 pub static mut DEVICES: Vec<Device> = Vec::new();
@@ -68,13 +65,13 @@ pub struct Device {
     pub name: String,
 }
 
+unsafe impl Send for Device {}
+unsafe impl Sync for Device {}
+
 pub static mut STATE: State = State::Stopped;
 pub static mut ELAPSED: Duration = Duration::from_secs(0);
 pub static mut DURATION: Duration = Duration::from_secs(0);
 pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
-
-unsafe impl Send for Device {}
-unsafe impl Sync for Device {}
 
 pub fn init() {
     INIT.call_once(|| unsafe {
@@ -335,7 +332,7 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, decoder: &mut Decoder, gain: f32) {
+    pub unsafe fn fill_buffer(&mut self, gain: f32, sym: &mut Symphonia) {
         let block_align = self.format.Format.nBlockAlign as usize;
         let gain = if gain == 0.0 { 0.5 } else { gain };
         let buffer_frame_count = self.buffer_frame_count();
@@ -350,7 +347,8 @@ impl Wasapi {
 
         let buffer = &mut [0.0];
         for sample in slice.chunks_mut(4) {
-            let _ = decoder.read(buffer);
+            let _ = sym.cons.read(buffer);
+            gonk_core::log!("{:?}", buffer);
             let sample_bytes = (buffer[0] * VOLUME * gain).to_le_bytes();
             sample.copy_from_slice(&sample_bytes);
         }
@@ -372,97 +370,6 @@ impl Wasapi {
             Ok(())
         } else {
             Err(())
-        }
-    }
-}
-
-pub unsafe fn create_decoder(
-    path: &str,
-    device: &Device,
-    decoder: &mut Option<Pin<Box<Decoder>>>,
-    wasapi: &mut Wasapi,
-    sample_rate: &mut usize,
-) {
-    match Decoder::new(path) {
-        Ok(d) => {
-            DURATION = d.duration();
-
-            let new = d.sample_rate();
-            if *sample_rate != new {
-                if wasapi.set_sample_rate(new).is_err() {
-                    *wasapi = Wasapi::new(device, Some(new));
-                };
-                *sample_rate = new;
-            }
-
-            *decoder = Some(d);
-        }
-        Err(err) => gonk_core::log!("{}", err),
-    }
-}
-
-//TODO: Devices with 4 channels don't play correctly?
-pub unsafe fn new(device: &Device, r: Receiver<Event>) {
-    let mut wasapi = Wasapi::new(device, None);
-    let mut sample_rate = wasapi.format.Format.nSamplesPerSec as usize;
-    let mut decoder: Option<Pin<Box<Decoder>>> = None;
-    let mut gain = 0.50;
-
-    loop {
-        if let Ok(event) = r.try_recv() {
-            match event {
-                Event::PlaySong((path, g)) => {
-                    STATE = State::Playing;
-                    ELAPSED = Duration::default();
-                    if g != 0.0 {
-                        gain = g;
-                    }
-                    create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
-                }
-                Event::RestoreSong((path, g, elapsed)) => {
-                    STATE = State::Paused;
-                    ELAPSED = Duration::from_secs_f32(elapsed);
-                    if g != 0.0 {
-                        gain = g;
-                    }
-                    create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
-                    if let Some(decoder) = &mut decoder {
-                        decoder.seek(elapsed);
-                    }
-                }
-                Event::Seek(pos) => {
-                    if let Some(decoder) = &mut decoder {
-                        decoder.seek(pos);
-                    }
-                }
-                Event::Play => STATE = State::Playing,
-                Event::Pause => STATE = State::Paused,
-                Event::Stop => {
-                    STATE = State::Stopped;
-                    decoder = None
-                }
-                Event::OutputDevice(device) => {
-                    let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
-                        device
-                    } else {
-                        unreachable!("Requested a device that does not exist.")
-                    };
-                    wasapi = Wasapi::new(device, Some(sample_rate));
-                }
-            }
-        }
-
-        //HACK: Don't overwork the thread.
-        //Updating the elapsed time is not that important.
-        //Filling the buffer here is probably not good.
-        thread::sleep(Duration::from_millis(2));
-
-        //Update the elapsed time and fill the output buffer.
-        if let State::Playing = STATE {
-            if let Some(decoder) = &mut decoder {
-                ELAPSED = decoder.elapsed();
-                wasapi.fill_buffer(decoder, gain);
-            }
         }
     }
 }
