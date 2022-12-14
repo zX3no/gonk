@@ -16,7 +16,7 @@ pub static mut LOG: Lazy<Log> = Lazy::new(|| Log {
 });
 
 #[doc(hidden)]
-pub const MESSAGE_COOLDOWN: Duration = Duration::from_millis(500);
+pub const MESSAGE_COOLDOWN: Duration = Duration::from_millis(1500);
 
 #[doc(hidden)]
 pub struct Log {

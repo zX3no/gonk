@@ -3,8 +3,11 @@
 //! A sample buffer of 20ms is filled for audio backends to use.
 //!
 use crate::{State, ELAPSED, STATE};
+use gonk_core::Lazy;
 use rb::{RbProducer, SpscRb, RB};
+use std::time::Duration;
 use std::{
+    collections::VecDeque,
     fs::File,
     path::Path,
     pin::Pin,
@@ -15,7 +18,6 @@ use std::{
     thread::JoinHandle,
 };
 use std::{io::ErrorKind, thread};
-use std::{ptr::addr_of_mut, time::Duration};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{
@@ -31,24 +33,53 @@ use symphonia::{
     default::get_probe,
 };
 
-pub struct Symphonia {
-    pub prod: rb::Producer<f32>,
-    pub cons: rb::Consumer<f32>,
+//TODO: This doesn't work becuase the capacity will need to be set to hold at least a packet
+//This is not stable plus it's a very large number of samples.
+#[derive(Default)]
+pub struct Buffer {
+    inner: VecDeque<f32>,
+    capacity: usize,
+    pub average_packet_size: usize,
+}
 
+impl Buffer {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            inner: VecDeque::new(),
+            capacity,
+            average_packet_size: 0,
+        }
+    }
+    pub fn is_full(&self) -> bool {
+        self.inner.len() + self.average_packet_size > self.capacity
+    }
+    pub fn pop(&mut self) -> Option<f32> {
+        self.inner.pop_front()
+    }
+    pub fn push(&mut self, slice: &[f32]) {
+        self.average_packet_size += slice.len();
+        self.average_packet_size /= 2;
+
+        self.inner.extend(slice);
+    }
+    pub fn set_capacity(&mut self, capacity: usize) {
+        self.capacity = capacity;
+    }
+}
+
+pub static mut BUFFER: Lazy<Buffer> = Lazy::new(Buffer::default);
+
+pub struct Symphonia {
     format_reader: Box<dyn FormatReader>,
     decoder: Box<dyn codecs::Decoder>,
     track: Track,
     elapsed: u64,
     duration: u64,
     error_count: u8,
-
-    trigger: Arc<AtomicBool>,
-    handle: Option<JoinHandle<()>>,
-    condvar: Arc<Condvar>,
 }
 
 impl Symphonia {
-    pub fn new(path: impl AsRef<Path>) -> Result<Pin<Box<Self>>, Box<dyn std::error::Error>> {
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
         let file = File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
         let probed = get_probe().format(
@@ -68,50 +99,21 @@ impl Symphonia {
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &codecs::DecoderOptions::default())?;
 
-        let millis = 20;
+        let millis = 200;
         let sample_rate = track.codec_params.sample_rate.unwrap() as usize;
         let channels = track.codec_params.channels.unwrap().count();
-        let ring_len = ((millis * sample_rate) / 1000) * channels;
+        let capacity = ((millis * sample_rate) / 1000) * channels;
 
-        let rb = SpscRb::new(ring_len);
-        let (prod, cons) = (rb.producer(), rb.consumer());
+        unsafe { BUFFER.set_capacity(capacity) };
 
-        let mut sym = Box::pin(Self {
-            prod,
-            cons,
+        Ok(Self {
             format_reader: probed.format,
             decoder,
             track,
             duration,
             elapsed: 0,
             error_count: 0,
-            trigger: Arc::new(AtomicBool::new(false)),
-            handle: None,
-            condvar: Arc::new(Condvar::new()),
-        });
-
-        let ptr: usize = addr_of_mut!(sym) as usize;
-        let trigger = sym.trigger.clone();
-        let condvar = sym.condvar.clone();
-
-        //This will probably need a condvar or something.
-        let handle = thread::spawn(move || {
-            let sym = ptr as *mut Symphonia;
-
-            while !trigger.load(Ordering::Relaxed) {
-                // thread::sleep(Duration::from_millis(2));
-                if let Some(packet) = unsafe { (*sym).next_packet() } {
-                    for sample in packet.samples() {
-                        //Wait until we can fit the packet into the buffer.
-                        unsafe { (*sym).prod.write_blocking(&[*sample]).unwrap() };
-                    }
-                }
-            }
-        });
-
-        sym.handle = Some(handle);
-
-        Ok(sym)
+        })
     }
     pub fn elapsed(&self) -> Duration {
         let tb = self.track.codec_params.time_base.unwrap();
@@ -197,13 +199,5 @@ impl Symphonia {
                 self.next_packet()
             }
         }
-    }
-}
-
-impl Drop for Symphonia {
-    fn drop(&mut self) {
-        self.trigger.store(true, Ordering::Relaxed);
-        while !self.handle.as_ref().unwrap().is_finished() {}
-        dbg!("finished");
     }
 }

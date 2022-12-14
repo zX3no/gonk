@@ -1,4 +1,7 @@
-use crate::{decoder::Symphonia, State, INIT, VOLUME_REDUCTION};
+use crate::{
+    decoder::{Symphonia, BUFFER},
+    State, INIT, VOLUME_REDUCTION,
+};
 use core::{ffi::c_void, slice};
 use rb::RbConsumer;
 use std::ffi::OsString;
@@ -73,30 +76,28 @@ pub static mut ELAPSED: Duration = Duration::from_secs(0);
 pub static mut DURATION: Duration = Duration::from_secs(0);
 pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
 
-pub fn init() {
-    INIT.call_once(|| unsafe {
-        CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
+pub unsafe fn init() {
+    CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
 
-        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-        check(CoCreateInstance(
-            &CLSID_MMDeviceEnumerator,
-            null_mut(),
-            CLSCTX_ALL,
-            &IMMDeviceEnumerator::uuidof(),
-            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-        ));
+    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+    check(CoCreateInstance(
+        &CLSID_MMDeviceEnumerator,
+        null_mut(),
+        CLSCTX_ALL,
+        &IMMDeviceEnumerator::uuidof(),
+        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+    ));
 
-        update_output_devices(enumerator);
+    update_output_devices(enumerator);
 
-        //HACK: Not a hack apparently.
-        let ptr: usize = enumerator as usize;
-        thread::spawn(move || {
-            let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
-            loop {
-                update_output_devices(enumerator);
-                thread::sleep(Duration::from_millis(200));
-            }
-        });
+    //HACK: Not a hack apparently.
+    let ptr: usize = enumerator as usize;
+    thread::spawn(move || {
+        let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
+        loop {
+            update_output_devices(enumerator);
+            thread::sleep(Duration::from_millis(200));
+        }
     });
 }
 
@@ -345,11 +346,9 @@ impl Wasapi {
 
         let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
-        let buffer = &mut [0.0];
+        // let buffer = &mut [0.0];
         for sample in slice.chunks_mut(4) {
-            let _ = sym.cons.read(buffer);
-            gonk_core::log!("{:?}", buffer);
-            let sample_bytes = (buffer[0] * VOLUME * gain).to_le_bytes();
+            let sample_bytes = (BUFFER.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
             sample.copy_from_slice(&sample_bytes);
         }
 

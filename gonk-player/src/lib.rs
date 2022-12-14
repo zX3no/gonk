@@ -6,9 +6,9 @@
     clippy::type_complexity
 )]
 use crossbeam_channel::{bounded, Receiver, Sender};
-use decoder::Symphonia;
+use decoder::{Symphonia, BUFFER};
 use gonk_core::{Index, Song};
-use std::{pin::Pin, sync::Once, thread, time::Duration};
+use std::{sync::Once, thread, time::Duration};
 
 pub mod decoder;
 
@@ -29,8 +29,10 @@ const VOLUME_REDUCTION: f32 = 150.0;
 static INIT: Once = Once::new();
 
 fn init() {
-    #[cfg(windows)]
-    wasapi::init();
+    INIT.call_once(|| unsafe {
+        #[cfg(windows)]
+        wasapi::init();
+    });
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -45,38 +47,11 @@ pub enum State {
 pub enum Event {
     /// Path, Gain
     PlaySong((String, f32)),
-    /// Path, Gain, Elapsed
-    RestoreSong((String, f32, f32)),
     OutputDevice(String),
     Play,
     Pause,
     Stop,
     Seek(f32),
-}
-
-pub unsafe fn create_decoder(
-    path: &str,
-    device: &Device,
-    wasapi: &mut Wasapi,
-    sample_rate: &mut usize,
-    symphonia: &mut Option<Pin<Box<Symphonia>>>,
-) {
-    match Symphonia::new(path) {
-        Ok(d) => {
-            DURATION = d.duration();
-
-            let new = d.sample_rate();
-            if *sample_rate != new {
-                if wasapi.set_sample_rate(new).is_err() {
-                    *wasapi = Wasapi::new(device, Some(new));
-                };
-                *sample_rate = new;
-            }
-
-            *symphonia = Some(d);
-        }
-        Err(err) => gonk_core::log!("{}", err),
-    }
 }
 
 //TODO: Devices with 4 channels don't play correctly?
@@ -95,17 +70,21 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                     if g != 0.0 {
                         gain = g;
                     }
-                    create_decoder(&path, device, &mut wasapi, &mut sample_rate, &mut symphonia);
-                }
-                Event::RestoreSong((path, g, elapsed)) => {
-                    STATE = State::Paused;
-                    ELAPSED = Duration::from_secs_f32(elapsed);
-                    if g != 0.0 {
-                        gain = g;
-                    }
-                    create_decoder(&path, device, &mut wasapi, &mut sample_rate, &mut symphonia);
-                    if let Some(symphonia) = &mut symphonia {
-                        symphonia.seek(elapsed);
+                    match Symphonia::new(path) {
+                        Ok(d) => {
+                            DURATION = d.duration();
+
+                            let new = d.sample_rate();
+                            if sample_rate != new {
+                                if wasapi.set_sample_rate(new).is_err() {
+                                    wasapi = Wasapi::new(device, Some(new));
+                                };
+                                sample_rate = new;
+                            }
+
+                            symphonia = Some(d);
+                        }
+                        Err(err) => gonk_core::log!("{}", err),
                     }
                 }
                 Event::Seek(pos) => {
@@ -117,7 +96,7 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
                 Event::Pause => STATE = State::Paused,
                 Event::Stop => {
                     STATE = State::Stopped;
-                    symphonia = None
+                    symphonia = None;
                 }
                 Event::OutputDevice(device) => {
                     let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
@@ -133,12 +112,24 @@ pub unsafe fn new(device: &Device, r: Receiver<Event>) {
         //HACK: How to make blocking?
         thread::sleep(Duration::from_millis(2));
 
+        if State::Playing != STATE {
+            continue;
+        }
+
         //Update the elapsed time and fill the output buffer.
-        if let State::Playing = STATE {
-            if let Some(symphonia) = &mut symphonia {
-                ELAPSED = symphonia.elapsed();
-                wasapi.fill_buffer(gain, symphonia);
-            }
+        let Some(symphonia) = &mut symphonia else {
+            continue;
+        };
+
+        ELAPSED = symphonia.elapsed();
+        wasapi.fill_buffer(gain, symphonia);
+
+        if BUFFER.is_full() {
+            continue;
+        }
+
+        if let Some(packet) = symphonia.next_packet() {
+            BUFFER.push(packet.samples());
         }
     }
 }
@@ -166,8 +157,9 @@ impl Player {
         //Restore previous queue state.
         unsafe { VOLUME = volume as f32 / VOLUME_REDUCTION };
         if let Some(song) = songs.selected().cloned() {
-            s.send(Event::RestoreSong((song.path.clone(), song.gain, elapsed)))
+            s.send(Event::PlaySong((song.path.clone(), song.gain)))
                 .unwrap();
+            s.send(Event::Seek(elapsed)).unwrap();
         }
 
         Self { s, songs }
