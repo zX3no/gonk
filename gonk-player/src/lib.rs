@@ -5,10 +5,9 @@
     non_snake_case,
     clippy::type_complexity
 )]
-use crossbeam_channel::{bounded, Receiver, Sender};
 use decoder::{Symphonia, BUFFER};
 use gonk_core::{Index, Song};
-use std::{sync::Once, thread, time::Duration};
+use std::{path::Path, sync::Once, time::Duration};
 
 pub mod decoder;
 
@@ -47,6 +46,8 @@ pub enum State {
 pub enum Event {
     /// Path, Gain
     PlaySong((String, f32)),
+    /// Path, Gain, Elapsed
+    RestoreSong((String, f32, f32)),
     OutputDevice(String),
     Play,
     Pause,
@@ -54,89 +55,16 @@ pub enum Event {
     Seek(f32),
 }
 
-//TODO: Devices with 4 channels don't play correctly?
-pub unsafe fn new(device: &Device, r: Receiver<Event>) {
-    let mut wasapi = Wasapi::new(device, None);
-    let mut sample_rate = wasapi.format.Format.nSamplesPerSec as usize;
-    let mut gain = 0.50;
-    let mut symphonia = None;
-
-    loop {
-        if let Ok(event) = r.try_recv() {
-            match event {
-                Event::PlaySong((path, g)) => {
-                    STATE = State::Playing;
-                    ELAPSED = Duration::default();
-                    if g != 0.0 {
-                        gain = g;
-                    }
-                    match Symphonia::new(path) {
-                        Ok(d) => {
-                            DURATION = d.duration();
-
-                            let new = d.sample_rate();
-                            if sample_rate != new {
-                                if wasapi.set_sample_rate(new).is_err() {
-                                    wasapi = Wasapi::new(device, Some(new));
-                                };
-                                sample_rate = new;
-                            }
-
-                            symphonia = Some(d);
-                        }
-                        Err(err) => gonk_core::log!("{}", err),
-                    }
-                }
-                Event::Seek(pos) => {
-                    if let Some(symphonia) = &mut symphonia {
-                        symphonia.seek(pos);
-                    }
-                }
-                Event::Play => STATE = State::Playing,
-                Event::Pause => STATE = State::Paused,
-                Event::Stop => {
-                    STATE = State::Stopped;
-                    symphonia = None;
-                }
-                Event::OutputDevice(device) => {
-                    let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
-                        device
-                    } else {
-                        unreachable!("Requested a device that does not exist.")
-                    };
-                    wasapi = Wasapi::new(device, Some(sample_rate));
-                }
-            }
-        }
-
-        //HACK: How to make blocking?
-        thread::sleep(Duration::from_millis(2));
-
-        if State::Playing != STATE {
-            continue;
-        }
-
-        //Update the elapsed time and fill the output buffer.
-        let Some(symphonia) = &mut symphonia else {
-            continue;
-        };
-
-        ELAPSED = symphonia.elapsed();
-        wasapi.fill_buffer(gain, symphonia);
-
-        if BUFFER.is_full() {
-            continue;
-        }
-
-        if let Some(packet) = symphonia.next_packet() {
-            BUFFER.push(packet.samples());
-        }
-    }
-}
-
 pub struct Player {
-    s: Sender<Event>,
     pub songs: Index<Song>,
+
+    //TODO: Might want to think about backend traits.
+    backend: Wasapi,
+
+    output_device: Device,
+    symphonia: Option<Symphonia>,
+    sample_rate: usize,
+    gain: f32,
 }
 
 impl Player {
@@ -148,30 +76,124 @@ impl Player {
         let default = default_device().unwrap();
         let d = devices.iter().find(|d| d.name == device);
         let device = if let Some(d) = d { d } else { default };
-
-        let (s, r) = bounded::<Event>(5);
-        thread::spawn(move || unsafe {
-            new(device, r);
-        });
+        let backend = unsafe { Wasapi::new(device, None) };
+        let sample_rate = backend.format.Format.nSamplesPerSec as usize;
 
         //Restore previous queue state.
         unsafe { VOLUME = volume as f32 / VOLUME_REDUCTION };
-        if let Some(song) = songs.selected().cloned() {
-            s.send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
-            s.send(Event::Seek(elapsed)).unwrap();
+
+        let mut player = Self {
+            songs,
+            backend,
+            output_device: device.clone(),
+            sample_rate,
+            symphonia: None,
+            gain: 0.5,
+        };
+
+        if let Some(song) = player.songs.selected().cloned() {
+            player.restore_song(song.path.clone(), song.gain, elapsed);
         }
 
-        Self { s, songs }
+        player
+    }
+
+    //TODO: Devices with 4 channels don't play correctly?
+    /// Handles all of the player related logic such as:
+    ///
+    /// - Updating the elapsed time
+    /// - Filling the output device with samples.
+    /// - Triggering the next song
+    pub fn update(&mut self) {
+        if self.is_finished() {
+            self.next();
+        }
+
+        if &State::Playing != unsafe { &STATE } {
+            return;
+        }
+
+        //Update the elapsed time and fill the output buffer.
+        let Some(symphonia) = &mut self.symphonia else {
+                return;
+            };
+
+        unsafe {
+            ELAPSED = symphonia.elapsed();
+            self.backend.fill_buffer(self.gain, symphonia);
+
+            if BUFFER.is_full() {
+                return;
+            }
+
+            if let Some(packet) = symphonia.next_packet() {
+                BUFFER.push(packet.samples());
+            }
+        }
+    }
+    pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
+        unsafe {
+            STATE = State::Paused;
+            ELAPSED = Duration::from_secs_f32(elapsed);
+            if gain != 0.0 {
+                self.gain = gain;
+            }
+            match Symphonia::new(path) {
+                Ok(d) => {
+                    DURATION = d.duration();
+
+                    let new = d.sample_rate();
+                    if self.sample_rate != new {
+                        if self.backend.set_sample_rate(new).is_err() {
+                            self.backend = Wasapi::new(&self.output_device, Some(new));
+                        };
+                        self.sample_rate = new;
+                    }
+
+                    self.symphonia = Some(d);
+                }
+                Err(err) => gonk_core::log!("{}", err),
+            }
+            if let Some(decoder) = &mut self.symphonia {
+                decoder.seek(elapsed);
+            }
+        }
+    }
+    pub fn play_song(&mut self, path: impl AsRef<Path>, gain: f32) {
+        unsafe {
+            STATE = State::Playing;
+            ELAPSED = Duration::default();
+            if gain != 0.0 {
+                self.gain = gain;
+            }
+            match Symphonia::new(path) {
+                Ok(d) => {
+                    DURATION = d.duration();
+
+                    let new = d.sample_rate();
+                    if self.sample_rate != new {
+                        if self.backend.set_sample_rate(new).is_err() {
+                            self.backend = Wasapi::new(&self.output_device, Some(new));
+                        };
+                        self.sample_rate = new;
+                    }
+
+                    self.symphonia = Some(d);
+                }
+                Err(err) => gonk_core::log!("{}", err),
+            }
+        }
     }
     pub fn play(&self) {
-        self.s.send(Event::Play).unwrap();
+        unsafe { STATE = State::Playing };
     }
     pub fn pause(&self) {
-        self.s.send(Event::Pause).unwrap();
+        unsafe { STATE = State::Paused };
     }
-    pub fn seek(&self, pos: f32) {
-        self.s.send(Event::Seek(pos)).unwrap();
+    pub fn seek(&mut self, pos: f32) {
+        if let Some(symphonia) = &mut self.symphonia {
+            symphonia.seek(pos);
+        }
     }
     pub fn volume_up(&self) {
         unsafe {
@@ -198,17 +220,13 @@ impl Player {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
             unsafe { STATE == State::Playing };
-            self.s
-                .send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
+            self.play_song(song.path.clone(), song.gain);
         }
     }
     pub fn prev(&mut self) {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
-            self.s
-                .send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
+            self.play_song(song.path.clone(), song.gain);
         }
     }
     pub fn delete_index(&mut self, index: usize) {
@@ -234,8 +252,11 @@ impl Player {
         };
     }
     pub fn clear(&mut self) {
-        self.s.send(Event::Stop).unwrap();
-        self.songs = Index::default();
+        unsafe {
+            STATE = State::Stopped;
+            self.symphonia = None;
+            self.songs = Index::default();
+        }
     }
     pub fn clear_except_playing(&mut self) {
         if let Some(index) = self.songs.index() {
@@ -253,9 +274,7 @@ impl Player {
     pub fn play_index(&mut self, i: usize) {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            self.s
-                .send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
+            self.play_song(song.path.clone(), song.gain);
         }
     }
     pub fn toggle_playback(&self) {
@@ -279,9 +298,14 @@ impl Player {
     pub fn volume(&self) -> u8 {
         unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
     }
-    pub fn set_output_device(&self, device: &str) {
-        self.s
-            .send(Event::OutputDevice(device.to_string()))
-            .unwrap();
+    pub fn set_output_device(&mut self, device: &str) {
+        unsafe {
+            let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
+                device
+            } else {
+                unreachable!("Requested a device that does not exist.")
+            };
+            self.backend = Wasapi::new(device, Some(self.sample_rate));
+        }
     }
 }

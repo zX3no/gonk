@@ -1,23 +1,27 @@
 //! Decoder for audio files.
 //!
-//! A sample buffer of 20ms is filled for audio backends to use.
+//! The problem is as follows:
+//!
+//! Reading packets from a file is slow when using a mutex.
+//! Packets are not a consistant size and can only be read in chunks.
+//! Because they are read in chunks they need to be put in a buffer when they are read.
+//!
+//! Idealy a packet would be read than slowly the samples from that packet would be pushed into the buffer.
+//!
+//! Now I think about it maybe the buffer could auto-resize based on packet length.
+//! Nevermind the latency is too high when setting the buffer size according to packet length.
+//! Really you should be able to have a buffer size less than the packet length.
+//!
+//! The duration needs to be read frequently to stay up to date.
+//!
+//!
+//!
 //!
 use crate::{State, ELAPSED, STATE};
 use gonk_core::Lazy;
-use rb::{RbProducer, SpscRb, RB};
+use std::io::ErrorKind;
 use std::time::Duration;
-use std::{
-    collections::VecDeque,
-    fs::File,
-    path::Path,
-    pin::Pin,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Condvar, Mutex,
-    },
-    thread::JoinHandle,
-};
-use std::{io::ErrorKind, thread};
+use std::{collections::VecDeque, fs::File, path::Path};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{
@@ -57,6 +61,9 @@ impl Buffer {
         self.inner.pop_front()
     }
     pub fn push(&mut self, slice: &[f32]) {
+        if slice.len() > self.capacity {
+            self.capacity = (slice.len() as f32 * 1.1) as usize;
+        }
         self.average_packet_size += slice.len();
         self.average_packet_size /= 2;
 
@@ -99,12 +106,12 @@ impl Symphonia {
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &codecs::DecoderOptions::default())?;
 
-        let millis = 200;
-        let sample_rate = track.codec_params.sample_rate.unwrap() as usize;
-        let channels = track.codec_params.channels.unwrap().count();
-        let capacity = ((millis * sample_rate) / 1000) * channels;
+        // let millis = 200;
+        // let sample_rate = track.codec_params.sample_rate.unwrap() as usize;
+        // let channels = track.codec_params.channels.unwrap().count();
+        // let capacity = ((millis * sample_rate) / 1000) * channels;
 
-        unsafe { BUFFER.set_capacity(capacity) };
+        // unsafe { BUFFER.set_capacity(capacity) };
 
         Ok(Self {
             format_reader: probed.format,

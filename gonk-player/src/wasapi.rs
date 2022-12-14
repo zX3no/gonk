@@ -1,9 +1,8 @@
 use crate::{
     decoder::{Symphonia, BUFFER},
-    State, INIT, VOLUME_REDUCTION,
+    State, VOLUME_REDUCTION,
 };
 use core::{ffi::c_void, slice};
-use rb::RbConsumer;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
@@ -333,7 +332,7 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, gain: f32, sym: &mut Symphonia) {
+    pub unsafe fn fill_buffer(&mut self, gain: f32, _sym: &mut Symphonia) {
         let block_align = self.format.Format.nBlockAlign as usize;
         let gain = if gain == 0.0 { 0.5 } else { gain };
         let buffer_frame_count = self.buffer_frame_count();
