@@ -28,9 +28,11 @@ const VOLUME_REDUCTION: f32 = 150.0;
 static INIT: Once = Once::new();
 
 fn init() {
-    INIT.call_once(|| unsafe {
+    INIT.call_once(|| {
         #[cfg(windows)]
-        wasapi::init();
+        unsafe {
+            wasapi::init()
+        };
     });
 }
 
@@ -65,8 +67,8 @@ impl Player {
 
         let devices = devices();
         let default = default_device().unwrap();
-        let d = devices.iter().find(|d| d.name == device);
-        let device = if let Some(d) = d { d } else { default };
+        let device = devices.iter().find(|d| d.name == device);
+        let device = device.unwrap_or(default);
         let backend = unsafe { Wasapi::new(device, None) };
         let sample_rate = backend.format.Format.nSamplesPerSec as usize;
 

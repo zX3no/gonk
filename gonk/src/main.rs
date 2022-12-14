@@ -289,9 +289,14 @@ fn main() {
                                 //This will cause them to search for ',' or '.'.
                                 //I can't think of any songs that would start with a comma or period so just change modes instead.
                                 //Before you would need to exit from the search with tab or escape and then change to settings/playlist mode.
+
+                                //Songs don't start with puncutation but they do start with numbers.
+                                //This isn't needed any more.
                                 match c {
-                                    ',' if search.query.is_empty() => mode = Mode::Settings,
-                                    '.' if search.query.is_empty() => mode = Mode::Playlist,
+                                    // '1' if search.query.is_empty() => mode = Mode::Queue,
+                                    // '2' if search.query.is_empty() => mode = Mode::Browser,
+                                    // '3' if search.query.is_empty() => mode = Mode::Playlist,
+                                    // '4' if search.query.is_empty() => mode = Mode::Settings,
                                     '/' if search.query.is_empty() => (),
                                     _ => {
                                         search.query.push(c);
@@ -366,8 +371,8 @@ fn main() {
                             player.volume_down();
                             persist.volume = player.volume();
                         }
-                        KeyCode::Char(',') => mode = Mode::Settings,
-                        KeyCode::Char('.') => mode = Mode::Playlist,
+                        // KeyCode::Char(',') => mode = Mode::Settings,
+                        // KeyCode::Char('.') => mode = Mode::Playlist,
                         KeyCode::Char('/') => {
                             if mode == Mode::Search {
                                 if search.mode == SearchMode::Select {
@@ -378,6 +383,7 @@ fn main() {
                                 mode = Mode::Search;
                             }
                         }
+                        //TODO: Change tab to previous mode.
                         KeyCode::Tab => {
                             terminal.clear().unwrap();
                             mode = match mode {
@@ -477,15 +483,13 @@ fn main() {
                         KeyCode::Down => input.down(),
                         KeyCode::Left => input.left(),
                         KeyCode::Right => input.right(),
-                        KeyCode::Char('1' | '!') => {
-                            queue::constraint(&mut queue, 0, shift);
-                        }
-                        KeyCode::Char('2' | '@') => {
-                            queue::constraint(&mut queue, 1, shift);
-                        }
-                        KeyCode::Char('3' | '#') => {
-                            queue::constraint(&mut queue, 2, shift);
-                        }
+                        KeyCode::Char('1') => mode = Mode::Queue,
+                        KeyCode::Char('2') => mode = Mode::Browser,
+                        KeyCode::Char('3') => mode = Mode::Playlist,
+                        KeyCode::Char('4') => mode = Mode::Settings,
+                        KeyCode::F(1) => queue::constraint(&mut queue, 0, shift),
+                        KeyCode::F(2) => queue::constraint(&mut queue, 1, shift),
+                        KeyCode::F(3) => queue::constraint(&mut queue, 2, shift),
                         KeyCode::Char(c) => match c {
                             'h' => input.left(),
                             'j' => input.down(),
