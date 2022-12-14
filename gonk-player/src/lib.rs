@@ -42,19 +42,6 @@ pub enum State {
     Finished,
 }
 
-#[derive(Debug)]
-pub enum Event {
-    /// Path, Gain
-    PlaySong((String, f32)),
-    /// Path, Gain, Elapsed
-    RestoreSong((String, f32, f32)),
-    OutputDevice(String),
-    Play,
-    Pause,
-    Stop,
-    Seek(f32),
-}
-
 pub struct Player {
     pub songs: Index<Song>,
 
@@ -65,6 +52,10 @@ pub struct Player {
     symphonia: Option<Symphonia>,
     sample_rate: usize,
     gain: f32,
+    volume: f32,
+    elapsed: Duration,
+    duration: Duration,
+    state: State,
 }
 
 impl Player {
@@ -79,9 +70,6 @@ impl Player {
         let backend = unsafe { Wasapi::new(device, None) };
         let sample_rate = backend.format.Format.nSamplesPerSec as usize;
 
-        //Restore previous queue state.
-        unsafe { VOLUME = volume as f32 / VOLUME_REDUCTION };
-
         let mut player = Self {
             songs,
             backend,
@@ -89,8 +77,13 @@ impl Player {
             sample_rate,
             symphonia: None,
             gain: 0.5,
+            volume: volume as f32 / VOLUME_REDUCTION,
+            duration: Duration::default(),
+            elapsed: Duration::default(),
+            state: State::Stopped,
         };
 
+        //Restore previous queue state.
         if let Some(song) = player.songs.selected().cloned() {
             player.restore_song(song.path.clone(), song.gain, elapsed);
         }
@@ -109,7 +102,7 @@ impl Player {
             self.next();
         }
 
-        if &State::Playing != unsafe { &STATE } {
+        if self.state != State::Playing {
             return;
         }
 
@@ -119,107 +112,104 @@ impl Player {
             };
 
         unsafe {
-            ELAPSED = symphonia.elapsed();
-            self.backend.fill_buffer(self.gain, symphonia);
+            self.elapsed = symphonia.elapsed();
+
+            let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
+            self.backend.fill_buffer(self.volume * gain, symphonia);
 
             if BUFFER.is_full() {
                 return;
             }
 
-            if let Some(packet) = symphonia.next_packet() {
+            if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
                 BUFFER.push(packet.samples());
             }
         }
     }
     pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
-        unsafe {
-            STATE = State::Paused;
-            ELAPSED = Duration::from_secs_f32(elapsed);
-            if gain != 0.0 {
-                self.gain = gain;
-            }
-            match Symphonia::new(path) {
-                Ok(d) => {
-                    DURATION = d.duration();
+        self.state = State::Paused;
+        self.elapsed = Duration::from_secs_f32(elapsed);
+        if gain != 0.0 {
+            self.gain = gain;
+        }
+        match Symphonia::new(path) {
+            Ok(d) => {
+                self.duration = d.duration();
 
-                    let new = d.sample_rate();
-                    if self.sample_rate != new {
+                let new = d.sample_rate();
+                if self.sample_rate != new {
+                    unsafe {
                         if self.backend.set_sample_rate(new).is_err() {
                             self.backend = Wasapi::new(&self.output_device, Some(new));
                         };
-                        self.sample_rate = new;
                     }
-
-                    self.symphonia = Some(d);
+                    self.sample_rate = new;
                 }
-                Err(err) => gonk_core::log!("{}", err),
+
+                self.symphonia = Some(d);
             }
-            if let Some(decoder) = &mut self.symphonia {
-                decoder.seek(elapsed);
-            }
+            Err(err) => gonk_core::log!("{}", err),
+        }
+        if let Some(decoder) = &mut self.symphonia {
+            decoder.seek(elapsed);
         }
     }
     pub fn play_song(&mut self, path: impl AsRef<Path>, gain: f32) {
-        unsafe {
-            STATE = State::Playing;
-            ELAPSED = Duration::default();
-            if gain != 0.0 {
-                self.gain = gain;
-            }
-            match Symphonia::new(path) {
-                Ok(d) => {
-                    DURATION = d.duration();
+        self.state = State::Playing;
+        self.elapsed = Duration::default();
+        if gain != 0.0 {
+            self.gain = gain;
+        }
+        match Symphonia::new(path) {
+            Ok(d) => {
+                self.duration = d.duration();
 
-                    let new = d.sample_rate();
-                    if self.sample_rate != new {
+                let new = d.sample_rate();
+                if self.sample_rate != new {
+                    unsafe {
                         if self.backend.set_sample_rate(new).is_err() {
                             self.backend = Wasapi::new(&self.output_device, Some(new));
                         };
-                        self.sample_rate = new;
                     }
-
-                    self.symphonia = Some(d);
+                    self.sample_rate = new;
                 }
-                Err(err) => gonk_core::log!("{}", err),
+
+                self.symphonia = Some(d);
             }
+            Err(err) => gonk_core::log!("{}", err),
         }
     }
-    pub fn play(&self) {
-        unsafe { STATE = State::Playing };
+    pub fn play(&mut self) {
+        self.state = State::Playing;
     }
-    pub fn pause(&self) {
-        unsafe { STATE = State::Paused };
+    pub fn pause(&mut self) {
+        self.state = State::Paused;
     }
     pub fn seek(&mut self, pos: f32) {
         if let Some(symphonia) = &mut self.symphonia {
             symphonia.seek(pos);
         }
     }
-    pub fn volume_up(&self) {
-        unsafe {
-            VOLUME =
-                ((VOLUME * VOLUME_REDUCTION) as u8 + 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
-        }
+    pub fn volume_up(&mut self) {
+        self.volume =
+            ((self.volume * VOLUME_REDUCTION) as u8 + 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
     }
-    pub fn volume_down(&self) {
-        unsafe {
-            VOLUME =
-                ((VOLUME * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
-        }
+    pub fn volume_down(&mut self) {
+        self.volume =
+            ((self.volume * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
     }
     pub fn elapsed(&self) -> Duration {
-        unsafe { ELAPSED }
+        self.elapsed
     }
     pub fn duration(&self) -> Duration {
-        unsafe { DURATION }
+        self.duration
     }
     pub fn is_playing(&self) -> bool {
-        unsafe { STATE == State::Playing }
+        self.state == State::Playing
     }
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
-            unsafe { STATE == State::Playing };
             self.play_song(song.path.clone(), song.gain);
         }
     }
@@ -252,11 +242,9 @@ impl Player {
         };
     }
     pub fn clear(&mut self) {
-        unsafe {
-            STATE = State::Stopped;
-            self.symphonia = None;
-            self.songs = Index::default();
-        }
+        self.state = State::Stopped;
+        self.symphonia = None;
+        self.songs = Index::default();
     }
     pub fn clear_except_playing(&mut self) {
         if let Some(index) = self.songs.index() {
@@ -277,15 +265,15 @@ impl Player {
             self.play_song(song.path.clone(), song.gain);
         }
     }
-    pub fn toggle_playback(&self) {
-        match unsafe { &STATE } {
+    pub fn toggle_playback(&mut self) {
+        match self.state {
             State::Paused => self.play(),
             State::Playing => self.pause(),
             _ => (),
         }
     }
     pub fn is_finished(&self) -> bool {
-        unsafe { STATE == State::Finished }
+        self.state == State::Finished
     }
     pub fn seek_foward(&mut self) {
         let pos = (self.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
@@ -296,7 +284,7 @@ impl Player {
         self.seek(pos);
     }
     pub fn volume(&self) -> u8 {
-        unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
+        (self.volume * VOLUME_REDUCTION) as u8
     }
     pub fn set_output_device(&mut self, device: &str) {
         unsafe {

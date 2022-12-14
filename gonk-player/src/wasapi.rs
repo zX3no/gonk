@@ -1,7 +1,4 @@
-use crate::{
-    decoder::{Symphonia, BUFFER},
-    State, VOLUME_REDUCTION,
-};
+use crate::decoder::{Symphonia, BUFFER};
 use core::{ffi::c_void, slice};
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
@@ -69,11 +66,6 @@ pub struct Device {
 
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
-
-pub static mut STATE: State = State::Stopped;
-pub static mut ELAPSED: Duration = Duration::from_secs(0);
-pub static mut DURATION: Duration = Duration::from_secs(0);
-pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
 
 pub unsafe fn init() {
     CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
@@ -332,9 +324,8 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, gain: f32, _sym: &mut Symphonia) {
+    pub unsafe fn fill_buffer(&mut self, volume: f32, _sym: &mut Symphonia) {
         let block_align = self.format.Format.nBlockAlign as usize;
-        let gain = if gain == 0.0 { 0.5 } else { gain };
         let buffer_frame_count = self.buffer_frame_count();
         let buffer_size = buffer_frame_count * block_align;
 
@@ -347,7 +338,7 @@ impl Wasapi {
 
         // let buffer = &mut [0.0];
         for sample in slice.chunks_mut(4) {
-            let sample_bytes = (BUFFER.pop().unwrap_or(0.0) * VOLUME * gain).to_le_bytes();
+            let sample_bytes = (BUFFER.pop().unwrap_or(0.0) * volume).to_le_bytes();
             sample.copy_from_slice(&sample_bytes);
         }
 

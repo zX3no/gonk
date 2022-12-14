@@ -17,7 +17,7 @@
 //!
 //!
 //!
-use crate::{State, ELAPSED, STATE};
+use crate::State;
 use gonk_core::Lazy;
 use std::io::ErrorKind;
 use std::time::Duration;
@@ -153,8 +153,12 @@ impl Symphonia {
             },
         );
     }
-    pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
-        if self.error_count > 2 || unsafe { &STATE } == &State::Finished {
+    pub fn next_packet(
+        &mut self,
+        elapsed: &mut Duration,
+        state: &mut State,
+    ) -> Option<SampleBuffer<f32>> {
+        if self.error_count > 2 || state == &State::Finished {
             return None;
         }
 
@@ -167,29 +171,29 @@ impl Symphonia {
                 Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
                     //Just in case my 250ms addition is not enough.
                     if self.elapsed() + Duration::from_secs(1) > self.duration() {
-                        unsafe { STATE = State::Finished };
+                        *state = State::Finished;
                         return None;
                     } else {
                         self.error_count += 1;
-                        return self.next_packet();
+                        return self.next_packet(elapsed, state);
                     }
                 }
                 _ => {
                     gonk_core::log!("{}", err);
                     self.error_count += 1;
-                    return self.next_packet();
+                    return self.next_packet(elapsed, state);
                 }
             },
         };
 
         self.elapsed = next_packet.ts();
-        unsafe { ELAPSED = self.elapsed() };
+        *elapsed = self.elapsed();
 
         //HACK: Sometimes the end of file error does not indicate the end of the file?
         //The duration is a little bit longer than the maximum elapsed??
         //The final packet will make the elapsed time move backwards???
         if self.elapsed() + Duration::from_millis(250) > self.duration() {
-            unsafe { STATE = State::Finished };
+            *state = State::Finished;
             return None;
         }
 
@@ -203,7 +207,7 @@ impl Symphonia {
             Err(err) => {
                 gonk_core::log!("{}", err);
                 self.error_count += 1;
-                self.next_packet()
+                self.next_packet(elapsed, state)
             }
         }
     }
