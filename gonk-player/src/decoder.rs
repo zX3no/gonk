@@ -43,7 +43,7 @@ use symphonia::{
 pub struct Buffer {
     inner: VecDeque<f32>,
     capacity: usize,
-    pub average_packet_size: usize,
+    pub last_packet_size: usize,
 }
 
 impl Buffer {
@@ -51,21 +51,20 @@ impl Buffer {
         Self {
             inner: VecDeque::new(),
             capacity,
-            average_packet_size: 0,
+            last_packet_size: 0,
         }
     }
     pub fn is_full(&self) -> bool {
-        self.inner.len() + self.average_packet_size > self.capacity
+        self.inner.len() + self.last_packet_size > self.capacity
     }
     pub fn pop(&mut self) -> Option<f32> {
         self.inner.pop_front()
     }
     pub fn push(&mut self, slice: &[f32]) {
         if slice.len() > self.capacity {
-            self.capacity = (slice.len() as f32 * 1.1) as usize;
+            self.capacity = (slice.len() as f32 * 1.4) as usize;
         }
-        self.average_packet_size += slice.len();
-        self.average_packet_size /= 2;
+        self.last_packet_size = slice.len();
 
         self.inner.extend(slice);
     }

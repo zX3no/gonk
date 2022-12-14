@@ -352,9 +352,9 @@ impl Wasapi {
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
     #[allow(clippy::result_unit_err)]
-    pub unsafe fn set_sample_rate(&mut self, new: usize) -> Result<(), ()> {
+    pub fn set_sample_rate(&mut self, new: usize) -> Result<(), ()> {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
-        let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
+        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(new as f32) };
         if result == 0 {
             Ok(())
         } else {

@@ -126,32 +126,22 @@ impl Player {
             }
         }
     }
-    pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
-        self.state = State::Paused;
-        self.elapsed = Duration::from_secs_f32(elapsed);
-        if gain != 0.0 {
-            self.gain = gain;
-        }
+    //WASAPI has some weird problem with change sample rates.
+    //This shouldn't be necessary.
+    pub fn update_device(&mut self, path: impl AsRef<Path>) {
         match Symphonia::new(path) {
             Ok(d) => {
                 self.duration = d.duration();
-
                 let new = d.sample_rate();
                 if self.sample_rate != new {
-                    unsafe {
-                        if self.backend.set_sample_rate(new).is_err() {
-                            self.backend = Wasapi::new(&self.output_device, Some(new));
-                        };
-                    }
+                    if self.backend.set_sample_rate(new).is_err() {
+                        self.backend = unsafe { Wasapi::new(&self.output_device, Some(new)) };
+                    };
                     self.sample_rate = new;
                 }
-
                 self.symphonia = Some(d);
             }
             Err(err) => gonk_core::log!("{}", err),
-        }
-        if let Some(decoder) = &mut self.symphonia {
-            decoder.seek(elapsed);
         }
     }
     pub fn play_song(&mut self, path: impl AsRef<Path>, gain: f32) {
@@ -160,23 +150,17 @@ impl Player {
         if gain != 0.0 {
             self.gain = gain;
         }
-        match Symphonia::new(path) {
-            Ok(d) => {
-                self.duration = d.duration();
-
-                let new = d.sample_rate();
-                if self.sample_rate != new {
-                    unsafe {
-                        if self.backend.set_sample_rate(new).is_err() {
-                            self.backend = Wasapi::new(&self.output_device, Some(new));
-                        };
-                    }
-                    self.sample_rate = new;
-                }
-
-                self.symphonia = Some(d);
-            }
-            Err(err) => gonk_core::log!("{}", err),
+        self.update_device(path);
+    }
+    pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
+        self.state = State::Paused;
+        self.elapsed = Duration::from_secs_f32(elapsed);
+        if gain != 0.0 {
+            self.gain = gain;
+        }
+        self.update_device(path);
+        if let Some(decoder) = &mut self.symphonia {
+            decoder.seek(elapsed);
         }
     }
     pub fn play(&mut self) {
