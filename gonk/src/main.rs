@@ -160,13 +160,23 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     let mut last_tick = Instant::now();
     let mut dots: usize = 1;
 
-    //Why does this keep happening.
+    //TODO: Why does this keep happening.
     let m = addr_of_mut!(mode);
     let p = addr_of_mut!(prev_mode);
+
     let set_mode = |new: Mode| unsafe {
         let mode = &mut (*m);
-        (*p) = mode.clone();
-        (*m) = new
+        if new != *mode {
+            (*p) = mode.clone();
+            (*m) = new
+        }
+    };
+
+    let sawp_mode = || unsafe {
+        let mode = (*m).clone();
+        let prev_mode = (*p).clone();
+        (*m) = prev_mode;
+        (*p) = mode;
     };
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
@@ -281,12 +291,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                 match event.code {
                     KeyCode::Char('c') if control => break,
                     KeyCode::Char(c) if input_search => {
-                        if c == '/' {
-                            //TODO: Goto previous mode?
-                            let m = mode.clone();
-                            let p = prev_mode.clone();
-                            mode = p;
-                            prev_mode = m;
+                        if c == '/' && search.query.is_empty() {
+                            sawp_mode();
                         }
                         //Handle ^W as control backspace.
                         else if control && c == 'w' {
@@ -391,34 +397,38 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             Mode::Queue | Mode::Playlist => Mode::Browser,
                         });
                     }
-                    KeyCode::Esc => match mode {
-                        Mode::Search => match search.mode {
-                            search::Mode::Search => {
-                                if let search::Mode::Search = search.mode {
-                                    set_mode(Mode::Queue);
-                                }
-                            }
-                            search::Mode::Select => {
-                                search.mode = search::Mode::Search;
-                                search.results.select(None);
-                            }
-                        },
-                        Mode::Playlist => {
-                            if playlist.delete {
-                                playlist.yes = true;
-                                playlist.delete = false;
-                            } else if let playlist::Mode::Popup = playlist.mode {
-                                playlist.mode = playlist::Mode::Playlist;
-                                playlist.search_query = String::new();
-                                playlist.changed = true;
-                            } else {
-                                set_mode(Mode::Browser);
-                            }
-                        }
-                        Mode::Browser => set_mode(Mode::Queue),
-                        Mode::Queue => (),
-                        Mode::Settings => set_mode(Mode::Queue),
-                    },
+                    //TODO: I'm not sure about this.
+                    KeyCode::Esc if mode == Mode::Search => {
+                        mode = prev_mode.clone();
+                        // match mode {
+                        //     Mode::Search => match search.mode {
+                        //         search::Mode::Search => {
+                        //             if let search::Mode::Search = search.mode {
+                        //                 set_mode(Mode::Queue);
+                        //             }
+                        //         }
+                        //         search::Mode::Select => {
+                        //             search.mode = search::Mode::Search;
+                        //             search.results.select(None);
+                        //         }
+                        //     },
+                        //     Mode::Playlist => {
+                        //         if playlist.delete {
+                        //             playlist.yes = true;
+                        //             playlist.delete = false;
+                        //         } else if let playlist::Mode::Popup = playlist.mode {
+                        //             playlist.mode = playlist::Mode::Playlist;
+                        //             playlist.search_query = String::new();
+                        //             playlist.changed = true;
+                        //         } else {
+                        //             set_mode(Mode::Browser);
+                        //         }
+                        //     }
+                        //     Mode::Browser => set_mode(Mode::Queue),
+                        //     Mode::Queue => (),
+                        //     Mode::Settings => set_mode(Mode::Queue),
+                        // }
+                    }
                     KeyCode::Enter if shift => match mode {
                         Mode::Browser => {
                             let songs: Vec<Song> = browser::get_selected(&browser)
@@ -473,7 +483,22 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
                     },
                     KeyCode::Backspace => match mode {
-                        Mode::Search => search::on_backspace(&mut search, control),
+                        Mode::Search => match search.mode {
+                            search::Mode::Search if !search.query.is_empty() => {
+                                if control {
+                                    search.query.clear();
+                                } else {
+                                    search.query.pop();
+                                }
+
+                                search.query_changed = true;
+                            }
+                            search::Mode::Search => sawp_mode(),
+                            search::Mode::Select => {
+                                search.results.select(None);
+                                search.mode = search::Mode::Search;
+                            }
+                        },
                         Mode::Playlist => playlist::on_backspace(&mut playlist, control),
                         _ => (),
                     },

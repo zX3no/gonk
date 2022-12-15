@@ -154,15 +154,10 @@ impl Widget for Search {
     }
 }
 
-pub fn on_backspace(search: &mut Search, shift: bool) {
+pub fn on_backspace(search: &mut Search, control: bool) {
     match search.mode {
-        Mode::Search => {
-            //You can't delete nothing
-            if search.query.is_empty() {
-                return;
-            }
-
-            if shift {
+        Mode::Search if !search.query.is_empty() => {
+            if control {
                 search.query.clear();
             } else {
                 search.query.pop();
@@ -174,6 +169,7 @@ pub fn on_backspace(search: &mut Search, shift: bool) {
             search.results.select(None);
             search.mode = Mode::Search;
         }
+        _ => (),
     }
 }
 
