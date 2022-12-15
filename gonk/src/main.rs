@@ -165,6 +165,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         mode = Mode::Queue;
     }
 
+    let mut search_timeout = Instant::now();
+
     loop {
         profile!("loop");
         if let Some(handle) = &scan_handle {
@@ -273,25 +275,22 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         //Handle ^W as control backspace.
                         if control && c == 'w' {
                             search::on_backspace(&mut search, true);
-                        } else {
-                            //Sometimes users will open the search when the meant to open playlist or settings.
-                            //This will cause them to search for ',' or '.'.
-                            //I can't think of any songs that would start with a comma or period so just change modes instead.
-                            //Before you would need to exit from the search with tab or escape and then change to settings/playlist mode.
-
-                            //Songs don't start with puncutation but they do start with numbers.
-                            //This isn't needed any more.
+                        } else if search_timeout.elapsed() < Duration::from_millis(350) {
+                            //I have mixed feelings about this.
                             match c {
-                                // '1' if search.query.is_empty() => mode = Mode::Queue,
-                                // '2' if search.query.is_empty() => mode = Mode::Browser,
-                                // '3' if search.query.is_empty() => mode = Mode::Playlist,
-                                // '4' if search.query.is_empty() => mode = Mode::Settings,
-                                '/' if search.query.is_empty() => (),
+                                '1' => mode = Mode::Queue,
+                                '2' => mode = Mode::Browser,
+                                '3' => mode = Mode::Playlist,
+                                '4' => mode = Mode::Settings,
+                                '/' => (),
                                 _ => {
                                     search.query.push(c);
                                     search.query_changed = true;
                                 }
                             };
+                        } else {
+                            search.query.push(c);
+                            search.query_changed = true;
                         }
                     }
                     KeyCode::Char(c) if input_playlist => {
@@ -365,10 +364,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 search.mode = SearchMode::Search;
                             }
                         } else {
+                            search_timeout = Instant::now();
                             mode = Mode::Search;
                         }
                     }
-                    //TODO: Change tab to previous mode.
                     KeyCode::Tab => {
                         terminal.clear()?;
                         mode = match mode {
@@ -380,8 +379,6 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         Mode::Search => match search.mode {
                             search::Mode::Search => {
                                 if let search::Mode::Search = search.mode {
-                                    // search.query.clear();
-                                    // search.query_changed = true;
                                     mode = Mode::Queue;
                                 }
                             }
