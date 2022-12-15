@@ -33,7 +33,7 @@ impl Search {
     }
 }
 
-impl Input for Search {
+impl Widget for Search {
     fn up(&mut self) {
         self.results.up();
     }
@@ -45,6 +45,113 @@ impl Input for Search {
     fn left(&mut self) {}
 
     fn right(&mut self) {}
+
+    fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
+        let search = self;
+
+        if search.query_changed {
+            search.query_changed = !search.query_changed;
+            *search.results = unsafe { vdb::search(&VDB, &search.query) };
+        }
+
+        let v = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Percentage(30),
+                Constraint::Percentage(60),
+            ])
+            .split(area);
+
+        if let Some(event) = mouse_event {
+            let rect = Rect {
+                x: event.column,
+                y: event.row,
+                ..Default::default()
+            };
+            if rect.intersects(v[0]) || rect.intersects(v[1]) {
+                search.mode = Mode::Search;
+                search.results.select(None);
+            } else if rect.intersects(v[2]) && !search.results.is_empty() {
+                search.mode = Mode::Select;
+                search.results.select(Some(0));
+            }
+        }
+
+        let h = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
+            .split(v[1]);
+
+        draw_textbox(search, f, v[0]);
+
+        let item = if search.results.selected().is_some() {
+            search.results.selected()
+        } else {
+            search.results.first()
+        };
+
+        if let Some(item) = item {
+            match item {
+                Item::Song((artist, album, name, _, _)) => {
+                    search::draw_song(f, name, album, artist, h[0]);
+                    draw_album(f, album, artist, h[1]);
+                }
+                Item::Album((artist, album)) => {
+                    search::draw_album(f, album, artist, h[0]);
+                    draw_artist(f, artist, h[1]);
+                }
+                Item::Artist(artist) => {
+                    let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
+
+                    search::draw_artist(f, artist, h[0]);
+
+                    if albums.len() > 1 {
+                        let h_split = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                            .split(h[1]);
+
+                        //Draw the first two albums.
+                        for (i, area) in h_split.iter().enumerate() {
+                            if let Some(album) = albums.get(i) {
+                                search::draw_album(f, &album.title, artist, *area);
+                            }
+                        }
+                    } else if let Some(album) = albums.get(0) {
+                        //Draw the first album.
+                        search::draw_album(f, &album.title, artist, h[1]);
+                    } else {
+                        f.render_widget(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .border_type(BorderType::Rounded)
+                                .title("Album"),
+                            h[1],
+                        );
+                    };
+                }
+            }
+            draw_results(search, f, v[2]);
+        } else {
+            draw_results(search, f, v[1].union(v[2]));
+        }
+
+        //Move the cursor position when typing
+        if let Mode::Search = search.mode {
+            if search.results.index().is_none() && search.query.is_empty() {
+                f.set_cursor(1, 1);
+            } else {
+                let len = search.query.len() as u16;
+                let max_width = area.width.saturating_sub(2);
+                if len >= max_width {
+                    f.set_cursor(max_width, 1);
+                } else {
+                    f.set_cursor(len + 1, 1);
+                }
+            }
+        }
+    }
 }
 
 pub fn on_backspace(search: &mut Search, shift: bool) {
@@ -102,111 +209,6 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
                 songs
             }
         }),
-    }
-}
-
-pub fn draw(search: &mut Search, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
-    if search.query_changed {
-        search.query_changed = !search.query_changed;
-        *search.results = unsafe { vdb::search(&VDB, &search.query) };
-    }
-
-    let v = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Percentage(30),
-            Constraint::Percentage(60),
-        ])
-        .split(area);
-
-    if let Some(event) = event {
-        let rect = Rect {
-            x: event.column,
-            y: event.row,
-            ..Default::default()
-        };
-        if rect.intersects(v[0]) || rect.intersects(v[1]) {
-            search.mode = Mode::Search;
-            search.results.select(None);
-        } else if rect.intersects(v[2]) && !search.results.is_empty() {
-            search.mode = Mode::Select;
-            search.results.select(Some(0));
-        }
-    }
-
-    let h = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
-        .split(v[1]);
-
-    draw_textbox(search, f, v[0]);
-
-    let item = if search.results.selected().is_some() {
-        search.results.selected()
-    } else {
-        search.results.first()
-    };
-
-    if let Some(item) = item {
-        match item {
-            Item::Song((artist, album, name, _, _)) => {
-                search::draw_song(f, name, album, artist, h[0]);
-                draw_album(f, album, artist, h[1]);
-            }
-            Item::Album((artist, album)) => {
-                search::draw_album(f, album, artist, h[0]);
-                draw_artist(f, artist, h[1]);
-            }
-            Item::Artist(artist) => {
-                let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
-
-                search::draw_artist(f, artist, h[0]);
-
-                if albums.len() > 1 {
-                    let h_split = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                        .split(h[1]);
-
-                    //Draw the first two albums.
-                    for (i, area) in h_split.iter().enumerate() {
-                        if let Some(album) = albums.get(i) {
-                            search::draw_album(f, &album.title, artist, *area);
-                        }
-                    }
-                } else if let Some(album) = albums.get(0) {
-                    //Draw the first album.
-                    search::draw_album(f, &album.title, artist, h[1]);
-                } else {
-                    f.render_widget(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_type(BorderType::Rounded)
-                            .title("Album"),
-                        h[1],
-                    );
-                };
-            }
-        }
-        draw_results(search, f, v[2]);
-    } else {
-        draw_results(search, f, v[1].union(v[2]));
-    }
-
-    //Move the cursor position when typing
-    if let Mode::Search = search.mode {
-        if search.results.index().is_none() && search.query.is_empty() {
-            f.set_cursor(1, 1);
-        } else {
-            let len = search.query.len() as u16;
-            let max_width = area.width.saturating_sub(2);
-            if len >= max_width {
-                f.set_cursor(max_width, 1);
-            } else {
-                f.set_cursor(len + 1, 1);
-            }
-        }
     }
 }
 

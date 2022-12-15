@@ -361,4 +361,7 @@ impl Wasapi {
             Err(())
         }
     }
+    pub fn sample_rate(&self) -> usize {
+        self.format.Format.nSamplesPerSec as usize
+    }
 }

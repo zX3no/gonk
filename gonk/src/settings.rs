@@ -1,4 +1,5 @@
-use crate::{widgets::*, Frame, Input};
+use crate::{widgets::*, Frame, Widget};
+use crossterm::event::MouseEvent;
 use gonk_core::Index;
 use gonk_player::{default_device, devices};
 use tui::{
@@ -48,7 +49,7 @@ impl Settings {
     }
 }
 
-impl Input for Settings {
+impl Widget for Settings {
     fn up(&mut self) {
         self.devices.up();
     }
@@ -60,6 +61,10 @@ impl Input for Settings {
     fn left(&mut self) {}
 
     fn right(&mut self) {}
+
+    fn draw(&mut self, f: &mut Frame, area: Rect, _: Option<MouseEvent>) {
+        draw(self, area, f);
+    }
 }
 
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {

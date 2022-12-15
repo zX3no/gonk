@@ -70,13 +70,12 @@ impl Player {
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
         let backend = unsafe { Wasapi::new(device, None) };
-        let sample_rate = backend.format.Format.nSamplesPerSec as usize;
 
         let mut player = Self {
             songs,
-            backend,
             output_device: device.clone(),
-            sample_rate,
+            sample_rate: backend.sample_rate(),
+            backend,
             symphonia: None,
             gain: 0.5,
             volume: volume as f32 / VOLUME_REDUCTION,
@@ -132,16 +131,19 @@ impl Player {
     //This shouldn't be necessary.
     pub fn update_device(&mut self, path: impl AsRef<Path>) {
         match Symphonia::new(path) {
-            Ok(d) => {
-                self.duration = d.duration();
-                let new = d.sample_rate();
+            Ok(sym) => {
+                self.duration = sym.duration();
+                let new = sym.sample_rate();
+
                 if self.sample_rate != new {
                     if self.backend.set_sample_rate(new).is_err() {
                         self.backend = unsafe { Wasapi::new(&self.output_device, Some(new)) };
                     };
+
                     self.sample_rate = new;
                 }
-                self.symphonia = Some(d);
+
+                self.symphonia = Some(sym);
             }
             Err(err) => gonk_core::log!("{}", err),
         }

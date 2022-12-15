@@ -1,5 +1,5 @@
 use crate::widgets::{List, ListItem, ListState};
-use crate::{Frame, Input, VDB};
+use crate::{Frame, Widget, VDB};
 use crossterm::event::MouseEvent;
 use gonk_core::{profile, vdb, StaticIndex};
 use gonk_core::{Album, Index, Song};
@@ -58,7 +58,7 @@ impl Browser {
     }
 }
 
-impl Input for Browser {
+impl Widget for Browser {
     fn up(&mut self) {
         profile!();
         match self.mode {
@@ -93,6 +93,10 @@ impl Input for Browser {
             Mode::Album => self.mode = Mode::Song,
             Mode::Song => (),
         }
+    }
+
+    fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
+        draw(self, area, f, mouse_event);
     }
 }
 
