@@ -33,7 +33,7 @@ const ALBUM: Color = Color::Magenta;
 const ARTIST: Color = Color::Blue;
 const SEEKER: Color = Color::White;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Mode {
     Browser,
     Queue,
@@ -41,7 +41,6 @@ pub enum Mode {
     Playlist,
     Settings,
 }
-
 pub trait Widget {
     fn up(&mut self);
     fn down(&mut self);
@@ -157,12 +156,22 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     let mut search = Search::new();
 
     let mut mode = Mode::Browser;
+    let mut prev_mode = mode.clone();
     let mut last_tick = Instant::now();
     let mut dots: usize = 1;
 
+    //Why does this keep happening.
+    let m = addr_of_mut!(mode);
+    let p = addr_of_mut!(prev_mode);
+    let set_mode = |new: Mode| unsafe {
+        let mode = &mut (*m);
+        (*p) = mode.clone();
+        (*m) = new
+    };
+
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && scan_handle.is_none() {
-        mode = Mode::Queue;
+        set_mode(Mode::Queue);
     }
 
     let mut search_timeout = Instant::now();
@@ -272,16 +281,23 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                 match event.code {
                     KeyCode::Char('c') if control => break,
                     KeyCode::Char(c) if input_search => {
+                        if c == '/' {
+                            //TODO: Goto previous mode?
+                            let m = mode.clone();
+                            let p = prev_mode.clone();
+                            mode = p;
+                            prev_mode = m;
+                        }
                         //Handle ^W as control backspace.
-                        if control && c == 'w' {
+                        else if control && c == 'w' {
                             search::on_backspace(&mut search, true);
                         } else if search_timeout.elapsed() < Duration::from_millis(350) {
                             //I have mixed feelings about this.
                             match c {
-                                '1' => mode = Mode::Queue,
-                                '2' => mode = Mode::Browser,
-                                '3' => mode = Mode::Playlist,
-                                '4' => mode = Mode::Settings,
+                                '1' => set_mode(Mode::Queue),
+                                '2' => set_mode(Mode::Browser),
+                                '3' => set_mode(Mode::Playlist),
+                                '4' => set_mode(Mode::Settings),
                                 '/' => (),
                                 _ => {
                                     search.query.push(c);
@@ -365,21 +381,21 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             }
                         } else {
                             search_timeout = Instant::now();
-                            mode = Mode::Search;
+                            set_mode(Mode::Search);
                         }
                     }
                     KeyCode::Tab => {
                         terminal.clear()?;
-                        mode = match mode {
+                        set_mode(match mode {
                             Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
                             Mode::Queue | Mode::Playlist => Mode::Browser,
-                        };
+                        });
                     }
                     KeyCode::Esc => match mode {
                         Mode::Search => match search.mode {
                             search::Mode::Search => {
                                 if let search::Mode::Search = search.mode {
-                                    mode = Mode::Queue;
+                                    set_mode(Mode::Queue);
                                 }
                             }
                             search::Mode::Select => {
@@ -396,12 +412,12 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 playlist.search_query = String::new();
                                 playlist.changed = true;
                             } else {
-                                mode = Mode::Browser;
+                                set_mode(Mode::Browser);
                             }
                         }
-                        Mode::Browser => mode = Mode::Queue,
+                        Mode::Browser => set_mode(Mode::Queue),
                         Mode::Queue => (),
-                        Mode::Settings => mode = Mode::Queue,
+                        Mode::Settings => set_mode(Mode::Queue),
                     },
                     KeyCode::Enter if shift => match mode {
                         Mode::Browser => {
@@ -410,13 +426,13 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 .cloned()
                                 .collect();
                             playlist::add(&mut playlist, &songs);
-                            mode = Mode::Playlist;
+                            set_mode(Mode::Playlist);
                         }
                         Mode::Queue => {
                             if let Some(index) = queue.ui.index() {
                                 if let Some(song) = player.songs.get(index) {
                                     playlist::add(&mut playlist, &[song.clone()]);
-                                    mode = Mode::Playlist;
+                                    set_mode(Mode::Playlist);
                                 }
                             }
                         }
@@ -424,7 +440,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             if let Some(songs) = search::on_enter(&mut search) {
                                 let songs: Vec<Song> = songs.into_iter().cloned().collect();
                                 playlist::add(&mut playlist, &songs);
-                                mode = Mode::Playlist;
+                                set_mode(Mode::Playlist);
                             }
                         }
                         _ => (),
@@ -465,10 +481,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     KeyCode::Down => input.down(),
                     KeyCode::Left => input.left(),
                     KeyCode::Right => input.right(),
-                    KeyCode::Char('1') => mode = Mode::Queue,
-                    KeyCode::Char('2') => mode = Mode::Browser,
-                    KeyCode::Char('3') => mode = Mode::Playlist,
-                    KeyCode::Char('4') => mode = Mode::Settings,
+                    KeyCode::Char('1') => set_mode(Mode::Queue),
+                    KeyCode::Char('2') => set_mode(Mode::Browser),
+                    KeyCode::Char('3') => set_mode(Mode::Playlist),
+                    KeyCode::Char('4') => set_mode(Mode::Settings),
                     KeyCode::F(1) => queue::constraint(&mut queue, 0, shift),
                     KeyCode::F(2) => queue::constraint(&mut queue, 1, shift),
                     KeyCode::F(3) => queue::constraint(&mut queue, 2, shift),
