@@ -1,16 +1,11 @@
-use crate::{Event, State, Symphonia, VOLUME_REDUCTION};
-use core::slice;
-use crossbeam_channel::Receiver;
+use core::{ffi::c_void, slice};
+use gonk_core::profile;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
-use std::sync::Once;
 use std::thread;
 use std::time::Duration;
-use winapi::shared::devpkey::DEVPKEY_Device_FriendlyName;
-use winapi::shared::guiddef::GUID;
-use winapi::shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT};
 use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
 use winapi::um::audiosessiontypes::{
     AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
@@ -26,9 +21,16 @@ use winapi::um::winbase::{
     FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS,
 };
 use winapi::um::winnt::HRESULT;
+use winapi::{shared::devpkey::DEVPKEY_Device_FriendlyName, um::synchapi::WaitForSingleObject};
+use winapi::{shared::guiddef::GUID, um::winbase::INFINITE};
+use winapi::{
+    shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
+    um::winbase::WAIT_OBJECT_0,
+};
 use winapi::{Interface, RIDL};
 
-const MAX_BUFFER_SIZE: usize = 1024;
+use crate::decoder::Symphonia;
+
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
 const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
@@ -41,11 +43,10 @@ const KSDATAFORMAT_SUBTYPE_IEEE_FLOAT: GUID = GUID {
     Data4: [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
 };
 
-const COMMON_SAMPLE_RATES: [u32; 13] = [
+const COMMON_SAMPLE_RATES: [usize; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
 ];
 
-static INIT: Once = Once::new();
 //TODO: It is very slow to collect devices
 //I'm not sure if this is necessary though.
 pub static mut DEVICES: Vec<Device> = Vec::new();
@@ -65,38 +66,31 @@ pub struct Device {
     pub name: String,
 }
 
-pub static mut STATE: State = State::Stopped;
-pub static mut ELAPSED: Duration = Duration::from_secs(0);
-pub static mut DURATION: Duration = Duration::from_secs(0);
-pub static mut VOLUME: f32 = 10.0 / VOLUME_REDUCTION;
-
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
-pub fn init() {
-    INIT.call_once(|| unsafe {
-        CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
+pub unsafe fn init() {
+    CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
 
-        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-        check(CoCreateInstance(
-            &CLSID_MMDeviceEnumerator,
-            null_mut(),
-            CLSCTX_ALL,
-            &IMMDeviceEnumerator::uuidof(),
-            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-        ));
+    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+    check(CoCreateInstance(
+        &CLSID_MMDeviceEnumerator,
+        null_mut(),
+        CLSCTX_ALL,
+        &IMMDeviceEnumerator::uuidof(),
+        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+    ));
 
-        update_output_devices(enumerator);
+    update_output_devices(enumerator);
 
-        //HACK: Not a hack apparently.
-        let ptr: usize = enumerator as usize;
-        thread::spawn(move || {
-            let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
-            loop {
-                update_output_devices(enumerator);
-                thread::sleep(Duration::from_millis(200));
-            }
-        });
+    //HACK: Not a hack apparently.
+    let ptr: usize = enumerator as usize;
+    thread::spawn(move || {
+        let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
+        loop {
+            update_output_devices(enumerator);
+            thread::sleep(Duration::from_millis(250));
+        }
     });
 }
 
@@ -173,7 +167,6 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 }
 
 ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-//TODO: I think these panics don't work?
 #[inline]
 #[track_caller]
 pub unsafe fn check(result: i32) {
@@ -223,11 +216,14 @@ pub struct Wasapi {
     pub render_client: *mut IAudioRenderClient,
     pub format: WAVEFORMATEXTENSIBLE,
 
-    pub buffer: Vec<u8>,
+    pub buffer: Vec<f32>,
+
+    pub h_event: *mut c_void,
 }
 
 impl Wasapi {
-    pub unsafe fn new(device: &Device, sample_rate: Option<u32>) -> Self {
+    pub unsafe fn new(device: &Device, sample_rate: Option<usize>) -> Self {
+        profile!();
         init();
 
         let audio_client: *mut IAudioClient = {
@@ -250,8 +246,8 @@ impl Wasapi {
         //Update format to desired sample rate.
         if let Some(sample_rate) = sample_rate {
             assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-            format.nSamplesPerSec = sample_rate;
-            format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+            format.nSamplesPerSec = sample_rate as u32;
+            format.nAvgBytesPerSec = sample_rate as u32 * format.nBlockAlign as u32;
         }
 
         if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
@@ -318,6 +314,7 @@ impl Wasapi {
             render_client,
             format,
             buffer: Vec::new(),
+            h_event,
         }
     }
     pub unsafe fn buffer_frame_count(&mut self) -> usize {
@@ -330,152 +327,46 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, sym: &mut Symphonia, gain: f32) {
-        let block_align = self.format.Format.nBlockAlign as usize;
-        let channels = self.format.Format.nChannels as usize;
-        let channel_align = block_align / channels;
-        let gain = if gain == 0.0 { 0.5 } else { gain };
-        let buffer_frame_count = self.buffer_frame_count();
+    pub fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
+        profile!();
+        unsafe {
+            let block_align = self.format.Format.nBlockAlign as usize;
+            let buffer_frame_count = self.buffer_frame_count();
+            let buffer_size = buffer_frame_count * block_align;
 
-        if buffer_frame_count > self.buffer.len() {
-            self.buffer.resize(buffer_frame_count * block_align, 0);
-        }
+            let _channels = self.format.Format.nChannels as usize;
 
-        let mut frames_written = 0;
-        while frames_written < buffer_frame_count {
-            let frames = (buffer_frame_count - frames_written).min(MAX_BUFFER_SIZE);
+            let mut buffer_ptr = null_mut();
+            check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
 
-            debug_assert!((frames_written + frames) * block_align <= self.buffer.len());
-            for out_frame in &mut self.buffer
-                [frames_written * block_align..(frames_written + frames) * block_align]
-                .chunks_exact_mut(block_align)
-            {
-                for out_smp_bytes in out_frame.chunks_exact_mut(channel_align) {
-                    let smp = sym.next().unwrap_or(0.0) * VOLUME * gain;
-                    let smp_bytes = smp.to_le_bytes();
-                    debug_assert!(smp_bytes.len() <= out_smp_bytes.len());
-                    out_smp_bytes[0..smp_bytes.len()].copy_from_slice(&smp_bytes);
-                }
+            let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
+
+            for sample in slice.chunks_mut(4) {
+                let sample_bytes = (symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
+                sample.copy_from_slice(&sample_bytes);
             }
 
-            frames_written += frames;
+            (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
+
+            let result = WaitForSingleObject(self.h_event, INFINITE);
+            if result != WAIT_OBJECT_0 {
+                panic!();
+            }
         }
-
-        // Write the output buffer to the device.
-        debug_assert!(self.buffer.len() >= buffer_frame_count * block_align);
-        let data = &self.buffer[0..buffer_frame_count * block_align];
-
-        let nbr_bytes = buffer_frame_count * block_align;
-        debug_assert_eq!(nbr_bytes, data.len());
-
-        let mut buffer_ptr = null_mut();
-        check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
-
-        let buffer_slice = slice::from_raw_parts_mut(buffer_ptr, nbr_bytes);
-        buffer_slice.copy_from_slice(data);
-        (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
     }
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
     #[allow(clippy::result_unit_err)]
-    pub unsafe fn set_sample_rate(&mut self, new: u32) -> Result<(), ()> {
+    pub fn set_sample_rate(&mut self, new: usize) -> Result<(), ()> {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
-        let result = (*self.audio_clock_adjust).SetSampleRate(new as f32);
+        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(new as f32) };
         if result == 0 {
             Ok(())
         } else {
             Err(())
         }
     }
-}
-
-pub unsafe fn create_decoder(
-    path: &str,
-    device: &Device,
-    decoder: &mut Option<Symphonia>,
-    wasapi: &mut Wasapi,
-    sample_rate: &mut u32,
-) {
-    match Symphonia::new(path) {
-        Ok(sym) => {
-            DURATION = sym.duration();
-
-            let new = sym.sample_rate();
-            if *sample_rate != new {
-                if wasapi.set_sample_rate(new).is_err() {
-                    *wasapi = Wasapi::new(device, Some(new));
-                };
-                *sample_rate = new;
-            }
-
-            *decoder = Some(sym);
-        }
-        Err(err) => gonk_core::log!("{}", err),
-    }
-}
-
-//TODO: Devices with 4 channels don't play correctly?
-pub unsafe fn new(device: &Device, r: Receiver<Event>) {
-    let mut wasapi = Wasapi::new(device, None);
-    let mut sample_rate = wasapi.format.Format.nSamplesPerSec;
-    let mut decoder: Option<Symphonia> = None;
-    let mut gain = 0.50;
-
-    loop {
-        if let Ok(event) = r.try_recv() {
-            match event {
-                Event::PlaySong((path, g)) => {
-                    STATE = State::Playing;
-                    ELAPSED = Duration::default();
-                    if g != 0.0 {
-                        gain = g;
-                    }
-                    create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
-                }
-                Event::RestoreSong((path, g, elapsed)) => {
-                    STATE = State::Paused;
-                    ELAPSED = Duration::from_secs_f32(elapsed);
-                    if g != 0.0 {
-                        gain = g;
-                    }
-                    create_decoder(&path, device, &mut decoder, &mut wasapi, &mut sample_rate);
-                    if let Some(decoder) = &mut decoder {
-                        decoder.seek(elapsed);
-                    }
-                }
-                Event::Seek(pos) => {
-                    if let Some(decoder) = &mut decoder {
-                        decoder.seek(pos);
-                    }
-                }
-                Event::Play => STATE = State::Playing,
-                Event::Pause => STATE = State::Paused,
-                Event::Stop => {
-                    STATE = State::Stopped;
-                    decoder = None
-                }
-                Event::OutputDevice(device) => {
-                    let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
-                        device
-                    } else {
-                        unreachable!("Requested a device that does not exist.")
-                    };
-                    wasapi = Wasapi::new(device, Some(sample_rate));
-                }
-            }
-        }
-
-        //HACK: Don't overwork the thread.
-        //Updating the elapsed time is not that important.
-        //Filling the buffer here is probably not good.
-        thread::sleep(Duration::from_millis(2));
-
-        //Update the elapsed time and fill the output buffer.
-        if let State::Playing = STATE {
-            if let Some(decoder) = &mut decoder {
-                ELAPSED = decoder.elapsed();
-                wasapi.fill_buffer(decoder, gain);
-            }
-        }
+    pub fn sample_rate(&self) -> usize {
+        self.format.Format.nSamplesPerSec as usize
     }
 }

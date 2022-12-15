@@ -43,38 +43,39 @@ gonk
 ```
 ## ⌨️ Key Bindings
 
-| Command                     | Key             |
-|-----------------------------|-----------------|
-| Move Up                     | `K / Up`        |
-| Move Down                   | `J / Down`      |
-| Move Left                   | `H / Left`      |
-| Move Right                  | `L / Right`     |
-| Volume Up                   | `W`             |
-| Volume Down                 | `S`             |
-| Play/Pause                  | `Space`         |
-| Previous                    | `A`             |
-| Next                        | `D`             |
-| Seek -10s                   | `Q`             |
-| Seek 10s                    | `E`             |
-| Clear queue                 | `C`             |
-| Clear except playing        | `Shift + C`     |
-| Add song to playlist        | `Shift + Enter` |
-| -                           |                 |
-| Toggle Browser/Queue        | `Tab`           |
-| Search                      | `/`             |
-| Settings                    | `,`             |
-| Playlists                   | `.`             |
-| Exit mode                   | `Escape`        |
-| -                           |                 |
-| Delete song/playlist        | `X`             |
-| Delete without confirmation | `Shift + X`     |
-| -                           |                 |
-| Move song margin            | `1 / Shift + 1` |
-| Move album margin           | `2 / Shift + 2` |
-| Move artist margin          | `3 / Shift + 3` |
-| -                           |                 |
-| Update database             | `U`             |
-| Quit player                 | `Ctrl + C`      |
+| Command                     | Key               |
+|-----------------------------|-------------------|
+| Move Up                     | `K / Up`          |
+| Move Down                   | `J / Down`        |
+| Move Left                   | `H / Left`        |
+| Move Right                  | `L / Right`       |
+| Volume Up                   | `W`               |
+| Volume Down                 | `S`               |
+| Play/Pause                  | `Space`           |
+| Previous                    | `A`               |
+| Next                        | `D`               |
+| Seek -10s                   | `Q`               |
+| Seek 10s                    | `E`               |
+| Clear queue                 | `C`               |
+| Clear except playing        | `Shift + C`       |
+| Add song to playlist        | `Shift + Enter`   |
+| -                           |                   |
+| Queue                       | `1`               |
+| Browser                     | `2`               |
+| Playlists                   | `3`               |
+| Settings                    | `4`               |
+| Search                      | `/`               |
+| Exit mode                   | `Escape`          |
+| -                           |                   |
+| Delete song/playlist        | `X`               |
+| Delete without confirmation | `Shift + X`       |
+| -                           |                   |
+| Move song margin            | `F1 / Shift + F1` |
+| Move album margin           | `F2 / Shift + F2` |
+| Move artist margin          | `F3 / Shift + F3` |
+| -                           |                   |
+| Update database             | `U`               |
+| Quit player                 | `Ctrl + C`        |
 
 ## ⚒️ Troubleshooting
 

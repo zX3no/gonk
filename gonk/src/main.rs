@@ -6,7 +6,7 @@ use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
-use std::fs;
+use std::{error::Error, fs, ptr::addr_of_mut};
 use std::{
     io::{stdout, Stdout},
     path::Path,
@@ -42,11 +42,12 @@ pub enum Mode {
     Settings,
 }
 
-pub trait Input {
+pub trait Widget {
     fn up(&mut self);
     fn down(&mut self);
     fn left(&mut self);
     fn right(&mut self);
+    fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>);
 }
 
 fn draw_log(f: &mut Frame) -> Rect {
@@ -73,7 +74,7 @@ fn draw_log(f: &mut Frame) -> Rect {
 
 static mut VDB: Lazy<vdb::Database> = Lazy::new(|| vdb::create().unwrap());
 
-fn main() {
+fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_timer = Instant::now();
@@ -83,7 +84,7 @@ fn main() {
         match args[0].as_str() {
             "add" => {
                 if args.len() == 1 {
-                    return println!("Usage: gonk add <path>");
+                    return Ok(println!("Usage: gonk add <path>"));
                 }
                 let path = args[1..].join(" ");
                 if Path::new(&path).exists() {
@@ -91,13 +92,13 @@ fn main() {
                     scan_handle = Some(db::create(path));
                     scan_timer = Instant::now();
                 } else {
-                    return println!("Invalid path.");
+                    return Ok(println!("Invalid path."));
                 }
             }
             "reset" => {
                 return match gonk_core::db::reset() {
-                    Ok(_) => println!("Database reset!"),
-                    Err(e) => println!("Failed to reset database! {e}"),
+                    Ok(_) => Ok(println!("Database reset!")),
+                    Err(e) => Ok(println!("Failed to reset database! {e}")),
                 };
             }
             "help" | "--help" => {
@@ -107,9 +108,9 @@ fn main() {
                 println!("Options");
                 println!("   add   <path>  Add music to the library");
                 println!("   reset         Reset the database");
-                return;
+                return Ok(());
             }
-            _ if !args.is_empty() => return println!("Invalid command."),
+            _ if !args.is_empty() => return Ok(println!("Invalid command.")),
             _ => (),
         }
     }
@@ -123,15 +124,14 @@ fn main() {
         std::process::exit(1);
     }));
 
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     execute!(
         terminal.backend_mut(),
         EnterAlternateScreen,
         EnableMouseCapture,
-    )
-    .unwrap();
-    enable_raw_mode().unwrap();
-    terminal.clear().unwrap();
+    )?;
+    enable_raw_mode()?;
+    terminal.clear()?;
 
     let index = if persist.queue.is_empty() {
         None
@@ -147,9 +147,10 @@ fn main() {
         songs,
         persist.elapsed,
     );
-    let mut player_clone = player.songs.clone();
 
-    let mut queue = Queue::new(ui_index);
+    //TODO: Why does this need to exist?
+    let mut queue = Queue::new(ui_index, addr_of_mut!(player));
+
     let mut browser = Browser::new();
     let mut playlist = Playlist::new();
     let mut settings = Settings::new(&persist.output_device);
@@ -158,19 +159,21 @@ fn main() {
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut dots: usize = 1;
-    let mut focused = true;
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && scan_handle.is_none() {
         mode = Mode::Queue;
     }
 
+    let mut search_timeout = Instant::now();
+
     loop {
+        profile!("loop");
         if let Some(handle) = &scan_handle {
             if handle.is_finished() {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
-                unsafe { *VDB = vdb::create().unwrap() };
+                unsafe { *VDB = vdb::create()? };
 
                 log::clear();
 
@@ -199,7 +202,7 @@ fn main() {
 
                         let path = gonk_path().join("gonk.log");
                         let errors = errors.join("\n");
-                        fs::write(path, errors).unwrap();
+                        fs::write(path, errors)?;
                     }
                     db::ScanResult::FileInUse => {
                         log!("Could not update database, file in use.")
@@ -227,7 +230,8 @@ fn main() {
             //Update the time elapsed.
             persist.index = player.songs.index().unwrap_or(0) as u16;
             persist.elapsed = player.elapsed().as_secs_f32();
-            persist.save().unwrap();
+            persist.queue = player.songs.to_vec();
+            persist.save()?;
 
             //Update the list of output devices.
             settings.update();
@@ -238,325 +242,279 @@ fn main() {
         //Update the UI index.
         queue.len = player.songs.len();
 
-        if player.is_finished() {
-            player.next();
-        }
-
-        if *player.songs != player_clone {
-            player_clone = player.songs.clone();
-
-            persist.queue = (*player.songs).to_vec();
-            persist.index = player.songs.index().unwrap_or(0) as u16;
-            persist.elapsed = player.elapsed().as_secs_f32();
-        }
-
-        terminal
-            .draw(|f| {
-                let top = draw_log(f);
-                match mode {
-                    Mode::Browser => browser::draw(&mut browser, top, f, None),
-                    Mode::Queue => queue::draw(&mut queue, &mut player, f, None),
-                    Mode::Search => search::draw(&mut search, top, f, None),
-                    Mode::Playlist => playlist::draw(&mut playlist, top, f, None),
-                    Mode::Settings => settings::draw(&mut settings, top, f),
-                };
-            })
-            .unwrap();
+        player.update();
 
         let input_search = search.mode == SearchMode::Search && mode == Mode::Search;
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
         let input = match mode {
-            Mode::Browser => &mut browser as &mut dyn Input,
-            Mode::Queue => &mut queue as &mut dyn Input,
-            Mode::Search => &mut search as &mut dyn Input,
-            Mode::Playlist => &mut playlist as &mut dyn Input,
-            Mode::Settings => &mut settings as &mut dyn Input,
+            Mode::Browser => &mut browser as &mut dyn Widget,
+            Mode::Queue => &mut queue as &mut dyn Widget,
+            Mode::Search => &mut search as &mut dyn Widget,
+            Mode::Playlist => &mut playlist as &mut dyn Widget,
+            Mode::Settings => &mut settings as &mut dyn Widget,
         };
 
-        if event::poll(Duration::from_millis(2)).unwrap() {
-            match event::read().unwrap() {
-                Event::Key(event) => {
-                    let shift = event.modifiers == KeyModifiers::SHIFT;
-                    let control = event.modifiers == KeyModifiers::CONTROL;
+        let _ = terminal.draw(|f| {
+            let top = draw_log(f);
+            input.draw(f, top, None);
+        });
 
-                    match event.code {
-                        KeyCode::Char('c') if control => break,
-                        KeyCode::Char(c) if input_search => {
-                            //Handle ^W as control backspace.
-                            if control && c == 'w' {
-                                search::on_backspace(&mut search, true);
-                            } else {
-                                //Sometimes users will open the search when the meant to open playlist or settings.
-                                //This will cause them to search for ',' or '.'.
-                                //I can't think of any songs that would start with a comma or period so just change modes instead.
-                                //Before you would need to exit from the search with tab or escape and then change to settings/playlist mode.
-                                match c {
-                                    ',' if search.query.is_empty() => mode = Mode::Settings,
-                                    '.' if search.query.is_empty() => mode = Mode::Playlist,
-                                    '/' if search.query.is_empty() => (),
-                                    _ => {
-                                        search.query.push(c);
-                                        search.query_changed = true;
-                                    }
-                                };
-                            }
-                        }
-                        KeyCode::Char(c) if input_playlist => {
-                            if control && c == 'w' {
-                                playlist::on_backspace(&mut playlist, true);
-                            } else {
-                                playlist.changed = true;
-                                playlist.search_query.push(c);
-                            }
-                        }
-                        KeyCode::Char(' ') => player.toggle_playback(),
-                        KeyCode::Char('C') if shift => {
-                            player.clear_except_playing();
-                            queue.ui.select(Some(0));
-                        }
-                        KeyCode::Char('c') => {
-                            player.clear();
-                            queue.ui.select(Some(0));
-                        }
-                        KeyCode::Char('x') => match mode {
-                            Mode::Queue => {
-                                if let Some(i) = queue.ui.index() {
-                                    player.delete_index(i);
+        if !event::poll(Duration::from_millis(2))? {
+            continue;
+        }
 
-                                    //Sync the UI index.
-                                    let len = player.songs.len().saturating_sub(1);
-                                    if i > len {
-                                        queue.ui.select(Some(len));
-                                    }
+        match event::read()? {
+            Event::Key(event) => {
+                let shift = event.modifiers == KeyModifiers::SHIFT;
+                let control = event.modifiers == KeyModifiers::CONTROL;
+
+                match event.code {
+                    KeyCode::Char('c') if control => break,
+                    KeyCode::Char(c) if input_search => {
+                        //Handle ^W as control backspace.
+                        if control && c == 'w' {
+                            search::on_backspace(&mut search, true);
+                        } else if search_timeout.elapsed() < Duration::from_millis(350) {
+                            //I have mixed feelings about this.
+                            match c {
+                                '1' => mode = Mode::Queue,
+                                '2' => mode = Mode::Browser,
+                                '3' => mode = Mode::Playlist,
+                                '4' => mode = Mode::Settings,
+                                '/' => (),
+                                _ => {
+                                    search.query.push(c);
+                                    search.query_changed = true;
                                 }
-                            }
-                            Mode::Playlist => {
-                                playlist::delete(&mut playlist, false);
-                            }
-                            _ => (),
-                        },
-                        KeyCode::Char('X') => {
-                            if let Mode::Playlist = mode {
-                                playlist::delete(&mut playlist, true);
-                            }
-                        }
-                        KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
-                            if scan_handle.is_none() {
-                                if persist.music_folder.is_empty() {
-                                    //TODO: I saw this flash by but I can't replicate it.
-                                    gonk_core::log!(
-                                        "Nothing to scan! Add a folder with 'gonk add /path/'"
-                                    );
-                                } else {
-                                    scan_handle = Some(db::create(persist.music_folder.clone()));
-                                    scan_timer = Instant::now();
-                                    playlist.lists =
-                                        Index::from(gonk_core::playlist::playlists().unwrap());
-                                }
-                            }
-                        }
-                        KeyCode::Char('q') => player.seek_backward(),
-                        KeyCode::Char('e') => player.seek_foward(),
-                        KeyCode::Char('a') => player.prev(),
-                        KeyCode::Char('d') => player.next(),
-                        KeyCode::Char('w') => {
-                            player.volume_up();
-                            persist.volume = player.volume();
-                        }
-                        KeyCode::Char('s') => {
-                            player.volume_down();
-                            persist.volume = player.volume();
-                        }
-                        KeyCode::Char(',') => mode = Mode::Settings,
-                        KeyCode::Char('.') => mode = Mode::Playlist,
-                        KeyCode::Char('/') => {
-                            if mode == Mode::Search {
-                                if search.mode == SearchMode::Select {
-                                    search.results.select(None);
-                                    search.mode = SearchMode::Search;
-                                }
-                            } else {
-                                mode = Mode::Search;
-                            }
-                        }
-                        KeyCode::Tab => {
-                            terminal.clear().unwrap();
-                            mode = match mode {
-                                Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
-                                Mode::Queue | Mode::Playlist => Mode::Browser,
                             };
+                        } else {
+                            search.query.push(c);
+                            search.query_changed = true;
                         }
-                        KeyCode::Esc => match mode {
-                            Mode::Search => match search.mode {
-                                search::Mode::Search => {
-                                    if let search::Mode::Search = search.mode {
-                                        // search.query.clear();
-                                        // search.query_changed = true;
-                                        mode = Mode::Queue;
-                                    }
-                                }
-                                search::Mode::Select => {
-                                    search.mode = search::Mode::Search;
-                                    search.results.select(None);
-                                }
-                            },
-                            Mode::Playlist => {
-                                if playlist.delete {
-                                    playlist.yes = true;
-                                    playlist.delete = false;
-                                } else if let playlist::Mode::Popup = playlist.mode {
-                                    playlist.mode = playlist::Mode::Playlist;
-                                    playlist.search_query = String::new();
-                                    playlist.changed = true;
-                                } else {
-                                    mode = Mode::Browser;
-                                }
-                            }
-                            Mode::Browser => mode = Mode::Queue,
-                            Mode::Queue => (),
-                            Mode::Settings => mode = Mode::Queue,
-                        },
-                        KeyCode::Enter if shift => match mode {
-                            Mode::Browser => {
-                                let songs: Vec<Song> = browser::get_selected(&browser)
-                                    .into_iter()
-                                    .cloned()
-                                    .collect();
-                                playlist::add(&mut playlist, &songs);
-                                mode = Mode::Playlist;
-                            }
-                            Mode::Queue => {
-                                if let Some(index) = queue.ui.index() {
-                                    if let Some(song) = player.songs.get(index) {
-                                        playlist::add(&mut playlist, &[song.clone()]);
-                                        mode = Mode::Playlist;
-                                    }
-                                }
-                            }
-                            Mode::Search => {
-                                if let Some(songs) = search::on_enter(&mut search) {
-                                    let songs: Vec<Song> = songs.into_iter().cloned().collect();
-                                    playlist::add(&mut playlist, &songs);
-                                    mode = Mode::Playlist;
-                                }
-                            }
-                            _ => (),
-                        },
-                        KeyCode::Enter => match mode {
-                            Mode::Browser => {
-                                let songs = browser::get_selected(&browser)
-                                    .into_iter()
-                                    .cloned()
-                                    .collect();
-                                player.add(songs);
-                            }
-                            Mode::Queue => {
-                                if let Some(i) = queue.ui.index() {
-                                    player.play_index(i);
-                                }
-                            }
-                            Mode::Search => {
-                                if let Some(songs) = search::on_enter(&mut search) {
-                                    let songs = songs.into_iter().cloned().collect();
-                                    player.add(songs);
-                                }
-                            }
-                            Mode::Settings => {
-                                if let Some(device) = settings.devices.selected() {
-                                    player.set_output_device(device);
-                                    settings.current_device = (*device).to_string();
-                                }
-                            }
-                            Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
-                        },
-                        KeyCode::Backspace => match mode {
-                            Mode::Search => search::on_backspace(&mut search, control),
-                            Mode::Playlist => playlist::on_backspace(&mut playlist, control),
-                            _ => (),
-                        },
-                        KeyCode::Up => input.up(),
-                        KeyCode::Down => input.down(),
-                        KeyCode::Left => input.left(),
-                        KeyCode::Right => input.right(),
-                        KeyCode::Char('1' | '!') => {
-                            queue::constraint(&mut queue, 0, shift);
-                        }
-                        KeyCode::Char('2' | '@') => {
-                            queue::constraint(&mut queue, 1, shift);
-                        }
-                        KeyCode::Char('3' | '#') => {
-                            queue::constraint(&mut queue, 2, shift);
-                        }
-                        KeyCode::Char(c) => match c {
-                            'h' => input.left(),
-                            'j' => input.down(),
-                            'k' => input.up(),
-                            'l' => input.right(),
-                            _ => (),
-                        },
-                        _ => (),
                     }
-                }
-                Event::FocusGained => focused = true,
-                Event::FocusLost => focused = false,
-                Event::Mouse(event) => match event.kind {
-                    MouseEventKind::ScrollUp => input.up(),
-                    MouseEventKind::ScrollDown => input.down(),
-                    MouseEventKind::Down(_) => match mode {
-                        Mode::Browser => {
-                            terminal
-                                .draw(|f| {
-                                    let top = draw_log(f);
-                                    browser::draw(&mut browser, top, f, Some(event));
-                                })
-                                .unwrap();
+                    KeyCode::Char(c) if input_playlist => {
+                        if control && c == 'w' {
+                            playlist::on_backspace(&mut playlist, true);
+                        } else {
+                            playlist.changed = true;
+                            playlist.search_query.push(c);
                         }
+                    }
+                    KeyCode::Char(' ') => player.toggle_playback(),
+                    KeyCode::Char('C') if shift => {
+                        player.clear_except_playing();
+                        queue.ui.select(Some(0));
+                    }
+                    KeyCode::Char('c') => {
+                        player.clear();
+                        queue.ui.select(Some(0));
+                    }
+                    KeyCode::Char('x') => match mode {
                         Mode::Queue => {
-                            if focused {
-                                terminal
-                                    .draw(|f| queue::draw(&mut queue, &mut player, f, Some(event)))
-                                    .unwrap();
+                            if let Some(i) = queue.ui.index() {
+                                player.delete_index(i);
+
+                                //Sync the UI index.
+                                let len = player.songs.len().saturating_sub(1);
+                                if i > len {
+                                    queue.ui.select(Some(len));
+                                }
                             }
                         }
                         Mode::Playlist => {
-                            terminal
-                                .draw(|f| {
-                                    let top = draw_log(f);
-                                    playlist::draw(&mut playlist, top, f, Some(event));
-                                })
-                                .unwrap();
+                            playlist::delete(&mut playlist, false);
+                        }
+                        _ => (),
+                    },
+                    KeyCode::Char('X') => {
+                        if let Mode::Playlist = mode {
+                            playlist::delete(&mut playlist, true);
+                        }
+                    }
+                    KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
+                        if scan_handle.is_none() {
+                            if persist.music_folder.is_empty() {
+                                gonk_core::log!(
+                                    "Nothing to scan! Add a folder with 'gonk add /path/'"
+                                );
+                            } else {
+                                scan_handle = Some(db::create(persist.music_folder.clone()));
+                                scan_timer = Instant::now();
+                                playlist.lists = Index::from(gonk_core::playlist::playlists()?);
+                            }
+                        }
+                    }
+                    KeyCode::Char('q') => player.seek_backward(),
+                    KeyCode::Char('e') => player.seek_foward(),
+                    KeyCode::Char('a') => player.prev(),
+                    KeyCode::Char('d') => player.next(),
+                    KeyCode::Char('w') => {
+                        player.volume_up();
+                        persist.volume = player.volume();
+                    }
+                    KeyCode::Char('s') => {
+                        player.volume_down();
+                        persist.volume = player.volume();
+                    }
+                    KeyCode::Char('/') => {
+                        if mode == Mode::Search {
+                            if search.mode == SearchMode::Select {
+                                search.results.select(None);
+                                search.mode = SearchMode::Search;
+                            }
+                        } else {
+                            search_timeout = Instant::now();
+                            mode = Mode::Search;
+                        }
+                    }
+                    KeyCode::Tab => {
+                        terminal.clear()?;
+                        mode = match mode {
+                            Mode::Browser | Mode::Settings | Mode::Search => Mode::Queue,
+                            Mode::Queue | Mode::Playlist => Mode::Browser,
+                        };
+                    }
+                    KeyCode::Esc => match mode {
+                        Mode::Search => match search.mode {
+                            search::Mode::Search => {
+                                if let search::Mode::Search = search.mode {
+                                    mode = Mode::Queue;
+                                }
+                            }
+                            search::Mode::Select => {
+                                search.mode = search::Mode::Search;
+                                search.results.select(None);
+                            }
+                        },
+                        Mode::Playlist => {
+                            if playlist.delete {
+                                playlist.yes = true;
+                                playlist.delete = false;
+                            } else if let playlist::Mode::Popup = playlist.mode {
+                                playlist.mode = playlist::Mode::Playlist;
+                                playlist.search_query = String::new();
+                                playlist.changed = true;
+                            } else {
+                                mode = Mode::Browser;
+                            }
+                        }
+                        Mode::Browser => mode = Mode::Queue,
+                        Mode::Queue => (),
+                        Mode::Settings => mode = Mode::Queue,
+                    },
+                    KeyCode::Enter if shift => match mode {
+                        Mode::Browser => {
+                            let songs: Vec<Song> = browser::get_selected(&browser)
+                                .into_iter()
+                                .cloned()
+                                .collect();
+                            playlist::add(&mut playlist, &songs);
+                            mode = Mode::Playlist;
+                        }
+                        Mode::Queue => {
+                            if let Some(index) = queue.ui.index() {
+                                if let Some(song) = player.songs.get(index) {
+                                    playlist::add(&mut playlist, &[song.clone()]);
+                                    mode = Mode::Playlist;
+                                }
+                            }
                         }
                         Mode::Search => {
-                            terminal
-                                .draw(|f| {
-                                    let top = draw_log(f);
-                                    search::draw(&mut search, top, f, Some(event));
-                                })
-                                .unwrap();
+                            if let Some(songs) = search::on_enter(&mut search) {
+                                let songs: Vec<Song> = songs.into_iter().cloned().collect();
+                                playlist::add(&mut playlist, &songs);
+                                mode = Mode::Playlist;
+                            }
                         }
-                        Mode::Settings => (),
+                        _ => (),
+                    },
+                    KeyCode::Enter => match mode {
+                        Mode::Browser => {
+                            let songs = browser::get_selected(&browser)
+                                .into_iter()
+                                .cloned()
+                                .collect();
+                            player.add(songs);
+                        }
+                        Mode::Queue => {
+                            if let Some(i) = queue.ui.index() {
+                                player.play_index(i);
+                            }
+                        }
+                        Mode::Search => {
+                            if let Some(songs) = search::on_enter(&mut search) {
+                                let songs = songs.into_iter().cloned().collect();
+                                player.add(songs);
+                            }
+                        }
+                        Mode::Settings => {
+                            if let Some(device) = settings.devices.selected() {
+                                player.set_output_device(device);
+                                settings.current_device = (*device).to_string();
+                            }
+                        }
+                        Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
+                    },
+                    KeyCode::Backspace => match mode {
+                        Mode::Search => search::on_backspace(&mut search, control),
+                        Mode::Playlist => playlist::on_backspace(&mut playlist, control),
+                        _ => (),
+                    },
+                    KeyCode::Up => input.up(),
+                    KeyCode::Down => input.down(),
+                    KeyCode::Left => input.left(),
+                    KeyCode::Right => input.right(),
+                    KeyCode::Char('1') => mode = Mode::Queue,
+                    KeyCode::Char('2') => mode = Mode::Browser,
+                    KeyCode::Char('3') => mode = Mode::Playlist,
+                    KeyCode::Char('4') => mode = Mode::Settings,
+                    KeyCode::F(1) => queue::constraint(&mut queue, 0, shift),
+                    KeyCode::F(2) => queue::constraint(&mut queue, 1, shift),
+                    KeyCode::F(3) => queue::constraint(&mut queue, 2, shift),
+                    KeyCode::Char(c) => match c {
+                        'h' => input.left(),
+                        'j' => input.down(),
+                        'k' => input.up(),
+                        'l' => input.right(),
+                        _ => (),
                     },
                     _ => (),
-                },
-                Event::Resize(_, _) => (),
-                Event::Paste(_) => (),
+                }
             }
+            Event::FocusGained => (),
+            Event::FocusLost => (),
+            Event::Mouse(mouse_event) => match mouse_event.kind {
+                MouseEventKind::ScrollUp => input.up(),
+                MouseEventKind::ScrollDown => input.down(),
+                MouseEventKind::Down(_) => {
+                    terminal.draw(|f| {
+                        let top = draw_log(f);
+                        input.draw(f, top, Some(mouse_event))
+                    })?;
+                }
+                _ => (),
+            },
+            Event::Resize(_, _) => (),
+            Event::Paste(_) => (),
         }
+
+        //End of loop
     }
 
     persist.queue = (*player.songs).to_vec();
     persist.index = player.songs.index().unwrap_or(0) as u16;
     persist.elapsed = player.elapsed().as_secs_f32();
-    persist.save().unwrap();
+    persist.save()?;
 
-    disable_raw_mode().unwrap();
+    disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
-    )
-    .unwrap();
+    )?;
 
     gonk_core::profiler::print();
+
+    Ok(())
 }

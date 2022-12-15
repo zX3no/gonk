@@ -1,28 +1,18 @@
+//! TODO: Describe the audio backend
+//!
+//! Pipewire is currently not implemented because WSL doesn't work well with audio.
+//! AND...I don't have a spare drive to put linux on.
 #![allow(
     clippy::not_unsafe_ptr_arg_deref,
     clippy::missing_safety_doc,
     non_upper_case_globals,
     non_snake_case
 )]
-use crossbeam_channel::{bounded, Sender};
-use gonk_core::{Index, Song};
-use std::fs::File;
-use std::io::ErrorKind;
-use std::{collections::VecDeque, thread, time::Duration};
-use symphonia::core::errors::Error;
-use symphonia::core::formats::{FormatReader, Track};
-use symphonia::{
-    core::{
-        audio::SampleBuffer,
-        codecs::{Decoder, DecoderOptions},
-        formats::{FormatOptions, SeekMode, SeekTo},
-        io::MediaSourceStream,
-        meta::MetadataOptions,
-        probe::Hint,
-        units::Time,
-    },
-    default::get_probe,
-};
+use decoder::Symphonia;
+use gonk_core::{profile, Index, Song};
+use std::{path::Path, sync::Once, time::Duration};
+
+pub mod decoder;
 
 #[cfg(windows)]
 mod wasapi;
@@ -38,6 +28,17 @@ pub use pipewire::*;
 
 const VOLUME_REDUCTION: f32 = 150.0;
 
+static INIT: Once = Once::new();
+
+fn init() {
+    INIT.call_once(|| {
+        #[cfg(windows)]
+        unsafe {
+            wasapi::init()
+        };
+    });
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum State {
     Stopped,
@@ -46,22 +47,20 @@ pub enum State {
     Finished,
 }
 
-#[derive(Debug)]
-pub enum Event {
-    /// Path, Gain
-    PlaySong((String, f32)),
-    /// Path, Gain, Elapsed
-    RestoreSong((String, f32, f32)),
-    OutputDevice(String),
-    Play,
-    Pause,
-    Stop,
-    Seek(f32),
-}
-
 pub struct Player {
-    s: Sender<Event>,
     pub songs: Index<Song>,
+
+    //TODO: Might want to think about backend traits.
+    backend: Wasapi,
+
+    output_device: Device,
+    symphonia: Option<Symphonia>,
+    sample_rate: usize,
+    gain: f32,
+    volume: f32,
+    elapsed: Duration,
+    duration: Duration,
+    state: State,
 }
 
 impl Player {
@@ -71,68 +70,142 @@ impl Player {
 
         let devices = devices();
         let default = default_device().unwrap();
-        let d = devices.iter().find(|d| d.name == device);
-        let device = if let Some(d) = d { d } else { default };
+        let device = devices.iter().find(|d| d.name == device);
+        let device = device.unwrap_or(default);
+        let backend = unsafe { Wasapi::new(device, None) };
 
-        let (s, r) = bounded::<Event>(5);
-        thread::spawn(move || unsafe {
-            new(device, r);
-        });
+        let mut player = Self {
+            songs,
+            output_device: device.clone(),
+            sample_rate: backend.sample_rate(),
+            backend,
+            symphonia: None,
+            gain: 0.5,
+            volume: volume as f32 / VOLUME_REDUCTION,
+            duration: Duration::default(),
+            elapsed: Duration::default(),
+            state: State::Stopped,
+        };
 
         //Restore previous queue state.
-        unsafe { VOLUME = volume as f32 / VOLUME_REDUCTION };
-        if let Some(song) = songs.selected().cloned() {
-            s.send(Event::RestoreSong((song.path.clone(), song.gain, elapsed)))
-                .unwrap();
+        if let Some(song) = player.songs.selected().cloned() {
+            player.restore_song(song.path.clone(), song.gain, elapsed);
         }
 
-        Self { s, songs }
+        player
     }
-    pub fn play(&self) {
-        self.s.send(Event::Play).unwrap();
-    }
-    pub fn pause(&self) {
-        self.s.send(Event::Pause).unwrap();
-    }
-    pub fn seek(&self, pos: f32) {
-        self.s.send(Event::Seek(pos)).unwrap();
-    }
-    pub fn volume_up(&self) {
-        unsafe {
-            VOLUME =
-                ((VOLUME * VOLUME_REDUCTION) as u8 + 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
+
+    //TODO: Devices with 4 channels don't play correctly?
+    /// Handles all of the player related logic such as:
+    ///
+    /// - Updating the elapsed time
+    /// - Filling the output device with samples.
+    /// - Triggering the next song
+    pub fn update(&mut self) {
+        profile!();
+        if self.is_finished() {
+            self.next();
+        }
+
+        if self.state != State::Playing {
+            return;
+        }
+
+        //Update the elapsed time and fill the output buffer.
+        let Some(symphonia) = &mut self.symphonia else {
+            return;
+        };
+
+        let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
+        self.backend.fill_buffer(self.volume * gain, symphonia);
+
+        if symphonia.is_full() {
+            return;
+        }
+
+        if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
+            symphonia.push(packet.samples());
         }
     }
-    pub fn volume_down(&self) {
-        unsafe {
-            VOLUME =
-                ((VOLUME * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
+    //WASAPI has some weird problem with change sample rates.
+    //This shouldn't be necessary.
+    pub fn update_decoder(&mut self, path: impl AsRef<Path>) {
+        profile!();
+        match Symphonia::new(path) {
+            Ok(sym) => {
+                self.duration = sym.duration();
+                let new = sym.sample_rate();
+
+                if self.sample_rate != new {
+                    if self.backend.set_sample_rate(new).is_err() {
+                        self.backend = unsafe { Wasapi::new(&self.output_device, Some(new)) };
+                    };
+
+                    self.sample_rate = new;
+                }
+
+                self.symphonia = Some(sym);
+            }
+            Err(err) => gonk_core::log!("{}", err),
         }
+    }
+    pub fn play_song(&mut self, path: impl AsRef<Path>, gain: f32) {
+        self.state = State::Playing;
+        self.elapsed = Duration::default();
+        if gain != 0.0 {
+            self.gain = gain;
+        }
+        self.update_decoder(path);
+    }
+    pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
+        self.state = State::Paused;
+        self.elapsed = Duration::from_secs_f32(elapsed);
+        if gain != 0.0 {
+            self.gain = gain;
+        }
+        self.update_decoder(path);
+        if let Some(decoder) = &mut self.symphonia {
+            decoder.seek(elapsed);
+        }
+    }
+    pub fn play(&mut self) {
+        self.state = State::Playing;
+    }
+    pub fn pause(&mut self) {
+        self.state = State::Paused;
+    }
+    pub fn seek(&mut self, pos: f32) {
+        if let Some(symphonia) = &mut self.symphonia {
+            symphonia.seek(pos);
+        }
+    }
+    pub fn volume_up(&mut self) {
+        self.volume =
+            ((self.volume * VOLUME_REDUCTION) as u8 + 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
+    }
+    pub fn volume_down(&mut self) {
+        self.volume =
+            ((self.volume * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
     }
     pub fn elapsed(&self) -> Duration {
-        unsafe { ELAPSED }
+        self.elapsed
     }
     pub fn duration(&self) -> Duration {
-        unsafe { DURATION }
+        self.duration
     }
     pub fn is_playing(&self) -> bool {
-        unsafe { STATE == State::Playing }
+        self.state == State::Playing
     }
     pub fn next(&mut self) {
         self.songs.down();
         if let Some(song) = self.songs.selected() {
-            unsafe { STATE == State::Playing };
-            self.s
-                .send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
+            self.play_song(song.path.clone(), song.gain);
         }
     }
     pub fn prev(&mut self) {
         self.songs.up();
         if let Some(song) = self.songs.selected() {
-            self.s
-                .send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
+            self.play_song(song.path.clone(), song.gain);
         }
     }
     pub fn delete_index(&mut self, index: usize) {
@@ -158,7 +231,8 @@ impl Player {
         };
     }
     pub fn clear(&mut self) {
-        self.s.send(Event::Stop).unwrap();
+        self.state = State::Stopped;
+        self.symphonia = None;
         self.songs = Index::default();
     }
     pub fn clear_except_playing(&mut self) {
@@ -177,20 +251,18 @@ impl Player {
     pub fn play_index(&mut self, i: usize) {
         self.songs.select(Some(i));
         if let Some(song) = self.songs.selected() {
-            self.s
-                .send(Event::PlaySong((song.path.clone(), song.gain)))
-                .unwrap();
+            self.play_song(song.path.clone(), song.gain);
         }
     }
-    pub fn toggle_playback(&self) {
-        match unsafe { &STATE } {
+    pub fn toggle_playback(&mut self) {
+        match self.state {
             State::Paused => self.play(),
             State::Playing => self.pause(),
             _ => (),
         }
     }
     pub fn is_finished(&self) -> bool {
-        unsafe { STATE == State::Finished }
+        self.state == State::Finished
     }
     pub fn seek_foward(&mut self) {
         let pos = (self.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
@@ -201,149 +273,16 @@ impl Player {
         self.seek(pos);
     }
     pub fn volume(&self) -> u8 {
-        unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
+        (self.volume * VOLUME_REDUCTION) as u8
     }
-    pub fn set_output_device(&self, device: &str) {
-        self.s
-            .send(Event::OutputDevice(device.to_string()))
-            .unwrap();
-    }
-}
-
-pub struct Symphonia {
-    format_reader: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
-    track: Track,
-    elapsed: u64,
-    duration: u64,
-    error_count: u8,
-    buf: VecDeque<f32>,
-}
-
-impl Symphonia {
-    pub fn new(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let file = File::open(path)?;
-        let mss = MediaSourceStream::new(Box::new(file), Default::default());
-        let probed = get_probe().format(
-            &Hint::default(),
-            mss,
-            &FormatOptions {
-                prebuild_seek_index: true,
-                seek_index_fill_rate: 1,
-                enable_gapless: false,
-            },
-            &MetadataOptions::default(),
-        )?;
-
-        let track = probed.format.default_track().ok_or("")?.to_owned();
-        let n_frames = track.codec_params.n_frames.ok_or("")?;
-        let duration = track.codec_params.start_ts + n_frames;
-        let decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())?;
-
-        Ok(Self {
-            format_reader: probed.format,
-            decoder,
-            track,
-            duration,
-            elapsed: 0,
-            error_count: 0,
-            buf: VecDeque::new(),
-        })
-    }
-    pub fn elapsed(&self) -> Duration {
-        let tb = self.track.codec_params.time_base.unwrap();
-        let time = tb.calc_time(self.elapsed);
-        Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
-    }
-    pub fn duration(&self) -> Duration {
-        let tb = self.track.codec_params.time_base.unwrap();
-        let time = tb.calc_time(self.duration);
-        Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
-    }
-    pub fn sample_rate(&self) -> u32 {
-        self.track.codec_params.sample_rate.unwrap()
-    }
-    //TODO: I would like seeking out of bounds to play the next song.
-    //I can't trust symphonia to provide accurate errors so it's not worth the hassle.
-    //I could use pos + elapsed > duration but the duration isn't accurate.
-    pub fn seek(&mut self, pos: f32) {
-        let pos = Duration::from_secs_f32(pos);
-
-        //Ignore errors.
-        let _ = self.format_reader.seek(
-            SeekMode::Coarse,
-            SeekTo::Time {
-                time: Time::new(pos.as_secs(), pos.subsec_nanos() as f64 / 1_000_000_000.0),
-                track_id: None,
-            },
-        );
-    }
-    #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Option<f32> {
-        if self.buf.is_empty() {
-            match self.next_packet() {
-                Some(packet) => self.buf = VecDeque::from(packet.samples().to_vec()),
-                None => {
-                    return None;
-                }
-            }
-        }
-
-        self.buf.pop_front()
-    }
-    pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
-        if self.error_count > 2 || unsafe { &STATE } == &State::Finished {
-            return None;
-        }
-
-        let next_packet = match self.format_reader.next_packet() {
-            Ok(next_packet) => {
-                self.error_count = 0;
-                next_packet
-            }
-            Err(err) => match err {
-                Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
-                    //Just in case my 250ms addition is not enough.
-                    if self.elapsed() + Duration::from_secs(1) > self.duration() {
-                        unsafe { STATE = State::Finished };
-                        return None;
-                    } else {
-                        self.error_count += 1;
-                        return self.next_packet();
-                    }
-                }
-                _ => {
-                    gonk_core::log!("{}", err);
-                    self.error_count += 1;
-                    return self.next_packet();
-                }
-            },
-        };
-
-        self.elapsed = next_packet.ts();
-        unsafe { ELAPSED = self.elapsed() };
-
-        //HACK: Sometimes the end of file error does not indicate the end of the file?
-        //The duration is a little bit longer than the maximum elapsed??
-        //The final packet will make the elapsed time move backwards???
-        if self.elapsed() + Duration::from_millis(250) > self.duration() {
-            unsafe { STATE = State::Finished };
-            return None;
-        }
-
-        match self.decoder.decode(&next_packet) {
-            Ok(decoded) => {
-                let mut buffer =
-                    SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
-                buffer.copy_interleaved_ref(decoded);
-                Some(buffer)
-            }
-            Err(err) => {
-                gonk_core::log!("{}", err);
-                self.error_count += 1;
-                self.next_packet()
-            }
+    pub fn set_output_device(&mut self, device: &str) {
+        unsafe {
+            let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
+                device
+            } else {
+                unreachable!("Requested a device that does not exist.")
+            };
+            self.backend = Wasapi::new(device, Some(self.sample_rate));
         }
     }
 }

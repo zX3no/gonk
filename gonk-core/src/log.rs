@@ -2,7 +2,10 @@
 //!
 //!
 use crate::Lazy;
-use std::{sync::Once, time::Instant};
+use std::{
+    sync::Once,
+    time::{Duration, Instant},
+};
 
 #[doc(hidden)]
 pub static ONCE: Once = Once::new();
@@ -13,6 +16,9 @@ pub static mut LOG: Lazy<Log> = Lazy::new(|| Log {
 });
 
 #[doc(hidden)]
+pub const MESSAGE_COOLDOWN: Duration = Duration::from_millis(1500);
+
+#[doc(hidden)]
 pub struct Log {
     pub messages: Vec<(String, Instant)>,
 }
@@ -20,7 +26,7 @@ pub struct Log {
 #[macro_export]
 macro_rules! log {
     ($($arg:tt)*) => {{
-        use $crate::log::{LOG, ONCE};
+        use $crate::log::{LOG, ONCE, MESSAGE_COOLDOWN};
         use std::time::{Instant, Duration};
         use std::thread;
 
@@ -29,7 +35,7 @@ macro_rules! log {
                 thread::sleep(Duration::from_millis(16));
 
                 if let Some((_, instant)) = unsafe { LOG.messages.last() } {
-                    if instant.elapsed() >= Duration::from_millis(2500) {
+                    if instant.elapsed() >=  MESSAGE_COOLDOWN {
                         unsafe { LOG.messages.pop() };
 
                         //Reset the next messages since they run paralell.

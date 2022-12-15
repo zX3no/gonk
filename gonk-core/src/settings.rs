@@ -101,7 +101,7 @@ impl Settings {
         })
     }
 
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
+    pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
         unsafe {
             FILE.set_len(0)?;
             FILE.rewind()?;
