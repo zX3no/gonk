@@ -1,24 +1,14 @@
 //! Decoder for audio files.
 //!
-//! The problem is as follows:
+//! Packets can only be loaded in full not partially.
+//! A `VecDeque` stores the excess.
 //!
-//! Reading packets from a file is slow when using a mutex.
-//! Packets are not a consistant size and can only be read in chunks.
-//! Because they are read in chunks they need to be put in a buffer when they are read.
+//! Decoding on the audio thread is probably not ideal.
+//! Actually the whole application runs on the same thread, including the audio.
 //!
-//! Idealy a packet would be read than slowly the samples from that packet would be pushed into the buffer.
-//!
-//! Now I think about it maybe the buffer could auto-resize based on packet length.
-//! Nevermind the latency is too high when setting the buffer size according to packet length.
-//! Really you should be able to have a buffer size less than the packet length.
-//!
-//! The duration needs to be read frequently to stay up to date.
-//!
-//!
-//!
-//!
+//! It's simple and works...surprisingly.
 use crate::State;
-use gonk_core::Lazy;
+use gonk_core::profile;
 use std::io::ErrorKind;
 use std::time::Duration;
 use std::{collections::VecDeque, fs::File, path::Path};
@@ -37,44 +27,6 @@ use symphonia::{
     default::get_probe,
 };
 
-//TODO: This doesn't work becuase the capacity will need to be set to hold at least a packet
-//This is not stable plus it's a very large number of samples.
-#[derive(Default)]
-pub struct Buffer {
-    inner: VecDeque<f32>,
-    capacity: usize,
-    pub last_packet_size: usize,
-}
-
-impl Buffer {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            inner: VecDeque::new(),
-            capacity,
-            last_packet_size: 0,
-        }
-    }
-    pub fn is_full(&self) -> bool {
-        self.inner.len() + self.last_packet_size > self.capacity
-    }
-    pub fn pop(&mut self) -> Option<f32> {
-        self.inner.pop_front()
-    }
-    pub fn push(&mut self, slice: &[f32]) {
-        if slice.len() > self.capacity {
-            self.capacity = (slice.len() as f32 * 1.4) as usize;
-        }
-        self.last_packet_size = slice.len();
-
-        self.inner.extend(slice);
-    }
-    pub fn set_capacity(&mut self, capacity: usize) {
-        self.capacity = capacity;
-    }
-}
-
-pub static mut BUFFER: Lazy<Buffer> = Lazy::new(Buffer::default);
-
 pub struct Symphonia {
     format_reader: Box<dyn FormatReader>,
     decoder: Box<dyn codecs::Decoder>,
@@ -82,10 +34,14 @@ pub struct Symphonia {
     elapsed: u64,
     duration: u64,
     error_count: u8,
+
+    buffer: VecDeque<f32>,
+    capacity: usize,
 }
 
 impl Symphonia {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+        profile!();
         let file = File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
         let probed = get_probe().format(
@@ -105,12 +61,10 @@ impl Symphonia {
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &codecs::DecoderOptions::default())?;
 
-        // let millis = 200;
-        // let sample_rate = track.codec_params.sample_rate.unwrap() as usize;
-        // let channels = track.codec_params.channels.unwrap().count();
-        // let capacity = ((millis * sample_rate) / 1000) * channels;
-
-        // unsafe { BUFFER.set_capacity(capacity) };
+        let millis = 20;
+        let sample_rate = track.codec_params.sample_rate.unwrap() as usize;
+        let channels = track.codec_params.channels.unwrap().count();
+        let capacity = ((millis * sample_rate) / 1000) * channels;
 
         Ok(Self {
             format_reader: probed.format,
@@ -119,7 +73,18 @@ impl Symphonia {
             duration,
             elapsed: 0,
             error_count: 0,
+            buffer: VecDeque::with_capacity(capacity),
+            capacity,
         })
+    }
+    pub fn is_full(&self) -> bool {
+        self.buffer.len() > self.capacity
+    }
+    pub fn pop(&mut self) -> Option<f32> {
+        self.buffer.pop_front()
+    }
+    pub fn push(&mut self, slice: &[f32]) {
+        self.buffer.extend(slice);
     }
     pub fn elapsed(&self) -> Duration {
         let tb = self.track.codec_params.time_base.unwrap();

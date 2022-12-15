@@ -1,12 +1,15 @@
+//! TODO: Describe the audio backend
+//!
+//! Pipewire is currently not implemented because WSL doesn't work well with audio.
+//! AND...I don't have a spare drive to put linux on.
 #![allow(
     clippy::not_unsafe_ptr_arg_deref,
     clippy::missing_safety_doc,
     non_upper_case_globals,
-    non_snake_case,
-    clippy::type_complexity
+    non_snake_case
 )]
-use decoder::{Symphonia, BUFFER};
-use gonk_core::{Index, Song};
+use decoder::Symphonia;
+use gonk_core::{profile, Index, Song};
 use std::{path::Path, sync::Once, time::Duration};
 
 pub mod decoder;
@@ -99,6 +102,7 @@ impl Player {
     /// - Filling the output device with samples.
     /// - Triggering the next song
     pub fn update(&mut self) {
+        profile!();
         if self.is_finished() {
             self.next();
         }
@@ -109,27 +113,24 @@ impl Player {
 
         //Update the elapsed time and fill the output buffer.
         let Some(symphonia) = &mut self.symphonia else {
-                return;
-            };
+            return;
+        };
 
-        unsafe {
-            self.elapsed = symphonia.elapsed();
+        let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
+        self.backend.fill_buffer(self.volume * gain, symphonia);
 
-            let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
-            self.backend.fill_buffer(self.volume * gain, symphonia);
+        if symphonia.is_full() {
+            return;
+        }
 
-            if BUFFER.is_full() {
-                return;
-            }
-
-            if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
-                BUFFER.push(packet.samples());
-            }
+        if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
+            symphonia.push(packet.samples());
         }
     }
     //WASAPI has some weird problem with change sample rates.
     //This shouldn't be necessary.
-    pub fn update_device(&mut self, path: impl AsRef<Path>) {
+    pub fn update_decoder(&mut self, path: impl AsRef<Path>) {
+        profile!();
         match Symphonia::new(path) {
             Ok(sym) => {
                 self.duration = sym.duration();
@@ -154,7 +155,7 @@ impl Player {
         if gain != 0.0 {
             self.gain = gain;
         }
-        self.update_device(path);
+        self.update_decoder(path);
     }
     pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
         self.state = State::Paused;
@@ -162,7 +163,7 @@ impl Player {
         if gain != 0.0 {
             self.gain = gain;
         }
-        self.update_device(path);
+        self.update_decoder(path);
         if let Some(decoder) = &mut self.symphonia {
             decoder.seek(elapsed);
         }

@@ -117,14 +117,15 @@ pub fn print() {
         let mut mean = Duration::default();
         let mut min = Duration::default();
         let mut max = Duration::default();
+
         for event in v {
             let elapsed = unsafe { event.elapsed() };
 
-            if elapsed < min || min.is_zero() {
+            if elapsed < min {
                 min = elapsed;
             }
 
-            if elapsed > max || max.is_zero() {
+            if elapsed > max {
                 max = elapsed;
             }
 
@@ -142,16 +143,13 @@ pub fn print() {
         });
     }
 
-    let mut string = String::new();
     for score in scores {
-        string.push_str(&format!(
-            "{} ({} runs) {}:{}\n",
+        println!(
+            "{} ({} runs) {}:{}",
             score.name, score.count, score.file, score.line,
-        ));
-        string.push_str(&format!("   - mean: {:?}\n", score.mean));
-        string.push_str(&format!("   - min: {:?}\n", score.min));
-        string.push_str(&format!("   - max: {:?}\n\n", score.max));
+        );
+        println!("   - mean: {:?}", score.mean);
+        println!("   - min: {:?}", score.min);
+        println!("   - max: {:?}\n", score.max);
     }
-
-    println!("{string}");
 }

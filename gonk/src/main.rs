@@ -166,6 +166,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     loop {
+        profile!("loop");
         if let Some(handle) = &scan_handle {
             if handle.is_finished() {
                 let handle = scan_handle.take().unwrap();

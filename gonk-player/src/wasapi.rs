@@ -1,5 +1,5 @@
-use crate::decoder::{Symphonia, BUFFER};
 use core::{ffi::c_void, slice};
+use gonk_core::profile;
 use std::ffi::OsString;
 use std::mem::{transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
@@ -28,6 +28,8 @@ use winapi::{
     um::winbase::WAIT_OBJECT_0,
 };
 use winapi::{Interface, RIDL};
+
+use crate::decoder::Symphonia;
 
 const STGM_READ: u32 = 0;
 const COINIT_MULTITHREADED: u32 = 0;
@@ -87,7 +89,7 @@ pub unsafe fn init() {
         let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
         loop {
             update_output_devices(enumerator);
-            thread::sleep(Duration::from_millis(200));
+            thread::sleep(Duration::from_millis(250));
         }
     });
 }
@@ -221,6 +223,7 @@ pub struct Wasapi {
 
 impl Wasapi {
     pub unsafe fn new(device: &Device, sample_rate: Option<usize>) -> Self {
+        profile!();
         init();
 
         let audio_client: *mut IAudioClient = {
@@ -324,29 +327,31 @@ impl Wasapi {
         (buffer_frame_count - padding_count) as usize
     }
     //TODO: This should probably be moved out of the struct.
-    pub unsafe fn fill_buffer(&mut self, volume: f32, _sym: &mut Symphonia) {
-        let block_align = self.format.Format.nBlockAlign as usize;
-        let buffer_frame_count = self.buffer_frame_count();
-        let buffer_size = buffer_frame_count * block_align;
+    pub fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
+        profile!();
+        unsafe {
+            let block_align = self.format.Format.nBlockAlign as usize;
+            let buffer_frame_count = self.buffer_frame_count();
+            let buffer_size = buffer_frame_count * block_align;
 
-        let _channels = self.format.Format.nChannels as usize;
+            let _channels = self.format.Format.nChannels as usize;
 
-        let mut buffer_ptr = null_mut();
-        check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
+            let mut buffer_ptr = null_mut();
+            check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
 
-        let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
+            let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
-        // let buffer = &mut [0.0];
-        for sample in slice.chunks_mut(4) {
-            let sample_bytes = (BUFFER.pop().unwrap_or(0.0) * volume).to_le_bytes();
-            sample.copy_from_slice(&sample_bytes);
-        }
+            for sample in slice.chunks_mut(4) {
+                let sample_bytes = (symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
+                sample.copy_from_slice(&sample_bytes);
+            }
 
-        (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
+            (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
 
-        let result = unsafe { WaitForSingleObject(self.h_event, INFINITE) };
-        if result != WAIT_OBJECT_0 {
-            panic!();
+            let result = WaitForSingleObject(self.h_event, INFINITE);
+            if result != WAIT_OBJECT_0 {
+                panic!();
+            }
         }
     }
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.

@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
 rayon = "1.6.0"
 walkdir = "2.3.2"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
@@ -15,3 +14,6 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "ogg",
     "vorbis",
 ] }
+
+[features]
+profile = []
