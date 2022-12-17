@@ -96,7 +96,83 @@ impl Widget for Browser {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
-        draw(self, area, f, mouse_event);
+        profile!();
+        let browser = self;
+        let size = area.width / 3;
+        let rem = area.width % 3;
+
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(size),
+                Constraint::Length(size),
+                Constraint::Length(size + rem),
+            ])
+            .split(area);
+
+        if let Some(event) = mouse_event {
+            let rect = Rect {
+                x: event.column,
+                y: event.row,
+                ..Default::default()
+            };
+            if rect.intersects(chunks[2]) {
+                browser.mode = Mode::Song;
+            } else if rect.intersects(chunks[1]) {
+                browser.mode = Mode::Album;
+            } else if rect.intersects(chunks[0]) {
+                browser.mode = Mode::Artist;
+            }
+        }
+
+        let a: Vec<ListItem> = browser
+            .artists
+            .iter()
+            .map(|name| ListItem::new(name.as_str()))
+            .collect();
+
+        let b: Vec<ListItem> = browser
+            .albums
+            .iter()
+            .map(|name| ListItem::new(name.title.as_str()))
+            .collect();
+
+        let c: Vec<ListItem> = browser
+            .songs
+            .iter()
+            .map(|(name, _)| ListItem::new(name.as_str()))
+            .collect();
+
+        let artists = list("─Aritst", &a, browser.mode == Mode::Artist);
+        let albums = list("─Album", &b, browser.mode == Mode::Album);
+        let songs = list("─Song", &c, browser.mode == Mode::Song);
+
+        f.render_stateful_widget(
+            artists,
+            chunks[0],
+            &mut ListState::new(browser.artists.index()),
+        );
+        f.render_stateful_widget(
+            albums,
+            chunks[1],
+            &mut ListState::new(browser.albums.index()),
+        );
+        f.render_stateful_widget(songs, chunks[2], &mut ListState::new(browser.songs.index()));
+    }
+}
+
+fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
+    let list = List::new(content).block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded),
+    );
+
+    if use_symbol {
+        list.highlight_symbol(">")
+    } else {
+        list.highlight_symbol("")
     }
 }
 
@@ -176,83 +252,4 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
         }
     }
     Vec::new()
-}
-
-pub fn draw(browser: &mut Browser, area: Rect, f: &mut Frame, event: Option<MouseEvent>) {
-    profile!();
-    let size = area.width / 3;
-    let rem = area.width % 3;
-
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(size),
-            Constraint::Length(size),
-            Constraint::Length(size + rem),
-        ])
-        .split(area);
-
-    if let Some(event) = event {
-        let rect = Rect {
-            x: event.column,
-            y: event.row,
-            ..Default::default()
-        };
-        if rect.intersects(chunks[2]) {
-            browser.mode = Mode::Song;
-        } else if rect.intersects(chunks[1]) {
-            browser.mode = Mode::Album;
-        } else if rect.intersects(chunks[0]) {
-            browser.mode = Mode::Artist;
-        }
-    }
-
-    let a: Vec<ListItem> = browser
-        .artists
-        .iter()
-        .map(|name| ListItem::new(name.as_str()))
-        .collect();
-
-    let b: Vec<ListItem> = browser
-        .albums
-        .iter()
-        .map(|name| ListItem::new(name.title.as_str()))
-        .collect();
-
-    let c: Vec<ListItem> = browser
-        .songs
-        .iter()
-        .map(|(name, _)| ListItem::new(name.as_str()))
-        .collect();
-
-    let artists = list("─Aritst", &a, browser.mode == Mode::Artist);
-    let albums = list("─Album", &b, browser.mode == Mode::Album);
-    let songs = list("─Song", &c, browser.mode == Mode::Song);
-
-    f.render_stateful_widget(
-        artists,
-        chunks[0],
-        &mut ListState::new(browser.artists.index()),
-    );
-    f.render_stateful_widget(
-        albums,
-        chunks[1],
-        &mut ListState::new(browser.albums.index()),
-    );
-    f.render_stateful_widget(songs, chunks[2], &mut ListState::new(browser.songs.index()));
-}
-
-fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
-    let list = List::new(content).block(
-        Block::default()
-            .title(title)
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded),
-    );
-
-    if use_symbol {
-        list.highlight_symbol(">")
-    } else {
-        list.highlight_symbol("")
-    }
 }
