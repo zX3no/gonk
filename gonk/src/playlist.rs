@@ -435,9 +435,9 @@ fn delete_song(playlist: &mut Playlist) {
             if selected.songs.is_empty() {
                 gonk_core::playlist::delete(selected).unwrap();
                 playlist.lists.remove_and_move(i);
+                playlist.mode = PlaylistMode::Playlist;
             }
         }
-        playlist.mode = PlaylistMode::Playlist;
         playlist.delete = false;
     }
 }

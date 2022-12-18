@@ -1,36 +1,3 @@
-//! TODO:
-//! Rework mode switching.
-//! Tab has some really weird behaviour.
-//! 1, 2, 3, 4 are now used for Queue, Browser, Playlists and Settings.
-//! / is still used for search.
-//!
-//! There are a few problems with the search:
-//!
-//! 1. When changing to the search you cannot swap back to other modes.
-//! 1, 2, 3 and 4 will be entered into the search instead of switching back.
-//! I don't like the idea of pressing a button to begin text input. Like, `/` then `Enter`.
-//!
-//! I also don't want to deny users from searching numbers 1 through 4.
-//! Some songs might start with that so it's very annoying.
-//!
-//! Making `/` a toggle could work.
-//! Put it might still through users off.
-//!
-//! I thought of making a small delay when you can press 1-4 to switch to their respective modes.
-//! However this is just too jank.
-//!
-//! If the search was a popup it wouldn't feel like something you switch too.
-//! Instead you would exit out of it.
-//!
-//! I don't think tui-rs is going to make this easy.
-//!
-//! I like the idea of a search bar appearing at the top and when you type results start to appear.
-//!
-//! The only way to exit would be to clear the query or press escape. That way the search is stuck.
-//!
-//! The search should be rendered on top of everything which may be tricky.
-//!
-//!
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_core::{vdb, *};
@@ -79,7 +46,7 @@ pub trait Widget {
     fn down(&mut self);
     fn left(&mut self);
     fn right(&mut self);
-    //TODO: Should probably add search in here to that way it can always be called after.
+    //I HATE TRAITS. I HATE TRAITS. I HATE TRAITS.
     fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>);
 }
 
@@ -300,79 +267,104 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
 
         match event::read()? {
+            Event::Mouse(mouse_event) => match mouse_event.kind {
+                MouseEventKind::ScrollUp if searching => search.up(),
+                MouseEventKind::ScrollUp => input.up(),
+                MouseEventKind::ScrollDown if searching => search.down(),
+                MouseEventKind::ScrollDown => input.down(),
+                MouseEventKind::Down(_) => {
+                    terminal.draw(|f| {
+                        let top = draw_log(f);
+                        let event = if searching { None } else { Some(mouse_event) };
+                        input.draw(f, top, event);
+
+                        if searching {
+                            search.draw(f, top, Some(mouse_event));
+                        }
+                    })?;
+                }
+                _ => (),
+            },
             Event::Key(event) => {
                 let shift = event.modifiers == KeyModifiers::SHIFT;
                 let control = event.modifiers == KeyModifiers::CONTROL;
 
                 match event.code {
                     KeyCode::Char('c') if control => break,
-                    KeyCode::Char('/') if searching => match search.mode {
-                        SearchMode::Search if search.query.is_empty() => {
-                            searching = false;
-                        }
-                        SearchMode::Search => {
-                            search.query.push('/');
-                            search.query_changed = true;
-                        }
-                        SearchMode::Select => {
-                            search.mode = SearchMode::Search;
-                            search.results.select(None);
-                        }
-                    },
-                    KeyCode::Char('/') => {
-                        searching = true;
-                    }
-                    KeyCode::Char(c) if searching && search.mode == SearchMode::Search => {
-                        //Handle ^W as control backspace.
-                        if control && c == 'w' {
-                            search::on_backspace(&mut search, true);
-                        } else {
-                            search.query.push(c);
-                            search.query_changed = true;
-                        }
-                    }
-                    KeyCode::Backspace if searching => match search.mode {
-                        SearchMode::Search if !search.query.is_empty() => {
-                            if control {
-                                search.query.clear();
-                            } else {
-                                search.query.pop();
+                    _ if searching => {
+                        match event.code {
+                            KeyCode::Up | KeyCode::Char('k') => search.up(),
+                            KeyCode::Down | KeyCode::Char('j') => search.down(),
+                            KeyCode::Left | KeyCode::Char('h') => search.left(),
+                            KeyCode::Right | KeyCode::Char('l') => search.right(),
+                            KeyCode::Char('/') => match search.mode {
+                                SearchMode::Search if search.query.is_empty() => {
+                                    searching = false;
+                                }
+                                SearchMode::Search => {
+                                    search.query.push('/');
+                                    search.query_changed = true;
+                                }
+                                SearchMode::Select => {
+                                    search.mode = SearchMode::Search;
+                                    search.results.select(None);
+                                }
+                            },
+                            KeyCode::Char(c) if search.mode == SearchMode::Search => {
+                                //Handle ^W as control backspace.
+                                if control && c == 'w' {
+                                    search::on_backspace(&mut search, true);
+                                } else {
+                                    search.query.push(c);
+                                    search.query_changed = true;
+                                }
                             }
+                            KeyCode::Backspace => match search.mode {
+                                SearchMode::Search if !search.query.is_empty() => {
+                                    if control {
+                                        search.query.clear();
+                                    } else {
+                                        search.query.pop();
+                                    }
 
-                            search.query_changed = true;
-                        }
-                        SearchMode::Search => (),
-                        SearchMode::Select => {
-                            search.results.select(None);
-                            search.mode = SearchMode::Search;
-                        }
-                    },
-                    KeyCode::Esc if searching => {
-                        //
-                        match search.mode {
-                            SearchMode::Search => {
-                                searching = false;
+                                    search.query_changed = true;
+                                }
+                                SearchMode::Search => (),
+                                SearchMode::Select => {
+                                    search.results.select(None);
+                                    search.mode = SearchMode::Search;
+                                }
+                            },
+                            KeyCode::Esc => {
+                                //
+                                match search.mode {
+                                    SearchMode::Search => {
+                                        searching = false;
+                                    }
+                                    SearchMode::Select => {
+                                        search.mode = SearchMode::Search;
+                                        search.results.select(None);
+                                        searching = false;
+                                    }
+                                }
                             }
-                            SearchMode::Select => {
-                                search.mode = SearchMode::Search;
-                                search.results.select(None);
-                                searching = false;
+                            KeyCode::Enter if shift && searching => {
+                                if let Some(songs) = search::on_enter(&mut search) {
+                                    let songs: Vec<Song> = songs.into_iter().cloned().collect();
+                                    playlist::add(&mut playlist, &songs);
+                                    mode = Mode::Playlist;
+                                }
                             }
+                            KeyCode::Enter => {
+                                if let Some(songs) = search::on_enter(&mut search) {
+                                    let songs = songs.into_iter().cloned().collect();
+                                    player.add(songs);
+                                }
+                            }
+                            _ => (),
                         }
                     }
-                    KeyCode::Enter if shift && searching => {
-                        if let Some(songs) = search::on_enter(&mut search) {
-                            let songs: Vec<Song> = songs.into_iter().cloned().collect();
-                            playlist::add(&mut playlist, &songs);
-                            mode = Mode::Playlist;
-                        }
-                    }
-                    KeyCode::Enter if searching => {
-                        if let Some(songs) = search::on_enter(&mut search) {
-                            let songs = songs.into_iter().cloned().collect();
-                            player.add(songs);
-                        }
-                    }
+                    KeyCode::Char('/') => searching = true,
                     KeyCode::Char(c) if input_playlist => {
                         if control && c == 'w' {
                             playlist::on_backspace(&mut playlist, true);
@@ -407,10 +399,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         _ => (),
                     },
-                    KeyCode::Char('X') => {
-                        if let Mode::Playlist = mode {
-                            playlist::delete(&mut playlist, true);
-                        }
+                    KeyCode::Char('X') if mode == Mode::Playlist => {
+                        playlist::delete(&mut playlist, true)
                     }
                     KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                         if scan_handle.is_none() {
@@ -508,11 +498,6 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     KeyCode::F(2) => queue::constraint(&mut queue, 1, shift),
                     KeyCode::F(3) => queue::constraint(&mut queue, 2, shift),
 
-                    KeyCode::Up | KeyCode::Char('k') if searching => search.up(),
-                    KeyCode::Down | KeyCode::Char('j') if searching => search.down(),
-                    KeyCode::Left | KeyCode::Char('h') if searching => search.left(),
-                    KeyCode::Right | KeyCode::Char('l') if searching => search.right(),
-
                     KeyCode::Up | KeyCode::Char('k') => input.up(),
                     KeyCode::Down | KeyCode::Char('j') => input.down(),
                     KeyCode::Left | KeyCode::Char('h') => input.left(),
@@ -520,41 +505,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     _ => (),
                 }
             }
-            Event::FocusGained => (),
-            Event::FocusLost => (),
-            Event::Mouse(mouse_event) => match mouse_event.kind {
-                MouseEventKind::ScrollUp => {
-                    if !searching {
-                        input.up()
-                    } else {
-                        //TODO:
-                    }
-                }
-                MouseEventKind::ScrollDown => {
-                    if !searching {
-                        input.down()
-                    } else {
-                        //TODO:
-                    }
-                }
-                MouseEventKind::Down(_) => {
-                    terminal.draw(|f| {
-                        let top = draw_log(f);
-                        let event = if searching { None } else { Some(mouse_event) };
-                        input.draw(f, top, event);
-
-                        if searching {
-                            search.draw(f, top, Some(mouse_event));
-                        }
-                    })?;
-                }
-                _ => (),
-            },
-            Event::Resize(_, _) => (),
-            Event::Paste(_) => (),
+            _ => (),
         }
-
-        //End of loop
     }
 
     persist.queue = (*player.songs).to_vec();
