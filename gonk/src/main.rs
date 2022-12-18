@@ -148,7 +148,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         persist.elapsed,
     );
 
-    //TODO: Why does this need to exist?
+    //Somehow the easiest way of doing this.
     let mut queue = Queue::new(ui_index, addr_of_mut!(player));
 
     let mut browser = Browser::new();
@@ -293,10 +293,6 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     KeyCode::Char('c') if control => break,
                     _ if searching => {
                         match event.code {
-                            KeyCode::Up | KeyCode::Char('k') => search.up(),
-                            KeyCode::Down | KeyCode::Char('j') => search.down(),
-                            KeyCode::Left | KeyCode::Char('h') => search.left(),
-                            KeyCode::Right | KeyCode::Char('l') => search.right(),
                             KeyCode::Char('/') => match search.mode {
                                 SearchMode::Search if search.query.is_empty() => {
                                     searching = false;
@@ -319,6 +315,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                     search.query_changed = true;
                                 }
                             }
+                            KeyCode::Up | KeyCode::Char('k') => search.up(),
+                            KeyCode::Down | KeyCode::Char('j') => search.down(),
+                            KeyCode::Left | KeyCode::Char('h') => search.left(),
+                            KeyCode::Right | KeyCode::Char('l') => search.right(),
                             KeyCode::Backspace => match search.mode {
                                 SearchMode::Search if !search.query.is_empty() => {
                                     if control {
@@ -340,6 +340,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 match search.mode {
                                     SearchMode::Search => {
                                         searching = false;
+                                        search.query = String::new();
+                                        search.query_changed = true;
                                     }
                                     SearchMode::Select => {
                                         search.mode = SearchMode::Search;
@@ -427,21 +429,16 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         player.volume_down();
                         persist.volume = player.volume();
                     }
-                    KeyCode::Esc => match mode {
-                        Mode::Playlist => {
-                            if playlist.delete {
-                                playlist.yes = true;
-                                playlist.delete = false;
-                            } else if let playlist::Mode::Popup = playlist.mode {
-                                playlist.mode = playlist::Mode::Playlist;
-                                playlist.search_query = String::new();
-                                playlist.changed = true;
-                            } else {
-                                mode = Mode::Queue;
-                            }
+                    KeyCode::Esc if mode == Mode::Playlist => {
+                        if playlist.delete {
+                            playlist.yes = true;
+                            playlist.delete = false;
+                        } else if let playlist::Mode::Popup = playlist.mode {
+                            playlist.mode = playlist::Mode::Playlist;
+                            playlist.search_query = String::new();
+                            playlist.changed = true;
                         }
-                        _ => mode = Mode::Queue,
-                    },
+                    }
                     KeyCode::Enter if shift => match mode {
                         Mode::Browser => {
                             let songs: Vec<Song> = browser::get_selected(&browser)
@@ -509,7 +506,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    persist.queue = (*player.songs).to_vec();
+    persist.queue = player.songs.to_vec();
     persist.index = player.songs.index().unwrap_or(0) as u16;
     persist.elapsed = player.elapsed().as_secs_f32();
     persist.save()?;

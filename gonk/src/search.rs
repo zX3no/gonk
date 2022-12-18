@@ -51,6 +51,7 @@ impl Widget for Search {
 
     fn right(&mut self) {}
 
+    //TODO: Artist and albums colors aren't quite right.
     fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
         let search = self;
         let area = area.inner(&MARGIN);
@@ -61,7 +62,9 @@ impl Widget for Search {
             *search.results = unsafe { vdb::search(&VDB, &search.query) };
         }
 
+        let layout_margin = 1;
         let v = Layout::default()
+            .margin(layout_margin)
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Min(40)])
             .split(area);
@@ -91,17 +94,98 @@ impl Widget for Search {
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded),
+                        .border_type(BorderType::Rounded)
+                        .title("Search:"),
                 )
                 .alignment(Alignment::Left)
                 .scroll((0, offset_x)),
             v[0],
         );
 
-        draw_results(search, f, v[1]);
+        let get_cell = |item: &Item, selected: bool| -> Row {
+            let selected_cell = if selected {
+                Cell::from(">")
+            } else {
+                Cell::default()
+            };
 
-        let y = MARGIN.vertical + 1;
-        let x = MARGIN.horizontal + 1;
+            match item {
+                Item::Song((artist, album, name, _, _)) => Row::new(vec![
+                    selected_cell,
+                    Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
+                    Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
+                    Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+                ]),
+                Item::Album((artist, album)) => Row::new(vec![
+                    selected_cell,
+                    Cell::from(Spans::from(vec![
+                        Span::styled(format!("{album} - "), Style::default().fg(ALBUM)),
+                        Span::styled(
+                            "Album",
+                            Style::default().fg(ALBUM).add_modifier(Modifier::ITALIC),
+                        ),
+                    ])),
+                    Cell::from("-"),
+                    Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+                ]),
+                Item::Artist(artist) => Row::new(vec![
+                    selected_cell,
+                    Cell::from(Spans::from(vec![
+                        Span::styled(format!("{artist} - "), Style::default().fg(ARTIST)),
+                        Span::styled(
+                            "Artist",
+                            Style::default().fg(ARTIST).add_modifier(Modifier::ITALIC),
+                        ),
+                    ])),
+                    Cell::from("-"),
+                    Cell::from("-"),
+                ]),
+            }
+        };
+
+        let rows: Vec<Row> = search
+            .results
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                if let Some(s) = search.results.index() {
+                    if s == i {
+                        return get_cell(item, true);
+                    }
+                } else if i == 0 {
+                    return get_cell(item, false);
+                }
+                get_cell(item, false)
+            })
+            .collect();
+
+        let italic = Style::default().add_modifier(Modifier::ITALIC);
+        let table = Table::new(&rows)
+            .header(
+                Row::new(vec![
+                    Cell::default(),
+                    Cell::from("Name").style(italic),
+                    Cell::from("Album").style(italic),
+                    Cell::from("Artist").style(italic),
+                ])
+                .bottom_margin(1),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
+            .widths(&[
+                Constraint::Length(1),
+                Constraint::Percentage(40),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+            ]);
+
+        f.render_stateful_widget(table, v[1], &mut TableState::new(search.results.index()));
+
+        let y = MARGIN.vertical + 1 + layout_margin;
+        let x = MARGIN.horizontal + 1 + layout_margin;
 
         //Move the cursor position when typing
         if let Mode::Search = search.mode {
@@ -172,89 +256,4 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
             }
         }),
     }
-}
-
-//TODO: Artist and albums colors aren't quite right.
-fn draw_results<'a>(search: &'a Search, f: &mut Frame, area: Rect) {
-    let get_cell = |item: &'a Item, selected: bool| -> Row {
-        let selected_cell = if selected {
-            Cell::from(">")
-        } else {
-            Cell::default()
-        };
-
-        match item {
-            Item::Song((artist, album, name, _, _)) => Row::new(vec![
-                selected_cell,
-                Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
-                Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
-                Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
-            ]),
-            Item::Album((artist, album)) => Row::new(vec![
-                selected_cell,
-                Cell::from(Spans::from(vec![
-                    Span::styled(format!("{album} - "), Style::default().fg(ALBUM)),
-                    Span::styled(
-                        "Album",
-                        Style::default().fg(ALBUM).add_modifier(Modifier::ITALIC),
-                    ),
-                ])),
-                Cell::from("-"),
-                Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
-            ]),
-            Item::Artist(artist) => Row::new(vec![
-                selected_cell,
-                Cell::from(Spans::from(vec![
-                    Span::styled(format!("{artist} - "), Style::default().fg(ARTIST)),
-                    Span::styled(
-                        "Artist",
-                        Style::default().fg(ARTIST).add_modifier(Modifier::ITALIC),
-                    ),
-                ])),
-                Cell::from("-"),
-                Cell::from("-"),
-            ]),
-        }
-    };
-
-    let rows: Vec<Row> = search
-        .results
-        .iter()
-        .enumerate()
-        .map(|(i, item)| {
-            if let Some(s) = search.results.index() {
-                if s == i {
-                    return get_cell(item, true);
-                }
-            } else if i == 0 {
-                return get_cell(item, false);
-            }
-            get_cell(item, false)
-        })
-        .collect();
-
-    let italic = Style::default().add_modifier(Modifier::ITALIC);
-    let table = Table::new(&rows)
-        .header(
-            Row::new(vec![
-                Cell::default(),
-                Cell::from("Name").style(italic),
-                Cell::from("Album").style(italic),
-                Cell::from("Artist").style(italic),
-            ])
-            .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
-        .widths(&[
-            Constraint::Length(1),
-            Constraint::Percentage(40),
-            Constraint::Percentage(40),
-            Constraint::Percentage(20),
-        ]);
-
-    f.render_stateful_widget(table, area, &mut TableState::new(search.results.index()));
 }

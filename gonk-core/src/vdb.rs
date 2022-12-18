@@ -152,54 +152,69 @@ fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
 ///Search the database and return the 25 most accurate matches.
 pub fn search(db: &'static Database, query: &str) -> Vec<Item> {
     let query = query.to_lowercase();
-    let results = RwLock::new(Vec::new());
 
-    db.par_iter().for_each(|(artist, albums)| {
-        for album in albums {
-            for song in &album.songs {
-                let song = jaro(
-                    &query,
-                    Item::Song((
-                        artist,
-                        &album.title,
-                        &song.title,
-                        song.disc_number,
-                        song.track_number,
-                    )),
-                );
-                results.write().unwrap().push(song);
+    let mut results = if query.is_empty() {
+        let mut results = Vec::new();
+        for (artist, albums) in db {
+            for album in albums {
+                for song in &album.songs {
+                    results.push((
+                        Item::Song((
+                            artist,
+                            &album.title,
+                            &song.title,
+                            song.disc_number,
+                            song.track_number,
+                        )),
+                        1.0,
+                    ))
+                }
+
+                results.push((Item::Album((artist, &album.title)), 1.0));
             }
-            let album = jaro(&query, Item::Album((artist, &album.title)));
-            results.write().unwrap().push(album);
+
+            results.push((Item::Artist(artist), 1.0));
         }
-        let artist = jaro(&query, Item::Artist(artist));
-        results.write().unwrap().push(artist);
-    });
-
-    let results = RwLock::into_inner(results).unwrap();
-
-    let mut results: Vec<_> = if query.is_empty() {
         results
-            .into_iter()
-            .take(25)
-            .filter_map(|x| match x {
-                Ok(_) => None,
-                Err(x) => Some(x),
-            })
-            .collect()
     } else {
-        results.into_iter().flatten().collect()
+        let results = RwLock::new(Vec::new());
+        db.par_iter().for_each(|(artist, albums)| {
+            for album in albums {
+                for song in &album.songs {
+                    let song = jaro(
+                        &query,
+                        Item::Song((
+                            artist,
+                            &album.title,
+                            &song.title,
+                            song.disc_number,
+                            song.track_number,
+                        )),
+                    );
+                    results.write().unwrap().push(song);
+                }
+                let album = jaro(&query, Item::Album((artist, &album.title)));
+                results.write().unwrap().push(album);
+            }
+            let artist = jaro(&query, Item::Artist(artist));
+            results.write().unwrap().push(artist);
+        });
+        RwLock::into_inner(results)
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect()
     };
-
-    //Sort results by score.
-    results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
     if results.len() > 25 {
         //Remove the less accurate results.
         results.par_drain(25..);
     }
 
-    results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
+    //Sort results by score.
+    results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+
+    results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
         if score_1 == score_2 {
             match item_1 {
                 Item::Artist(_) => match item_2 {
