@@ -55,15 +55,15 @@ impl Symphonia {
             &MetadataOptions::default(),
         )?;
 
-        let track = probed.format.default_track().ok_or("")?.to_owned();
-        let n_frames = track.codec_params.n_frames.ok_or("")?;
+        let track = probed.format.default_track().ok_or("track")?.to_owned();
+        let n_frames = track.codec_params.n_frames.ok_or("n_frames")?;
         let duration = track.codec_params.start_ts + n_frames;
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &codecs::DecoderOptions::default())?;
 
         let millis = 20;
-        let sample_rate = track.codec_params.sample_rate.unwrap() as usize;
-        let channels = track.codec_params.channels.unwrap().count();
+        let sample_rate = track.codec_params.sample_rate.ok_or("sample_rate")? as usize;
+        let channels = track.codec_params.channels.ok_or("channels")?.count();
         let capacity = ((millis * sample_rate) / 1000) * channels;
 
         Ok(Self {

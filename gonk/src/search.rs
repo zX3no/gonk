@@ -8,7 +8,7 @@ use tui::{
 };
 
 const MARGIN: Margin = Margin {
-    vertical: 6,
+    vertical: 4,
     horizontal: 8,
 };
 

@@ -46,7 +46,6 @@ pub trait Widget {
     fn down(&mut self);
     fn left(&mut self);
     fn right(&mut self);
-    //I HATE TRAITS. I HATE TRAITS. I HATE TRAITS.
     fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>);
 }
 
@@ -152,7 +151,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     let mut queue = Queue::new(ui_index, addr_of_mut!(player));
 
     let mut browser = Browser::new();
-    let mut playlist = Playlist::new();
+    let mut playlist = Playlist::new()?;
     let mut settings = Settings::new(&persist.output_device);
     let mut search = Search::new();
 

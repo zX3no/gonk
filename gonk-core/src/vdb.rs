@@ -206,13 +206,15 @@ pub fn search(db: &'static Database, query: &str) -> Vec<Item> {
             .collect()
     };
 
+    if !query.is_empty() {
+        //Sort results by score.
+        results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+    }
+
     if results.len() > 25 {
         //Remove the less accurate results.
         results.par_drain(25..);
     }
-
-    //Sort results by score.
-    results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
     results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
         if score_1 == score_2 {

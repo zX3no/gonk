@@ -69,7 +69,7 @@ impl Player {
         init();
 
         let devices = devices();
-        let default = default_device().unwrap();
+        let default = default_device().expect("No default device?");
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
         let backend = unsafe { Wasapi::new(device, None) };

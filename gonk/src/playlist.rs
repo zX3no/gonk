@@ -25,26 +25,22 @@ pub struct Playlist {
     pub search_query: String,
     pub search_result: String,
     pub changed: bool,
-
     pub delete: bool,
     pub yes: bool,
 }
 
 impl Playlist {
-    pub fn new() -> Self {
-        let playlists = gonk_core::playlist::playlists().unwrap();
-
-        Self {
+    pub fn new() -> std::result::Result<Self, Box<dyn Error + Send + Sync>> {
+        Ok(Self {
             mode: Mode::Playlist,
-            lists: Index::from(playlists),
+            lists: Index::from(gonk_core::playlist::playlists()?),
             song_buffer: Vec::new(),
             changed: false,
             search_query: String::new(),
             search_result: String::from("Enter a playlist name..."),
-
             delete: false,
             yes: true,
-        }
+        })
     }
 }
 

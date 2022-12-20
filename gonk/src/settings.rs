@@ -17,7 +17,7 @@ pub struct Settings {
 impl Settings {
     pub fn new(wanted_device: &str) -> Self {
         let devices = devices();
-        let default = default_device().unwrap();
+        let default = default_device().expect("No default output device?");
 
         let devices: Vec<&'static str> =
             devices.iter().map(|device| device.name.as_str()).collect();
