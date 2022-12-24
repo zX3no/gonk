@@ -86,8 +86,14 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     return Ok(println!("Usage: gonk add <path>"));
                 }
                 let path = args[1..].join(" ");
+                let Ok(path) = fs::canonicalize(path) else {
+                    return Ok(println!("Invalid path."));
+                };
+                let Some(path) = path.to_str() else {
+                    return Ok(println!("Invalid path."));
+                };
                 if Path::new(&path).exists() {
-                    persist.music_folder = path.clone();
+                    persist.music_folder = path.to_string();
                     scan_handle = Some(db::create(path));
                     scan_timer = Instant::now();
                 } else {
