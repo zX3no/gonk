@@ -238,9 +238,6 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             persist.queue = player.songs.to_vec();
             persist.save()?;
 
-            //Update the list of output devices.
-            settings.update();
-
             last_tick = Instant::now();
         }
 
@@ -478,7 +475,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             }
                         }
                         Mode::Settings => {
-                            if let Some(device) = settings.devices.selected() {
+                            if let Some(device) = settings.selected() {
                                 player.set_output_device(device);
                                 settings.current_device = (*device).to_string();
                             }

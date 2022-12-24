@@ -88,8 +88,8 @@ pub unsafe fn init() {
     thread::spawn(move || {
         let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
         loop {
+            thread::sleep(Duration::from_millis(300));
             update_output_devices(enumerator);
-            thread::sleep(Duration::from_millis(250));
         }
     });
 }
@@ -158,6 +158,8 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
     let name = utf16_string(ptr_utf16);
     PropVariantClear(&mut prop);
+
+    devices.sort_by(|a, b| a.name.cmp(&b.name));
 
     DEFAULT_DEVICE = Some(Device {
         inner: device,
@@ -295,7 +297,6 @@ impl Wasapi {
 
         let mut audio_clock_ptr = null_mut();
         check((*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr));
-
 
         let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
 

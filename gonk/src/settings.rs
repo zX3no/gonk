@@ -8,9 +8,8 @@ use tui::{
     widgets::{Block, BorderType, Borders},
 };
 
-//TODO: Devices are not refreshed when new ones are connected.
 pub struct Settings {
-    pub devices: Index<&'static str>,
+    pub devices: Index<()>,
     pub current_device: String,
 }
 
@@ -29,33 +28,28 @@ impl Settings {
         };
 
         Self {
-            devices: Index::from(devices),
+            devices: Index::default(),
             current_device,
         }
     }
-    pub fn update(&mut self) {
-        let mut index = self.devices.index().unwrap_or(0);
-        if index >= devices().len() {
-            index = devices().len().saturating_sub(1);
-        }
 
-        self.devices = Index::new(
-            devices()
-                .iter()
-                .map(|device| device.name.as_str())
-                .collect(),
-            Some(index),
-        );
+    pub fn selected(&self) -> Option<&str> {
+        if let Some(index) = self.devices.index() {
+            if let Some(device) = devices().get(index) {
+                return Some(&device.name);
+            }
+        }
+        None
     }
 }
 
 impl Widget for Settings {
     fn up(&mut self) {
-        self.devices.up();
+        self.devices.up_with_len(devices().len());
     }
 
     fn down(&mut self) {
-        self.devices.down();
+        self.devices.down_with_len(devices().len());
     }
 
     fn left(&mut self) {}
@@ -68,8 +62,19 @@ impl Widget for Settings {
 }
 
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
-    let items: Vec<ListItem> = settings
-        .devices
+    //TODO: Re-write.
+    let mut index = settings.devices.index().unwrap_or(0);
+    if index >= devices().len() {
+        index = devices().len().saturating_sub(1);
+    }
+    settings.devices = Index::new(Vec::new(), Some(index));
+
+    let devices: Vec<&str> = devices()
+        .iter()
+        .map(|device| device.name.as_str())
+        .collect();
+
+    let items: Vec<ListItem> = devices
         .iter()
         .map(|name| {
             if *name == settings.current_device {
