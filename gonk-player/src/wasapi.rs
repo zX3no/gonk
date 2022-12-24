@@ -246,8 +246,9 @@ impl Wasapi {
         //Update format to desired sample rate.
         if let Some(sample_rate) = sample_rate {
             assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-            format.nSamplesPerSec = sample_rate as u32;
-            format.nAvgBytesPerSec = sample_rate as u32 * format.nBlockAlign as u32;
+            let sample_rate = sample_rate as u32 / (format.nChannels as u32 / 2);
+            format.nSamplesPerSec = sample_rate;
+            format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
         }
 
         if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
@@ -295,6 +296,7 @@ impl Wasapi {
         let mut audio_clock_ptr = null_mut();
         check((*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr));
 
+
         let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
 
         //This must be set for some reason.
@@ -334,7 +336,12 @@ impl Wasapi {
             let buffer_frame_count = self.buffer_frame_count();
             let buffer_size = buffer_frame_count * block_align;
 
-            let _channels = self.format.Format.nChannels as usize;
+            let channels = self.format.Format.nChannels as usize;
+            if channels > 2 {
+                //FIXME: Support >2 channels.
+                gonk_core::log!("Unsupported output device.");
+                return;
+            }
 
             let mut buffer_ptr = null_mut();
             check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
