@@ -1,11 +1,11 @@
 use core::{ffi::c_void, slice};
 use gonk_core::profile;
-use std::ffi::OsString;
-use std::mem::{size_of, transmute, zeroed, MaybeUninit};
+use std::mem::{size_of, transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::thread;
 use std::time::Duration;
+use std::{ffi::OsString, sync::Once};
 use winapi::{
     shared::devpkey::DEVPKEY_Device_FriendlyName,
     shared::guiddef::GUID,
@@ -52,30 +52,34 @@ const COMMON_SAMPLE_RATES: [usize; 13] = [
 //TODO: It is very slow to collect devices
 //I'm not sure if this is necessary though.
 pub static mut DEVICES: Vec<Device> = Vec::new();
-pub static mut DEFAULT_DEVICE: MaybeUninit<Device> = MaybeUninit::zeroed();
+pub static mut DEFAULT_DEVICE: Option<Device> = None;
+
+static ONCE: Once = Once::new();
 
 pub unsafe fn init() {
-    CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
+    ONCE.call_once(|| {
+        CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
 
-    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-    check(CoCreateInstance(
-        &CLSID_MMDeviceEnumerator,
-        null_mut(),
-        CLSCTX_ALL,
-        &IMMDeviceEnumerator::uuidof(),
-        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-    ));
+        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+        check(CoCreateInstance(
+            &CLSID_MMDeviceEnumerator,
+            null_mut(),
+            CLSCTX_ALL,
+            &IMMDeviceEnumerator::uuidof(),
+            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+        ));
 
-    update_output_devices(enumerator);
+        update_output_devices(enumerator);
 
-    //HACK: Not a hack apparently.
-    let ptr: usize = enumerator as usize;
-    thread::spawn(move || {
-        let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
-        loop {
-            thread::sleep(Duration::from_millis(300));
-            update_output_devices(enumerator);
-        }
+        //HACK: Not a hack apparently.
+        let ptr: usize = enumerator as usize;
+        thread::spawn(move || {
+            let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
+            loop {
+                thread::sleep(Duration::from_millis(300));
+                update_output_devices(enumerator);
+            }
+        });
     });
 }
 
@@ -146,7 +150,7 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 
     devices.sort_by(|a, b| a.name.cmp(&b.name));
 
-    DEFAULT_DEVICE = MaybeUninit::new(Device {
+    DEFAULT_DEVICE = Some(Device {
         inner: device,
         name,
     });
@@ -179,7 +183,7 @@ pub unsafe fn check(result: i32) {
             }
         }
 
-        panic!("Failed to get error message from Windows.");
+        panic!("Failed to get error message from Windows. Error Code: {result:#x}");
     }
 }
 
@@ -320,6 +324,13 @@ impl Backend for Wasapi {
     //44100 cannot convert to 192_000 and vise versa.
     fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
+        if sample_rate == self.sample_rate() {
+            return;
+        }
+
+        //Not sure if this is necessary.
+        unsafe { check((*self.audio_client).Stop()) };
+
         *self = Wasapi::new(device, Some(sample_rate));
     }
 

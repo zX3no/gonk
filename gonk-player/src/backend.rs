@@ -39,7 +39,7 @@ pub fn devices() -> Vec<Device> {
 //TODO: Remove
 pub unsafe fn default_device() -> &'static Device {
     #[cfg(windows)]
-    return DEFAULT_DEVICE.assume_init_ref();
+    return DEFAULT_DEVICE.as_ref().unwrap();
 
     #[cfg(unix)]
     return todo!();
