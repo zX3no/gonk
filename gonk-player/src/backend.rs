@@ -6,11 +6,16 @@ pub use crate::wasapi::*;
 #[cfg(unix)]
 pub use crate::pipewire::*;
 
+pub trait Backend {
+    fn sample_rate(&self) -> usize;
+    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device);
+    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia);
+}
+
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Device {
     #[cfg(windows)]
     pub inner: *mut winapi::um::mmdeviceapi::IMMDevice,
-
     pub name: String,
 }
 
@@ -24,26 +29,16 @@ pub fn new(device: &Device) -> Box<dyn Backend> {
 
 pub fn devices() -> &'static [Device] {
     #[cfg(windows)]
-    unsafe {
-        &DEVICES
-    }
+    return unsafe { &DEVICES };
 
     #[cfg(unix)]
-    todo!()
+    return todo!();
 }
 
 pub fn default_device() -> Option<&'static Device> {
     #[cfg(windows)]
-    unsafe {
-        DEFAULT_DEVICE.as_ref()
-    }
+    return unsafe { DEFAULT_DEVICE.as_ref() };
 
     #[cfg(unix)]
-    todo!()
-}
-
-pub trait Backend {
-    fn sample_rate(&self) -> usize;
-    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device);
-    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia);
+    return todo!();
 }

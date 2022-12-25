@@ -1,7 +1,7 @@
 use core::{ffi::c_void, slice};
 use gonk_core::profile;
 use std::ffi::OsString;
-use std::mem::{transmute, zeroed};
+use std::mem::{size_of, transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::thread;
@@ -349,29 +349,25 @@ impl Backend for Wasapi {
             let block_align = self.format.Format.nBlockAlign as usize;
             let buffer_frame_count = self.buffer_frame_count();
             let buffer_size = buffer_frame_count * block_align;
-
             let channels = self.format.Format.nChannels as usize;
-            if channels > 2 {
-                //FIXME: Support >2 channels.
-                gonk_core::log!("Unsupported output device.");
-                return;
-            }
-
             let mut buffer_ptr = null_mut();
             check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
-
             let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
-            for sample in slice.chunks_mut(4) {
-                let sample_bytes = (symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
-                sample.copy_from_slice(&sample_bytes);
+            //Channel [0] & [1] are left and right. Other channels should be zeroed.
+            //Float is 4 bytes so 0..4 is left and 4..8 is right.
+            for bytes in slice.chunks_mut(size_of::<f32>() * channels) {
+                let sample_bytes = &(symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
+                bytes[0..4].copy_from_slice(sample_bytes);
+
+                let sample_bytes = &(symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
+                bytes[4..8].copy_from_slice(sample_bytes);
             }
 
             (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
 
-            let result = WaitForSingleObject(self.h_event, INFINITE);
-            if result != WAIT_OBJECT_0 {
-                panic!();
+            if WaitForSingleObject(self.h_event, INFINITE) != WAIT_OBJECT_0 {
+                unreachable!()
             }
         }
     }
