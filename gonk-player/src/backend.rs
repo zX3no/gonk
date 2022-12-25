@@ -19,12 +19,12 @@ pub struct Device {
     pub name: String,
 }
 
-pub fn new(device: &Device) -> Box<dyn Backend> {
+pub fn new(device: &Device, sample_rate: Option<usize>) -> Box<dyn Backend> {
     #[cfg(windows)]
-    return Box::new(Wasapi::new(device, None));
+    return Box::new(Wasapi::new(device, sample_rate));
 
     #[cfg(unix)]
-    return Box::new(PipeWire::new(device, None));
+    return Box::new(PipeWire::new(device, sample_rate));
 }
 
 //TODO: Remove?

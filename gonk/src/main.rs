@@ -372,6 +372,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 if let Some(songs) = search::on_enter(&mut search) {
                                     let songs = songs.into_iter().cloned().collect();
                                     player.add(songs);
+                                    search.query = String::new();
+                                    search.query_changed = true;
                                 }
                             }
                             _ => (),

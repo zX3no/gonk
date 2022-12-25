@@ -104,7 +104,7 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     check((*collection).GetCount(&mut count as *mut u32 as *const u32));
 
     if count == 0 {
-        panic!("No output devices.");
+        return;
     }
 
     let mut devices = Vec::new();
@@ -184,14 +184,18 @@ pub unsafe fn check(result: i32) {
             buf.len() as u32,
             null_mut(),
         );
-        debug_assert!(result != 0);
-        let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-        if let Some(slice) = &buf.get(..b - 2) {
-            let msg = String::from_utf16(slice).unwrap();
-            panic!("{msg}");
-        } else {
-            panic!("Failed to get error message");
+
+        if result == 0 {
+            let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+            if b > 2 {
+                if let Some(slice) = &buf.get(..b - 2) {
+                    let msg = String::from_utf16(slice).unwrap();
+                    panic!("{msg}");
+                }
+            }
         }
+
+        panic!("Failed to get error message from Windows.");
     }
 }
 
@@ -242,9 +246,8 @@ impl Wasapi {
             //Update format to desired sample rate.
             if let Some(sample_rate) = sample_rate {
                 assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-                let sample_rate = sample_rate as u32 / (format.nChannels as u32 / 2);
-                format.nSamplesPerSec = sample_rate;
-                format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+                format.nSamplesPerSec = sample_rate as u32;
+                format.nAvgBytesPerSec = sample_rate as u32 * format.nBlockAlign as u32;
             }
 
             if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
@@ -317,14 +320,19 @@ impl Wasapi {
             }
         }
     }
-    pub unsafe fn buffer_frame_count(&mut self) -> usize {
+    pub unsafe fn buffer_frame_count(&mut self) -> Option<usize> {
         let mut padding_count = zeroed();
-        check((*self.audio_client).GetCurrentPadding(&mut padding_count));
+        let result = (*self.audio_client).GetCurrentPadding(&mut padding_count);
+        //This can occur when a devices sample rate is changed.
+        //TODO: Find a way to recover and notify the user.
+        if result != 0 {
+            return None;
+        }
 
         let mut buffer_frame_count = zeroed();
         check((*self.audio_client).GetBufferSize(&mut buffer_frame_count));
 
-        (buffer_frame_count - padding_count) as usize
+        Some((buffer_frame_count - padding_count) as usize)
     }
 }
 
@@ -337,17 +345,22 @@ impl Backend for Wasapi {
     //44100 cannot convert to 192_000 and vise versa.
     fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(sample_rate as f32) };
-        if result != 0 {
-            *self = Wasapi::new(device, Some(sample_rate));
-        }
+        *self = Wasapi::new(device, Some(sample_rate));
+        // if sample_rate >= 96000 {
+        //     eprintln!("Reset wasapi to {sample_rate}Hz");
+        // } else {
+        //     eprintln!("Updated sample rate to {sample_rate}Hz");
+        //     unsafe { check((*self.audio_clock_adjust).SetSampleRate(sample_rate as f32)) };
+        // }
     }
 
     fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
         profile!();
         unsafe {
             let block_align = self.format.Format.nBlockAlign as usize;
-            let buffer_frame_count = self.buffer_frame_count();
+            let Some(buffer_frame_count) = self.buffer_frame_count() else {
+                return
+            };
             let buffer_size = buffer_frame_count * block_align;
             let channels = self.format.Format.nChannels as usize;
             let mut buffer_ptr = null_mut();

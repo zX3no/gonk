@@ -71,7 +71,7 @@ impl Player {
         let default = unsafe { default_device() };
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
-        let backend = backend::new(device);
+        let backend = backend::new(device, None);
 
         let mut player = Self {
             songs,
@@ -275,6 +275,7 @@ impl Player {
         } else {
             unreachable!("Requested a device that does not exist.")
         };
-        self.backend = backend::new(device);
+
+        self.backend = backend::new(device, Some(self.sample_rate));
     }
 }
