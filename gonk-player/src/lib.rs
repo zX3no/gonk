@@ -49,7 +49,6 @@ pub enum State {
 pub struct Player {
     pub songs: Index<Song>,
 
-    //TODO: Might want to think about backend traits.
     backend: Box<dyn Backend>,
 
     output_device: Device,
@@ -71,7 +70,6 @@ impl Player {
         let default = default_device().expect("No default device?");
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
-        // let backend = unsafe { Wasapi::new(device, None) };
         let backend = backend::new(device);
 
         let mut player = Self {
@@ -127,10 +125,7 @@ impl Player {
             symphonia.push(packet.samples());
         }
     }
-    //WASAPI has some weird problem with change sample rates.
-    //This shouldn't be necessary.
     pub fn update_decoder(&mut self, path: impl AsRef<Path>) {
-        profile!();
         match Symphonia::new(path) {
             Ok(sym) => {
                 self.duration = sym.duration();
@@ -138,10 +133,6 @@ impl Player {
 
                 if self.sample_rate != new {
                     self.backend.set_sample_rate(new, &self.output_device);
-                    // if self.backend.set_sample_rate(new).is_err() {
-                    //     self.backend = unsafe { Wasapi::new(&self.output_device, Some(new)) };
-                    // };
-
                     self.sample_rate = new;
                 }
 
@@ -282,7 +273,6 @@ impl Player {
         } else {
             unreachable!("Requested a device that does not exist.")
         };
-        // self.backend = Wasapi::new(device, Some(self.sample_rate));
         self.backend = backend::new(device);
     }
 }
