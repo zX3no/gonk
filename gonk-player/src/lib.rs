@@ -67,7 +67,7 @@ impl Player {
     pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         init();
 
-        let devices = unsafe { devices() };
+        let devices = devices();
         let default = unsafe { default_device() };
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
@@ -269,7 +269,8 @@ impl Player {
         (self.volume * VOLUME_REDUCTION) as u8
     }
     pub fn set_output_device(&mut self, device: &str) {
-        let device = if let Some(device) = unsafe { devices().iter().find(|d| d.name == device) } {
+        let devices = devices();
+        let device = if let Some(device) = devices.iter().find(|d| d.name == device) {
             device
         } else {
             unreachable!("Requested a device that does not exist.")

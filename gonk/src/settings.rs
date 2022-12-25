@@ -1,6 +1,6 @@
 use crate::{widgets::*, Frame, Widget};
 use crossterm::event::MouseEvent;
-use gonk_player::{default_device, devices};
+use gonk_player::{default_device, devices, Device};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -9,6 +9,7 @@ use tui::{
 };
 
 pub struct Settings {
+    pub devices: Vec<Device>,
     pub index: Option<usize>,
     pub current_device: String,
 }
@@ -17,26 +18,23 @@ impl Settings {
     pub fn new(wanted_device: &str) -> Self {
         let default = unsafe { default_device() };
 
-        let current_device =
-            if unsafe { devices().iter().any(|device| device.name == wanted_device) } {
-                wanted_device.to_string()
-            } else {
-                default.name.to_string()
-            };
+        let devices = devices();
+        let current_device = if devices.iter().any(|device| device.name == wanted_device) {
+            wanted_device.to_string()
+        } else {
+            default.name.to_string()
+        };
 
         Self {
-            index: if unsafe { devices().is_empty() } {
-                None
-            } else {
-                Some(0)
-            },
+            index: if devices.is_empty() { None } else { Some(0) },
+            devices,
             current_device,
         }
     }
 
     pub fn selected(&self) -> Option<&str> {
         if let Some(index) = self.index {
-            if let Some(device) = unsafe { devices().get(index) } {
+            if let Some(device) = self.devices.get(index) {
                 return Some(&device.name);
             }
         }
@@ -46,24 +44,24 @@ impl Settings {
 
 impl Widget for Settings {
     fn up(&mut self) {
-        if unsafe { devices().is_empty() } {
+        if self.devices.is_empty() {
             return;
         }
 
         match self.index {
-            Some(0) => self.index = Some(unsafe { devices().len() } - 1),
+            Some(0) => self.index = Some(self.devices.len() - 1),
             Some(n) => self.index = Some(n - 1),
             None => (),
         }
     }
 
     fn down(&mut self) {
-        if unsafe { devices().is_empty() } {
+        if self.devices.is_empty() {
             return;
         }
 
         match self.index {
-            Some(n) if n + 1 < unsafe { devices().len() } => self.index = Some(n + 1),
+            Some(n) if n + 1 < self.devices.len() => self.index = Some(n + 1),
             Some(_) => self.index = Some(0),
             None => (),
         }
@@ -79,14 +77,8 @@ impl Widget for Settings {
 }
 
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
-    let mut index = settings.index.unwrap_or(0);
-    let len = unsafe { devices().len() };
-    if index >= len {
-        index = len.saturating_sub(1);
-        settings.index = Some(index);
-    }
-
-    let devices: Vec<&str> = unsafe { devices() }
+    let devices: Vec<&str> = settings
+        .devices
         .iter()
         .map(|device| device.name.as_str())
         .collect();

@@ -27,10 +27,10 @@ pub fn new(device: &Device) -> Box<dyn Backend> {
     return Box::new(PipeWire::new(device, None));
 }
 
-//TODO: Since the devices are constatly updated this is a death trap.
-pub unsafe fn devices() -> &'static [Device] {
+//TODO: Remove?
+pub fn devices() -> Vec<Device> {
     #[cfg(windows)]
-    return &DEVICES;
+    return unsafe { DEVICES.to_vec() };
 
     #[cfg(unix)]
     return todo!();

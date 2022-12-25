@@ -238,6 +238,15 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             persist.queue = player.songs.to_vec();
             persist.save()?;
 
+            //Update the list of output devices
+            //TODO: I don't like how this is done.
+            settings.devices = gonk_player::devices();
+            let mut index = settings.index.unwrap_or(0);
+            if index >= settings.devices.len() {
+                index = settings.devices.len().saturating_sub(1);
+                settings.index = Some(index);
+            }
+
             last_tick = Instant::now();
         }
 
