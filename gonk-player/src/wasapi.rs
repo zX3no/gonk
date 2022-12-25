@@ -195,14 +195,6 @@ pub unsafe fn check(result: i32) {
     }
 }
 
-pub fn devices() -> &'static [Device] {
-    unsafe { &DEVICES }
-}
-
-pub fn default_device() -> Option<&'static Device> {
-    unsafe { DEFAULT_DEVICE.as_ref() }
-}
-
 pub unsafe fn utf16_string(ptr_utf16: *const u16) -> String {
     let mut len = 0;
     while *ptr_utf16.offset(len) != 0 {
@@ -343,15 +335,15 @@ impl Backend for Wasapi {
 
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
-    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) -> usize {
-        debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
-        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(new as f32) };
+    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
+        debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
+        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(sample_rate as f32) };
         if result != 0 {
             *self = Wasapi::new(device, Some(sample_rate));
         }
     }
 
-    fn fill_buffer(&self, volume: f32, decoder: &mut Symphonia) {
+    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
         profile!();
         unsafe {
             let block_align = self.format.Format.nBlockAlign as usize;

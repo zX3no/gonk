@@ -23,15 +23,27 @@ pub fn new(device: &Device) -> Box<dyn Backend> {
 }
 
 pub fn devices() -> &'static [Device] {
+    #[cfg(windows)]
+    unsafe {
+        &DEVICES
+    }
+
+    #[cfg(unix)]
     todo!()
 }
 
 pub fn default_device() -> Option<&'static Device> {
+    #[cfg(windows)]
+    unsafe {
+        DEFAULT_DEVICE.as_ref()
+    }
+
+    #[cfg(unix)]
     todo!()
 }
 
 pub trait Backend {
     fn sample_rate(&self) -> usize;
-    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) -> usize;
-    fn fill_buffer(&self, volume: f32, decoder: &mut Symphonia);
+    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device);
+    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia);
 }

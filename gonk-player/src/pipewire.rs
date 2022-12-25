@@ -13,11 +13,11 @@ impl Backend for PipeWire {
         todo!()
     }
 
-    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) -> usize {
+    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
         todo!()
     }
 
-    fn fill_buffer(&self, volume: f32, decoder: &mut crate::decoder::Symphonia) {
+    fn fill_buffer(&mut self, volume: f32, symphonia: &mut crate::decoder::Symphonia) {
         todo!()
     }
 }
