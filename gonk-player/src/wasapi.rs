@@ -6,28 +6,29 @@ use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::thread;
 use std::time::Duration;
-use winapi::um::audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient};
-use winapi::um::audiosessiontypes::{
-    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_RATEADJUST,
-};
-use winapi::um::combaseapi::{CoCreateInstance, CoInitializeEx, PropVariantClear, CLSCTX_ALL};
-use winapi::um::mmdeviceapi::{
-    eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
-    DEVICE_STATE_ACTIVE,
-};
-use winapi::um::synchapi::CreateEventA;
-use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
-use winapi::um::winbase::{
-    FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS,
-};
-use winapi::um::winnt::HRESULT;
-use winapi::{shared::devpkey::DEVPKEY_Device_FriendlyName, um::synchapi::WaitForSingleObject};
-use winapi::{shared::guiddef::GUID, um::winbase::INFINITE};
 use winapi::{
+    shared::devpkey::DEVPKEY_Device_FriendlyName,
+    shared::guiddef::GUID,
     shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
-    um::winbase::WAIT_OBJECT_0,
+    um::{
+        audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient},
+        audiosessiontypes::{
+            AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+            AUDCLNT_STREAMFLAGS_RATEADJUST,
+        },
+        combaseapi::{CoCreateInstance, CoInitializeEx, PropVariantClear, CLSCTX_ALL},
+        mmdeviceapi::{
+            eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
+            DEVICE_STATE_ACTIVE,
+        },
+        synchapi::{CreateEventA, WaitForSingleObject},
+        winbase::{
+            FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, INFINITE,
+            WAIT_OBJECT_0,
+        },
+    },
+    Interface,
 };
-use winapi::{Interface, RIDL};
 
 use crate::backend::{Backend, Device};
 use crate::decoder::Symphonia;
@@ -52,23 +53,6 @@ const COMMON_SAMPLE_RATES: [usize; 13] = [
 //I'm not sure if this is necessary though.
 pub static mut DEVICES: Vec<Device> = Vec::new();
 pub static mut DEFAULT_DEVICE: MaybeUninit<Device> = MaybeUninit::zeroed();
-
-//TODO: Inline this macro.
-RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
-interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtbl) {
-   fn SetSampleRate(
-        flSampleRate: f32,
-    ) -> HRESULT,
-}}
-
-// #[derive(PartialEq, Eq, Debug, Clone)]
-// pub struct Device {
-//     pub inner: *mut IMMDevice,
-//     pub name: String,
-// }
-
-// unsafe impl Send for Device {}
-// unsafe impl Sync for Device {}
 
 pub unsafe fn init() {
     CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
@@ -211,7 +195,6 @@ pub unsafe fn utf16_string(ptr_utf16: *const u16) -> String {
 
 pub struct Wasapi {
     pub audio_client: *mut IAudioClient,
-    pub audio_clock_adjust: *mut IAudioClockAdjustment,
     pub render_client: *mut IAudioRenderClient,
     pub format: WAVEFORMATEXTENSIBLE,
 
@@ -292,13 +275,6 @@ impl Wasapi {
                 null(),
             ));
 
-            let mut audio_clock_ptr = null_mut();
-            check(
-                (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr),
-            );
-
-            let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
-
             //This must be set for some reason.
             let h_event = CreateEventA(null_mut(), 0, 0, null());
             (*audio_client).SetEventHandle(h_event);
@@ -312,7 +288,6 @@ impl Wasapi {
 
             Self {
                 audio_client,
-                audio_clock_adjust,
                 render_client,
                 format,
                 buffer: Vec::new(),
@@ -346,12 +321,6 @@ impl Backend for Wasapi {
     fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
         *self = Wasapi::new(device, Some(sample_rate));
-        // if sample_rate >= 96000 {
-        //     eprintln!("Reset wasapi to {sample_rate}Hz");
-        // } else {
-        //     eprintln!("Updated sample rate to {sample_rate}Hz");
-        //     unsafe { check((*self.audio_clock_adjust).SetSampleRate(sample_rate as f32)) };
-        // }
     }
 
     fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
