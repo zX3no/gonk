@@ -29,6 +29,7 @@ use winapi::{
 };
 use winapi::{Interface, RIDL};
 
+use crate::backend::{Backend, Device};
 use crate::decoder::Symphonia;
 
 const STGM_READ: u32 = 0;
@@ -60,14 +61,14 @@ interface IAudioClockAdjustment(IAudioClockAdjustmentVtbl): IUnknown(IUnknownVtb
     ) -> HRESULT,
 }}
 
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct Device {
-    pub inner: *mut IMMDevice,
-    pub name: String,
-}
+// #[derive(PartialEq, Eq, Debug, Clone)]
+// pub struct Device {
+//     pub inner: *mut IMMDevice,
+//     pub name: String,
+// }
 
-unsafe impl Send for Device {}
-unsafe impl Sync for Device {}
+// unsafe impl Send for Device {}
+// unsafe impl Sync for Device {}
 
 pub unsafe fn init() {
     CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
@@ -224,100 +225,104 @@ pub struct Wasapi {
 }
 
 impl Wasapi {
-    pub unsafe fn new(device: &Device, sample_rate: Option<usize>) -> Self {
-        profile!();
-        init();
+    pub fn new(device: &Device, sample_rate: Option<usize>) -> Self {
+        unsafe {
+            profile!();
+            init();
 
-        let audio_client: *mut IAudioClient = {
-            let mut audio_client = null_mut();
-            check((*device.inner).Activate(
-                &IID_IAudioClient,
-                CLSCTX_ALL,
-                null_mut(),
-                &mut audio_client,
+            let audio_client: *mut IAudioClient = {
+                let mut audio_client = null_mut();
+                check((*device.inner).Activate(
+                    &IID_IAudioClient,
+                    CLSCTX_ALL,
+                    null_mut(),
+                    &mut audio_client,
+                ));
+
+                assert!(!audio_client.is_null());
+                audio_client as *mut _
+            };
+
+            let mut format = null_mut();
+            (*audio_client).GetMixFormat(&mut format);
+            let format = &mut *format;
+
+            //Update format to desired sample rate.
+            if let Some(sample_rate) = sample_rate {
+                assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
+                let sample_rate = sample_rate as u32 / (format.nChannels as u32 / 2);
+                format.nSamplesPerSec = sample_rate;
+                format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
+            }
+
+            if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
+                let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
+                if format.SubFormat.Data1 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data1
+                    || format.SubFormat.Data2 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data2
+                    || format.SubFormat.Data3 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data3
+                    || format.SubFormat.Data4 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data4
+                {
+                    panic!("Unsupported sample format!");
+                }
+            }
+
+            let mut mask = 0;
+            for n in 0..format.nChannels {
+                mask += 1 << n;
+            }
+            let format = WAVEFORMATEXTENSIBLE {
+                Format: *format,
+                Samples: format.wBitsPerSample,
+                SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
+                dwChannelMask: mask,
+            };
+
+            if format.Format.nChannels < 2 {
+                panic!("Ouput device has less than 2 channels.");
+            }
+
+            let mut default_period = zeroed();
+            let mut _min_period = zeroed();
+            (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
+
+            check((*audio_client).Initialize(
+                AUDCLNT_SHAREMODE_SHARED,
+                AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                    | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+                    | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
+                    | AUDCLNT_STREAMFLAGS_RATEADJUST,
+                default_period,
+                default_period,
+                &format as *const _ as *const WAVEFORMATEX,
+                null(),
             ));
 
-            assert!(!audio_client.is_null());
-            audio_client as *mut _
-        };
+            let mut audio_clock_ptr = null_mut();
+            check(
+                (*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr),
+            );
 
-        let mut format = null_mut();
-        (*audio_client).GetMixFormat(&mut format);
-        let format = &mut *format;
+            let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
 
-        //Update format to desired sample rate.
-        if let Some(sample_rate) = sample_rate {
-            assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-            let sample_rate = sample_rate as u32 / (format.nChannels as u32 / 2);
-            format.nSamplesPerSec = sample_rate;
-            format.nAvgBytesPerSec = sample_rate * format.nBlockAlign as u32;
-        }
+            //This must be set for some reason.
+            let h_event = CreateEventA(null_mut(), 0, 0, null());
+            (*audio_client).SetEventHandle(h_event);
 
-        if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
-            let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
-            if format.SubFormat.Data1 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data1
-                || format.SubFormat.Data2 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data2
-                || format.SubFormat.Data3 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data3
-                || format.SubFormat.Data4 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data4
-            {
-                panic!("Unsupported sample format!");
+            let mut renderclient_ptr = null_mut();
+            check((*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr));
+
+            let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
+
+            (*audio_client).Start();
+
+            Self {
+                audio_client,
+                audio_clock_adjust,
+                render_client,
+                format,
+                buffer: Vec::new(),
+                h_event,
             }
-        }
-
-        let mut mask = 0;
-        for n in 0..format.nChannels {
-            mask += 1 << n;
-        }
-        let format = WAVEFORMATEXTENSIBLE {
-            Format: *format,
-            Samples: format.wBitsPerSample,
-            SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
-            dwChannelMask: mask,
-        };
-
-        if format.Format.nChannels < 2 {
-            panic!("Ouput device has less than 2 channels.");
-        }
-
-        let mut default_period = zeroed();
-        let mut _min_period = zeroed();
-        (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
-
-        check((*audio_client).Initialize(
-            AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-                | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
-                | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
-                | AUDCLNT_STREAMFLAGS_RATEADJUST,
-            default_period,
-            default_period,
-            &format as *const _ as *const WAVEFORMATEX,
-            null(),
-        ));
-
-        let mut audio_clock_ptr = null_mut();
-        check((*audio_client).GetService(&IAudioClockAdjustment::uuidof(), &mut audio_clock_ptr));
-
-        let audio_clock_adjust: *mut IAudioClockAdjustment = transmute(audio_clock_ptr);
-
-        //This must be set for some reason.
-        let h_event = CreateEventA(null_mut(), 0, 0, null());
-        (*audio_client).SetEventHandle(h_event);
-
-        let mut renderclient_ptr = null_mut();
-        check((*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr));
-
-        let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
-
-        (*audio_client).Start();
-
-        Self {
-            audio_client,
-            audio_clock_adjust,
-            render_client,
-            format,
-            buffer: Vec::new(),
-            h_event,
         }
     }
     pub unsafe fn buffer_frame_count(&mut self) -> usize {
@@ -329,8 +334,24 @@ impl Wasapi {
 
         (buffer_frame_count - padding_count) as usize
     }
-    //TODO: This should probably be moved out of the struct.
-    pub fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
+}
+
+impl Backend for Wasapi {
+    fn sample_rate(&self) -> usize {
+        self.format.Format.nSamplesPerSec as usize
+    }
+
+    //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
+    //44100 cannot convert to 192_000 and vise versa.
+    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) -> usize {
+        debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
+        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(new as f32) };
+        if result != 0 {
+            *self = Wasapi::new(device, Some(sample_rate));
+        }
+    }
+
+    fn fill_buffer(&self, volume: f32, decoder: &mut Symphonia) {
         profile!();
         unsafe {
             let block_align = self.format.Format.nBlockAlign as usize;
@@ -361,20 +382,5 @@ impl Wasapi {
                 panic!();
             }
         }
-    }
-    //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
-    //44100 cannot convert to 192_000 and vise versa.
-    #[allow(clippy::result_unit_err)]
-    pub fn set_sample_rate(&mut self, new: usize) -> Result<(), ()> {
-        debug_assert!(COMMON_SAMPLE_RATES.contains(&new));
-        let result = unsafe { (*self.audio_clock_adjust).SetSampleRate(new as f32) };
-        if result == 0 {
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-    pub fn sample_rate(&self) -> usize {
-        self.format.Format.nSamplesPerSec as usize
     }
 }

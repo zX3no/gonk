@@ -1,15 +1,23 @@
-pub struct StreamHandle {}
+use crate::backend::{Backend, Device};
 
-pub struct Device {}
+pub struct PipeWire {}
 
-pub fn default_device() -> Option<&'static Device> {
-    todo!();
+impl PipeWire {
+    pub fn new(device: &Device, sample_rate: Option<usize>) -> Self {
+        Self {}
+    }
 }
 
-pub fn devices() -> &'static [Device] {
-    todo!();
-}
+impl Backend for PipeWire {
+    fn sample_rate(&self) -> usize {
+        todo!()
+    }
 
-pub fn update_devices() {
-    todo!();
+    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) -> usize {
+        todo!()
+    }
+
+    fn fill_buffer(&self, volume: f32, decoder: &mut crate::decoder::Symphonia) {
+        todo!()
+    }
 }

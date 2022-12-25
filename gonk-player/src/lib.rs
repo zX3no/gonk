@@ -8,23 +8,22 @@
     non_upper_case_globals,
     non_snake_case
 )]
+
+pub use backend::{default_device, devices};
+
+use backend::{Backend, Device};
 use decoder::Symphonia;
 use gonk_core::{profile, Index, Song};
 use std::{path::Path, sync::Once, time::Duration};
 
+mod backend;
 pub mod decoder;
 
 #[cfg(windows)]
 mod wasapi;
 
-#[cfg(windows)]
-pub use wasapi::*;
-
 #[cfg(unix)]
 mod pipewire;
-
-#[cfg(unix)]
-pub use pipewire::*;
 
 const VOLUME_REDUCTION: f32 = 150.0;
 
@@ -51,7 +50,7 @@ pub struct Player {
     pub songs: Index<Song>,
 
     //TODO: Might want to think about backend traits.
-    backend: Wasapi,
+    backend: Box<dyn Backend>,
 
     output_device: Device,
     symphonia: Option<Symphonia>,
@@ -72,7 +71,8 @@ impl Player {
         let default = default_device().expect("No default device?");
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
-        let backend = unsafe { Wasapi::new(device, None) };
+        // let backend = unsafe { Wasapi::new(device, None) };
+        let backend = backend::new(device);
 
         let mut player = Self {
             songs,
@@ -137,9 +137,10 @@ impl Player {
                 let new = sym.sample_rate();
 
                 if self.sample_rate != new {
-                    if self.backend.set_sample_rate(new).is_err() {
-                        self.backend = unsafe { Wasapi::new(&self.output_device, Some(new)) };
-                    };
+                    self.backend.set_sample_rate(new, &self.output_device);
+                    // if self.backend.set_sample_rate(new).is_err() {
+                    //     self.backend = unsafe { Wasapi::new(&self.output_device, Some(new)) };
+                    // };
 
                     self.sample_rate = new;
                 }
@@ -276,13 +277,12 @@ impl Player {
         (self.volume * VOLUME_REDUCTION) as u8
     }
     pub fn set_output_device(&mut self, device: &str) {
-        unsafe {
-            let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
-                device
-            } else {
-                unreachable!("Requested a device that does not exist.")
-            };
-            self.backend = Wasapi::new(device, Some(self.sample_rate));
-        }
+        let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
+            device
+        } else {
+            unreachable!("Requested a device that does not exist.")
+        };
+        // self.backend = Wasapi::new(device, Some(self.sample_rate));
+        self.backend = backend::new(device);
     }
 }
