@@ -1,41 +1,42 @@
 use crate::{widgets::*, Frame, Widget};
 use crossterm::event::MouseEvent;
-use gonk_core::Index;
 use gonk_player::{default_device, devices};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
+    text::{Span, Spans},
     widgets::{Block, BorderType, Borders},
 };
 
 pub struct Settings {
-    pub devices: Index<()>,
+    pub index: Option<usize>,
     pub current_device: String,
 }
 
 impl Settings {
     pub fn new(wanted_device: &str) -> Self {
-        let devices = devices();
-        let default = default_device().expect("No default output device?");
+        let default = unsafe { default_device() };
 
-        let devices: Vec<&'static str> =
-            devices.iter().map(|device| device.name.as_str()).collect();
-
-        let current_device = if devices.iter().any(|name| *name == wanted_device) {
-            wanted_device.to_string()
-        } else {
-            default.name.to_string()
-        };
+        let current_device =
+            if unsafe { devices().iter().any(|device| device.name == wanted_device) } {
+                wanted_device.to_string()
+            } else {
+                default.name.to_string()
+            };
 
         Self {
-            devices: Index::default(),
+            index: if unsafe { devices().is_empty() } {
+                None
+            } else {
+                Some(0)
+            },
             current_device,
         }
     }
 
     pub fn selected(&self) -> Option<&str> {
-        if let Some(index) = self.devices.index() {
-            if let Some(device) = devices().get(index) {
+        if let Some(index) = self.index {
+            if let Some(device) = unsafe { devices().get(index) } {
                 return Some(&device.name);
             }
         }
@@ -45,11 +46,27 @@ impl Settings {
 
 impl Widget for Settings {
     fn up(&mut self) {
-        self.devices.up_with_len(devices().len());
+        if unsafe { devices().is_empty() } {
+            return;
+        }
+
+        match self.index {
+            Some(0) => self.index = Some(unsafe { devices().len() } - 1),
+            Some(n) => self.index = Some(n - 1),
+            None => (),
+        }
     }
 
     fn down(&mut self) {
-        self.devices.down_with_len(devices().len());
+        if unsafe { devices().is_empty() } {
+            return;
+        }
+
+        match self.index {
+            Some(n) if n + 1 < unsafe { devices().len() } => self.index = Some(n + 1),
+            Some(_) => self.index = Some(0),
+            None => (),
+        }
     }
 
     fn left(&mut self) {}
@@ -62,28 +79,45 @@ impl Widget for Settings {
 }
 
 pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
-    //TODO: Re-write.
-    let mut index = settings.devices.index().unwrap_or(0);
-    if index >= devices().len() {
-        index = devices().len().saturating_sub(1);
+    let mut index = settings.index.unwrap_or(0);
+    let len = unsafe { devices().len() };
+    if index >= len {
+        index = len.saturating_sub(1);
+        settings.index = Some(index);
     }
-    settings.devices = Index::new(Vec::new(), Some(index));
 
-    let devices: Vec<&str> = devices()
+    let devices: Vec<&str> = unsafe { devices() }
         .iter()
         .map(|device| device.name.as_str())
         .collect();
 
-    let items: Vec<ListItem> = devices
+    //TODO: I liked the old item menu bold selections.
+    //It doesn't work on most terminals though :(
+    let mut items: Vec<ListItem> = devices
         .iter()
         .map(|name| {
             if *name == settings.current_device {
-                ListItem::new(*name).style(Style::default().add_modifier(Modifier::BOLD))
+                ListItem::new(Spans::from(vec![
+                    Span::styled(
+                        ">> ",
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::DIM | Modifier::BOLD),
+                    ),
+                    Span::styled(*name, Style::default().add_modifier(Modifier::BOLD)),
+                ]))
             } else {
-                ListItem::new(*name)
+                ListItem::new(format!("   {name}"))
             }
         })
         .collect();
+
+    if let Some(index) = settings.index {
+        let item = items[index]
+            .clone()
+            .style(Style::default().fg(Color::Black).bg(Color::White));
+        items[index] = item;
+    }
 
     let list = List::new(&items)
         .block(
@@ -93,11 +127,10 @@ pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
                 .border_type(BorderType::Rounded),
         )
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default())
-        .highlight_symbol("> ");
+        .highlight_style(Style::default());
 
     let mut state = ListState::default();
-    state.select(settings.devices.index());
+    state.select(settings.index);
 
     f.render_stateful_widget(list, area, &mut state);
 }

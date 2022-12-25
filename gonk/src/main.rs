@@ -476,8 +476,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         Mode::Settings => {
                             if let Some(device) = settings.selected() {
-                                player.set_output_device(device);
-                                settings.current_device = (*device).to_string();
+                                let device = device.to_string();
+                                player.set_output_device(&device);
+                                settings.current_device = device.clone();
+                                persist.output_device = device.clone();
                             }
                         }
                         Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),

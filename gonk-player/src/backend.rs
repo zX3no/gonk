@@ -27,17 +27,19 @@ pub fn new(device: &Device) -> Box<dyn Backend> {
     return Box::new(PipeWire::new(device, None));
 }
 
-pub fn devices() -> &'static [Device] {
+//TODO: Since the devices are constatly updated this is a death trap.
+pub unsafe fn devices() -> &'static [Device] {
     #[cfg(windows)]
-    return unsafe { &DEVICES };
+    return &DEVICES;
 
     #[cfg(unix)]
     return todo!();
 }
 
-pub fn default_device() -> Option<&'static Device> {
+//TODO: Remove
+pub unsafe fn default_device() -> &'static Device {
     #[cfg(windows)]
-    return unsafe { DEFAULT_DEVICE.as_ref() };
+    return DEFAULT_DEVICE.assume_init_ref();
 
     #[cfg(unix)]
     return todo!();

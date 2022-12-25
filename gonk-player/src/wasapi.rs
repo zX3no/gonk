@@ -1,7 +1,7 @@
 use core::{ffi::c_void, slice};
 use gonk_core::profile;
 use std::ffi::OsString;
-use std::mem::{size_of, transmute, zeroed};
+use std::mem::{size_of, transmute, zeroed, MaybeUninit};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::thread;
@@ -51,7 +51,7 @@ const COMMON_SAMPLE_RATES: [usize; 13] = [
 //TODO: It is very slow to collect devices
 //I'm not sure if this is necessary though.
 pub static mut DEVICES: Vec<Device> = Vec::new();
-pub static mut DEFAULT_DEVICE: Option<Device> = None;
+pub static mut DEFAULT_DEVICE: MaybeUninit<Device> = MaybeUninit::zeroed();
 
 //TODO: Inline this macro.
 RIDL! {#[uuid(4142186656, 18137, 20408, 190, 33, 87, 163, 239, 43, 98, 108)]
@@ -162,7 +162,7 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 
     devices.sort_by(|a, b| a.name.cmp(&b.name));
 
-    DEFAULT_DEVICE = Some(Device {
+    DEFAULT_DEVICE = MaybeUninit::new(Device {
         inner: device,
         name,
     });

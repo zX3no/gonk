@@ -2,6 +2,7 @@
 //!
 //! Pipewire is currently not implemented because WSL doesn't work well with audio.
 //! AND...I don't have a spare drive to put linux on.
+#![feature(const_maybe_uninit_zeroed)]
 #![allow(
     clippy::not_unsafe_ptr_arg_deref,
     clippy::missing_safety_doc,
@@ -9,9 +10,9 @@
     non_snake_case
 )]
 
-pub use backend::{default_device, devices};
+pub use backend::{default_device, devices, Device};
 
-use backend::{Backend, Device};
+use backend::Backend;
 use decoder::Symphonia;
 use gonk_core::{profile, Index, Song};
 use std::{path::Path, sync::Once, time::Duration};
@@ -66,8 +67,8 @@ impl Player {
     pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
         init();
 
-        let devices = devices();
-        let default = default_device().expect("No default device?");
+        let devices = unsafe { devices() };
+        let default = unsafe { default_device() };
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
         let backend = backend::new(device);
@@ -268,7 +269,7 @@ impl Player {
         (self.volume * VOLUME_REDUCTION) as u8
     }
     pub fn set_output_device(&mut self, device: &str) {
-        let device = if let Some(device) = devices().iter().find(|d| d.name == device) {
+        let device = if let Some(device) = unsafe { devices().iter().find(|d| d.name == device) } {
             device
         } else {
             unreachable!("Requested a device that does not exist.")
