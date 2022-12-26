@@ -1,5 +1,4 @@
 use core::{ffi::c_void, slice};
-use gonk_core::profile;
 use std::mem::{size_of, transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
@@ -210,7 +209,6 @@ pub struct Wasapi {
 impl Wasapi {
     pub fn new(device: &Device, sample_rate: Option<usize>) -> Self {
         unsafe {
-            profile!();
             init();
 
             let audio_client: *mut IAudioClient = {
@@ -335,7 +333,6 @@ impl Backend for Wasapi {
     }
 
     fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
-        profile!();
         unsafe {
             let block_align = self.format.Format.nBlockAlign as usize;
             let Some(buffer_frame_count) = self.buffer_frame_count() else {

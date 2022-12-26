@@ -8,7 +8,6 @@
 //!
 //! It's simple and works...surprisingly.
 use crate::State;
-use gonk_core::profile;
 use std::io::ErrorKind;
 use std::time::Duration;
 use std::{collections::VecDeque, fs::File, path::Path};
@@ -41,7 +40,6 @@ pub struct Symphonia {
 
 impl Symphonia {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
-        profile!();
         let file = File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
         let probed = get_probe().format(

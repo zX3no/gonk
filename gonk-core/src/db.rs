@@ -34,6 +34,7 @@ pub struct Song {
 
 impl Song {
     pub fn to_bytes(&self) -> [u8; SONG_LEN] {
+        profile!();
         let mut song = [0; SONG_LEN];
 
         if self.path.len() > TEXT_LEN {
@@ -134,7 +135,7 @@ pub fn reset() -> Result<(), Box<dyn Error>> {
 
 pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
     let path = path.to_string();
-    thread::spawn(|| {
+    thread::spawn(move || {
         let mut db_path = database_path();
         db_path.pop();
         db_path.push("temp.db");
@@ -227,6 +228,7 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
 }
 
 pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>> {
+    profile!();
     if bytes.len() != SONG_LEN {
         return Err("Slice size does not match song length")?;
     }
@@ -298,6 +300,7 @@ pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>>
 }
 
 pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
+    profile!();
     let extension = path.extension().ok_or("Path is not audio")?;
 
     if extension != "flac" {
@@ -415,60 +418,60 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
             path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
             gain,
         };
-        return Ok(song.to_bytes());
-    }
+        Ok(song.to_bytes())
+    } else {
+        match read_metadata(path) {
+            Ok(metadata) => {
+                let track_number = metadata
+                    .get("TRACKNUMBER")
+                    .unwrap_or(&String::from("1"))
+                    .parse()
+                    .unwrap_or(1);
 
-    match read_metadata(path) {
-        Ok(metadata) => {
-            let track_number = metadata
-                .get("TRACKNUMBER")
-                .unwrap_or(&String::from("1"))
-                .parse()
-                .unwrap_or(1);
+                let disc_number = metadata
+                    .get("DISCNUMBER")
+                    .unwrap_or(&String::from("1"))
+                    .parse()
+                    .unwrap_or(1);
 
-            let disc_number = metadata
-                .get("DISCNUMBER")
-                .unwrap_or(&String::from("1"))
-                .parse()
-                .unwrap_or(1);
-
-            let mut gain = 0.0;
-            if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
-                let g = db.replace(" dB", "");
-                if let Ok(db) = g.parse::<f32>() {
-                    gain = 10.0f32.powf(db / 20.0);
+                let mut gain = 0.0;
+                if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
+                    let g = db.replace(" dB", "");
+                    if let Ok(db) = g.parse::<f32>() {
+                        gain = 10.0f32.powf(db / 20.0);
+                    }
                 }
-            }
 
-            let artist = match metadata.get("ALBUMARTIST") {
-                Some(artist) => artist.as_str(),
-                None => match metadata.get("ARTIST") {
+                let artist = match metadata.get("ALBUMARTIST") {
                     Some(artist) => artist.as_str(),
-                    None => "Unknown Artist",
-                },
-            };
+                    None => match metadata.get("ARTIST") {
+                        Some(artist) => artist.as_str(),
+                        None => "Unknown Artist",
+                    },
+                };
 
-            let album = match metadata.get("ALBUM") {
-                Some(album) => album.as_str(),
-                None => "Unknown Album",
-            };
+                let album = match metadata.get("ALBUM") {
+                    Some(album) => album.as_str(),
+                    None => "Unknown Album",
+                };
 
-            let title = match metadata.get("TITLE") {
-                Some(title) => title.as_str(),
-                None => "Unknown Title",
-            };
+                let title = match metadata.get("TITLE") {
+                    Some(title) => title.as_str(),
+                    None => "Unknown Title",
+                };
 
-            let song = Song {
-                title: title.to_string(),
-                album: album.to_string(),
-                artist: artist.to_string(),
-                disc_number,
-                track_number,
-                path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
-                gain,
-            };
-            Ok(song.to_bytes())
+                let song = Song {
+                    title: title.to_string(),
+                    album: album.to_string(),
+                    artist: artist.to_string(),
+                    disc_number,
+                    track_number,
+                    path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
+                    gain,
+                };
+                Ok(song.to_bytes())
+            }
+            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
         }
-        Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
     }
 }

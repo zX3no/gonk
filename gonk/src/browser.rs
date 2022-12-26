@@ -1,7 +1,7 @@
 use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Widget, VDB};
 use crossterm::event::MouseEvent;
-use gonk_core::{profile, vdb, StaticIndex};
+use gonk_core::{vdb, StaticIndex};
 use gonk_core::{Album, Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -60,7 +60,6 @@ impl Browser {
 
 impl Widget for Browser {
     fn up(&mut self) {
-        profile!();
         match self.mode {
             Mode::Artist => self.artists.up(),
             Mode::Album => self.albums.up(),
@@ -70,7 +69,6 @@ impl Widget for Browser {
     }
 
     fn down(&mut self) {
-        profile!();
         match self.mode {
             Mode::Artist => self.artists.down(),
             Mode::Album => self.albums.down(),
@@ -96,7 +94,6 @@ impl Widget for Browser {
     }
 
     fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
-        profile!();
         let browser = self;
         let size = area.width / 3;
         let rem = area.width % 3;

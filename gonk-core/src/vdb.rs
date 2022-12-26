@@ -211,9 +211,9 @@ pub fn search(db: &'static Database, query: &str) -> Vec<Item> {
         results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
     }
 
-    if results.len() > 25 {
+    if results.len() > 40 {
         //Remove the less accurate results.
-        results.par_drain(25..);
+        results.par_drain(40..);
     }
 
     results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {

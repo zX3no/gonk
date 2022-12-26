@@ -136,7 +136,7 @@ pub fn print() {
             name: k.name,
             file: k.file,
             line: k.line,
-            mean: mean.checked_div(v.len() as u32).unwrap_or_default(),
+            mean: Duration::from_secs_f64(mean.as_secs_f64() / v.len() as f64),
             min,
             max,
             count: v.len(),

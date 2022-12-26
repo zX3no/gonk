@@ -14,7 +14,7 @@ pub use backend::{default_device, devices, Device};
 
 use backend::Backend;
 use decoder::Symphonia;
-use gonk_core::{profile, Index, Song};
+use gonk_core::{Index, Song};
 use std::{path::Path, sync::Once, time::Duration};
 
 mod backend;
@@ -101,7 +101,6 @@ impl Player {
     /// - Filling the output device with samples.
     /// - Triggering the next song
     pub fn update(&mut self) {
-        profile!();
         if self.is_finished() {
             self.next();
         }
