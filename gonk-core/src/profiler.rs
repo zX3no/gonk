@@ -12,12 +12,13 @@ static mut EVENTS: Lazy<RwLock<HashMap<Location, Vec<Event>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Clone, Debug, Default)]
-struct Event {
+pub struct Event {
     pub start: Option<Instant>,
     pub end: Option<Instant>,
 }
 
 impl Event {
+    /// # Safety
     pub unsafe fn elapsed(&self) -> Duration {
         self.end
             .unwrap_unchecked()
@@ -26,14 +27,14 @@ impl Event {
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Default)]
-struct Location {
+pub struct Location {
     pub name: &'static str,
     pub file: &'static str,
     pub line: u32,
 }
 
 #[derive(Debug)]
-struct Score {
+pub struct Score {
     pub name: &'static str,
     pub file: &'static str,
     pub line: u32,
@@ -43,11 +44,10 @@ struct Score {
     pub count: usize,
 }
 
-struct Dropper {
+pub struct Dropper {
     pub event: Event,
     pub location: Location,
 }
-
 impl Drop for Dropper {
     #[inline(always)]
     fn drop(&mut self) {
@@ -76,30 +76,42 @@ macro_rules! function {
     }};
 }
 
-//HACK: cfg doesn't work in macros.
-#[inline(always)]
-pub fn profile(_name: &'static str) {
-    #[cfg(feature = "profile")]
-    let _drop = Dropper {
-        event: Event {
-            start: Some(std::time::Instant::now()),
-            end: None,
-        },
-        location: Location {
-            name: _name,
-            file: file!(),
-            line: line!(),
-        },
-    };
-}
-
 #[macro_export]
 macro_rules! profile {
     () => {
-        $crate::profiler::profile($crate::function!());
+        use $crate::profiler::*;
+        let _drop;
+
+        if cfg!(feature = "profile") {
+            _drop = Dropper {
+                event: Event {
+                    start: Some(std::time::Instant::now()),
+                    end: None,
+                },
+                location: Location {
+                    name: $crate::function!(),
+                    file: file!(),
+                    line: line!(),
+                },
+            };
+        }
     };
     ($name:expr) => {
-        $crate::profiler::profile($name);
+        use $crate::profiler::*;
+        if !cfg!(feature = "profiler") {
+            return todo!();
+        }
+        let _drop = Dropper {
+            event: Event {
+                start: Some(std::time::Instant::now()),
+                end: None,
+            },
+            location: Location {
+                name: $name,
+                file: file!(),
+                line: line!(),
+            },
+        };
     };
 }
 
@@ -115,7 +127,7 @@ pub fn print() {
 
     for (k, v) in events.iter() {
         let mut mean = Duration::default();
-        let mut min = Duration::default();
+        let mut min = unsafe { v.get(0).unwrap_or(&Event::default()).elapsed() };
         let mut max = Duration::default();
 
         for event in v {

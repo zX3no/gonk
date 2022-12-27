@@ -421,6 +421,7 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
         Ok(song.to_bytes())
     } else {
         match read_metadata(path) {
+            //TODO: Profile this hashmap.
             Ok(metadata) => {
                 let track_number = metadata
                     .get("TRACKNUMBER")
