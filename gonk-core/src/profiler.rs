@@ -139,32 +139,34 @@ macro_rules! function {
 macro_rules! profile {
     () => {
         use $crate::profiler::*;
-        let _event = Event {
-            location: Location {
-                name: $crate::function!(),
-                file: file!(),
-                line: line!(),
-            },
-            start: Some(std::time::Instant::now()),
-            end: None,
-        };
+        let _event;
+
+        if cfg!(feature = "profile") {
+            _event = Event {
+                location: Location {
+                    name: $crate::function!(),
+                    file: file!(),
+                    line: line!(),
+                },
+                start: Some(std::time::Instant::now()),
+                end: None,
+            };
+        }
     };
     ($name:expr) => {
-        //     use $crate::profiler::*;
-        //     let _drop;
+        use $crate::profiler::*;
+        let _event;
 
-        //     if cfg!(feature = "profile") {
-        //         _drop = Dropper {
-        //             event: Event {
-        //                 start: Some(std::time::Instant::now()),
-        //                 end: None,
-        //             },
-        //             location: Location {
-        //                 name: $name,
-        //                 file: file!(),
-        //                 line: line!(),
-        //             },
-        //         };
-        //     }
+        if cfg!(feature = "profile") {
+            _event = Event {
+                location: Location {
+                    name: $name,
+                    file: file!(),
+                    line: line!(),
+                },
+                start: Some(std::time::Instant::now()),
+                end: None,
+            };
+        }
     };
 }
