@@ -429,6 +429,9 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             }
                         }
                     }
+                    // KeyCode::Char('m') => player.mute(),
+                    KeyCode::Char('z') => player.mute(),
+
                     KeyCode::Char('q') => player.seek_backward(),
                     KeyCode::Char('e') => player.seek_foward(),
                     KeyCode::Char('a') => player.prev(),

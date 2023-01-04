@@ -11,8 +11,6 @@ use std::{
     str::from_utf8_unchecked,
 };
 
-use crate::profile;
-
 pub fn u24_be(reader: &mut BufReader<File>) -> u32 {
     let mut triple = [0; 4];
     reader.read_exact(&mut triple[0..3]).unwrap();
@@ -26,7 +24,6 @@ pub fn u32_le(reader: &mut BufReader<File>) -> u32 {
 }
 
 pub fn read_metadata(path: impl AsRef<Path>) -> Result<HashMap<String, String>, Box<dyn Error>> {
-    profile!();
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
 

@@ -49,9 +49,7 @@ pub enum State {
 
 pub struct Player {
     pub songs: Index<Song>,
-
     backend: Box<dyn Backend>,
-
     output_device: Device,
     symphonia: Option<Symphonia>,
     sample_rate: usize,
@@ -60,6 +58,7 @@ pub struct Player {
     elapsed: Duration,
     duration: Duration,
     state: State,
+    pub mute: bool,
 }
 
 impl Player {
@@ -84,6 +83,7 @@ impl Player {
             duration: Duration::default(),
             elapsed: Duration::default(),
             state: State::Stopped,
+            mute: false,
         };
 
         //Restore previous queue state.
@@ -115,7 +115,8 @@ impl Player {
         };
 
         let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
-        self.backend.fill_buffer(self.volume * gain, symphonia);
+        let volume = if self.mute { 0.0 } else { self.volume * gain };
+        self.backend.fill_buffer(volume, symphonia);
 
         if symphonia.is_full() {
             return;
@@ -170,6 +171,9 @@ impl Player {
         if let Some(symphonia) = &mut self.symphonia {
             symphonia.seek(pos);
         }
+    }
+    pub fn mute(&mut self) {
+        self.mute = !self.mute;
     }
     pub fn volume_up(&mut self) {
         self.volume =

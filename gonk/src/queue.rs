@@ -119,7 +119,12 @@ impl Widget for Queue {
             );
         }
 
-        let volume = Spans::from(format!("Vol: {}%─╮", player.volume()));
+        let volume = if player.mute {
+            Spans::from("Mute─╮")
+        } else {
+            Spans::from(format!("Vol: {}%─╮", player.volume()))
+        };
+
         f.render_widget(
             Paragraph::new(volume).alignment(Alignment::Right),
             chunks[0],

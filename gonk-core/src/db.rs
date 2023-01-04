@@ -34,7 +34,6 @@ pub struct Song {
 
 impl Song {
     pub fn to_bytes(&self) -> [u8; SONG_LEN] {
-        profile!();
         let mut song = [0; SONG_LEN];
 
         if self.path.len() > TEXT_LEN {
@@ -228,7 +227,6 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
 }
 
 pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>> {
-    profile!();
     if bytes.len() != SONG_LEN {
         return Err("Slice size does not match song length")?;
     }
@@ -300,7 +298,6 @@ pub fn bytes_to_song(bytes: &[u8]) -> Result<Song, Box<dyn Error + Send + Sync>>
 }
 
 pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
-    profile!();
     let extension = path.extension().ok_or("Path is not audio")?;
 
     if extension != "flac" {
