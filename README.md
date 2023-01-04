@@ -51,6 +51,7 @@ gonk
 | Move Right                  | `L / Right`       |
 | Volume Up                   | `W`               |
 | Volume Down                 | `S`               |
+| Mute                        | `Z`               |
 | Play/Pause                  | `Space`           |
 | Previous                    | `A`               |
 | Next                        | `D`               |
