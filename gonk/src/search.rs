@@ -1,15 +1,10 @@
-use crate::{widgets::*, *};
+use crate::{widgets::*, MARGIN, *};
 use gonk_core::{vdb::Item, Song};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Span, Spans},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
-};
-
-const MARGIN: Margin = Margin {
-    vertical: 4,
-    horizontal: 8,
 };
 
 #[derive(PartialEq, Eq)]

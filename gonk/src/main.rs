@@ -73,6 +73,11 @@ fn draw_log(f: &mut Frame) -> Rect {
 
 static mut VDB: Lazy<vdb::Database> = Lazy::new(|| vdb::create().unwrap());
 
+const MARGIN: Margin = Margin {
+    vertical: 4,
+    horizontal: 8,
+};
+
 fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -171,6 +176,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut searching = false;
+    let mut help = false;
 
     loop {
         if let Some(handle) = &scan_handle {
@@ -267,7 +273,74 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             let top = draw_log(f);
             input.draw(f, top, None);
 
-            if searching {
+            if help {
+                use tui::style::*;
+                use tui::widgets::*;
+                let area = top.inner(&MARGIN);
+                f.render_widget(tui::widgets::Clear, area);
+                let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
+
+                //TODO: This is hard to read because the gap between command and key is large.
+                //TODO: Make const and move out of main.
+                #[rustfmt::skip]
+                let rows = vec![
+                    Row::new(vec![Cell::from("Move Up")   .style(Style::default().fg(Color::Cyan)) ,Cell::from("K / UP")]),
+                    Row::new(vec![Cell::from("Move Down") .style(Style::default().fg(Color::Cyan)) ,Cell::from("J / Down")]),
+                    Row::new(vec![Cell::from("Move Left") .style(Style::default().fg(Color::Cyan)) ,Cell::from("H / Left")]),
+                    Row::new(vec![Cell::from("Move Right").style(Style::default().fg(Color::Cyan)) ,Cell::from("L / Right")]),
+
+                    Row::new(vec![Cell::from("Volume Up")  .style(Style::default().fg(Color::Green)), Cell::from("W")]),
+                    Row::new(vec![Cell::from("Volume Down").style(Style::default().fg(Color::Green)), Cell::from("S")]),
+                    Row::new(vec![Cell::from("Mute")       .style(Style::default().fg(Color::Green)), Cell::from("Z")]),
+
+                    Row::new(vec![Cell::from("Play/Pause").style(Style::default().fg(Color::Magenta)), Cell::from("Space")]),
+                    Row::new(vec![Cell::from("Previous")  .style(Style::default().fg(Color::Magenta)), Cell::from("A")]),
+                    Row::new(vec![Cell::from("Next")      .style(Style::default().fg(Color::Magenta)), Cell::from("D")]),
+                    Row::new(vec![Cell::from("Seek -10s") .style(Style::default().fg(Color::Magenta)), Cell::from("Q")]),
+                    Row::new(vec![Cell::from("Seek 10s")  .style(Style::default().fg(Color::Magenta)), Cell::from("E")]),
+
+                    Row::new(vec![Cell::from("Queue")      .style(Style::default().fg(Color::Blue)), Cell::from("1")]),
+                    Row::new(vec![Cell::from("Browser")    .style(Style::default().fg(Color::Blue)), Cell::from("2")]),
+                    Row::new(vec![Cell::from("Playlists")  .style(Style::default().fg(Color::Blue)), Cell::from("3")]),
+                    Row::new(vec![Cell::from("Settings")   .style(Style::default().fg(Color::Blue)), Cell::from("4")]),
+                    Row::new(vec![Cell::from("Search")     .style(Style::default().fg(Color::Blue)), Cell::from("/")]),
+                    Row::new(vec![Cell::from("Exit Search").style(Style::default().fg(Color::Blue)), Cell::from("Escape")]),
+
+                    Row::new(vec![Cell::from("Add song to queue")   .style(Style::default().fg(Color::Cyan)), Cell::from("Enter")]),
+                    Row::new(vec![Cell::from("Add song to playlist").style(Style::default().fg(Color::Cyan)), Cell::from("Shift + Enter")]),
+
+                    Row::new(vec![Cell::from("Move song margin")  .style(Style::default().fg(Color::Green)), Cell::from("F1 / Shift + F1")]),
+                    Row::new(vec![Cell::from("Move album margin") .style(Style::default().fg(Color::Green)), Cell::from("F2 / Shift + F2")]),
+                    Row::new(vec![Cell::from("Move artist margin").style(Style::default().fg(Color::Green)), Cell::from("F3 / Shift + F3")]),
+
+                    Row::new(vec![Cell::from("Update database").style(Style::default().fg(Color::Yellow)), Cell::from("U")]),
+                    Row::new(vec![Cell::from("Quit player")    .style(Style::default().fg(Color::Yellow)), Cell::from("Ctrl + C")]),
+
+                    Row::new(vec![Cell::from("Clear queue")                .style(Style::default().fg(Color::Red)), Cell::from("C")]),
+                    Row::new(vec![Cell::from("Clear except playing")       .style(Style::default().fg(Color::Red)), Cell::from("Shift + C")]),
+                    Row::new(vec![Cell::from("Delete song/playlist")       .style(Style::default().fg(Color::Red))       , Cell::from("X")]),
+                    Row::new(vec![Cell::from("Delete without confirmation").style(Style::default().fg(Color::Red)), Cell::from("Shift + X")]),
+                ];
+
+                let table = Table::new(rows)
+                    .header(
+                        Row::new(["Command", "Key"])
+                            .style(
+                                Style::default()
+                                    .fg(Color::White)
+                                    .add_modifier(Modifier::BOLD),
+                            )
+                            .bottom_margin(1),
+                    )
+                    .block(
+                        Block::default().title("Help:")
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded),
+                    )
+                    .widths(&widths);
+
+                f.render_widget(table, area);
+            } else if searching {
                 search.draw(f, top, None);
             }
         });
@@ -277,7 +350,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
 
         match event::read()? {
-            Event::Mouse(mouse_event) => match mouse_event.kind {
+            Event::Mouse(mouse_event) if !help => match mouse_event.kind {
                 MouseEventKind::ScrollUp if searching => search.up(),
                 MouseEventKind::ScrollUp => input.up(),
                 MouseEventKind::ScrollDown if searching => search.down(),
@@ -301,6 +374,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
 
                 match event.code {
                     KeyCode::Char('c') if control => break,
+                    _ if help => match event.code {
+                        KeyCode::Char('?') | KeyCode::Char('/') | KeyCode::Esc => help = false,
+                        _ => (),
+                    },
                     _ if searching => {
                         match event.code {
                             KeyCode::Char('/') => match search.mode {
@@ -345,21 +422,18 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                     search.mode = SearchMode::Search;
                                 }
                             },
-                            KeyCode::Esc => {
-                                //
-                                match search.mode {
-                                    SearchMode::Search => {
-                                        searching = false;
-                                        search.query = String::new();
-                                        search.query_changed = true;
-                                    }
-                                    SearchMode::Select => {
-                                        search.mode = SearchMode::Search;
-                                        search.results.select(None);
-                                        searching = false;
-                                    }
+                            KeyCode::Esc => match search.mode {
+                                SearchMode::Search => {
+                                    searching = false;
+                                    search.query = String::new();
+                                    search.query_changed = true;
                                 }
-                            }
+                                SearchMode::Select => {
+                                    search.mode = SearchMode::Search;
+                                    search.results.select(None);
+                                    searching = false;
+                                }
+                            },
                             KeyCode::Enter if shift && searching => {
                                 if let Some(songs) = search::on_enter(&mut search) {
                                     let songs: Vec<Song> = songs.into_iter().cloned().collect();
@@ -378,6 +452,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             _ => (),
                         }
                     }
+                    KeyCode::Char('?') => help = true,
                     KeyCode::Char('/') => searching = true,
                     KeyCode::Char(c) if input_playlist => {
                         if control && c == 'w' {
@@ -429,9 +504,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             }
                         }
                     }
-                    // KeyCode::Char('m') => player.mute(),
                     KeyCode::Char('z') => player.mute(),
-
                     KeyCode::Char('q') => player.seek_backward(),
                     KeyCode::Char('e') => player.seek_foward(),
                     KeyCode::Char('a') => player.prev(),

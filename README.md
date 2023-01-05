@@ -59,6 +59,7 @@ gonk
 | Seek 10s                    | `E`               |
 | Clear queue                 | `C`               |
 | Clear except playing        | `Shift + C`       |
+| Add song to queue           | `Enter`           |
 | Add song to playlist        | `Shift + Enter`   |
 | -                           |                   |
 | Queue                       | `1`               |
