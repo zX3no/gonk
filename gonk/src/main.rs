@@ -429,9 +429,12 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                     search.query_changed = true;
                                 }
                                 SearchMode::Select => {
+                                    searching = false;
+
                                     search.mode = SearchMode::Search;
                                     search.results.select(None);
-                                    searching = false;
+                                    search.query = String::new();
+                                    search.query_changed = true;
                                 }
                             },
                             KeyCode::Enter if shift && searching => {
@@ -445,8 +448,6 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 if let Some(songs) = search::on_enter(&mut search) {
                                     let songs = songs.into_iter().cloned().collect();
                                     player.add(songs);
-                                    search.query = String::new();
-                                    search.query_changed = true;
                                 }
                             }
                             _ => (),
@@ -463,7 +464,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                         }
                     }
                     KeyCode::Char(' ') => player.toggle_playback(),
-                    KeyCode::Char('C') if shift => {
+                    KeyCode::Char('C') => {
                         player.clear_except_playing();
                         queue.ui.select(Some(0));
                     }
