@@ -469,7 +469,7 @@ pub fn path_to_bytes(path: &'_ Path) -> Result<[u8; SONG_LEN], String> {
                 };
                 Ok(song.to_bytes())
             }
-            Err(err) => return Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
+            Err(err) => Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
         }
     }
 }
