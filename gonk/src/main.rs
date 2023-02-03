@@ -73,8 +73,8 @@ fn draw_log(f: &mut Frame) -> Rect {
 
 static mut VDB: Lazy<vdb::Database> = Lazy::new(|| vdb::create().unwrap());
 
-const MARGIN: Margin = Margin {
-    vertical: 4,
+const SEARCH_MARGIN: Margin = Margin {
+    vertical: 6,
     horizontal: 8,
 };
 
@@ -276,7 +276,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             if help {
                 use tui::style::*;
                 use tui::widgets::*;
-                let area = top.inner(&MARGIN);
+                let area = top.inner(&SEARCH_MARGIN);
                 f.render_widget(tui::widgets::Clear, area);
                 let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
 
@@ -446,6 +446,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             }
                             KeyCode::Enter => {
                                 if let Some(songs) = search::on_enter(&mut search) {
+                                    //Swap to the queue so people can see what they added.
+                                    mode = Mode::Queue;
                                     let songs = songs.into_iter().cloned().collect();
                                     player.add(songs);
                                 }

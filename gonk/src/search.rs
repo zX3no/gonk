@@ -1,4 +1,4 @@
-use crate::{widgets::*, MARGIN, *};
+use crate::{widgets::*, SEARCH_MARGIN, *};
 use gonk_core::{vdb::Item, Song};
 use tui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -49,7 +49,7 @@ impl Widget for Search {
     //TODO: Artist and albums colors aren't quite right.
     fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
         let search = self;
-        let area = area.inner(&MARGIN);
+        let area = area.inner(&SEARCH_MARGIN);
         f.render_widget(Clear, area);
 
         if search.query_changed {
@@ -179,8 +179,8 @@ impl Widget for Search {
 
         f.render_stateful_widget(table, v[1], &mut TableState::new(search.results.index()));
 
-        let y = MARGIN.vertical + 1 + layout_margin;
-        let x = MARGIN.horizontal + 1 + layout_margin;
+        let y = SEARCH_MARGIN.vertical + 1 + layout_margin;
+        let x = SEARCH_MARGIN.horizontal + 1 + layout_margin;
 
         //Move the cursor position when typing
         if let Mode::Search = search.mode {
