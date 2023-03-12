@@ -1,4 +1,4 @@
-//! Ripped from https://github.com/dguo/strsim-rs
+//! Ripped from <https://github.com/dguo/strsim-rs>
 use std::cmp::{max, min};
 
 pub fn jaro_winkler(a: &str, b: &str) -> f64 {

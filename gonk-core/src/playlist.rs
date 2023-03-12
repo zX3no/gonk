@@ -1,4 +1,4 @@
-//! Muisc Playlists
+//! Music Playlists
 //!
 //! Each playlist has it's own file.
 //!

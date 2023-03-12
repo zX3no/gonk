@@ -1,10 +1,7 @@
-//! The database is split into two parts:
-//! The virtual and the physical.
-//!
 //! The physical database is a file on disk that stores song information.
 //! This information includes the artist, album, title, disc number, track number, path and replay gain.
 //!
-//! The virtual database is an in memory key value store.
+//! The virtual database stores key value pairs.
 //! It is used for quering artists, albums and songs.
 //!
 //! `Lazy` is my implementation of lazy statics.
