@@ -24,6 +24,7 @@ use std::{
 
 pub use crate::{
     db::{Album, Artist, Song},
+    // old_db::{Album, Artist, Song},
     playlist::Playlist,
 };
 pub use flac_decoder::*;
@@ -35,6 +36,7 @@ pub mod flac_decoder;
 pub mod index;
 pub mod lazy;
 pub mod log;
+// pub mod old_db;
 pub mod playlist;
 pub mod profiler;
 pub mod settings;

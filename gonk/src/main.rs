@@ -191,7 +191,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     db::ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            db::len(),
+                            db::LEN,
                             scan_timer.elapsed().as_secs_f32()
                         );
                     }
@@ -207,7 +207,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            db::len().saturating_sub(len)
+                            db::LEN.saturating_sub(len)
                         );
 
                         let path = gonk_path().join("gonk.log");

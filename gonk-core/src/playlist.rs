@@ -2,11 +2,7 @@
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{
-    database_path,
-    db::{bytes_to_song, SONG_LEN},
-    Index, Song,
-};
+use crate::{database_path, Index, Song};
 use std::{
     error::Error,
     fs::{self, File},
@@ -36,28 +32,29 @@ pub fn new(name: &str, songs: Vec<Song>) -> Playlist {
 }
 
 fn from_slice(bytes: &[u8]) -> Result<Playlist, Box<dyn Error + Send + Sync>> {
-    unsafe {
-        let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap()) as usize;
-        let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
+    // unsafe {
+    //     let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap()) as usize;
+    //     let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
 
-        let mut i = name_len + 2;
-        let mut songs = Vec::new();
+    //     let mut i = name_len + 2;
+    //     let mut songs = Vec::new();
 
-        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            songs.push(bytes_to_song(bytes)?);
-            i += SONG_LEN;
-        }
+    //     while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+    //         songs.push(bytes_to_song(bytes)?);
+    //         i += SONG_LEN;
+    //     }
 
-        let mut path = database_path();
-        path.pop();
-        path.push(format!("{name}.playlist"));
+    //     let mut path = database_path();
+    //     path.pop();
+    //     path.push(format!("{name}.playlist"));
 
-        Ok(Playlist {
-            name: name.to_string(),
-            path,
-            songs: Index::from(songs),
-        })
-    }
+    //     Ok(Playlist {
+    //         name: name.to_string(),
+    //         path,
+    //         songs: Index::from(songs),
+    //     })
+    // }
+    todo!()
 }
 
 // pub fn extend<I: IntoIterator<Item = Song>>(&mut self, iter: I) {
@@ -79,7 +76,8 @@ pub fn save(playlist: &Playlist) -> std::io::Result<()> {
     bytes.extend((playlist.name.len() as u16).to_le_bytes());
     bytes.extend(playlist.name.as_bytes());
     for song in playlist.songs.iter() {
-        bytes.extend(song.to_bytes());
+        // bytes.extend(song.to_bytes());
+        todo!();
     }
 
     writer.write_all(&bytes)?;

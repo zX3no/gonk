@@ -2,10 +2,7 @@
 //!
 //! Stores the volume, state of the queue and output device
 //!
-use crate::{
-    db::{bytes_to_song, SONG_LEN},
-    *,
-};
+use crate::*;
 use std::{
     fs::File,
     io::{BufWriter, Read, Seek, Write},
@@ -83,22 +80,25 @@ impl Settings {
             .ok_or("Music folder is invalid")?;
         let music_folder = from_utf8(slice)?.to_string();
 
-        let mut queue = Vec::new();
-        let mut i = start + music_folder_len;
-        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            let song = bytes_to_song(bytes)?;
-            queue.push(song);
-            i += SONG_LEN;
-        }
+        // let mut queue = Vec::new();
+        // let mut i = start + music_folder_len;
+        // while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
+        //     let song = bytes_to_song(bytes)?;
+        //     queue.push(song);
+        //     i += SONG_LEN;
+        // }
 
-        Ok(Settings {
-            index,
-            volume: *volume,
-            output_device,
-            music_folder,
-            elapsed,
-            queue,
-        })
+        // Ok(Settings {
+        //     index,
+        //     volume: *volume,
+        //     output_device,
+        //     music_folder,
+        //     elapsed,
+        //     queue,
+        // })
+
+        // todo!();
+        Ok(Settings::default())
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -120,7 +120,9 @@ impl Settings {
         writer.write_all(self.music_folder.as_bytes())?;
 
         for song in &self.queue {
-            writer.write_all(&song.to_bytes())?;
+            // writer.write_all(&song.to_bytes())?;
+
+            todo!();
         }
 
         writer.flush()?;
