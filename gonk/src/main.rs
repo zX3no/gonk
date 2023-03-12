@@ -503,7 +503,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             } else {
                                 scan_handle = Some(db::create(persist.music_folder.clone()));
                                 scan_timer = Instant::now();
-                                playlist.lists = Index::from(gonk_core::playlist::playlists()?);
+                                playlist.lists = Index::from(gonk_core::playlist::playlists());
                             }
                         }
                     }

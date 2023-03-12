@@ -33,7 +33,7 @@ impl Playlist {
     pub fn new() -> std::result::Result<Self, Box<dyn Error + Send + Sync>> {
         Ok(Self {
             mode: Mode::Playlist,
-            lists: Index::from(gonk_core::playlist::playlists()?),
+            lists: Index::from(gonk_core::playlist::playlists()),
             song_buffer: Vec::new(),
             changed: false,
             search_query: String::new(),
@@ -382,13 +382,13 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 let pl = &mut playlist.lists[pos];
                 pl.songs.extend(songs);
                 pl.songs.select(Some(0));
-                gonk_core::playlist::save(pl).unwrap();
+                pl.save().unwrap();
                 playlist.lists.select(Some(pos));
             } else {
                 //If the playlist does not exist create it.
                 let len = playlist.lists.len();
-                playlist.lists.push(gonk_core::playlist::new(&name, songs));
-                gonk_core::playlist::save(&playlist.lists[len]).unwrap();
+                playlist.lists.push(gonk_core::Playlist::new(&name, songs));
+                playlist.lists[len].save().unwrap();
                 playlist.lists.select(Some(len));
             }
 
@@ -425,11 +425,11 @@ fn delete_song(playlist: &mut Playlist) {
 
         if let Some(j) = selected.songs.index() {
             selected.songs.remove(j);
-            gonk_core::playlist::save(selected).unwrap();
+            selected.save().unwrap();
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                gonk_core::playlist::delete(selected).unwrap();
+                selected.delete().unwrap();
                 playlist.lists.remove_and_move(i);
                 playlist.mode = PlaylistMode::Playlist;
             }

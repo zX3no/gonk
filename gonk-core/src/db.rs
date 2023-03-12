@@ -23,6 +23,19 @@ pub struct Song {
     pub path: String,
     pub gain: f32,
 }
+impl Song {
+    pub fn example() -> Self {
+        Self {
+            title: "title".to_string(),
+            album: "album".to_string(),
+            artist: "artist".to_string(),
+            disc_number: 1,
+            track_number: 1,
+            path: "path".to_string(),
+            gain: 1.0,
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Album {
@@ -374,15 +387,7 @@ mod tests {
 
     #[test]
     fn string() {
-        let song = Song {
-            title: "title".to_string(),
-            album: "album".to_string(),
-            artist: "artist".to_string(),
-            disc_number: 1,
-            track_number: 1,
-            path: "path".to_string(),
-            gain: 1.0,
-        };
+        let song = Song::example();
         let string = song.to_string();
         assert_eq!(string.parse::<Song>().unwrap(), song);
     }
