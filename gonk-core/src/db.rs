@@ -403,7 +403,6 @@ mod tests {
             thread::sleep(Duration::from_millis(1));
         }
         handle.join().unwrap();
-        let songs = read().unwrap();
-        dbg!(&songs[0]);
+        let _ = read().unwrap();
     }
 }
