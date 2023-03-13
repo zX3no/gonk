@@ -1,18 +1,22 @@
 use crate::database_path;
 use crate::*;
 use core::fmt;
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use rayon::{
+    prelude::{IntoParallelIterator, ParallelIterator},
+    str::ParallelString,
+};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
     str::{from_utf8_unchecked, FromStr},
     thread::{self, JoinHandle},
+    time::Instant,
 };
 use walkdir::{DirEntry, WalkDir};
 
 pub static mut LEN: usize = 0;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Song {
     pub title: String,
     pub album: String,
@@ -268,33 +272,29 @@ impl FromStr for Song {
     type Err = Box<dyn Error>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split('\t').collect();
-        if parts.len() != 7 {
-            return Err("invalid song format")?;
-        }
-        let title = parts[0].to_string();
-        let album = parts[1].to_string();
-        let artist = parts[2].to_string();
-        let disc_number = parts[3].to_string().parse::<u8>()?;
-        let track_number = parts[4].to_string().parse::<u8>()?;
-        let path = parts[5].to_string();
+        //`file.lines()` will not include newlines
+        //but song.to_string() will.
+        let s = if s.as_bytes().last() == Some(&b'\n') {
+            &s[..s.len() - 1]
+        } else {
+            s
+        };
 
-        //TODO: Why does this happen?
-        let mut gain = parts[6].to_string();
-        if gain.contains('\n') {
-            gain.pop();
+        let mut song = Song::default();
+        //I think this is a little faster than collecting.
+        for (i, split) in s.split('\t').enumerate() {
+            match i {
+                0 => song.title = split.to_string(),
+                1 => song.album = split.to_string(),
+                2 => song.artist = split.to_string(),
+                3 => song.disc_number = split.parse::<u8>()?,
+                4 => song.track_number = split.parse::<u8>()?,
+                5 => song.path = split.to_string(),
+                6 => song.gain = split.parse::<f32>()?,
+                _ => unreachable!("Invalid song format"),
+            }
         }
-        let gain = gain.parse::<f32>()?;
-
-        Ok(Song {
-            title,
-            album,
-            artist,
-            disc_number,
-            track_number,
-            path,
-            gain,
-        })
+        Ok(song)
     }
 }
 
@@ -386,18 +386,13 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
         }
     };
 
-    let mut len = 0;
     let string = unsafe { from_utf8_unchecked(&bytes) };
     let songs: Vec<Song> = string
         .lines()
-        //This should not fail.
-        .map(|line| {
-            len += 1;
-            line.parse::<Song>().unwrap()
-        })
+        .map(|line| line.parse::<Song>().unwrap())
         .collect();
 
-    unsafe { LEN = len };
+    unsafe { LEN = songs.len() };
 
     Ok(songs)
 }

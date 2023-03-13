@@ -66,7 +66,7 @@ impl FromStr for Playlist {
 
         let songs: Vec<Song> = parts[1..]
             .iter()
-            .flat_map(|string| string.parse::<Song>())
+            .map(|string| string.parse::<Song>().unwrap())
             .collect();
 
         Ok(Self {
@@ -91,8 +91,7 @@ pub fn playlists() -> Vec<Playlist> {
             None => false,
         })
         .flat_map(|entry| fs::read_to_string(entry.path()))
-        //TODO: Errors should probably be handled here.
-        .flat_map(|string| string.parse::<Playlist>())
+        .map(|string| string.parse::<Playlist>().unwrap())
         .collect()
 }
 
