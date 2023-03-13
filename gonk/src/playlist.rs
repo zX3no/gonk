@@ -118,7 +118,7 @@ impl Widget for Playlist {
         let items: Vec<ListItem> = playlist
             .lists
             .iter()
-            .map(|p| p.name.clone())
+            .map(|p| p.name().to_string())
             .map(ListItem::new)
             .collect();
 
@@ -313,7 +313,7 @@ impl Widget for Playlist {
                     let eq = playlist
                         .lists
                         .iter()
-                        .any(|p| p.name == playlist.search_query);
+                        .any(|p| p.name() == playlist.search_query);
                     playlist.search_result = if eq {
                         format!("Add to existing playlist: {}", playlist.search_query)
                     } else if playlist.search_query.is_empty() {
@@ -373,7 +373,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Popup if !playlist.song_buffer.is_empty() => {
             //Find the index of the playlist
             let name = playlist.search_query.trim().to_string();
-            let pos = playlist.lists.iter().position(|p| p.name == name);
+            let pos = playlist.lists.iter().position(|p| p.name() == name);
 
             let songs = mem::take(&mut playlist.song_buffer);
 

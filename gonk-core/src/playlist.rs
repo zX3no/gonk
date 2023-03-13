@@ -2,7 +2,7 @@
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{database_path, Index, Song};
+use crate::{database_path, escape, Index, Song};
 use core::fmt;
 use std::{
     fs::{self},
@@ -13,22 +13,28 @@ use walkdir::WalkDir;
 
 #[derive(Debug, Default)]
 pub struct Playlist {
-    pub name: String,
     pub songs: Index<Song>,
+    //Keep private so everything is escaped properly.
+    name: String,
     path: PathBuf,
 }
 
 impl Playlist {
     pub fn new(name: &str, songs: Vec<Song>) -> Self {
+        let name = escape(name);
+
         let mut path = database_path();
         path.pop();
         path.push(format!("{name}.playlist"));
 
         Self {
             path,
-            name: name.to_string(),
+            name,
             songs: Index::from(songs),
         }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
     }
     pub fn save(&self) -> std::io::Result<()> {
         fs::write(&self.path, self.to_string())
@@ -120,8 +126,7 @@ mod tests {
         );
         playlist.save().unwrap();
         let playlists = playlists();
-        dbg!(&playlists);
         assert!(!playlists.is_empty());
-        // playlist.delete().unwrap();
+        playlist.delete().unwrap();
     }
 }

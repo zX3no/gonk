@@ -12,7 +12,6 @@ use walkdir::{DirEntry, WalkDir};
 
 pub static mut LEN: usize = 0;
 
-//FIXME: Make sure songs properties don't contain `\t` or `\n`
 #[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
@@ -23,6 +22,7 @@ pub struct Song {
     pub path: String,
     pub gain: f32,
 }
+
 impl Song {
     pub fn example() -> Self {
         Self {
@@ -34,6 +34,30 @@ impl Song {
             path: "path".to_string(),
             gain: 1.0,
         }
+    }
+    //Makes sure that songs are saved in the correct format.
+    pub fn as_bytes_escaped(self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let title = escape(&self.title);
+        let album = escape(&self.album);
+        let artist = escape(&self.artist);
+        let path = escape(&self.path);
+
+        bytes.extend(title.into_bytes());
+        bytes.push(b'\t');
+        bytes.extend(album.into_bytes());
+        bytes.push(b'\t');
+        bytes.extend(artist.into_bytes());
+        bytes.push(b'\t');
+        bytes.extend(self.disc_number.to_string().into_bytes());
+        bytes.push(b'\t');
+        bytes.extend(self.track_number.to_string().into_bytes());
+        bytes.push(b'\t');
+        bytes.extend(path.into_bytes());
+        bytes.push(b'\t');
+        bytes.extend(self.gain.to_string().into_bytes());
+        bytes.push(b'\n');
+        bytes
     }
 }
 
@@ -50,10 +74,9 @@ pub struct Artist {
 
 impl fmt::Display for Song {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        #![allow(clippy::write_with_newline)]
-        write!(
+        writeln!(
             f,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.title,
             self.album,
             self.artist,
@@ -331,7 +354,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
                 let mut writer = BufWriter::new(&file);
 
                 for song in songs {
-                    writer.write_all(song.to_string().as_bytes()).unwrap();
+                    writer.write_all(&song.as_bytes_escaped()).unwrap();
                 }
 
                 writer.flush().unwrap();
@@ -409,5 +432,15 @@ mod tests {
         }
         handle.join().unwrap();
         let _ = read().unwrap();
+    }
+
+    #[test]
+    fn escape() {
+        let mut song = Song::example();
+        song.title = "title\t title 2".to_string();
+        assert_ne!(
+            song.clone().as_bytes_escaped(),
+            song.to_string().into_bytes()
+        );
     }
 }

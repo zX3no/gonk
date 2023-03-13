@@ -11,10 +11,7 @@
 use std::{
     env,
     error::Error,
-    ffi::OsString,
     fs,
-    mem::size_of,
-    ops::Range,
     path::{Path, PathBuf},
     str::from_utf8,
 };
@@ -39,6 +36,11 @@ pub mod profiler;
 pub mod settings;
 pub mod strsim;
 pub mod vdb;
+
+///Escape potentially problematic strings.
+pub fn escape(input: &str) -> String {
+    input.replace('\n', "").replace('\t', "    ")
+}
 
 pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {
