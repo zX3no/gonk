@@ -1,16 +1,12 @@
 use crate::database_path;
 use crate::*;
 use core::fmt;
-use rayon::{
-    prelude::{IntoParallelIterator, ParallelIterator},
-    str::ParallelString,
-};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
     str::{from_utf8_unchecked, FromStr},
     thread::{self, JoinHandle},
-    time::Instant,
 };
 use walkdir::{DirEntry, WalkDir};
 
@@ -25,6 +21,31 @@ pub struct Song {
     pub track_number: u8,
     pub path: String,
     pub gain: f32,
+}
+
+impl Serialize for Song {
+    fn serialize(self) -> String {
+        let mut s = Serializer::default();
+        s.serialize(self.title);
+        s.serialize(self.album);
+        s.serialize(self.artist);
+        s.serialize(self.disc_number);
+        s.serialize(self.track_number);
+        s.serialize(self.path);
+        s.serialize_raw(self.gain);
+        s.serialize_raw('\n');
+        s.end()
+    }
+}
+
+impl Serialize for Vec<Song> {
+    fn serialize(self) -> String {
+        let mut s = Serializer::default();
+        for song in self {
+            s.serialize(song)
+        }
+        s.end()
+    }
 }
 
 impl Song {
@@ -291,7 +312,7 @@ impl FromStr for Song {
                 4 => song.track_number = split.parse::<u8>()?,
                 5 => song.path = split.to_string(),
                 6 => song.gain = split.parse::<f32>()?,
-                _ => unreachable!("Invalid song format"),
+                _ => panic!("Invalid song format: {}", s),
             }
         }
         Ok(song)
@@ -353,9 +374,10 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 
                 let mut writer = BufWriter::new(&file);
 
-                for song in songs {
-                    writer.write_all(&song.as_bytes_escaped()).unwrap();
-                }
+                writer.write_all(songs.serialize().as_bytes()).unwrap();
+                // for song in songs {
+                //     writer.write_all(&song.as_bytes_escaped()).unwrap();
+                // }
 
                 writer.flush().unwrap();
 
@@ -437,5 +459,15 @@ mod tests {
             song.clone().as_bytes_escaped(),
             song.to_string().into_bytes()
         );
+    }
+
+    #[test]
+
+    fn serialize() {
+        let song = Song::example();
+        dbg!(song.serialize());
+
+        let vec = vec![Song::example(), Song::example()];
+        dbg!(vec.serialize());
     }
 }
