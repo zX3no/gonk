@@ -2,7 +2,7 @@
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{database_path, escape, Index, Song};
+use crate::{database_path, escape, Deserialize, Index, Song};
 use core::fmt;
 use std::{
     fs::{self},
@@ -66,7 +66,7 @@ impl FromStr for Playlist {
 
         let songs: Vec<Song> = parts[1..]
             .iter()
-            .map(|string| string.parse::<Song>().unwrap())
+            .map(|string| Song::deserialize(string).unwrap())
             .collect();
 
         Ok(Self {

@@ -5,7 +5,7 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    str::{from_utf8_unchecked, FromStr},
+    str::from_utf8_unchecked,
     thread::{self, JoinHandle},
 };
 use walkdir::{DirEntry, WalkDir};
@@ -24,27 +24,76 @@ pub struct Song {
 }
 
 impl Serialize for Song {
-    fn serialize(self) -> String {
-        let mut s = Serializer::default();
-        s.serialize(self.title);
-        s.serialize(self.album);
-        s.serialize(self.artist);
-        s.serialize(self.disc_number);
-        s.serialize(self.track_number);
-        s.serialize(self.path);
-        s.serialize_raw(self.gain);
-        s.serialize_raw('\n');
-        s.end()
+    fn serialize(&self) -> String {
+        let mut buffer = String::new();
+        buffer.push_str(&escape(&self.title));
+        buffer.push('\t');
+        buffer.push_str(&escape(&self.album));
+        buffer.push('\t');
+        buffer.push_str(&escape(&self.artist));
+        buffer.push('\t');
+        buffer.push_str(&self.disc_number.to_string());
+        buffer.push('\t');
+        buffer.push_str(&self.track_number.to_string());
+        buffer.push('\t');
+        buffer.push_str(&escape(&self.path));
+        buffer.push('\t');
+        let gain = if self.gain == 0.0 {
+            String::from("0.0")
+        } else {
+            self.gain.to_string()
+        };
+        buffer.push_str(&gain);
+        buffer.push('\n');
+        buffer
+    }
+}
+
+impl Deserialize for Song {
+    type Error = Box<dyn std::error::Error>;
+
+    fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        //`file.lines()` will not include newlines
+        //but song.to_string() will.
+        let s = if s.as_bytes().last() == Some(&b'\n') {
+            &s[..s.len() - 1]
+        } else {
+            s
+        };
+
+        let mut song = Song::default();
+        //I think this is a little faster than collecting.
+        for (i, split) in s.split('\t').enumerate() {
+            match i {
+                0 => song.title = split.to_string(),
+                1 => song.album = split.to_string(),
+                2 => song.artist = split.to_string(),
+                3 => song.disc_number = split.parse::<u8>()?,
+                4 => song.track_number = split.parse::<u8>()?,
+                5 => song.path = split.to_string(),
+                6 => song.gain = split.parse::<f32>()?,
+                _ => panic!("Invalid song format: {}", s),
+            }
+        }
+        Ok(song)
     }
 }
 
 impl Serialize for Vec<Song> {
-    fn serialize(self) -> String {
-        let mut s = Serializer::default();
+    fn serialize(&self) -> String {
+        let mut buffer = String::new();
         for song in self {
-            s.serialize(song)
+            buffer.push_str(&song.serialize());
         }
-        s.end()
+        buffer
+    }
+}
+
+impl Deserialize for Vec<Song> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        s.split('\n').map(Song::deserialize).collect()
     }
 }
 
@@ -59,30 +108,6 @@ impl Song {
             path: "path".to_string(),
             gain: 1.0,
         }
-    }
-    //Makes sure that songs are saved in the correct format.
-    pub fn as_bytes_escaped(self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        let title = escape(&self.title);
-        let album = escape(&self.album);
-        let artist = escape(&self.artist);
-        let path = escape(&self.path);
-
-        bytes.extend(title.into_bytes());
-        bytes.push(b'\t');
-        bytes.extend(album.into_bytes());
-        bytes.push(b'\t');
-        bytes.extend(artist.into_bytes());
-        bytes.push(b'\t');
-        bytes.extend(self.disc_number.to_string().into_bytes());
-        bytes.push(b'\t');
-        bytes.extend(self.track_number.to_string().into_bytes());
-        bytes.push(b'\t');
-        bytes.extend(path.into_bytes());
-        bytes.push(b'\t');
-        bytes.extend(self.gain.to_string().into_bytes());
-        bytes.push(b'\n');
-        bytes
     }
 }
 
@@ -289,36 +314,6 @@ impl TryFrom<&Path> for Song {
     }
 }
 
-impl FromStr for Song {
-    type Err = Box<dyn Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        //`file.lines()` will not include newlines
-        //but song.to_string() will.
-        let s = if s.as_bytes().last() == Some(&b'\n') {
-            &s[..s.len() - 1]
-        } else {
-            s
-        };
-
-        let mut song = Song::default();
-        //I think this is a little faster than collecting.
-        for (i, split) in s.split('\t').enumerate() {
-            match i {
-                0 => song.title = split.to_string(),
-                1 => song.album = split.to_string(),
-                2 => song.artist = split.to_string(),
-                3 => song.disc_number = split.parse::<u8>()?,
-                4 => song.track_number = split.parse::<u8>()?,
-                5 => song.path = split.to_string(),
-                6 => song.gain = split.parse::<f32>()?,
-                _ => panic!("Invalid song format: {}", s),
-            }
-        }
-        Ok(song)
-    }
-}
-
 #[derive(Debug)]
 pub enum ScanResult {
     Completed,
@@ -371,14 +366,8 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
                     .collect();
 
                 let songs: Vec<Song> = songs.into_iter().flatten().collect();
-
                 let mut writer = BufWriter::new(&file);
-
-                writer.write_all(songs.serialize().as_bytes()).unwrap();
-                // for song in songs {
-                //     writer.write_all(&song.as_bytes_escaped()).unwrap();
-                // }
-
+                writer.write_all(&songs.serialize().into_bytes()).unwrap();
                 writer.flush().unwrap();
 
                 //Remove old database and replace it with new.
@@ -411,7 +400,7 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
     let string = unsafe { from_utf8_unchecked(&bytes) };
     let songs: Vec<Song> = string
         .lines()
-        .map(|line| line.parse::<Song>().unwrap())
+        .map(|line| Song::deserialize(line).unwrap())
         .collect();
 
     unsafe { LEN = songs.len() };
@@ -429,7 +418,7 @@ mod tests {
     fn string() {
         let song = Song::example();
         let string = song.to_string();
-        assert_eq!(string.parse::<Song>().unwrap(), song);
+        assert_eq!(Song::deserialize(&string).unwrap(), song);
     }
 
     #[test]
@@ -455,19 +444,6 @@ mod tests {
     fn escape() {
         let mut song = Song::example();
         song.title = "title\t title 2".to_string();
-        assert_ne!(
-            song.clone().as_bytes_escaped(),
-            song.to_string().into_bytes()
-        );
-    }
-
-    #[test]
-
-    fn serialize() {
-        let song = Song::example();
-        dbg!(song.serialize());
-
-        let vec = vec![Song::example(), Song::example()];
-        dbg!(vec.serialize());
+        assert_ne!(song.serialize().into_bytes(), song.to_string().into_bytes());
     }
 }

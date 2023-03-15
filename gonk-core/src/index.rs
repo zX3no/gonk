@@ -205,7 +205,7 @@ impl<T> DerefMut for Index<T> {
 }
 
 impl crate::Serialize for Index<crate::Song> {
-    fn serialize(self) -> String {
+    fn serialize(&self) -> String {
         self.data.serialize()
     }
 }

@@ -13,7 +13,6 @@ use std::{
     error::Error,
     fs,
     path::{Path, PathBuf},
-    str::from_utf8,
 };
 
 pub use crate::{
@@ -76,53 +75,15 @@ pub fn database_path() -> PathBuf {
     db
 }
 
-#[derive(Default)]
-struct Serializer {
-    buffer: String,
-}
-
-impl Serializer {
-    pub fn serialize(&mut self, s: impl Serialize) {
-        self.buffer.push_str(&s.serialize());
-    }
-    fn serialize_raw(&mut self, s: impl ToString) {
-        self.buffer.push_str(&s.to_string());
-    }
-    pub fn end(self) -> String {
-        self.buffer
-    }
-}
-
 trait Serialize {
-    fn serialize(self) -> String;
+    fn serialize(&self) -> String;
 }
 
-impl Serialize for String {
-    fn serialize(mut self) -> String {
-        self.push('\t');
-        self
-    }
-}
-impl Serialize for &str {
-    fn serialize(self) -> String {
-        let mut s = self.to_string();
-        s.push('\t');
-        s
-    }
-}
+trait Deserialize
+where
+    Self: Sized,
+{
+    type Error;
 
-impl Serialize for u8 {
-    fn serialize(self) -> String {
-        let mut s = self.to_string();
-        s.push('\t');
-        s
-    }
-}
-
-impl Serialize for f32 {
-    fn serialize(self) -> String {
-        let mut s = self.to_string();
-        s.push('\t');
-        s
-    }
+    fn deserialize(s: &str) -> Result<Self, Self::Error>;
 }

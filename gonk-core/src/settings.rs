@@ -5,8 +5,7 @@
 use crate::*;
 use std::{
     fs::File,
-    io::{BufWriter, Read, Seek, Write},
-    mem::size_of,
+    io::{BufWriter, Seek, Write},
 };
 
 static mut FILE: Lazy<File> = Lazy::new(|| {
@@ -26,6 +25,19 @@ pub struct Settings {
     pub output_device: String,
     pub music_folder: String,
     pub queue: Vec<Song>,
+}
+
+impl Serialize for Settings {
+    fn serialize(&self) -> String {
+        let mut buffer = String::new();
+        buffer.push_str(&self.volume.to_string());
+        buffer.push_str(&self.index.to_string());
+        buffer.push_str(&self.elapsed.to_string());
+        buffer.push_str(&escape(&self.output_device));
+        buffer.push_str(&escape(&self.music_folder));
+        buffer.push_str(&self.queue.serialize());
+        buffer
+    }
 }
 
 impl Default for Settings {
@@ -50,82 +62,17 @@ impl Settings {
     }
 
     pub fn read() -> Result<Settings, Box<dyn Error + Send + Sync>> {
-        // let bytes = fs::read(settings_path())?;
-        let mut bytes = Vec::new();
-        let _ = unsafe { FILE.read_to_end(&mut bytes)? };
-
-        let volume = bytes.first().ok_or("Volume is invalid.")?;
-
-        let slice = bytes.get(1..3).ok_or("Index is invalid.")?;
-        let index = u16::from_le_bytes(slice.try_into()?);
-
-        let slice = bytes.get(3..7).ok_or("Elapsed is invalid.")?;
-        let elapsed = f32::from_le_bytes(slice.try_into()?);
-
-        let slice = bytes.get(7..9).ok_or("Output length device is invalid")?;
-        let output_device_len = u16::from_le_bytes(slice.try_into()?) as usize + 9;
-        let slice = bytes
-            .get(9..output_device_len)
-            .ok_or("Ouput device is invalid")?;
-        let output_device = from_utf8(slice)?.to_string();
-
-        let slice = bytes
-            .get(output_device_len..output_device_len + 2)
-            .ok_or("Music folder length is invalid")?;
-        let music_folder_len = u16::from_le_bytes(slice.try_into()?) as usize;
-
-        let start = output_device_len + size_of::<u16>();
-        let slice = &bytes
-            .get(start..start + music_folder_len)
-            .ok_or("Music folder is invalid")?;
-        let music_folder = from_utf8(slice)?.to_string();
-
-        // let mut queue = Vec::new();
-        // let mut i = start + music_folder_len;
-        // while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-        //     let song = bytes_to_song(bytes)?;
-        //     queue.push(song);
-        //     i += SONG_LEN;
-        // }
-
-        // Ok(Settings {
-        //     index,
-        //     volume: *volume,
-        //     output_device,
-        //     music_folder,
-        //     elapsed,
-        //     queue,
-        // })
-
-        // todo!();
-        Ok(Settings::default())
+        todo!();
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
         unsafe {
             FILE.set_len(0)?;
             FILE.rewind()?;
+            let mut writer = BufWriter::new(&*FILE);
+            writer.write_all(self.serialize().as_bytes())?;
+            writer.flush()?;
         };
-
-        let mut writer = unsafe { BufWriter::new(&*FILE) };
-
-        writer.write_all(&[self.volume])?;
-        writer.write_all(&self.index.to_le_bytes())?;
-        writer.write_all(&self.elapsed.to_le_bytes())?;
-
-        writer.write_all(&(self.output_device.len() as u16).to_le_bytes())?;
-        writer.write_all(self.output_device.as_bytes())?;
-
-        writer.write_all(&(self.music_folder.len() as u16).to_le_bytes())?;
-        writer.write_all(self.music_folder.as_bytes())?;
-
-        for song in &self.queue {
-            // writer.write_all(&song.to_bytes())?;
-
-            todo!();
-        }
-
-        writer.flush()?;
 
         Ok(())
     }
