@@ -11,7 +11,8 @@
 use std::{
     env,
     error::Error,
-    fs,
+    fs::{self, File},
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
 };
 
@@ -86,4 +87,123 @@ where
     type Error;
 
     fn deserialize(s: &str) -> Result<Self, Self::Error>;
+}
+
+#[test]
+fn no_alloc() {
+    use rayon::prelude::*;
+    use std::time::Instant;
+    let paths: Vec<walkdir::DirEntry> = walkdir::WalkDir::new("D:\\OneDrive\\Music")
+        .into_iter()
+        .flatten()
+        .filter(|path| match path.path().extension() {
+            Some(ex) => {
+                matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
+            }
+            None => false,
+        })
+        .collect();
+
+    let songs: Vec<Song> = paths
+        .into_par_iter()
+        .flat_map(|dir| Song::try_from(dir.path()))
+        .collect();
+
+    dbg!(songs.capacity(), songs.len());
+
+    let now = Instant::now();
+    let file = File::create("test.db").unwrap();
+    let mut writer = BufWriter::new(file);
+
+    for song in songs {
+        writer.write_all(&escape(&song.title).into_bytes()).unwrap();
+        writer.write_all(&[b'\t']).unwrap();
+
+        writer.write_all(&escape(&song.album).into_bytes()).unwrap();
+        writer.write_all(&[b'\t']).unwrap();
+
+        writer
+            .write_all(&escape(&song.artist).into_bytes())
+            .unwrap();
+        writer.write_all(&[b'\t']).unwrap();
+
+        writer
+            .write_all(&song.disc_number.to_string().into_bytes())
+            .unwrap();
+        writer.write_all(&[b'\t']).unwrap();
+
+        writer
+            .write_all(&song.track_number.to_string().into_bytes())
+            .unwrap();
+        writer.write_all(&[b'\t']).unwrap();
+
+        if song.gain == 0.0 {
+            writer.write_all(b"0.0").unwrap();
+        } else {
+            writer
+                .write_all(&song.gain.to_string().into_bytes())
+                .unwrap();
+        }
+
+        writer.write_all(&[b'\n']).unwrap();
+    }
+
+    writer.flush().unwrap();
+    dbg!(now.elapsed());
+}
+
+#[test]
+fn alloc() {
+    use rayon::prelude::*;
+    use std::time::Instant;
+    let paths: Vec<walkdir::DirEntry> = walkdir::WalkDir::new("D:\\OneDrive\\Music")
+        .into_iter()
+        .flatten()
+        .filter(|path| match path.path().extension() {
+            Some(ex) => {
+                matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
+            }
+            None => false,
+        })
+        .collect();
+
+    let songs: Vec<Song> = paths
+        .into_par_iter()
+        .flat_map(|dir| Song::try_from(dir.path()))
+        .collect();
+
+    dbg!(songs.capacity(), songs.len());
+
+    let now = Instant::now();
+    let mut buffer: Vec<u8> = Vec::new();
+
+    for song in songs {
+        buffer.extend(escape(&song.title).into_bytes());
+        buffer.push(b'\t');
+
+        buffer.extend(escape(&song.album).into_bytes());
+        buffer.push(b'\t');
+
+        buffer.extend(escape(&song.artist).into_bytes());
+        buffer.push(b'\t');
+
+        buffer.extend(song.disc_number.to_string().into_bytes());
+        buffer.push(b'\t');
+
+        buffer.extend(song.track_number.to_string().into_bytes());
+        buffer.push(b'\t');
+
+        let gain = if song.gain == 0.0 {
+            String::from("0.0")
+        } else {
+            song.gain.to_string()
+        };
+        buffer.extend(gain.into_bytes());
+
+        buffer.push(b'\n');
+    }
+
+    fs::write("test.db", buffer).unwrap();
+    dbg!(now.elapsed());
+    // dbg!(buffer.capacity(), buffer.len());
 }
