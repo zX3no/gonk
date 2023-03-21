@@ -60,6 +60,7 @@ impl Deserialize for Playlist {
     fn deserialize(s: &str) -> Result<Self, Self::Error> {
         let (start, end) = s.split_once('\n').ok_or("Invalid playlist")?;
         let (name, path) = start.split_once('\t').ok_or("Invalid playlsit")?;
+
         Ok(Self {
             name: name.to_string(),
             path: PathBuf::from(path),

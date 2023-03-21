@@ -5,7 +5,7 @@
 use crate::*;
 use std::{
     fs::File,
-    io::{BufWriter, Seek, Write},
+    io::{BufWriter, Read, Seek, Write},
 };
 
 static mut FILE: Lazy<File> = Lazy::new(|| {
@@ -17,7 +17,7 @@ static mut FILE: Lazy<File> = Lazy::new(|| {
         .unwrap()
 });
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Settings {
     pub volume: u8,
     pub index: u16,
@@ -31,12 +31,46 @@ impl Serialize for Settings {
     fn serialize(&self) -> String {
         let mut buffer = String::new();
         buffer.push_str(&self.volume.to_string());
+        buffer.push('\t');
         buffer.push_str(&self.index.to_string());
+        buffer.push('\t');
         buffer.push_str(&self.elapsed.to_string());
+        buffer.push('\t');
         buffer.push_str(&escape(&self.output_device));
+        buffer.push('\t');
         buffer.push_str(&escape(&self.music_folder));
+        buffer.push('\n');
         buffer.push_str(&self.queue.serialize());
         buffer
+    }
+}
+
+impl Deserialize for Settings {
+    type Error = Box<dyn Error>;
+
+    fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        let (start, end) = s.split_once('\n').ok_or("Invalid settings")?;
+        let split: Vec<&str> = start.split('\t').collect();
+        let music_folder = if split.len() == 4 {
+            String::new()
+        } else {
+            split[4].to_string()
+        };
+
+        let queue = if end.is_empty() {
+            Vec::new()
+        } else {
+            Vec::<Song>::deserialize(end)?
+        };
+
+        Ok(Self {
+            volume: split[0].parse::<u8>()?,
+            index: split[1].parse::<u16>()?,
+            elapsed: split[2].parse::<f32>()?,
+            output_device: split[3].to_string(),
+            music_folder,
+            queue,
+        })
     }
 }
 
@@ -61,8 +95,12 @@ impl Settings {
         }
     }
 
-    pub fn read() -> Result<Settings, Box<dyn Error + Send + Sync>> {
-        todo!();
+    pub fn read() -> Result<Settings, Box<dyn Error>> {
+        unsafe {
+            let mut string = String::new();
+            FILE.read_to_string(&mut string)?;
+            Settings::deserialize(&string)
+        }
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -75,5 +113,18 @@ impl Settings {
         };
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings() {
+        let settings = Settings::new();
+        let string = settings.serialize();
+        let s = Settings::deserialize(&string).unwrap();
+        assert_eq!(settings, s);
     }
 }

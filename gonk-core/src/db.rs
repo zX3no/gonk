@@ -53,6 +53,9 @@ impl Deserialize for Song {
     type Error = Box<dyn std::error::Error>;
 
     fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        if s.is_empty() {
+            return Err("Empty song")?;
+        }
         //`file.lines()` will not include newlines
         //but song.to_string() will.
         let s = if s.as_bytes().last() == Some(&b'\n') {
