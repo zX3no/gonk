@@ -2,21 +2,19 @@
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{database_path, escape, Deserialize, Index, Song};
-use core::fmt;
+use crate::{database_path, escape, Deserialize, Index, Serialize, Song};
 use std::{
     fs::{self},
     path::PathBuf,
-    str::FromStr,
 };
 use walkdir::WalkDir;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Playlist {
-    pub songs: Index<Song>,
-    //Keep private so everything is escaped properly.
     name: String,
     path: PathBuf,
+
+    pub songs: Index<Song>,
 }
 
 impl Playlist {
@@ -37,42 +35,35 @@ impl Playlist {
         &self.name
     }
     pub fn save(&self) -> std::io::Result<()> {
-        fs::write(&self.path, self.to_string())
+        fs::write(&self.path, self.serialize())
     }
     pub fn delete(&self) -> std::io::Result<()> {
         fs::remove_file(&self.path)
     }
 }
 
-impl fmt::Display for Playlist {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let songs: String = self.songs.iter().map(|song| song.to_string()).collect();
-        write!(
-            f,
-            "{}\t{}\t\n{}",
-            self.name,
-            self.path.to_str().unwrap(),
-            songs
-        )
+impl Serialize for Playlist {
+    fn serialize(&self) -> String {
+        let mut buffer = String::new();
+        buffer.push_str(&self.name);
+        buffer.push('\t');
+        buffer.push_str(self.path.to_str().unwrap());
+        buffer.push('\n');
+        buffer.push_str(&self.songs.serialize());
+        buffer
     }
 }
 
-impl FromStr for Playlist {
-    type Err = ();
+impl Deserialize for Playlist {
+    type Error = Box<dyn std::error::Error>;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split('\n').collect();
-        let (name, path) = parts[0].split_once('\t').unwrap();
-
-        let songs: Vec<Song> = parts[1..]
-            .iter()
-            .map(|string| Song::deserialize(string).unwrap())
-            .collect();
-
+    fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        let (start, end) = s.split_once('\n').ok_or("Invalid playlist")?;
+        let (name, path) = start.split_once('\t').ok_or("Invalid playlsit")?;
         Ok(Self {
             name: name.to_string(),
             path: PathBuf::from(path),
-            songs: Index::from(songs),
+            songs: Index::from(Vec::<Song>::deserialize(end)?),
         })
     }
 }
@@ -91,7 +82,7 @@ pub fn playlists() -> Vec<Playlist> {
             None => false,
         })
         .flat_map(|entry| fs::read_to_string(entry.path()))
-        .map(|string| string.parse::<Playlist>().unwrap())
+        .map(|string| Playlist::deserialize(&string).unwrap())
         .collect()
 }
 
@@ -102,8 +93,9 @@ mod tests {
     #[test]
     fn playlist() {
         let playlist = Playlist::new("name", vec![Song::example(), Song::example()]);
-        let string = playlist.to_string();
-        let _ = string.parse::<Playlist>().unwrap();
+        let string = playlist.serialize();
+        let p = Playlist::deserialize(&string).unwrap();
+        assert_eq!(playlist, p);
     }
 
     #[test]

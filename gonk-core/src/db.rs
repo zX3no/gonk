@@ -93,7 +93,7 @@ impl Deserialize for Vec<Song> {
     type Error = Box<dyn std::error::Error>;
 
     fn deserialize(s: &str) -> Result<Self, Self::Error> {
-        s.split('\n').map(Song::deserialize).collect()
+        s.trim().split('\n').map(Song::deserialize).collect()
     }
 }
 

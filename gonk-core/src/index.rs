@@ -73,7 +73,7 @@ impl<T> Default for StaticIndex<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Index<T> {
     data: Vec<T>,
     index: Option<usize>,
