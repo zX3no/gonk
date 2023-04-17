@@ -71,7 +71,7 @@ fn draw_log(f: &mut Frame) -> Rect {
     }
 }
 
-static mut VDB: Lazy<vdb::Database> = Lazy::new(|| vdb::create().unwrap());
+static mut VDB: vdb::Database = vdb::Database::new();
 
 const SEARCH_MARGIN: Margin = Margin {
     vertical: 6,
@@ -123,6 +123,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             _ if !args.is_empty() => return Ok(println!("Invalid command.")),
             _ => (),
         }
+    }
+
+    unsafe {
+        VDB = vdb::create()?;
     }
 
     //Disable raw mode when the program panics.
@@ -183,7 +187,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             if handle.is_finished() {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
-                unsafe { *VDB = vdb::create()? };
+                unsafe { VDB = vdb::create()? };
 
                 log::clear();
 
