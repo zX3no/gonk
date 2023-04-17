@@ -400,8 +400,6 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
         }
     };
 
-    dbg!(bytes.len());
-
     let string = unsafe { from_utf8_unchecked(&bytes) };
     let songs: Vec<Song> = string
         .lines()
