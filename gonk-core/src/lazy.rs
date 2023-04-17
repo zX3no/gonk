@@ -12,11 +12,11 @@ use std::{
 
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct BasedCell<T: ?Sized> {
+pub struct BasedCell<T: ?Sized + Debug> {
     pub value: T,
 }
 
-impl<T> BasedCell<T> {
+impl<T: Debug> BasedCell<T> {
     #[inline(always)]
     pub const fn new(value: T) -> Self {
         Self { value }
@@ -35,13 +35,13 @@ impl<T> BasedCell<T> {
 }
 
 ///If used on an immutable static, bad things will happen :)
-pub struct Lazy<T, F = fn() -> T> {
+pub struct Lazy<T: Debug, F = fn() -> T> {
     pub data: BasedCell<Option<T>>,
     function: F,
     once: Once,
 }
 
-impl<T, F> Lazy<T, F> {
+impl<T: Debug, F> Lazy<T, F> {
     pub const fn new(f: F) -> Self {
         Self {
             data: BasedCell::new(None),
@@ -51,7 +51,7 @@ impl<T, F> Lazy<T, F> {
     }
 }
 
-impl<T, F: Fn() -> T> Deref for Lazy<T, F> {
+impl<T: Debug, F: Fn() -> T> Deref for Lazy<T, F> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -65,13 +65,17 @@ impl<T, F: Fn() -> T> Deref for Lazy<T, F> {
     }
 }
 
-impl<T, F: Fn() -> T> DerefMut for Lazy<T, F> {
+impl<T: Debug, F: Fn() -> T> DerefMut for Lazy<T, F> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.once.call_once(|| {
             let f = &self.function;
             let t = f();
             self.data.replace(Some(t));
         });
+
+        if self.data.value.is_none() {
+            panic!("{:?} {}", self.data, std::any::type_name::<T>());
+        }
 
         self.data.value.as_mut().unwrap()
     }

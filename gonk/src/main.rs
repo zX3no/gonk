@@ -125,7 +125,9 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    unsafe { VDB = vdb::create()? };
+    unsafe {
+        VDB = vdb::create()?;
+    };
 
     //Disable raw mode when the program panics.
     let orig_hook = std::panic::take_hook();

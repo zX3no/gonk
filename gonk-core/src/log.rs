@@ -19,6 +19,7 @@ pub static mut LOG: Lazy<Log> = Lazy::new(|| Log {
 pub const MESSAGE_COOLDOWN: Duration = Duration::from_millis(1500);
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct Log {
     pub messages: Vec<(String, Instant)>,
 }

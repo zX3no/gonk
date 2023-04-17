@@ -8,14 +8,7 @@ use std::{
     io::{BufWriter, Read, Seek, Write},
 };
 
-static mut FILE: Lazy<File> = Lazy::new(|| {
-    File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(settings_path())
-        .unwrap()
-});
+pub static mut FILE: Option<File> = None;
 
 #[derive(Debug, PartialEq)]
 pub struct Settings {
@@ -89,6 +82,17 @@ impl Default for Settings {
 
 impl Settings {
     pub fn new() -> Settings {
+        unsafe {
+            FILE = Some(
+                File::options()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(settings_path())
+                    .unwrap(),
+            );
+        }
+
         match Settings::read() {
             Ok(settings) => settings,
             Err(_) => Settings::default(),
@@ -98,16 +102,16 @@ impl Settings {
     pub fn read() -> Result<Settings, Box<dyn Error>> {
         unsafe {
             let mut string = String::new();
-            FILE.read_to_string(&mut string)?;
+            FILE.as_ref().unwrap().read_to_string(&mut string)?;
             Settings::deserialize(&string)
         }
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
         unsafe {
-            FILE.set_len(0)?;
-            FILE.rewind()?;
-            let mut writer = BufWriter::new(&*FILE);
+            FILE.as_ref().unwrap().set_len(0)?;
+            FILE.as_ref().unwrap().rewind()?;
+            let mut writer = BufWriter::new(&*FILE.as_ref().unwrap());
             writer.write_all(self.serialize().as_bytes())?;
             writer.flush()?;
         };
