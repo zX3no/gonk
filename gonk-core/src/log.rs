@@ -1,7 +1,6 @@
 //! TODO: Cleanup
 //!
 //!
-use crate::Lazy;
 use std::{
     sync::Once,
     time::{Duration, Instant},
@@ -11,16 +10,23 @@ use std::{
 pub static ONCE: Once = Once::new();
 
 #[doc(hidden)]
-pub static mut LOG: Lazy<Log> = Lazy::new(|| Log {
-    messages: Vec::new(),
-});
+pub static mut LOG: Log = Log::new();
 
 #[doc(hidden)]
 pub const MESSAGE_COOLDOWN: Duration = Duration::from_millis(1500);
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct Log {
     pub messages: Vec<(String, Instant)>,
+}
+
+impl Log {
+    pub const fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+        }
+    }
 }
 
 #[macro_export]

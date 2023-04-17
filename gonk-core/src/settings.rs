@@ -12,14 +12,7 @@ use std::{
     mem::size_of,
 };
 
-static mut FILE: Lazy<File> = Lazy::new(|| {
-    File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(settings_path())
-        .unwrap()
-});
+static mut FILE: Option<File> = None;
 
 #[derive(Debug)]
 pub struct Settings {
@@ -46,6 +39,16 @@ impl Default for Settings {
 
 impl Settings {
     pub fn new() -> Settings {
+        unsafe {
+            FILE = Some(
+                File::options()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(settings_path())
+                    .unwrap(),
+            );
+        }
         match Settings::read() {
             Ok(settings) => settings,
             Err(_) => Settings::default(),
@@ -55,7 +58,7 @@ impl Settings {
     pub fn read() -> Result<Settings, Box<dyn Error + Send + Sync>> {
         // let bytes = fs::read(settings_path())?;
         let mut bytes = Vec::new();
-        let _ = unsafe { FILE.read_to_end(&mut bytes)? };
+        let _ = unsafe { FILE.as_ref().unwrap().read_to_end(&mut bytes)? };
 
         let volume = bytes.first().ok_or("Volume is invalid.")?;
 
@@ -103,11 +106,11 @@ impl Settings {
 
     pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
         unsafe {
-            FILE.set_len(0)?;
-            FILE.rewind()?;
+            FILE.as_ref().unwrap().set_len(0)?;
+            FILE.as_ref().unwrap().rewind()?;
         };
 
-        let mut writer = unsafe { BufWriter::new(&*FILE) };
+        let mut writer = unsafe { BufWriter::new(&*FILE.as_ref().unwrap()) };
 
         writer.write_all(&[self.volume])?;
         writer.write_all(&self.index.to_le_bytes())?;
