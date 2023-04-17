@@ -403,7 +403,9 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
     let string = unsafe { from_utf8_unchecked(&bytes) };
     let songs: Vec<Song> = string
         .lines()
-        .map(|line| Song::deserialize(line).unwrap())
+        .map(|line| {
+            Song::deserialize(line).expect("Failed to read database. Run `gonk reset` to fix.")
+        })
         .collect();
 
     unsafe { LEN = songs.len() };
