@@ -4,8 +4,6 @@
 //! The virtual database stores key value pairs.
 //! It is used for quering artists, albums and songs.
 //!
-//! `Lazy` is my implementation of lazy statics.
-//!
 //! `Index` is a wrapper over a `Vec<T>` plus an index. Kind of like a circular buffer but the data is usually constant.
 //! It's useful for moving up and down the selection of a UI element.
 use std::{
@@ -22,12 +20,10 @@ pub use crate::{
 };
 pub use flac_decoder::*;
 pub use index::*;
-pub use lazy::*;
 
 pub mod db;
 pub mod flac_decoder;
 pub mod index;
-pub mod lazy;
 pub mod log;
 pub mod playlist;
 pub mod profiler;

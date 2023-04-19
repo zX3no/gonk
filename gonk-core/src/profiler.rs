@@ -1,7 +1,6 @@
 //! TODO: Cleanup
 //!
 //!
-use crate::Lazy;
 use std::{
     collections::{hash_map::Entry, HashMap},
     mem,
@@ -9,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-static mut EVENTS: Lazy<Mutex<Vec<Event>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static mut EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
 
 ///Print the profiler events.
 pub fn print() {
@@ -85,7 +84,6 @@ pub struct Event {
 }
 
 impl Event {
-    /// # Safety
     pub unsafe fn elapsed(&self) -> Duration {
         self.end
             .unwrap_unchecked()
