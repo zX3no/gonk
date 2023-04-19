@@ -109,7 +109,7 @@ impl Widget for Search {
                     selected_cell,
                     Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
                     Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
-                    Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+                    Cell::from(*artist).style(Style::default().fg(ARTIST)),
                 ]),
                 Item::Album((artist, album)) => Row::new(vec![
                     selected_cell,
@@ -121,7 +121,7 @@ impl Widget for Search {
                         ),
                     ])),
                     Cell::from("-"),
-                    Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+                    Cell::from(*artist).style(Style::default().fg(ARTIST)),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
                     selected_cell,
@@ -234,17 +234,20 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
                     None => panic!("{item:?}"),
                 }
             }
-            Item::Album((artist, album)) => unsafe { vdb::album(&VDB, artist, album) }
-                .unwrap()
-                .songs
-                .iter()
-                .collect(),
+            Item::Album((artist, album)) => unsafe {
+                let album = vdb::album(&VDB, artist, album).unwrap();
+                let mut songs = Vec::new();
+                for song in &album.songs {
+                    songs.push(*song);
+                }
+                songs
+            },
             Item::Artist(artist) => {
                 let artist = unsafe { vdb::artist(&VDB, artist).unwrap() };
                 let mut songs = Vec::new();
                 for album in artist {
                     for song in &album.songs {
-                        songs.push(song);
+                        songs.push(*song);
                     }
                 }
                 songs

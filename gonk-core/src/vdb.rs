@@ -18,16 +18,60 @@ use std::{
 
 const MIN_ACCURACY: f64 = 0.70;
 
-pub type Database = BTreeMap<String, Vec<Album>>;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_database() {
+        let songs = db::read().unwrap();
+
+        //TODO: sort songs
+
+        ///Get all aritist names.
+        pub fn artists(db: &[Song]) -> Vec<&String> {
+            let mut artists = db.iter().map(|song| &song.artist).collect::<Vec<&String>>();
+            artists.dedup();
+            artists
+        }
+
+        ///Get all albums by an artist.
+        pub fn albums_by_artist<'a>(db: &'a [Song], artist: &'a str) -> Vec<Vec<&'a Song>> {
+            use itertools::Itertools;
+            db.iter()
+                .filter(|song| song.artist == artist)
+                .sorted_by_key(|song| &song.album)
+                .group_by(|song| &song.album)
+                .into_iter()
+                .map(|(_, group)| group.collect())
+                .collect::<Vec<Vec<&'a Song>>>()
+        }
+
+        pub fn album<'a>(db: &'a [Song], artist: &str, album: &str) -> Vec<&'a Song> {
+            db.iter()
+                .filter(|song| song.artist == artist && song.album == album)
+                .collect()
+        }
+
+        dbg!(artists(&songs));
+        dbg!(albums_by_artist(&songs, "Duster"));
+        dbg!(album(&songs, "Duster", "Stratosphere"));
+    }
+}
+
+pub type Database = BTreeMap<&'static str, Vec<Album>>;
+
+static mut SONGS: Vec<Song> = Vec::new();
 
 pub fn create() -> Result<Database, Box<dyn Error + Send + Sync>> {
-    let songs = db::read()?;
-    let mut data: BTreeMap<String, Vec<Album>> = BTreeMap::new();
-    let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
+    profile!();
+    unsafe { SONGS = db::read()? };
+    let mut data: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
+    let mut albums: BTreeMap<(&str, &str), Vec<&Song>> = BTreeMap::new();
 
-    //Add songs to albums.
-    for song in songs {
-        match albums.entry((song.artist.clone(), song.album.clone())) {
+    // Add songs to albums.
+    for song in unsafe { &SONGS } {
+        match albums.entry((song.artist.as_str(), song.album.as_str())) {
             Entry::Occupied(mut entry) => entry.get_mut().push(song),
             Entry::Vacant(entry) => {
                 entry.insert(vec![song]);
@@ -49,7 +93,7 @@ pub fn create() -> Result<Database, Box<dyn Error + Send + Sync>> {
     //Add albums to artists.
     for ((artist, album), v) in albums {
         let v = Album {
-            title: album,
+            title: album.to_string(),
             songs: v,
         };
         match data.entry(artist) {
@@ -71,7 +115,8 @@ pub fn create() -> Result<Database, Box<dyn Error + Send + Sync>> {
 //Browser Queries:
 
 ///Get all aritist names.
-pub fn artists(db: &Database) -> Vec<&String> {
+//TODO: Cleanup
+pub fn artists(db: &Database) -> Vec<&&str> {
     let mut v = Vec::from_iter(db.keys());
     v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
     v
@@ -128,11 +173,11 @@ pub fn artist<'a>(db: &'a Database, artist: &str) -> Option<&'a Vec<Album>> {
 #[derive(Clone, Debug)]
 pub enum Item {
     ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((&'static String, &'static String, &'static String, u8, u8)),
+    Song((&'static str, &'static String, &'static String, u8, u8)),
     ///(Artist, Album)
-    Album((&'static String, &'static String)),
+    Album((&'static str, &'static String)),
     ///(Artist)
-    Artist(&'static String),
+    Artist(&'static str),
 }
 
 fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {

@@ -16,7 +16,7 @@ pub enum Mode {
 }
 
 pub struct Browser {
-    artists: Index<&'static String>,
+    artists: Index<&'static &'static str>,
     albums: StaticIndex<Album>,
     ///Title, (disc, number)
     songs: Index<(String, (u8, u8))>,
@@ -125,7 +125,7 @@ impl Widget for Browser {
         let a: Vec<ListItem> = browser
             .artists
             .iter()
-            .map(|name| ListItem::new(name.as_str()))
+            .map(|name| ListItem::new(**name))
             .collect();
 
         let b: Vec<ListItem> = browser
@@ -232,10 +232,11 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
                         songs
                     }
                     Mode::Album => {
+                        //FIXME: WHAT IS THIS?
                         let album = unsafe { vdb::album(&VDB, artist, &album.title).unwrap() };
                         let mut songs = Vec::new();
                         for song in &album.songs {
-                            songs.push(song);
+                            songs.push(*song);
                         }
                         songs
                     }

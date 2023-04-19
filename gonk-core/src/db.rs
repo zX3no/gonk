@@ -53,6 +53,7 @@ impl Deserialize for Song {
     type Error = Box<dyn std::error::Error>;
 
     fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        profile!();
         if s.is_empty() {
             return Err("Empty song")?;
         }
@@ -117,7 +118,7 @@ impl Song {
 #[derive(Debug, Default)]
 pub struct Album {
     pub title: String,
-    pub songs: Vec<Song>,
+    pub songs: Vec<&'static Song>,
 }
 
 #[derive(Debug, Default)]
@@ -390,6 +391,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 }
 
 pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
+    profile!();
     let bytes = match fs::read(database_path()) {
         Ok(bytes) => bytes,
         Err(error) => {
