@@ -107,8 +107,8 @@ impl Widget for Search {
             match item {
                 Item::Song((artist, album, name, _, _)) => Row::new(vec![
                     selected_cell,
-                    Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
-                    Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
+                    Cell::from(*name).style(Style::default().fg(TITLE)),
+                    Cell::from(*album).style(Style::default().fg(ALBUM)),
                     Cell::from(*artist).style(Style::default().fg(ARTIST)),
                 ]),
                 Item::Album((artist, album)) => Row::new(vec![

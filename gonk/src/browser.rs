@@ -131,7 +131,7 @@ impl Widget for Browser {
         let b: Vec<ListItem> = browser
             .albums
             .iter()
-            .map(|name| ListItem::new(name.title.as_str()))
+            .map(|name| ListItem::new(name.title))
             .collect();
 
         let c: Vec<ListItem> = browser

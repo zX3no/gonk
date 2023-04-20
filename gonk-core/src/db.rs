@@ -117,7 +117,7 @@ impl Song {
 
 #[derive(Debug, Default)]
 pub struct Album {
-    pub title: String,
+    pub title: &'static str,
     pub songs: Vec<&'static Song>,
 }
 
