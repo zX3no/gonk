@@ -21,7 +21,7 @@ use std::{
 
 const MIN_ACCURACY: f64 = 0.70;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Item {
     ///(Artist, Album, Name, Disc Number, Track Number)
     Song((&'static str, &'static str, &'static str, u8, u8)),
@@ -45,6 +45,7 @@ fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     }
 }
 
+//TOOD: Should all functions return options?
 trait VDB {
     ///Get all aritist names.
     fn artists(&self) -> Vec<&'static str>;
@@ -116,14 +117,14 @@ impl VDB for &'static [Song] {
         let albums = self.albums();
 
         let mut results: Vec<_> = artists
-            .par_iter()
+            .iter()
             .map(|artist| jaro(&query, Item::Artist(artist)))
             .chain(
                 albums
-                    .par_iter()
+                    .iter()
                     .map(|(artist, album)| jaro(&query, Item::Album((artist, album)))),
             )
-            .chain(self.par_iter().map(|song| {
+            .chain(self.iter().map(|song| {
                 jaro(
                     &query,
                     Item::Song((
@@ -188,15 +189,20 @@ impl VDB for BTreeMap<&'static str, Vec<Album>> {
     }
 
     fn albums(&self) -> Vec<(&'static str, &'static str)> {
-        todo!()
+        self.iter()
+            .flat_map(|(k, v)| v.iter().map(|album| (*k, album.title)))
+            .collect()
     }
 
     fn albums_by_artist(&self, artist: &str) -> Vec<Vec<&Song>> {
-        // match self.get(artist) {
-        //     Some(albums) => Some(albums.as_slice()),
-        //     None => None,
-        // }
-        todo!()
+        self.get(artist)
+            .map(|albums| {
+                albums
+                    .iter()
+                    .map(|album| album.songs.iter().map(|song| *song).collect())
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new)
     }
 
     fn album(&self, artist: &str, album: &str) -> Vec<&Song> {
@@ -230,62 +236,40 @@ impl VDB for BTreeMap<&'static str, Vec<Album>> {
     fn search(&self, query: &str) -> Vec<Item> {
         let query = query.to_lowercase();
 
-        let mut results = if query.is_empty() {
-            let mut results = Vec::new();
-            for (artist, albums) in self {
-                for album in albums {
-                    for song in &album.songs {
-                        results.push((
-                            Item::Song((
-                                artist,
-                                album.title,
-                                &song.title,
-                                song.disc_number,
-                                song.track_number,
-                            )),
-                            1.0,
-                        ))
-                    }
-
-                    results.push((Item::Album((artist, &album.title)), 1.0));
-                }
-
-                results.push((Item::Artist(artist), 1.0));
-            }
-            results
-        } else {
-            let results = RwLock::new(Vec::new());
-            self.par_iter().for_each(|(artist, albums)| {
-                for album in albums {
-                    for song in &album.songs {
-                        let song = jaro(
-                            &query,
-                            Item::Song((
-                                artist,
-                                &album.title,
-                                &song.title,
-                                song.disc_number,
-                                song.track_number,
-                            )),
-                        );
-                        results.write().unwrap().push(song);
-                    }
-                    let album = jaro(&query, Item::Album((artist, &album.title)));
-                    results.write().unwrap().push(album);
-                }
-                let artist = jaro(&query, Item::Artist(artist));
-                results.write().unwrap().push(artist);
-            });
-            RwLock::into_inner(results)
-                .unwrap()
-                .into_iter()
-                .flatten()
-                .collect()
-        };
+        let mut results: Vec<(Item, f64)> = self
+            .iter()
+            .flat_map(|(artist, albums)| {
+                albums
+                    .iter()
+                    .flat_map(|album| {
+                        album
+                            .songs
+                            .iter()
+                            .map(|song| {
+                                jaro(
+                                    &query,
+                                    Item::Song((
+                                        artist,
+                                        album.title,
+                                        &song.title,
+                                        song.disc_number,
+                                        song.track_number,
+                                    )),
+                                )
+                            })
+                            .chain(std::iter::once(jaro(
+                                &query,
+                                Item::Album((artist, &album.title)),
+                            )))
+                    })
+                    .chain(std::iter::once(jaro(&query, Item::Artist(artist))))
+            })
+            .flatten()
+            .collect();
 
         if !query.is_empty() {
             //Sort results by score.
-            results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+            results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
         }
 
         if results.len() > 40 {
@@ -542,6 +526,57 @@ mod btree {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
+    use super::VDB;
     use super::*;
-    fn vector() {}
+    static mut DB: Vec<Song> = Vec::new();
+
+    #[test]
+    fn vector() {
+        unsafe {
+            let now = Instant::now();
+            DB = crate::db::read().unwrap();
+            let slice = DB.as_slice();
+            println!("slice create{:?}", now.elapsed());
+
+            let now = Instant::now();
+            let bt = btree::create().unwrap();
+            println!("bt create {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let _artists = bt.artists();
+            println!("bt artist {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let _artists = slice.artists();
+            println!("slice artists {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let _albums = bt.albums();
+            println!("bt album {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let _albums = slice.albums();
+            println!("slice albums {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let _albums = bt.albums_by_artist("Iglooghost");
+            println!("bt album artist {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let _albums = slice.albums_by_artist("Iglooghost");
+            println!("slice album artist {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let slice_search = slice.search("test");
+            println!("slice search {:?}", now.elapsed());
+
+            let now = Instant::now();
+            let bt_search = bt.search("test");
+            println!("bt search {:?}", now.elapsed());
+
+            assert_eq!(slice_search, bt_search);
+        }
+    }
 }
