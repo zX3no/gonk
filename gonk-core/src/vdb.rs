@@ -236,36 +236,28 @@ impl VDB for BTreeMap<&'static str, Vec<Album>> {
     fn search(&self, query: &str) -> Vec<Item> {
         let query = query.to_lowercase();
 
-        let mut results: Vec<(Item, f64)> = self
-            .iter()
-            .flat_map(|(artist, albums)| {
-                albums
-                    .iter()
-                    .flat_map(|album| {
-                        album
-                            .songs
-                            .iter()
-                            .map(|song| {
-                                jaro(
-                                    &query,
-                                    Item::Song((
-                                        artist,
-                                        album.title,
-                                        &song.title,
-                                        song.disc_number,
-                                        song.track_number,
-                                    )),
-                                )
-                            })
-                            .chain(std::iter::once(jaro(
-                                &query,
-                                Item::Album((artist, &album.title)),
-                            )))
-                    })
-                    .chain(std::iter::once(jaro(&query, Item::Artist(artist))))
-            })
-            .flatten()
-            .collect();
+        let mut results = Vec::new();
+
+        for (artist, albums) in self.iter() {
+            for album in albums.iter() {
+                for song in album.songs.iter() {
+                    results.push(jaro(
+                        &query,
+                        Item::Song((
+                            &song.artist,
+                            &song.album,
+                            &song.title,
+                            song.disc_number,
+                            song.track_number,
+                        )),
+                    ));
+                }
+                results.push(jaro(&query, Item::Album((artist, album.title))));
+            }
+            results.push(jaro(&query, Item::Artist(artist)));
+        }
+
+        let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
 
         if !query.is_empty() {
             //Sort results by score.
@@ -538,7 +530,7 @@ mod tests {
             let now = Instant::now();
             DB = crate::db::read().unwrap();
             let slice = DB.as_slice();
-            println!("slice create{:?}", now.elapsed());
+            println!("slice create {:?}", now.elapsed());
 
             let now = Instant::now();
             let bt = btree::create().unwrap();
