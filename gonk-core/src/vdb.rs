@@ -112,32 +112,33 @@ impl VDB for &'static [Song] {
 
     fn search(&self, query: &str) -> Vec<Item> {
         let query = query.to_lowercase();
-
         let artists = self.artists();
         let albums = self.albums();
 
-        let mut results: Vec<_> = artists
-            .iter()
-            .map(|artist| jaro(&query, Item::Artist(artist)))
-            .chain(
-                albums
-                    .iter()
-                    .map(|(artist, album)| jaro(&query, Item::Album((artist, album)))),
-            )
-            .chain(self.iter().map(|song| {
-                jaro(
-                    &query,
-                    Item::Song((
-                        song.artist.as_str(),
-                        song.album.as_str(),
-                        song.title.as_str(),
-                        song.disc_number,
-                        song.track_number,
-                    )),
-                )
-            }))
-            .flatten()
-            .collect();
+        let mut results = Vec::new();
+
+        for ar in artists {
+            results.push(jaro(&query, Item::Artist(ar)));
+        }
+
+        for al in albums {
+            results.push(jaro(&query, Item::Album(al)));
+        }
+
+        for song in self.iter() {
+            results.push(jaro(
+                &query,
+                Item::Song((
+                    &song.artist,
+                    &song.album,
+                    &song.title,
+                    song.disc_number,
+                    song.track_number,
+                )),
+            ));
+        }
+
+        let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
 
         if !query.is_empty() {
             //Sort results by score.
@@ -146,10 +147,12 @@ impl VDB for &'static [Song] {
 
         if results.len() > 40 {
             //Remove the less accurate results.
-            results.par_drain(40..);
+            unsafe {
+                results.set_len(40);
+            }
         }
 
-        results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
+        results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
             if score_1 == score_2 {
                 match item_1 {
                     Item::Artist(_) => match item_2 {
@@ -266,10 +269,12 @@ impl VDB for BTreeMap<&'static str, Vec<Album>> {
 
         if results.len() > 40 {
             //Remove the less accurate results.
-            results.par_drain(40..);
+            unsafe {
+                results.set_len(40);
+            }
         }
 
-        results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
+        results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
             if score_1 == score_2 {
                 match item_1 {
                     Item::Artist(_) => match item_2 {
