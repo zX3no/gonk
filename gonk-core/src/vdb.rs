@@ -7,7 +7,6 @@
 use crate::db::{Album, Song};
 use crate::strsim;
 use itertools::Itertools;
-use rayon::slice::ParallelSliceMut;
 use std::{
     cmp::Ordering,
     collections::{btree_map::Entry, BTreeMap},
@@ -46,11 +45,13 @@ pub use btree::*;
 
 pub fn create() {
     unsafe {
+        //TODO: Sort songs?
         SONGS = crate::db::read().unwrap();
         btree::create();
     }
 }
 
+#[allow(dead_code)]
 mod linear {
     use super::*;
 
@@ -60,7 +61,8 @@ mod linear {
             .map(|song| song.artist.as_str())
             .collect::<Vec<&str>>();
         artists.dedup();
-        artists.into_iter().map(|s| s as &'static str).collect()
+        artists.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
+        artists
     }
 
     pub fn albums() -> Vec<(&'static str, &'static str)> {
@@ -110,10 +112,16 @@ mod linear {
 
     pub fn search(query: &str) -> Vec<Item> {
         let query = query.to_lowercase();
-        let artists = artists();
-        let albums = albums();
-
         let mut results = Vec::new();
+
+        let mut albums: Vec<_> = unsafe { &SONGS }
+            .iter()
+            .map(|song| (song.artist.as_str(), song.album.as_str()))
+            .collect();
+        albums.dedup();
+
+        let mut artists: Vec<&str> = albums.iter().map(|(artist, _)| *artist).collect();
+        artists.dedup();
 
         for ar in artists {
             results.push(jaro(&query, Item::Artist(ar)));
@@ -140,7 +148,7 @@ mod linear {
 
         if !query.is_empty() {
             //Sort results by score.
-            results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+            results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
         }
 
         if results.len() > 40 {
@@ -182,6 +190,7 @@ mod linear {
     }
 }
 
+#[allow(dead_code)]
 mod btree {
     use super::*;
 
@@ -353,5 +362,68 @@ mod btree {
         });
 
         results.into_iter().map(|(item, _)| item).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+
+    use super::*;
+
+    fn bench<F>(f: F)
+    where
+        F: Fn(),
+    {
+        let now = Instant::now();
+        for _ in 0..100 {
+            f();
+        }
+
+        println!("{:?}", now.elapsed());
+    }
+
+    #[test]
+    fn profile() {
+        unsafe {
+            SONGS = crate::db::read().unwrap();
+            btree::create();
+
+            bench(|| {
+                let _ = linear::search("test");
+            });
+
+            bench(|| {
+                let _ = btree::search("test");
+            });
+
+            bench(|| {
+                let _ = linear::artists();
+            });
+
+            bench(|| {
+                let _ = btree::artists();
+            });
+
+            bench(|| {
+                let _ = linear::album("Gospel", "the moon is a dead world");
+            });
+
+            bench(|| {
+                let _ = btree::album("Gospel", "the moon is a dead world");
+            });
+
+            bench(|| {
+                let _ = linear::albums_by_artist("Various Artists");
+            });
+
+            bench(|| {
+                let _ = btree::albums_by_artist("Various Artists");
+            });
+
+            let b = btree::albums_by_artist("Various Artists");
+            let l = linear::albums_by_artist("Various Artists");
+            assert_eq!(b.len(), l.len());
+        }
     }
 }

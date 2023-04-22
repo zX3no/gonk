@@ -2,7 +2,7 @@ use crate::widgets::{List, ListItem, ListState};
 use crate::{Frame, Widget};
 use crossterm::event::MouseEvent;
 use gonk_core::vdb;
-use gonk_core::{Album, Index, Song};
+use gonk_core::{Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
     widgets::{Block, BorderType, Borders},
