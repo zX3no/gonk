@@ -1,6 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_core::{vdb, *};
+use gonk_core::*;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -71,8 +71,6 @@ fn draw_log(f: &mut Frame) -> Rect {
     }
 }
 
-static mut VDB: vdb::Database = vdb::Database::new();
-
 const SEARCH_MARGIN: Margin = Margin {
     vertical: 6,
     horizontal: 8,
@@ -125,9 +123,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    unsafe {
-        VDB = vdb::create()?;
-    };
+    vdb::create();
 
     //Disable raw mode when the program panics.
     let orig_hook = std::panic::take_hook();
@@ -187,8 +183,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             if handle.is_finished() {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
-                unsafe { VDB = vdb::create()? };
 
+                vdb::create();
                 log::clear();
 
                 match result {
@@ -224,7 +220,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 browser::refresh(&mut browser);
-                search.results = Index::new(unsafe { vdb::search(&VDB, &search.query) }, None);
+                search.results = Index::new(vdb::search(&search.query), None);
 
                 //No need to reset scan_timer since it's reset with new scans.
                 scan_handle = None;

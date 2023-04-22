@@ -28,7 +28,7 @@ impl Search {
             mode: Mode::Search,
             results: Index::default(),
         };
-        *search.results = unsafe { vdb::search(&VDB, &search.query) };
+        *search.results = vdb::search(&search.query);
         search
     }
 }
@@ -54,7 +54,7 @@ impl Widget for Search {
 
         if search.query_changed {
             search.query_changed = !search.query_changed;
-            *search.results = unsafe { vdb::search(&VDB, &search.query) };
+            *search.results = vdb::search(&search.query);
         }
 
         let layout_margin = 1;
@@ -229,24 +229,24 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
         }
         Mode::Select => search.results.selected().map(|item| match item {
             Item::Song((artist, album, _, disc, number)) => {
-                match unsafe { vdb::song(&VDB, artist, album, *disc, *number) } {
+                match vdb::song(artist, album, *disc, *number) {
                     Some(song) => vec![song],
                     None => panic!("{item:?}"),
                 }
             }
-            Item::Album((artist, album)) => unsafe {
-                let album = vdb::album(&VDB, artist, album).unwrap();
+            Item::Album((artist, album)) => {
+                let album = vdb::album(artist, album);
                 let mut songs = Vec::new();
                 for song in &album.songs {
                     songs.push(*song);
                 }
                 songs
-            },
+            }
             Item::Artist(artist) => {
-                let artist = unsafe { vdb::artist(&VDB, artist).unwrap() };
+                let artist = vdb::albums_by_artist(artist);
                 let mut songs = Vec::new();
                 for album in artist {
-                    for song in &album.songs {
+                    for song in &album {
                         songs.push(*song);
                     }
                 }

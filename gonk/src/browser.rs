@@ -1,7 +1,7 @@
 use crate::widgets::{List, ListItem, ListState};
-use crate::{Frame, Widget, VDB};
+use crate::{Frame, Widget};
 use crossterm::event::MouseEvent;
-use gonk_core::{vdb, StaticIndex};
+use gonk_core::vdb;
 use gonk_core::{Album, Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -16,8 +16,8 @@ pub enum Mode {
 }
 
 pub struct Browser {
-    artists: Index<&'static &'static str>,
-    albums: StaticIndex<Album>,
+    artists: Index<&'static str>,
+    albums: Index<Vec<&'static Song>>,
     ///Title, (disc, number)
     songs: Index<(String, (u8, u8))>,
     pub mode: Mode,
@@ -25,17 +25,16 @@ pub struct Browser {
 
 impl Browser {
     pub fn new() -> Self {
-        let artists = Index::new(unsafe { vdb::artists(&VDB) }, Some(0));
-        let mut albums: StaticIndex<Album> = StaticIndex::default();
+        let artists = Index::new(vdb::artists(), Some(0));
+        let mut albums = Index::default();
         let mut songs = Index::default();
 
         if let Some(artist) = artists.selected() {
-            albums = StaticIndex::new(unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() });
+            albums = Index::from(vdb::albums_by_artist(artist));
 
             if let Some(album) = albums.selected() {
                 songs = Index::new(
                     album
-                        .songs
                         .iter()
                         .map(|song| {
                             (
@@ -125,13 +124,14 @@ impl Widget for Browser {
         let a: Vec<ListItem> = browser
             .artists
             .iter()
-            .map(|name| ListItem::new(**name))
+            .map(|name| ListItem::new(*name))
             .collect();
 
         let b: Vec<ListItem> = browser
             .albums
             .iter()
-            .map(|name| ListItem::new(name.title))
+            //FIXME: ???????????????????? Rip Album.title
+            .map(|name| ListItem::new(name[0].title.as_str()))
             .collect();
 
         let c: Vec<ListItem> = browser
@@ -176,8 +176,8 @@ fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> L
 pub fn refresh(browser: &mut Browser) {
     browser.mode = Mode::Artist;
 
-    browser.artists = Index::new(unsafe { vdb::artists(&VDB) }, Some(0));
-    browser.albums = StaticIndex::default();
+    browser.artists = Index::new(vdb::artists(), Some(0));
+    browser.albums = Index::default();
     browser.songs = Index::default();
 
     update_albums(browser);
@@ -194,8 +194,8 @@ pub fn update(browser: &mut Browser) {
 pub fn update_albums(browser: &mut Browser) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        let albums = unsafe { vdb::albums_by_artist(&VDB, artist).unwrap() };
-        browser.albums = StaticIndex::new(albums);
+        let albums = vdb::albums_by_artist(artist);
+        browser.albums = Index::from(albums);
         update_songs(browser);
     }
 }
@@ -203,7 +203,8 @@ pub fn update_albums(browser: &mut Browser) {
 pub fn update_songs(browser: &mut Browser) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs = unsafe { vdb::album(&VDB, artist, &album.title).unwrap() }
+            //FIXME: `&album[0].album`
+            let songs = vdb::album(artist, &album[0].album)
                 .songs
                 .iter()
                 .map(|song| {
@@ -224,16 +225,15 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
             if let Some((_, (disc, number))) = browser.songs.selected() {
                 return match browser.mode {
                     Mode::Artist => {
-                        let albums = unsafe { vdb::artist(&VDB, artist).unwrap() };
+                        let albums = vdb::albums_by_artist(artist);
                         let mut songs = Vec::new();
                         for album in albums {
-                            songs.extend(&album.songs);
+                            songs.extend(&album);
                         }
                         songs
                     }
                     Mode::Album => {
-                        //FIXME: WHAT IS THIS?
-                        let album = unsafe { vdb::album(&VDB, artist, &album.title).unwrap() };
+                        let album = vdb::album(artist, &album[0].album);
                         let mut songs = Vec::new();
                         for song in &album.songs {
                             songs.push(*song);
@@ -241,9 +241,7 @@ pub fn get_selected(browser: &Browser) -> Vec<&'static Song> {
                         songs
                     }
                     Mode::Song => {
-                        vec![unsafe {
-                            vdb::song(&VDB, artist, &album.title, *disc, *number).unwrap()
-                        }]
+                        vec![vdb::song(artist, &album[0].album, *disc, *number).unwrap()]
                     }
                 };
             }
