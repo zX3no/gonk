@@ -4,13 +4,13 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
-use crate::db::{Album, Song};
 use crate::strsim;
-use itertools::Itertools;
-use std::{
-    cmp::Ordering,
-    collections::{btree_map::Entry, BTreeMap},
+use crate::{
+    db::{Album, Song},
+    profile,
 };
+use itertools::Itertools;
+use std::cmp::Ordering;
 
 const MIN_ACCURACY: f64 = 0.70;
 
@@ -56,6 +56,7 @@ mod linear {
     use super::*;
 
     pub fn artists() -> Vec<&'static str> {
+        profile!();
         let mut artists = unsafe { &SONGS }
             .iter()
             .map(|song| song.artist.as_str())
@@ -66,6 +67,7 @@ mod linear {
     }
 
     pub fn albums() -> Vec<(&'static str, &'static str)> {
+        profile!();
         let mut albums: Vec<_> = unsafe { &SONGS }
             .iter()
             .map(|song| (song.artist.as_str(), song.album.as_str()))
@@ -75,6 +77,7 @@ mod linear {
     }
 
     pub fn albums_by_artist(artist: &str) -> Vec<Vec<&Song>> {
+        profile!();
         unsafe { &SONGS }
             .iter()
             .filter(|song| song.artist == artist)
@@ -86,6 +89,7 @@ mod linear {
     }
 
     pub fn album(artist: &str, album: &'static str) -> Album {
+        profile!();
         let songs: Vec<&Song> = unsafe { &SONGS }
             .iter()
             .filter(|song| song.artist == artist && song.album == album)
@@ -102,6 +106,7 @@ mod linear {
     }
 
     pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static Song> {
+        profile!();
         unsafe { &SONGS }.iter().find(|song| {
             song.artist == artist
                 && song.album == album
@@ -111,6 +116,7 @@ mod linear {
     }
 
     pub fn search(query: &str) -> Vec<Item> {
+        profile!();
         let query = query.to_lowercase();
         let mut results = Vec::new();
 
@@ -193,6 +199,7 @@ mod linear {
 #[allow(dead_code)]
 mod btree {
     use super::*;
+    use std::collections::BTreeMap;
 
     static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
 
@@ -202,12 +209,10 @@ mod btree {
 
         // Add songs to albums.
         for song in unsafe { &SONGS } {
-            match albums.entry((song.artist.as_str(), song.album.as_str())) {
-                Entry::Occupied(mut entry) => entry.get_mut().push(song),
-                Entry::Vacant(entry) => {
-                    entry.insert(vec![song]);
-                }
-            }
+            albums
+                .entry((song.artist.as_str(), song.album.as_str()))
+                .or_insert_with(Vec::new)
+                .push(song);
         }
 
         //Sort songs.
@@ -222,17 +227,10 @@ mod btree {
         });
 
         //Add albums to artists.
-        for ((artist, album), v) in albums {
-            let v = Album {
-                title: album,
-                songs: v,
-            };
-            match data.entry(artist) {
-                Entry::Occupied(mut entry) => entry.get_mut().push(v),
-                Entry::Vacant(entry) => {
-                    entry.insert(vec![v]);
-                }
-            }
+        for ((artist, title), songs) in albums {
+            data.entry(artist)
+                .or_insert_with(Vec::new)
+                .push(Album { title, songs });
         }
 
         //Sort albums.
@@ -244,12 +242,14 @@ mod btree {
     }
 
     pub fn artists() -> Vec<&'static str> {
+        profile!();
         let mut v: Vec<_> = unsafe { &BTREE }.keys().map(|key| *key).collect();
         v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
         v
     }
 
     pub fn albums() -> Vec<(&'static str, &'static str)> {
+        profile!();
         unsafe { &BTREE }
             .iter()
             .flat_map(|(k, v)| v.iter().map(|album| (*k, album.title)))
@@ -257,6 +257,7 @@ mod btree {
     }
 
     pub fn albums_by_artist(artist: &str) -> Vec<Vec<&'static Song>> {
+        profile!();
         unsafe { &BTREE }
             .get(artist)
             .map(|albums| {
@@ -269,6 +270,7 @@ mod btree {
     }
 
     pub fn album(artist: &str, album: &str) -> &'static Album {
+        profile!();
         if let Some(albums) = unsafe { &BTREE }.get(artist) {
             for al in albums {
                 if album == al.title {
@@ -280,6 +282,7 @@ mod btree {
     }
 
     pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static Song> {
+        profile!();
         if let Some(albums) = unsafe { &BTREE }.get(artist) {
             for al in albums {
                 if al.title == album {
@@ -296,6 +299,7 @@ mod btree {
     }
 
     pub fn search(query: &str) -> Vec<Item> {
+        profile!();
         let query = query.to_lowercase();
 
         let mut results = Vec::new();

@@ -57,6 +57,7 @@ impl Deserialize for Song {
         if s.is_empty() {
             return Err("Empty song")?;
         }
+
         //`file.lines()` will not include newlines
         //but song.to_string() will.
         let s = if s.as_bytes().last() == Some(&b'\n') {
