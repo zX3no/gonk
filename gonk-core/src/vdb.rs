@@ -21,6 +21,7 @@ const MIN_ACCURACY: f64 = 0.70;
 pub type Database = BTreeMap<String, Vec<Album>>;
 
 pub fn create() -> Result<Database, Box<dyn Error + Send + Sync>> {
+    profile!();
     let songs = db::read()?;
     let mut data: BTreeMap<String, Vec<Album>> = BTreeMap::new();
     let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
