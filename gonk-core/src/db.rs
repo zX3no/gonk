@@ -66,21 +66,16 @@ impl Deserialize for Song {
             s
         };
 
-        let mut song = Song::default();
-        //I think this is a little faster than collecting.
-        for (i, split) in s.split('\t').enumerate() {
-            match i {
-                0 => song.title = split.to_string(),
-                1 => song.album = split.to_string(),
-                2 => song.artist = split.to_string(),
-                3 => song.disc_number = split.parse::<u8>()?,
-                4 => song.track_number = split.parse::<u8>()?,
-                5 => song.path = split.to_string(),
-                6 => song.gain = split.parse::<f32>()?,
-                _ => panic!("Invalid song format: {}", s),
-            }
-        }
-        Ok(song)
+        let mut parts = s.split('\t');
+        Ok(Song {
+            title: parts.next().ok_or("Missing title")?.to_string(),
+            album: parts.next().ok_or("Missing album")?.to_string(),
+            artist: parts.next().ok_or("Missing artist")?.to_string(),
+            disc_number: parts.next().ok_or("Missing disc_number")?.parse::<u8>()?,
+            track_number: parts.next().ok_or("Missing track_number")?.parse::<u8>()?,
+            path: parts.next().ok_or("Missing path")?.to_string(),
+            gain: parts.next().ok_or("Missing gain")?.parse::<f32>()?,
+        })
     }
 }
 
@@ -404,6 +399,7 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
     };
 
     let string = unsafe { from_utf8_unchecked(&bytes) };
+
     let songs: Vec<Song> = string
         .lines()
         .map(|line| {
