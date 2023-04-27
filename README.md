@@ -80,6 +80,7 @@ gonk
 - Gonk doesn't start after an update.
 
   Run `gonk reset` to reset your database.
+  If this doesn't work, you can reset the database by deleting `%appdata%/gonk/` or `~/gonk` on linux.
 
 - If your music player has broken lines, increase your zoom level or font size.
 
