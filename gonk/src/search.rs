@@ -188,7 +188,7 @@ impl Widget for Search {
                 f.set_cursor(x, y);
             } else {
                 let len = search.query.len() as u16;
-                let max_width = area.width.saturating_sub(2);
+                let max_width = area.width.saturating_sub(3);
                 if len >= max_width {
                     f.set_cursor(x - 1 + max_width, y);
                 } else {
