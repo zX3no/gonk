@@ -130,8 +130,8 @@ impl Widget for Browser {
         let b: Vec<ListItem> = browser
             .albums
             .iter()
-            //FIXME: ???????????????????? Rip Album.title
-            .map(|name| ListItem::new(name[0].title.as_str()))
+            //FIXME: Change back to Vec<Album> so that `album.title` works.
+            .map(|name| ListItem::new(name[0].album.as_str()))
             .collect();
 
         let c: Vec<ListItem> = browser
