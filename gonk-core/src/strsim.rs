@@ -12,7 +12,7 @@ pub fn jaro_winkler(a: &str, b: &str) -> f64 {
         .count();
 
     let jaro_winkler_distance =
-        jaro_distance + (0.15 * prefix_length as f64 * (1.0 - jaro_distance));
+        jaro_distance + (0.08 * prefix_length as f64 * (1.0 - jaro_distance));
 
     jaro_winkler_distance.clamp(0.0, 1.0)
 }

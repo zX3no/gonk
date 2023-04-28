@@ -92,7 +92,6 @@ impl Settings {
                     .unwrap(),
             );
         }
-
         match Settings::read() {
             Ok(settings) => settings,
             Err(_) => Settings::default(),
