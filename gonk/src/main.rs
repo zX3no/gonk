@@ -123,8 +123,6 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    vdb::create();
-
     //Disable raw mode when the program panics.
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -184,14 +182,14 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
 
-                vdb::create();
+                let total_songs = vdb::create();
                 log::clear();
 
                 match result {
                     db::ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            db::LEN,
+                            total_songs,
                             scan_timer.elapsed().as_secs_f32()
                         );
                     }
@@ -207,7 +205,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            db::LEN.saturating_sub(len)
+                            total_songs.saturating_sub(len)
                         );
 
                         let path = gonk_path().join("gonk.log");

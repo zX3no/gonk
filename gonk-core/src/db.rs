@@ -1,6 +1,5 @@
 use crate::database_path;
 use crate::*;
-use core::fmt;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::{self, File},
@@ -9,8 +8,6 @@ use std::{
     thread::{self, JoinHandle},
 };
 use walkdir::{DirEntry, WalkDir};
-
-pub static mut LEN: usize = 0;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Song {
@@ -25,27 +22,31 @@ pub struct Song {
 
 impl Serialize for Song {
     fn serialize(&self) -> String {
+        use std::fmt::Write;
+
         let mut buffer = String::new();
-        buffer.push_str(&escape(&self.title));
-        buffer.push('\t');
-        buffer.push_str(&escape(&self.album));
-        buffer.push('\t');
-        buffer.push_str(&escape(&self.artist));
-        buffer.push('\t');
-        buffer.push_str(&self.disc_number.to_string());
-        buffer.push('\t');
-        buffer.push_str(&self.track_number.to_string());
-        buffer.push('\t');
-        buffer.push_str(&escape(&self.path));
-        buffer.push('\t');
         let gain = if self.gain == 0.0 {
-            String::from("0.0")
+            "0.0".to_string()
         } else {
             self.gain.to_string()
         };
-        buffer.push_str(&gain);
-        buffer.push('\n');
-        buffer
+
+        let result = write!(
+            &mut buffer,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            escape(&self.title),
+            escape(&self.album),
+            escape(&self.artist),
+            self.disc_number,
+            self.track_number,
+            escape(&self.path),
+            gain,
+        );
+
+        match result {
+            Ok(_) => buffer,
+            Err(err) => panic!("{err} failed to write song: {:?}", self),
+        }
     }
 }
 
@@ -120,22 +121,6 @@ pub struct Album {
 #[derive(Debug, Default)]
 pub struct Artist {
     pub albums: Vec<Album>,
-}
-
-impl fmt::Display for Song {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(
-            f,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            self.title,
-            self.album,
-            self.artist,
-            self.disc_number,
-            self.track_number,
-            self.path,
-            self.gain
-        )
-    }
 }
 
 impl TryFrom<&Path> for Song {
@@ -400,16 +385,12 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
 
     let string = unsafe { from_utf8_unchecked(&bytes) };
 
-    let songs: Vec<Song> = string
+    Ok(string
         .lines()
         .map(|line| {
             Song::deserialize(line).expect("Failed to read database. Run `gonk reset` to fix.")
         })
-        .collect();
-
-    unsafe { LEN = songs.len() };
-
-    Ok(songs)
+        .collect())
 }
 
 #[cfg(test)]
@@ -421,7 +402,7 @@ mod tests {
     #[test]
     fn string() {
         let song = Song::example();
-        let string = song.to_string();
+        let string = song.serialize();
         assert_eq!(Song::deserialize(&string).unwrap(), song);
     }
 
@@ -442,12 +423,5 @@ mod tests {
         }
         handle.join().unwrap();
         let _ = read().unwrap();
-    }
-
-    #[test]
-    fn escape() {
-        let mut song = Song::example();
-        song.title = "title\t title 2".to_string();
-        assert_ne!(song.serialize().into_bytes(), song.to_string().into_bytes());
     }
 }

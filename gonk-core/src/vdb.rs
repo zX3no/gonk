@@ -41,7 +41,7 @@ fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
 static mut SONGS: Vec<Song> = Vec::new();
 static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
 
-pub fn create() {
+pub fn create() -> usize {
     unsafe {
         SONGS = crate::db::read().unwrap();
         let mut albums: BTreeMap<(&str, &str), Vec<&Song>> = BTreeMap::new();
@@ -77,6 +77,8 @@ pub fn create() {
         BTREE.iter_mut().for_each(|(_, albums)| {
             albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
         });
+
+        SONGS.len()
     }
 }
 
