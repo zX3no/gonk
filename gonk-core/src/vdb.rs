@@ -26,6 +26,7 @@ pub enum Item {
     Artist(&'static str),
 }
 
+///https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance
 fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     let str = match input {
         Item::Artist(artist) => artist,
@@ -43,6 +44,7 @@ fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
 static mut SONGS: Vec<Song> = Vec::new();
 static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
 
+///Read the database from disk and load it into memory.
 pub fn create() -> usize {
     unsafe {
         SONGS = crate::db::read().unwrap();
@@ -84,12 +86,14 @@ pub fn create() -> usize {
     }
 }
 
+///Get all artist names.
 pub fn artists() -> Vec<&'static str> {
     let mut v: Vec<_> = unsafe { &BTREE }.keys().map(|key| *key).collect();
     v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
     v
 }
 
+///Get all albums names (Artist, Album).
 pub fn albums() -> Vec<(&'static str, &'static str)> {
     unsafe { &BTREE }
         .iter()
@@ -97,6 +101,7 @@ pub fn albums() -> Vec<(&'static str, &'static str)> {
         .collect()
 }
 
+///Get all albums by an artist.
 pub fn albums_by_artist(artist: &str) -> Vec<Vec<&'static Song>> {
     unsafe { &BTREE }
         .get(artist)
@@ -109,6 +114,7 @@ pub fn albums_by_artist(artist: &str) -> Vec<Vec<&'static Song>> {
         .unwrap_or_else(Vec::new)
 }
 
+///Get an album by artist and album name.
 pub fn album(artist: &str, album: &str) -> &'static Album {
     if let Some(albums) = unsafe { &BTREE }.get(artist) {
         for al in albums {
@@ -120,8 +126,8 @@ pub fn album(artist: &str, album: &str) -> &'static Album {
     panic!("Could not find album {} {}", artist, album);
 }
 
+///Get an individual song in the database.
 pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static Song> {
-    profile!();
     if let Some(albums) = unsafe { &BTREE }.get(artist) {
         for al in albums {
             if al.title == album {
@@ -138,106 +144,6 @@ pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static 
 }
 
 ///Search the database and return the 25 most accurate matches.
-// pub fn search(query: &str) -> Vec<Item> {
-//     let query = query.to_lowercase();
-
-//     let mut results = if query.is_empty() {
-//         let mut results = Vec::new();
-//         for (artist, albums) in unsafe { &BTREE } {
-//             for album in albums {
-//                 for song in &album.songs {
-//                     results.push((
-//                         Item::Song((
-//                             artist,
-//                             &album.title,
-//                             &song.title,
-//                             song.disc_number,
-//                             song.track_number,
-//                         )),
-//                         1.0,
-//                     ))
-//                 }
-
-//                 results.push((Item::Album((artist, &album.title)), 1.0));
-//             }
-
-//             results.push((Item::Artist(artist), 1.0));
-//         }
-//         results
-//     } else {
-//         let results = RwLock::new(Vec::new());
-//         unsafe { &BTREE }.par_iter().for_each(|(artist, albums)| {
-//             for album in albums {
-//                 for song in &album.songs {
-//                     results.write().unwrap().push(jaro(
-//                         &query,
-//                         Item::Song((
-//                             artist,
-//                             &album.title,
-//                             &song.title,
-//                             song.disc_number,
-//                             song.track_number,
-//                         )),
-//                     ));
-//                 }
-//                 results
-//                     .write()
-//                     .unwrap()
-//                     .push(jaro(&query, Item::Album((artist, &album.title))));
-//             }
-//             results
-//                 .write()
-//                 .unwrap()
-//                 .push(jaro(&query, Item::Artist(artist)));
-//         });
-//         RwLock::into_inner(results)
-//             .unwrap()
-//             .into_iter()
-//             .flatten()
-//             .collect()
-//     };
-
-//     if !query.is_empty() {
-//         //Sort results by score.
-//         results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
-//     }
-
-//     if results.len() > 40 {
-//         //Remove the less accurate results.
-//         results.par_drain(40..);
-//     }
-
-//     results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
-//         if score_1 == score_2 {
-//             match item_1 {
-//                 Item::Artist(_) => match item_2 {
-//                     Item::Song(_) | Item::Album(_) => Ordering::Less,
-//                     Item::Artist(_) => Ordering::Equal,
-//                 },
-//                 Item::Album(_) => match item_2 {
-//                     Item::Song(_) => Ordering::Less,
-//                     Item::Album(_) => Ordering::Equal,
-//                     Item::Artist(_) => Ordering::Greater,
-//                 },
-//                 Item::Song((_, _, _, disc_a, number_a)) => match item_2 {
-//                     Item::Song((_, _, _, disc_b, number_b)) => match disc_a.cmp(disc_b) {
-//                         Ordering::Less => Ordering::Less,
-//                         Ordering::Equal => number_a.cmp(number_b),
-//                         Ordering::Greater => Ordering::Greater,
-//                     },
-//                     Item::Album(_) | Item::Artist(_) => Ordering::Greater,
-//                 },
-//             }
-//         } else if score_2 > score_1 {
-//             Ordering::Equal
-//         } else {
-//             Ordering::Less
-//         }
-//     });
-
-//     results.into_iter().map(|(item, _)| item).collect()
-// }
-
 pub fn search(query: &str) -> Vec<Item> {
     profile!();
     let query = query.to_lowercase();
