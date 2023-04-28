@@ -4,8 +4,6 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
-use rayon::slice::ParallelSliceMut;
-
 use crate::strsim;
 use crate::{
     db::{Album, Song},
@@ -146,9 +144,14 @@ pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static 
 ///Search the database and return the 25 most accurate matches.
 pub fn search(query: &str) -> Vec<Item> {
     profile!();
-    let query = query.to_lowercase();
 
+    if query.is_empty() {
+        return Vec::new();
+    }
+
+    let query = query.to_lowercase();
     let mut results = Vec::new();
+
     for (artist, albums) in unsafe { &BTREE }.iter() {
         for album in albums.iter() {
             for song in album.songs.iter() {
@@ -167,12 +170,11 @@ pub fn search(query: &str) -> Vec<Item> {
         }
         results.push(jaro(&query, Item::Artist(artist)));
     }
+
     let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
 
-    if !query.is_empty() {
-        //Sort results by score.
-        results.par_sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
-    }
+    //Sort results by score.
+    results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
     if results.len() > 40 {
         //Remove the less accurate results.
@@ -181,7 +183,7 @@ pub fn search(query: &str) -> Vec<Item> {
         }
     }
 
-    results.par_sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
+    results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
         if score_1 == score_2 {
             match item_1 {
                 Item::Artist(_) => match item_2 {
