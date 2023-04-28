@@ -308,6 +308,7 @@ impl Widget for Playlist {
                     v[0],
                 );
 
+                //TODO: Underline `new` and `existing` to clarify what is happening.
                 if playlist.changed {
                     playlist.changed = false;
                     let eq = playlist
