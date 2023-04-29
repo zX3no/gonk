@@ -17,6 +17,7 @@ pub struct Settings {
     pub elapsed: f32,
     pub output_device: String,
     pub music_folder: String,
+    //TODO: Make this static so that the player can take Vec<&'static Song>?
     pub queue: Vec<Song>,
 }
 
