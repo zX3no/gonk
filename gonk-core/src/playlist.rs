@@ -1,98 +1,75 @@
-//! Muisc Playlists
+//! Music Playlists
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{
-    database_path,
-    db::{bytes_to_song, SONG_LEN},
-    Index, Song,
-};
+use crate::{database_path, escape, Deserialize, Index, Serialize, Song};
 use std::{
-    error::Error,
-    fs::{self, File},
-    io::{BufWriter, Write},
+    fs::{self},
     path::PathBuf,
-    str::from_utf8_unchecked,
 };
 use walkdir::WalkDir;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Playlist {
-    pub name: String,
-    pub path: PathBuf,
+    name: String,
+    path: PathBuf,
+
     pub songs: Index<Song>,
 }
 
-pub fn new(name: &str, songs: Vec<Song>) -> Playlist {
-    let mut path = database_path();
-    path.pop();
-    path.push(format!("{name}.playlist"));
-
-    Playlist {
-        path,
-        name: name.to_string(),
-        songs: Index::from(songs),
-    }
-}
-
-fn from_slice(bytes: &[u8]) -> Result<Playlist, Box<dyn Error + Send + Sync>> {
-    unsafe {
-        let name_len = u16::from_le_bytes(bytes[0..2].try_into().unwrap()) as usize;
-        let name = from_utf8_unchecked(&bytes[2..name_len + 2]);
-
-        let mut i = name_len + 2;
-        let mut songs = Vec::new();
-
-        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            songs.push(bytes_to_song(bytes)?);
-            i += SONG_LEN;
-        }
+impl Playlist {
+    pub fn new(name: &str, songs: Vec<Song>) -> Self {
+        let name = escape(name);
 
         let mut path = database_path();
         path.pop();
         path.push(format!("{name}.playlist"));
 
-        Ok(Playlist {
-            name: name.to_string(),
+        Self {
             path,
+            name,
             songs: Index::from(songs),
+        }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn save(&self) -> std::io::Result<()> {
+        fs::write(&self.path, self.serialize())
+    }
+    pub fn delete(&self) -> std::io::Result<()> {
+        fs::remove_file(&self.path)
+    }
+}
+
+impl Serialize for Playlist {
+    fn serialize(&self) -> String {
+        let mut buffer = String::new();
+        buffer.push_str(&self.name);
+        buffer.push('\t');
+        buffer.push_str(self.path.to_str().unwrap());
+        buffer.push('\n');
+        buffer.push_str(&self.songs.serialize());
+        buffer
+    }
+}
+
+impl Deserialize for Playlist {
+    type Error = Box<dyn std::error::Error>;
+
+    fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        let (start, end) = s.split_once('\n').ok_or("Invalid playlist")?;
+        let (name, path) = start.split_once('\t').ok_or("Invalid playlsit")?;
+
+        Ok(Self {
+            name: name.to_string(),
+            path: PathBuf::from(path),
+            songs: Index::from(Vec::<Song>::deserialize(end)?),
         })
     }
 }
 
-// pub fn extend<I: IntoIterator<Item = Song>>(&mut self, iter: I) {
-//     let iter = iter.into_iter().map(|song| RawSong::from(&song));
-//     self.songs.data.extend(iter);
-// }
-// pub fn extend_raw<I: IntoIterator<Item = RawSong>>(&mut self, iter: I) {
-//     self.songs.data.extend(iter);
-// }
-
-//TODO: Why is the file handle being reopened so much.
-pub fn save(playlist: &Playlist) -> std::io::Result<()> {
-    //Delete the contents of the file and overwrite with new settings.
-    let file = File::create(&playlist.path)?;
-    let mut writer = BufWriter::new(file);
-
-    //Convert to bytes.
-    let mut bytes = Vec::new();
-    bytes.extend((playlist.name.len() as u16).to_le_bytes());
-    bytes.extend(playlist.name.as_bytes());
-    for song in playlist.songs.iter() {
-        bytes.extend(song.to_bytes());
-    }
-
-    writer.write_all(&bytes)?;
-    writer.flush()?;
-
-    Ok(())
-}
-
-pub fn delete(playlist: &Playlist) -> std::io::Result<()> {
-    fs::remove_file(&playlist.path)
-}
-
-pub fn playlists() -> Result<Vec<Playlist>, Box<dyn Error + Send + Sync>> {
+pub fn playlists() -> Vec<Playlist> {
     let mut path = database_path();
     path.pop();
 
@@ -105,7 +82,43 @@ pub fn playlists() -> Result<Vec<Playlist>, Box<dyn Error + Send + Sync>> {
             }
             None => false,
         })
-        .flat_map(|entry| fs::read(entry.path()))
-        .map(|bytes| from_slice(bytes.as_slice()))
+        .flat_map(|entry| fs::read_to_string(entry.path()))
+        .map(|string| Playlist::deserialize(&string).unwrap())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn playlist() {
+        let playlist = Playlist::new("name", vec![Song::example(), Song::example()]);
+        let string = playlist.serialize();
+        let p = Playlist::deserialize(&string).unwrap();
+        assert_eq!(playlist, p);
+    }
+
+    #[test]
+    fn save() {
+        let playlist = Playlist::new(
+            "test",
+            vec![
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+                Song::example(),
+            ],
+        );
+        playlist.save().unwrap();
+        let playlists = playlists();
+        assert!(!playlists.is_empty());
+        playlist.delete().unwrap();
+    }
 }

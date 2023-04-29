@@ -1,45 +1,40 @@
-//! The database is split into two parts:
-//! The virtual and the physical.
-//!
 //! The physical database is a file on disk that stores song information.
 //! This information includes the artist, album, title, disc number, track number, path and replay gain.
 //!
-//! The virtual database is an in memory key value store.
+//! The virtual database stores key value pairs.
 //! It is used for quering artists, albums and songs.
-//!
-//! `Lazy` is my implementation of lazy statics.
 //!
 //! `Index` is a wrapper over a `Vec<T>` plus an index. Kind of like a circular buffer but the data is usually constant.
 //! It's useful for moving up and down the selection of a UI element.
 use std::{
     env,
     error::Error,
-    ffi::OsString,
-    fs,
-    mem::size_of,
-    ops::Range,
+    fs::{self},
     path::{Path, PathBuf},
-    str::from_utf8,
 };
 
 pub use crate::{
     db::{Album, Artist, Song},
+    // old_db::{Album, Artist, Song},
     playlist::Playlist,
 };
 pub use flac_decoder::*;
 pub use index::*;
-pub use lazy::*;
 
 pub mod db;
 pub mod flac_decoder;
 pub mod index;
-pub mod lazy;
 pub mod log;
 pub mod playlist;
 pub mod profiler;
 pub mod settings;
 pub mod strsim;
 pub mod vdb;
+
+///Escape potentially problematic strings.
+pub fn escape(input: &str) -> String {
+    input.replace('\n', "").replace('\t', "    ")
+}
 
 pub fn gonk_path() -> PathBuf {
     let gonk = if cfg!(windows) {
@@ -74,4 +69,17 @@ pub fn database_path() -> PathBuf {
     }
 
     db
+}
+
+trait Serialize {
+    fn serialize(&self) -> String;
+}
+
+trait Deserialize
+where
+    Self: Sized,
+{
+    type Error;
+
+    fn deserialize(s: &str) -> Result<Self, Self::Error>;
 }

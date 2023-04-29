@@ -1,6 +1,6 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_core::{vdb, *};
+use gonk_core::*;
 use gonk_player::Player;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -71,14 +71,12 @@ fn draw_log(f: &mut Frame) -> Rect {
     }
 }
 
-static mut VDB: vdb::Database = vdb::Database::new();
-
 const SEARCH_MARGIN: Margin = Margin {
     vertical: 6,
     horizontal: 8,
 };
 
-fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
+fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_timer = Instant::now();
@@ -125,9 +123,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    unsafe {
-        VDB = vdb::create()?;
-    }
+    vdb::create()?;
 
     //Disable raw mode when the program panics.
     let orig_hook = std::panic::take_hook();
@@ -187,15 +183,15 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
             if handle.is_finished() {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
-                unsafe { VDB = vdb::create()? };
 
+                let total_songs = vdb::create()?;
                 log::clear();
 
                 match result {
                     db::ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            db::len(),
+                            total_songs,
                             scan_timer.elapsed().as_secs_f32()
                         );
                     }
@@ -211,7 +207,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            db::len().saturating_sub(len)
+                            total_songs.saturating_sub(len)
                         );
 
                         let path = gonk_path().join("gonk.log");
@@ -224,7 +220,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 browser::refresh(&mut browser);
-                search.results = Index::new(unsafe { vdb::search(&VDB, &search.query) }, None);
+                search.results = Index::new(vdb::search(&search.query), None);
 
                 //No need to reset scan_timer since it's reset with new scans.
                 scan_handle = None;
@@ -443,8 +439,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             },
                             KeyCode::Enter if shift && searching => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    let songs: Vec<Song> = songs.into_iter().cloned().collect();
-                                    playlist::add(&mut playlist, &songs);
+                                    playlist::add(
+                                        &mut playlist,
+                                        songs.iter().map(|song| song.clone().clone()).collect(),
+                                    );
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -452,7 +450,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 if let Some(songs) = search::on_enter(&mut search) {
                                     //Swap to the queue so people can see what they added.
                                     mode = Mode::Queue;
-                                    let songs = songs.into_iter().cloned().collect();
+                                    let songs: Vec<Song> =
+                                        songs.iter().map(|song| song.clone().clone()).collect();
                                     player.add(songs);
                                 }
                             }
@@ -507,7 +506,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             } else {
                                 scan_handle = Some(db::create(persist.music_folder.clone()));
                                 scan_timer = Instant::now();
-                                playlist.lists = Index::from(gonk_core::playlist::playlists()?);
+                                playlist.lists = Index::from(gonk_core::playlist::playlists());
                             }
                         }
                     }
@@ -536,17 +535,13 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     }
                     KeyCode::Enter if shift => match mode {
                         Mode::Browser => {
-                            let songs: Vec<Song> = browser::get_selected(&browser)
-                                .into_iter()
-                                .cloned()
-                                .collect();
-                            playlist::add(&mut playlist, &songs);
+                            playlist::add(&mut playlist, browser::get_selected(&browser));
                             mode = Mode::Playlist
                         }
                         Mode::Queue => {
                             if let Some(index) = queue.ui.index() {
                                 if let Some(song) = player.songs.get(index) {
-                                    playlist::add(&mut playlist, &[song.clone()]);
+                                    playlist::add(&mut playlist, vec![song.clone()]);
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -556,11 +551,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     },
                     KeyCode::Enter => match mode {
                         Mode::Browser => {
-                            let songs = browser::get_selected(&browser)
-                                .into_iter()
-                                .cloned()
-                                .collect();
-                            player.add(songs);
+                            player.add(browser::get_selected(&browser));
                         }
                         Mode::Queue => {
                             if let Some(i) = queue.ui.index() {

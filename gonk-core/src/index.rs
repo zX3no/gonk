@@ -1,79 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-//TODO: There is probably a more generic way to do both
-#[derive(Debug)]
-pub struct StaticIndex<T: 'static> {
-    slice: &'static [T],
-    index: Option<usize>,
-}
-
-impl<T> StaticIndex<T> {
-    ///Creates a new index.
-    ///
-    ///If the data is not empty the index will start at `0`.
-    pub fn new(slice: &'static [T]) -> Self {
-        Self {
-            slice,
-            index: if slice.is_empty() { None } else { Some(0) },
-        }
-    }
-    pub fn index(&self) -> Option<usize> {
-        self.index
-    }
-    pub fn selected(&self) -> Option<&T> {
-        let Some(index) = self.index else {
-            return None;
-        };
-        self.slice.get(index)
-    }
-    pub fn up(&mut self) {
-        if self.slice.is_empty() {
-            return;
-        }
-
-        match self.index {
-            Some(0) => self.index = Some(self.slice.len() - 1),
-            Some(n) => self.index = Some(n - 1),
-            None => (),
-        }
-    }
-    pub fn down(&mut self) {
-        if self.slice.is_empty() {
-            return;
-        }
-
-        match self.index {
-            Some(n) if n + 1 < self.slice.len() => self.index = Some(n + 1),
-            Some(_) => self.index = Some(0),
-            None => (),
-        }
-    }
-}
-
-impl<T> Deref for StaticIndex<T> {
-    type Target = &'static [T];
-
-    fn deref(&self) -> &Self::Target {
-        &self.slice
-    }
-}
-
-impl<T> DerefMut for StaticIndex<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.slice
-    }
-}
-
-impl<T> Default for StaticIndex<T> {
-    fn default() -> Self {
-        Self {
-            slice: &[],
-            index: None,
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Index<T> {
     data: Vec<T>,
     index: Option<usize>,
@@ -171,6 +98,14 @@ impl<T> From<Vec<T>> for Index<T> {
     }
 }
 
+impl<'a, T> From<&'a [T]> for Index<&'a T> {
+    fn from(slice: &'a [T]) -> Self {
+        let data: Vec<&T> = slice.iter().map(|x| x).collect();
+        let index = if data.is_empty() { None } else { Some(0) };
+        Self { data, index }
+    }
+}
+
 impl<T: Clone> From<&[T]> for Index<T> {
     fn from(slice: &[T]) -> Self {
         let index = if slice.is_empty() { None } else { Some(0) };
@@ -201,5 +136,11 @@ impl<T> Deref for Index<T> {
 impl<T> DerefMut for Index<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.data
+    }
+}
+
+impl crate::Serialize for Index<crate::Song> {
+    fn serialize(&self) -> String {
+        self.data.serialize()
     }
 }

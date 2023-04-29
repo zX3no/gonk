@@ -30,10 +30,10 @@ pub struct Playlist {
 }
 
 impl Playlist {
-    pub fn new() -> std::result::Result<Self, Box<dyn Error + Send + Sync>> {
+    pub fn new() -> std::result::Result<Self, Box<dyn Error>> {
         Ok(Self {
             mode: Mode::Playlist,
-            lists: Index::from(gonk_core::playlist::playlists()?),
+            lists: Index::from(gonk_core::playlist::playlists()),
             song_buffer: Vec::new(),
             changed: false,
             search_query: String::new(),
@@ -118,7 +118,7 @@ impl Widget for Playlist {
         let items: Vec<ListItem> = playlist
             .lists
             .iter()
-            .map(|p| p.name.clone())
+            .map(|p| p.name().to_string())
             .map(ListItem::new)
             .collect();
 
@@ -308,12 +308,13 @@ impl Widget for Playlist {
                     v[0],
                 );
 
+                //TODO: Underline `new` and `existing` to clarify what is happening.
                 if playlist.changed {
                     playlist.changed = false;
                     let eq = playlist
                         .lists
                         .iter()
-                        .any(|p| p.name == playlist.search_query);
+                        .any(|p| p.name() == playlist.search_query);
                     playlist.search_result = if eq {
                         format!("Add to existing playlist: {}", playlist.search_query)
                     } else if playlist.search_query.is_empty() {
@@ -373,7 +374,7 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Popup if !playlist.song_buffer.is_empty() => {
             //Find the index of the playlist
             let name = playlist.search_query.trim().to_string();
-            let pos = playlist.lists.iter().position(|p| p.name == name);
+            let pos = playlist.lists.iter().position(|p| p.name() == name);
 
             let songs = mem::take(&mut playlist.song_buffer);
 
@@ -382,13 +383,13 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
                 let pl = &mut playlist.lists[pos];
                 pl.songs.extend(songs);
                 pl.songs.select(Some(0));
-                gonk_core::playlist::save(pl).unwrap();
+                pl.save().unwrap();
                 playlist.lists.select(Some(pos));
             } else {
                 //If the playlist does not exist create it.
                 let len = playlist.lists.len();
-                playlist.lists.push(gonk_core::playlist::new(&name, songs));
-                gonk_core::playlist::save(&playlist.lists[len]).unwrap();
+                playlist.lists.push(gonk_core::Playlist::new(&name, songs));
+                playlist.lists[len].save().unwrap();
                 playlist.lists.select(Some(len));
             }
 
@@ -414,8 +415,8 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
     }
 }
 
-pub fn add(playlist: &mut Playlist, songs: &[Song]) {
-    playlist.song_buffer = songs.to_vec();
+pub fn add(playlist: &mut Playlist, songs: Vec<Song>) {
+    playlist.song_buffer = songs;
     playlist.mode = Mode::Popup;
 }
 
@@ -425,11 +426,11 @@ fn delete_song(playlist: &mut Playlist) {
 
         if let Some(j) = selected.songs.index() {
             selected.songs.remove(j);
-            gonk_core::playlist::save(selected).unwrap();
+            selected.save().unwrap();
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                gonk_core::playlist::delete(selected).unwrap();
+                selected.delete().unwrap();
                 playlist.lists.remove_and_move(i);
                 playlist.mode = PlaylistMode::Playlist;
             }

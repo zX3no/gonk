@@ -28,7 +28,7 @@ impl Search {
             mode: Mode::Search,
             results: Index::default(),
         };
-        *search.results = unsafe { vdb::search(&VDB, &search.query) };
+        *search.results = vdb::search(&search.query);
         search
     }
 }
@@ -54,7 +54,7 @@ impl Widget for Search {
 
         if search.query_changed {
             search.query_changed = !search.query_changed;
-            *search.results = unsafe { vdb::search(&VDB, &search.query) };
+            *search.results = vdb::search(&search.query);
         }
 
         let layout_margin = 1;
@@ -107,9 +107,9 @@ impl Widget for Search {
             match item {
                 Item::Song((artist, album, name, _, _)) => Row::new(vec![
                     selected_cell,
-                    Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
-                    Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
-                    Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+                    Cell::from(*name).style(Style::default().fg(TITLE)),
+                    Cell::from(*album).style(Style::default().fg(ALBUM)),
+                    Cell::from(*artist).style(Style::default().fg(ARTIST)),
                 ]),
                 Item::Album((artist, album)) => Row::new(vec![
                     selected_cell,
@@ -121,7 +121,7 @@ impl Widget for Search {
                         ),
                     ])),
                     Cell::from("-"),
-                    Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+                    Cell::from(*artist).style(Style::default().fg(ARTIST)),
                 ]),
                 Item::Artist(artist) => Row::new(vec![
                     selected_cell,
@@ -188,7 +188,7 @@ impl Widget for Search {
                 f.set_cursor(x, y);
             } else {
                 let len = search.query.len() as u16;
-                let max_width = area.width.saturating_sub(2);
+                let max_width = area.width.saturating_sub(3);
                 if len >= max_width {
                     f.set_cursor(x - 1 + max_width, y);
                 } else {
@@ -229,26 +229,13 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
         }
         Mode::Select => search.results.selected().map(|item| match item {
             Item::Song((artist, album, _, disc, number)) => {
-                match unsafe { vdb::song(&VDB, artist, album, *disc, *number) } {
-                    Some(song) => vec![song],
-                    None => panic!("{item:?}"),
-                }
+                vec![vdb::song(artist, album, *disc, *number).unwrap()]
             }
-            Item::Album((artist, album)) => unsafe { vdb::album(&VDB, artist, album) }
-                .unwrap()
-                .songs
+            Item::Album((artist, album)) => vdb::album(artist, album).songs.clone(),
+            Item::Artist(artist) => vdb::albums_by_artist(artist)
                 .iter()
+                .flat_map(|album| album.songs.iter().map(|song| *song))
                 .collect(),
-            Item::Artist(artist) => {
-                let artist = unsafe { vdb::artist(&VDB, artist).unwrap() };
-                let mut songs = Vec::new();
-                for album in artist {
-                    for song in &album.songs {
-                        songs.push(song);
-                    }
-                }
-                songs
-            }
         }),
     }
 }

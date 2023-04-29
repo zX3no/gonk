@@ -2,26 +2,70 @@
 //!
 //! Stores the volume, state of the queue and output device
 //!
-use crate::{
-    db::{bytes_to_song, SONG_LEN},
-    *,
-};
+use crate::*;
 use std::{
     fs::File,
     io::{BufWriter, Read, Seek, Write},
-    mem::size_of,
 };
 
-static mut FILE: Option<File> = None;
+pub static mut FILE: Option<File> = None;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Settings {
     pub volume: u8,
     pub index: u16,
     pub elapsed: f32,
     pub output_device: String,
     pub music_folder: String,
+    //TODO: Make this static so that the player can take Vec<&'static Song>?
     pub queue: Vec<Song>,
+}
+
+impl Serialize for Settings {
+    fn serialize(&self) -> String {
+        let mut buffer = String::new();
+        buffer.push_str(&self.volume.to_string());
+        buffer.push('\t');
+        buffer.push_str(&self.index.to_string());
+        buffer.push('\t');
+        buffer.push_str(&self.elapsed.to_string());
+        buffer.push('\t');
+        buffer.push_str(&escape(&self.output_device));
+        buffer.push('\t');
+        buffer.push_str(&escape(&self.music_folder));
+        buffer.push('\n');
+        buffer.push_str(&self.queue.serialize());
+        buffer
+    }
+}
+
+impl Deserialize for Settings {
+    type Error = Box<dyn Error>;
+
+    fn deserialize(s: &str) -> Result<Self, Self::Error> {
+        let (start, end) = s.split_once('\n').ok_or("Invalid settings")?;
+        let split: Vec<&str> = start.split('\t').collect();
+        let music_folder = if split.len() == 4 {
+            String::new()
+        } else {
+            split[4].to_string()
+        };
+
+        let queue = if end.is_empty() {
+            Vec::new()
+        } else {
+            Vec::<Song>::deserialize(end)?
+        };
+
+        Ok(Self {
+            volume: split[0].parse::<u8>()?,
+            index: split[1].parse::<u16>()?,
+            elapsed: split[2].parse::<f32>()?,
+            output_device: split[3].to_string(),
+            music_folder,
+            queue,
+        })
+    }
 }
 
 impl Default for Settings {
@@ -55,79 +99,36 @@ impl Settings {
         }
     }
 
-    pub fn read() -> Result<Settings, Box<dyn Error + Send + Sync>> {
-        // let bytes = fs::read(settings_path())?;
-        let mut bytes = Vec::new();
-        let _ = unsafe { FILE.as_ref().unwrap().read_to_end(&mut bytes)? };
-
-        let volume = bytes.first().ok_or("Volume is invalid.")?;
-
-        let slice = bytes.get(1..3).ok_or("Index is invalid.")?;
-        let index = u16::from_le_bytes(slice.try_into()?);
-
-        let slice = bytes.get(3..7).ok_or("Elapsed is invalid.")?;
-        let elapsed = f32::from_le_bytes(slice.try_into()?);
-
-        let slice = bytes.get(7..9).ok_or("Output length device is invalid")?;
-        let output_device_len = u16::from_le_bytes(slice.try_into()?) as usize + 9;
-        let slice = bytes
-            .get(9..output_device_len)
-            .ok_or("Ouput device is invalid")?;
-        let output_device = from_utf8(slice)?.to_string();
-
-        let slice = bytes
-            .get(output_device_len..output_device_len + 2)
-            .ok_or("Music folder length is invalid")?;
-        let music_folder_len = u16::from_le_bytes(slice.try_into()?) as usize;
-
-        let start = output_device_len + size_of::<u16>();
-        let slice = &bytes
-            .get(start..start + music_folder_len)
-            .ok_or("Music folder is invalid")?;
-        let music_folder = from_utf8(slice)?.to_string();
-
-        let mut queue = Vec::new();
-        let mut i = start + music_folder_len;
-        while let Some(bytes) = bytes.get(i..i + SONG_LEN) {
-            let song = bytes_to_song(bytes)?;
-            queue.push(song);
-            i += SONG_LEN;
+    pub fn read() -> Result<Settings, Box<dyn Error>> {
+        unsafe {
+            let mut string = String::new();
+            FILE.as_ref().unwrap().read_to_string(&mut string)?;
+            Settings::deserialize(&string)
         }
-
-        Ok(Settings {
-            index,
-            volume: *volume,
-            output_device,
-            music_folder,
-            elapsed,
-            queue,
-        })
     }
 
-    pub fn save(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
         unsafe {
             FILE.as_ref().unwrap().set_len(0)?;
             FILE.as_ref().unwrap().rewind()?;
+            let mut writer = BufWriter::new(&*FILE.as_ref().unwrap());
+            writer.write_all(self.serialize().as_bytes())?;
+            writer.flush()?;
         };
 
-        let mut writer = unsafe { BufWriter::new(&*FILE.as_ref().unwrap()) };
-
-        writer.write_all(&[self.volume])?;
-        writer.write_all(&self.index.to_le_bytes())?;
-        writer.write_all(&self.elapsed.to_le_bytes())?;
-
-        writer.write_all(&(self.output_device.len() as u16).to_le_bytes())?;
-        writer.write_all(self.output_device.as_bytes())?;
-
-        writer.write_all(&(self.music_folder.len() as u16).to_le_bytes())?;
-        writer.write_all(self.music_folder.as_bytes())?;
-
-        for song in &self.queue {
-            writer.write_all(&song.to_bytes())?;
-        }
-
-        writer.flush()?;
-
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings() {
+        let settings = Settings::new();
+        let string = settings.serialize();
+        let s = Settings::deserialize(&string).unwrap();
+        assert_eq!(settings, s);
     }
 }
