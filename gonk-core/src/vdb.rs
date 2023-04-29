@@ -43,9 +43,9 @@ static mut SONGS: Vec<Song> = Vec::new();
 static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
 
 ///Read the database from disk and load it into memory.
-pub fn create() -> usize {
+pub fn create() -> Result<usize, Box<dyn std::error::Error>> {
     unsafe {
-        SONGS = crate::db::read().unwrap();
+        SONGS = crate::db::read()?;
         let mut albums: BTreeMap<(&str, &str), Vec<&Song>> = BTreeMap::new();
 
         //Add songs to albums.
@@ -80,7 +80,7 @@ pub fn create() -> usize {
             albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
         });
 
-        SONGS.len()
+        Ok(SONGS.len())
     }
 }
 
@@ -100,16 +100,9 @@ pub fn albums() -> Vec<(&'static str, &'static str)> {
 }
 
 ///Get all albums by an artist.
-pub fn albums_by_artist(artist: &str) -> Vec<Vec<&'static Song>> {
-    unsafe { &BTREE }
-        .get(artist)
-        .map(|albums| {
-            albums
-                .iter()
-                .map(|album| album.songs.iter().map(|song| *song).collect())
-                .collect()
-        })
-        .unwrap_or_else(Vec::new)
+pub fn albums_by_artist(artist: &str) -> &'static [Album] {
+    //TODO: No idea how to unwrap_or_default() this.
+    unsafe { &BTREE }.get(artist).map(|albums| albums).unwrap()
 }
 
 ///Get an album by artist and album name.

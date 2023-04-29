@@ -98,6 +98,14 @@ impl<T> From<Vec<T>> for Index<T> {
     }
 }
 
+impl<'a, T> From<&'a [T]> for Index<&'a T> {
+    fn from(slice: &'a [T]) -> Self {
+        let data: Vec<&T> = slice.iter().map(|x| x).collect();
+        let index = if data.is_empty() { None } else { Some(0) };
+        Self { data, index }
+    }
+}
+
 impl<T: Clone> From<&[T]> for Index<T> {
     fn from(slice: &[T]) -> Self {
         let index = if slice.is_empty() { None } else { Some(0) };

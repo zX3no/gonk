@@ -229,29 +229,13 @@ pub fn on_enter(search: &mut Search) -> Option<Vec<&'static Song>> {
         }
         Mode::Select => search.results.selected().map(|item| match item {
             Item::Song((artist, album, _, disc, number)) => {
-                match vdb::song(artist, album, *disc, *number) {
-                    Some(song) => vec![song],
-                    None => panic!("{item:?}"),
-                }
+                vec![vdb::song(artist, album, *disc, *number).unwrap()]
             }
-            Item::Album((artist, album)) => {
-                let album = vdb::album(artist, album);
-                let mut songs = Vec::new();
-                for song in &album.songs {
-                    songs.push(*song);
-                }
-                songs
-            }
-            Item::Artist(artist) => {
-                let artist = vdb::albums_by_artist(artist);
-                let mut songs = Vec::new();
-                for album in artist {
-                    for song in &album {
-                        songs.push(*song);
-                    }
-                }
-                songs
-            }
+            Item::Album((artist, album)) => vdb::album(artist, album).songs.clone(),
+            Item::Artist(artist) => vdb::albums_by_artist(artist)
+                .iter()
+                .flat_map(|album| album.songs.iter().map(|song| *song))
+                .collect(),
         }),
     }
 }

@@ -76,7 +76,7 @@ const SEARCH_MARGIN: Margin = Margin {
     horizontal: 8,
 };
 
-fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
+fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_timer = Instant::now();
@@ -123,7 +123,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    vdb::create();
+    vdb::create()?;
 
     //Disable raw mode when the program panics.
     let orig_hook = std::panic::take_hook();
@@ -184,7 +184,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
 
-                let total_songs = vdb::create();
+                let total_songs = vdb::create()?;
                 log::clear();
 
                 match result {
@@ -439,8 +439,10 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                             },
                             KeyCode::Enter if shift && searching => {
                                 if let Some(songs) = search::on_enter(&mut search) {
-                                    let songs: Vec<Song> = songs.into_iter().cloned().collect();
-                                    playlist::add(&mut playlist, &songs);
+                                    playlist::add(
+                                        &mut playlist,
+                                        songs.iter().map(|song| song.clone().clone()).collect(),
+                                    );
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -448,7 +450,8 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                                 if let Some(songs) = search::on_enter(&mut search) {
                                     //Swap to the queue so people can see what they added.
                                     mode = Mode::Queue;
-                                    let songs = songs.into_iter().cloned().collect();
+                                    let songs: Vec<Song> =
+                                        songs.iter().map(|song| song.clone().clone()).collect();
                                     player.add(songs);
                                 }
                             }
@@ -532,17 +535,13 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     }
                     KeyCode::Enter if shift => match mode {
                         Mode::Browser => {
-                            let songs: Vec<Song> = browser::get_selected(&browser)
-                                .into_iter()
-                                .cloned()
-                                .collect();
-                            playlist::add(&mut playlist, &songs);
+                            playlist::add(&mut playlist, browser::get_selected(&browser));
                             mode = Mode::Playlist
                         }
                         Mode::Queue => {
                             if let Some(index) = queue.ui.index() {
                                 if let Some(song) = player.songs.get(index) {
-                                    playlist::add(&mut playlist, &[song.clone()]);
+                                    playlist::add(&mut playlist, vec![song.clone()]);
                                     mode = Mode::Playlist;
                                 }
                             }
@@ -552,11 +551,7 @@ fn main() -> std::result::Result<(), Box<dyn Error + Send + Sync>> {
                     },
                     KeyCode::Enter => match mode {
                         Mode::Browser => {
-                            let songs = browser::get_selected(&browser)
-                                .into_iter()
-                                .cloned()
-                                .collect();
-                            player.add(songs);
+                            player.add(browser::get_selected(&browser));
                         }
                         Mode::Queue => {
                             if let Some(i) = queue.ui.index() {

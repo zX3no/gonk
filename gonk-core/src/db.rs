@@ -112,7 +112,7 @@ impl Song {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Album {
     pub title: &'static str,
     pub songs: Vec<&'static Song>,
@@ -371,7 +371,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
     })
 }
 
-pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
+pub unsafe fn read() -> Result<Vec<Song>, Box<dyn Error>> {
     profile!();
     let bytes = match fs::read(database_path()) {
         Ok(bytes) => bytes,
@@ -383,14 +383,10 @@ pub fn read() -> Result<Vec<Song>, Box<dyn Error + Send + Sync>> {
         }
     };
 
-    let string = unsafe { from_utf8_unchecked(&bytes) };
-
-    Ok(string
+    from_utf8_unchecked(&bytes)
         .lines()
-        .map(|line| {
-            Song::deserialize(line).expect("Failed to read database. Run `gonk reset` to fix.")
-        })
-        .collect())
+        .map(|line| Song::deserialize(line))
+        .collect()
 }
 
 #[cfg(test)]
@@ -422,6 +418,6 @@ mod tests {
             thread::sleep(Duration::from_millis(1));
         }
         handle.join().unwrap();
-        let _ = read().unwrap();
+        let _ = unsafe { read().unwrap() };
     }
 }

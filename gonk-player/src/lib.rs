@@ -47,6 +47,7 @@ pub enum State {
 }
 
 pub struct Player {
+    //TODO: Should this be Index<'static Song>?
     pub songs: Index<Song>,
     backend: Box<dyn Backend>,
     output_device: Device,

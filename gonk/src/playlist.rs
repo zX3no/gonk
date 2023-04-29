@@ -30,7 +30,7 @@ pub struct Playlist {
 }
 
 impl Playlist {
-    pub fn new() -> std::result::Result<Self, Box<dyn Error + Send + Sync>> {
+    pub fn new() -> std::result::Result<Self, Box<dyn Error>> {
         Ok(Self {
             mode: Mode::Playlist,
             lists: Index::from(gonk_core::playlist::playlists()),
@@ -415,8 +415,8 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
     }
 }
 
-pub fn add(playlist: &mut Playlist, songs: &[Song]) {
-    playlist.song_buffer = songs.to_vec();
+pub fn add(playlist: &mut Playlist, songs: Vec<Song>) {
+    playlist.song_buffer = songs;
     playlist.mode = Mode::Popup;
 }
 
