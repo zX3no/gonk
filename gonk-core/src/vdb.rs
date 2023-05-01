@@ -45,6 +45,10 @@ static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
 ///Read the database from disk and load it into memory.
 pub fn create() -> Result<usize, Box<dyn Error>> {
     unsafe {
+        if !BTREE.is_empty() {
+            todo!();
+        }
+
         let bytes = fs::read(database_path())?;
         let songs: Vec<Song> = from_utf8_unchecked(&bytes)
             .lines()
