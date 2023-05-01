@@ -27,7 +27,7 @@ impl Playlist {
 
         Self {
             path,
-            name,
+            name: String::from(name),
             songs: Index::from(songs),
         }
     }

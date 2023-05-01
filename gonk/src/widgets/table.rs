@@ -13,7 +13,7 @@ pub struct Cell<'a> {
 }
 
 impl<'a> Cell<'a> {
-    pub fn style(mut self, style: Style) -> Self {
+    pub const fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
@@ -39,6 +39,7 @@ pub struct Row<'a> {
     bottom_margin: u16,
 }
 
+//TODO: Make const for `HELP`?
 impl<'a> Row<'a> {
     pub fn new<T>(cells: T) -> Self
     where

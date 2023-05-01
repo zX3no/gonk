@@ -7,6 +7,7 @@
 //! `Index` is a wrapper over a `Vec<T>` plus an index. Kind of like a circular buffer but the data is usually constant.
 //! It's useful for moving up and down the selection of a UI element.
 use std::{
+    borrow::Cow,
     env,
     error::Error,
     fs::{self},
@@ -32,8 +33,12 @@ pub mod strsim;
 pub mod vdb;
 
 ///Escape potentially problematic strings.
-pub fn escape(input: &str) -> String {
-    input.replace('\n', "").replace('\t', "    ")
+pub fn escape(input: &str) -> Cow<str> {
+    if input.contains('\n') || input.contains('\t') {
+        Cow::Owned(input.replace('\n', "").replace('\t', "    "))
+    } else {
+        Cow::Borrowed(input)
+    }
 }
 
 pub fn gonk_path() -> PathBuf {

@@ -1,7 +1,8 @@
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
-use gonk_core::*;
+use gonk_core::{vdb::Database, *};
 use gonk_player::Player;
+use once_cell::sync::Lazy;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
@@ -12,10 +13,13 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-use tui::widgets::Block;
-use tui::widgets::BorderType;
-use tui::widgets::Borders;
-use tui::widgets::Paragraph;
+use tui::{
+    style::*,
+    widgets::{Block, BorderType, Borders, Paragraph},
+};
+
+use crate::widgets::{Cell, Row, Table};
+
 use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
@@ -33,20 +37,133 @@ const ALBUM: Color = Color::Magenta;
 const ARTIST: Color = Color::Blue;
 const SEEKER: Color = Color::White;
 
+static HELP: Lazy<Vec<Row>> = Lazy::new(|| {
+    vec![
+        Row::new(vec![
+            Cell::from("Move Up").style(Style::default().fg(Color::Cyan)),
+            Cell::from("K / UP"),
+        ]),
+        Row::new(vec![
+            Cell::from("Move Down").style(Style::default().fg(Color::Cyan)),
+            Cell::from("J / Down"),
+        ]),
+        Row::new(vec![
+            Cell::from("Move Left").style(Style::default().fg(Color::Cyan)),
+            Cell::from("H / Left"),
+        ]),
+        Row::new(vec![
+            Cell::from("Move Right").style(Style::default().fg(Color::Cyan)),
+            Cell::from("L / Right"),
+        ]),
+        Row::new(vec![
+            Cell::from("Volume Up").style(Style::default().fg(Color::Green)),
+            Cell::from("W"),
+        ]),
+        Row::new(vec![
+            Cell::from("Volume Down").style(Style::default().fg(Color::Green)),
+            Cell::from("S"),
+        ]),
+        Row::new(vec![
+            Cell::from("Mute").style(Style::default().fg(Color::Green)),
+            Cell::from("Z"),
+        ]),
+        Row::new(vec![
+            Cell::from("Play/Pause").style(Style::default().fg(Color::Magenta)),
+            Cell::from("Space"),
+        ]),
+        Row::new(vec![
+            Cell::from("Previous").style(Style::default().fg(Color::Magenta)),
+            Cell::from("A"),
+        ]),
+        Row::new(vec![
+            Cell::from("Next").style(Style::default().fg(Color::Magenta)),
+            Cell::from("D"),
+        ]),
+        Row::new(vec![
+            Cell::from("Seek -10s").style(Style::default().fg(Color::Magenta)),
+            Cell::from("Q"),
+        ]),
+        Row::new(vec![
+            Cell::from("Seek 10s").style(Style::default().fg(Color::Magenta)),
+            Cell::from("E"),
+        ]),
+        Row::new(vec![
+            Cell::from("Queue").style(Style::default().fg(Color::Blue)),
+            Cell::from("1"),
+        ]),
+        Row::new(vec![
+            Cell::from("Browser").style(Style::default().fg(Color::Blue)),
+            Cell::from("2"),
+        ]),
+        Row::new(vec![
+            Cell::from("Playlists").style(Style::default().fg(Color::Blue)),
+            Cell::from("3"),
+        ]),
+        Row::new(vec![
+            Cell::from("Settings").style(Style::default().fg(Color::Blue)),
+            Cell::from("4"),
+        ]),
+        Row::new(vec![
+            Cell::from("Search").style(Style::default().fg(Color::Blue)),
+            Cell::from("/"),
+        ]),
+        Row::new(vec![
+            Cell::from("Exit Search").style(Style::default().fg(Color::Blue)),
+            Cell::from("Escape"),
+        ]),
+        Row::new(vec![
+            Cell::from("Add song to queue").style(Style::default().fg(Color::Cyan)),
+            Cell::from("Enter"),
+        ]),
+        Row::new(vec![
+            Cell::from("Add song to playlist").style(Style::default().fg(Color::Cyan)),
+            Cell::from("Shift + Enter"),
+        ]),
+        Row::new(vec![
+            Cell::from("Move song margin").style(Style::default().fg(Color::Green)),
+            Cell::from("F1 / Shift + F1"),
+        ]),
+        Row::new(vec![
+            Cell::from("Move album margin").style(Style::default().fg(Color::Green)),
+            Cell::from("F2 / Shift + F2"),
+        ]),
+        Row::new(vec![
+            Cell::from("Move artist margin").style(Style::default().fg(Color::Green)),
+            Cell::from("F3 / Shift + F3"),
+        ]),
+        Row::new(vec![
+            Cell::from("Update database").style(Style::default().fg(Color::Yellow)),
+            Cell::from("U"),
+        ]),
+        Row::new(vec![
+            Cell::from("Quit player").style(Style::default().fg(Color::Yellow)),
+            Cell::from("Ctrl + C"),
+        ]),
+        Row::new(vec![
+            Cell::from("Clear queue").style(Style::default().fg(Color::Red)),
+            Cell::from("C"),
+        ]),
+        Row::new(vec![
+            Cell::from("Clear except playing").style(Style::default().fg(Color::Red)),
+            Cell::from("Shift + C"),
+        ]),
+        Row::new(vec![
+            Cell::from("Delete song/playlist").style(Style::default().fg(Color::Red)),
+            Cell::from("X"),
+        ]),
+        Row::new(vec![
+            Cell::from("Delete without confirmation").style(Style::default().fg(Color::Red)),
+            Cell::from("Shift + X"),
+        ]),
+    ]
+});
+
 #[derive(PartialEq, Eq, Clone)]
 pub enum Mode {
     Browser,
     Queue,
     Playlist,
     Settings,
-}
-
-pub trait Widget {
-    fn up(&mut self);
-    fn down(&mut self);
-    fn left(&mut self);
-    fn right(&mut self);
-    fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>);
 }
 
 fn draw_log(f: &mut Frame) -> Rect {
@@ -123,8 +240,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
     }
 
-    vdb::create()?;
-
     //Disable raw mode when the program panics.
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -158,13 +273,22 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         persist.elapsed,
     );
 
+    let mut db = Database::new();
+
     //Somehow the easiest way of doing this.
     let mut queue = Queue::new(ui_index, addr_of_mut!(player));
-
-    let mut browser = Browser::new();
+    let mut browser = Browser::new(&db);
     let mut playlist = Playlist::new()?;
     let mut settings = Settings::new(&persist.output_device);
-    let mut search = Search::new();
+
+    // let mut search = Search::new(&db);
+    let mut search = Search {
+        query: String::new(),
+        query_changed: false,
+        mode: search::Mode::Search,
+        results: Index::default(),
+    };
+    // *search.results = db.search(&search.query);
 
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
@@ -184,14 +308,14 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 let handle = scan_handle.take().unwrap();
                 let result = handle.join().unwrap();
 
-                let total_songs = vdb::create()?;
+                db = Database::new();
                 log::clear();
 
                 match result {
                     db::ScanResult::Completed => {
                         log!(
                             "Finished adding {} files in {:.2} seconds.",
-                            total_songs,
+                            db.len,
                             scan_timer.elapsed().as_secs_f32()
                         );
                     }
@@ -207,7 +331,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                         log!(
                             "Added {} files with {len} error{s}. {dir}",
-                            total_songs.saturating_sub(len)
+                            db.len.saturating_sub(len)
                         );
 
                         let path = gonk_path().join("gonk.log");
@@ -219,8 +343,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     }
                 }
 
-                browser::refresh(&mut browser);
-                search.results = Index::new(vdb::search(&search.query), None);
+                browser::refresh(&mut browser, &db);
+                // search.results = Index::new(db.search(&search.query), None);
 
                 //No need to reset scan_timer since it's reset with new scans.
                 scan_handle = None;
@@ -262,67 +386,23 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
-        let input = match mode {
-            Mode::Browser => &mut browser as &mut dyn Widget,
-            Mode::Queue => &mut queue as &mut dyn Widget,
-            Mode::Playlist => &mut playlist as &mut dyn Widget,
-            Mode::Settings => &mut settings as &mut dyn Widget,
-        };
-
-        let _ = terminal.draw(|f| {
+        terminal.draw(|f| {
             let top = draw_log(f);
-            input.draw(f, top, None);
+
+            match mode {
+                Mode::Browser => browser::draw(&mut browser, f, top, None),
+                Mode::Queue => queue::draw(&mut queue, f, top, None),
+                Mode::Playlist => playlist::draw(&mut playlist, f, top, None),
+                Mode::Settings => settings::draw(&mut settings, f, top),
+            }
 
             if help {
-                use tui::style::*;
-                use tui::widgets::*;
                 let area = top.inner(&SEARCH_MARGIN);
                 f.render_widget(tui::widgets::Clear, area);
                 let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
 
                 //TODO: This is hard to read because the gap between command and key is large.
-                //TODO: Make const and move out of main.
-                #[rustfmt::skip]
-                let rows = vec![
-                    Row::new(vec![Cell::from("Move Up")   .style(Style::default().fg(Color::Cyan)) ,Cell::from("K / UP")]),
-                    Row::new(vec![Cell::from("Move Down") .style(Style::default().fg(Color::Cyan)) ,Cell::from("J / Down")]),
-                    Row::new(vec![Cell::from("Move Left") .style(Style::default().fg(Color::Cyan)) ,Cell::from("H / Left")]),
-                    Row::new(vec![Cell::from("Move Right").style(Style::default().fg(Color::Cyan)) ,Cell::from("L / Right")]),
-
-                    Row::new(vec![Cell::from("Volume Up")  .style(Style::default().fg(Color::Green)), Cell::from("W")]),
-                    Row::new(vec![Cell::from("Volume Down").style(Style::default().fg(Color::Green)), Cell::from("S")]),
-                    Row::new(vec![Cell::from("Mute")       .style(Style::default().fg(Color::Green)), Cell::from("Z")]),
-
-                    Row::new(vec![Cell::from("Play/Pause").style(Style::default().fg(Color::Magenta)), Cell::from("Space")]),
-                    Row::new(vec![Cell::from("Previous")  .style(Style::default().fg(Color::Magenta)), Cell::from("A")]),
-                    Row::new(vec![Cell::from("Next")      .style(Style::default().fg(Color::Magenta)), Cell::from("D")]),
-                    Row::new(vec![Cell::from("Seek -10s") .style(Style::default().fg(Color::Magenta)), Cell::from("Q")]),
-                    Row::new(vec![Cell::from("Seek 10s")  .style(Style::default().fg(Color::Magenta)), Cell::from("E")]),
-
-                    Row::new(vec![Cell::from("Queue")      .style(Style::default().fg(Color::Blue)), Cell::from("1")]),
-                    Row::new(vec![Cell::from("Browser")    .style(Style::default().fg(Color::Blue)), Cell::from("2")]),
-                    Row::new(vec![Cell::from("Playlists")  .style(Style::default().fg(Color::Blue)), Cell::from("3")]),
-                    Row::new(vec![Cell::from("Settings")   .style(Style::default().fg(Color::Blue)), Cell::from("4")]),
-                    Row::new(vec![Cell::from("Search")     .style(Style::default().fg(Color::Blue)), Cell::from("/")]),
-                    Row::new(vec![Cell::from("Exit Search").style(Style::default().fg(Color::Blue)), Cell::from("Escape")]),
-
-                    Row::new(vec![Cell::from("Add song to queue")   .style(Style::default().fg(Color::Cyan)), Cell::from("Enter")]),
-                    Row::new(vec![Cell::from("Add song to playlist").style(Style::default().fg(Color::Cyan)), Cell::from("Shift + Enter")]),
-
-                    Row::new(vec![Cell::from("Move song margin")  .style(Style::default().fg(Color::Green)), Cell::from("F1 / Shift + F1")]),
-                    Row::new(vec![Cell::from("Move album margin") .style(Style::default().fg(Color::Green)), Cell::from("F2 / Shift + F2")]),
-                    Row::new(vec![Cell::from("Move artist margin").style(Style::default().fg(Color::Green)), Cell::from("F3 / Shift + F3")]),
-
-                    Row::new(vec![Cell::from("Update database").style(Style::default().fg(Color::Yellow)), Cell::from("U")]),
-                    Row::new(vec![Cell::from("Quit player")    .style(Style::default().fg(Color::Yellow)), Cell::from("Ctrl + C")]),
-
-                    Row::new(vec![Cell::from("Clear queue")                .style(Style::default().fg(Color::Red)), Cell::from("C")]),
-                    Row::new(vec![Cell::from("Clear except playing")       .style(Style::default().fg(Color::Red)), Cell::from("Shift + C")]),
-                    Row::new(vec![Cell::from("Delete song/playlist")       .style(Style::default().fg(Color::Red))       , Cell::from("X")]),
-                    Row::new(vec![Cell::from("Delete without confirmation").style(Style::default().fg(Color::Red)), Cell::from("Shift + X")]),
-                ];
-
-                let table = Table::new(rows)
+                let table = Table::new(&HELP)
                     .header(
                         Row::new(["Command", "Key"])
                             .style(
@@ -333,7 +413,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             .bottom_margin(1),
                     )
                     .block(
-                        Block::default().title("Help:")
+                        Block::default()
+                            .title("Help:")
                             .borders(Borders::ALL)
                             .border_type(BorderType::Rounded),
                     )
@@ -341,9 +422,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                 f.render_widget(table, area);
             } else if searching {
-                search.draw(f, top, None);
+                // search::draw(&mut search, f, top, None, &db);
             }
-        });
+        })?;
 
         if !event::poll(Duration::from_millis(2))? {
             continue;
@@ -351,18 +432,35 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         match event::read()? {
             Event::Mouse(mouse_event) if !help => match mouse_event.kind {
-                MouseEventKind::ScrollUp if searching => search.up(),
-                MouseEventKind::ScrollUp => input.up(),
-                MouseEventKind::ScrollDown if searching => search.down(),
-                MouseEventKind::ScrollDown => input.down(),
+                MouseEventKind::ScrollUp if searching => search::up(&mut search),
+                MouseEventKind::ScrollUp => match mode {
+                    Mode::Browser => browser::up(&mut browser, &db),
+                    Mode::Queue => queue::up(&mut queue),
+                    Mode::Playlist => playlist::up(&mut playlist),
+                    Mode::Settings => settings::up(&mut settings),
+                },
+                MouseEventKind::ScrollDown if searching => search::down(&mut search),
+                MouseEventKind::ScrollDown => match mode {
+                    Mode::Browser => browser::down(&mut browser, &db),
+                    Mode::Queue => queue::down(&mut queue),
+                    Mode::Playlist => playlist::down(&mut playlist),
+                    Mode::Settings => settings::down(&mut settings),
+                },
                 MouseEventKind::Down(_) => {
                     terminal.draw(|f| {
                         let top = draw_log(f);
                         let event = if searching { None } else { Some(mouse_event) };
-                        input.draw(f, top, event);
+
+                        match mode {
+                            Mode::Browser => browser::draw(&mut browser, f, top, event),
+                            Mode::Queue => browser::draw(&mut browser, f, top, event),
+                            Mode::Playlist => browser::draw(&mut browser, f, top, event),
+                            Mode::Settings => browser::draw(&mut browser, f, top, event),
+                        }
 
                         if searching {
-                            search.draw(f, top, Some(mouse_event));
+                            // search::draw(&mut search, f, top, Some(mouse_event), &db);
+                            todo!();
                         }
                     })?;
                 }
@@ -402,10 +500,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                                     search.query_changed = true;
                                 }
                             }
-                            KeyCode::Up | KeyCode::Char('k') => search.up(),
-                            KeyCode::Down | KeyCode::Char('j') => search.down(),
-                            KeyCode::Left | KeyCode::Char('h') => search.left(),
-                            KeyCode::Right | KeyCode::Char('l') => search.right(),
+                            KeyCode::Up | KeyCode::Char('k') => search::up(&mut search),
+                            KeyCode::Down | KeyCode::Char('j') => search::down(&mut search),
                             KeyCode::Backspace => match search.mode {
                                 SearchMode::Search if !search.query.is_empty() => {
                                     if control {
@@ -438,7 +534,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                                 }
                             },
                             KeyCode::Enter if shift && searching => {
-                                if let Some(songs) = search::on_enter(&mut search) {
+                                if let Some(songs) = search::on_enter(&mut search, &db) {
                                     playlist::add(
                                         &mut playlist,
                                         songs.iter().map(|song| song.clone().clone()).collect(),
@@ -447,7 +543,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                                 }
                             }
                             KeyCode::Enter => {
-                                if let Some(songs) = search::on_enter(&mut search) {
+                                if let Some(songs) = search::on_enter(&mut search, &db) {
                                     //Swap to the queue so people can see what they added.
                                     mode = Mode::Queue;
                                     let songs: Vec<Song> =
@@ -535,7 +631,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     }
                     KeyCode::Enter if shift => match mode {
                         Mode::Browser => {
-                            playlist::add(&mut playlist, browser::get_selected(&browser));
+                            playlist::add(&mut playlist, browser::get_selected(&browser, &db));
                             mode = Mode::Playlist
                         }
                         Mode::Queue => {
@@ -551,7 +647,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     },
                     KeyCode::Enter => match mode {
                         Mode::Browser => {
-                            player.add(browser::get_selected(&browser));
+                            player.add(browser::get_selected(&browser, &db));
                         }
                         Mode::Queue => {
                             if let Some(i) = queue.ui.index() {
@@ -559,7 +655,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             }
                         }
                         Mode::Settings => {
-                            if let Some(device) = settings.selected() {
+                            if let Some(device) = settings::selected(&mut settings) {
                                 let device = device.to_string();
                                 player.set_output_device(&device);
                                 settings.current_device = device.clone();
@@ -573,20 +669,37 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             playlist::on_backspace(&mut playlist, control)
                         }
                     }
-
                     KeyCode::Char('1') => mode = Mode::Queue,
                     KeyCode::Char('2') => mode = Mode::Browser,
                     KeyCode::Char('3') => mode = Mode::Playlist,
                     KeyCode::Char('4') => mode = Mode::Settings,
-
                     KeyCode::F(1) => queue::constraint(&mut queue, 0, shift),
                     KeyCode::F(2) => queue::constraint(&mut queue, 1, shift),
                     KeyCode::F(3) => queue::constraint(&mut queue, 2, shift),
-
-                    KeyCode::Up | KeyCode::Char('k') => input.up(),
-                    KeyCode::Down | KeyCode::Char('j') => input.down(),
-                    KeyCode::Left | KeyCode::Char('h') => input.left(),
-                    KeyCode::Right | KeyCode::Char('l') => input.right(),
+                    KeyCode::Up | KeyCode::Char('k') => match mode {
+                        Mode::Browser => browser::up(&mut browser, &db),
+                        Mode::Queue => queue::up(&mut queue),
+                        Mode::Playlist => playlist::up(&mut playlist),
+                        Mode::Settings => settings::up(&mut settings),
+                    },
+                    KeyCode::Down | KeyCode::Char('j') => match mode {
+                        Mode::Browser => browser::down(&mut browser, &db),
+                        Mode::Queue => queue::down(&mut queue),
+                        Mode::Playlist => playlist::down(&mut playlist),
+                        Mode::Settings => settings::down(&mut settings),
+                    },
+                    KeyCode::Left | KeyCode::Char('h') => match mode {
+                        Mode::Browser => browser::left(&mut browser),
+                        Mode::Queue => (),
+                        Mode::Playlist => playlist::left(&mut playlist),
+                        Mode::Settings => (),
+                    },
+                    KeyCode::Right | KeyCode::Char('l') => match mode {
+                        Mode::Browser => browser::right(&mut browser),
+                        Mode::Queue => (),
+                        Mode::Playlist => playlist::right(&mut playlist),
+                        Mode::Settings => (),
+                    },
                     _ => (),
                 }
             }
@@ -605,7 +718,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         LeaveAlternateScreen,
         DisableMouseCapture
     )?;
-
     gonk_core::profiler::print();
 
     Ok(())

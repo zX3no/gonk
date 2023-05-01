@@ -10,22 +10,34 @@ use crate::{
     profile,
 };
 use std::collections::BTreeMap;
-use std::{cmp::Ordering, error::Error, fs, str::from_utf8_unchecked};
+use std::{cmp::Ordering, fs, str::from_utf8_unchecked};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn db() {
+        let db = Database::new();
+        dbg!(db.artists());
+        dbg!(db.search("test"));
+    }
+}
 
 const MIN_ACCURACY: f64 = 0.70;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Item {
+pub enum Item<'a> {
     ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((&'static str, &'static str, &'static str, u8, u8)),
+    Song((&'a str, &'a str, &'a str, u8, u8)),
     ///(Artist, Album)
-    Album((&'static str, &'static str)),
+    Album((&'a str, &'a str)),
     ///(Artist)
-    Artist(&'static str),
+    Artist(&'a str),
 }
 
 ///https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance
-fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
+fn jaro<'a>(query: &str, input: Item<'a>) -> Result<(Item<'a>, f64), (Item<'a>, f64)> {
     let str = match input {
         Item::Artist(artist) => artist,
         Item::Album((_, album)) => album,
@@ -39,29 +51,28 @@ fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     }
 }
 
-static mut SONGS: Vec<Song> = Vec::new();
-static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
+pub struct Database {
+    btree: BTreeMap<String, Vec<Album>>,
+    pub len: usize,
+}
 
-///Read the database from disk and load it into memory.
-pub fn create() -> Result<usize, Box<dyn Error>> {
-    unsafe {
-        if !BTREE.is_empty() {
-            todo!();
-        }
-
-        let bytes = fs::read(database_path())?;
-        let songs: Vec<Song> = from_utf8_unchecked(&bytes)
+impl Database {
+    ///Read the database from disk and load it into memory.
+    pub fn new() -> Self {
+        let bytes = fs::read(database_path()).unwrap();
+        let songs: Vec<Song> = unsafe { from_utf8_unchecked(&bytes) }
             .lines()
             .flat_map(|line| Song::deserialize(line))
             .collect();
-        SONGS = songs;
 
-        let mut albums: BTreeMap<(&str, &str), Vec<&Song>> = BTreeMap::new();
+        let len = songs.len();
+        let mut btree: BTreeMap<String, Vec<Album>> = BTreeMap::new();
+        let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
 
         //Add songs to albums.
-        for song in &SONGS {
+        for song in songs.into_iter() {
             albums
-                .entry((song.artist.as_str(), song.album.as_str()))
+                .entry((song.artist.clone(), song.album.clone()))
                 .or_insert_with(Vec::new)
                 .push(song);
         }
@@ -79,140 +90,139 @@ pub fn create() -> Result<usize, Box<dyn Error>> {
 
         //Add albums to artists.
         for ((artist, title), songs) in albums {
-            BTREE
+            btree
                 .entry(artist)
                 .or_insert_with(Vec::new)
                 .push(Album { title, songs });
         }
 
         //Sort albums.
-        BTREE.iter_mut().for_each(|(_, albums)| {
+        btree.iter_mut().for_each(|(_, albums)| {
             albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
         });
 
-        Ok(SONGS.len())
+        Self { btree, len }
     }
-}
 
-///Get all artist names.
-pub fn artists() -> Vec<&'static str> {
-    let mut v: Vec<_> = unsafe { &BTREE }.keys().map(|key| *key).collect();
-    v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
-    v
-}
+    ///Get all artist names.
+    pub fn artists(&self) -> Vec<&String> {
+        let mut v: Vec<_> = self.btree.keys().collect();
+        v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
+        v
+    }
 
-///Get all albums names (Artist, Album).
-pub fn albums() -> Vec<(&'static str, &'static str)> {
-    unsafe { &BTREE }
-        .iter()
-        .flat_map(|(k, v)| v.iter().map(|album| (*k, album.title)))
-        .collect()
-}
+    ///Get all albums names (Artist, Album).
+    // pub fn albums(&self) -> Vec<(&str, &str)> {
+    //     let mut vec = Vec::new();
+    //     for (k, v) in self.btree.iter() {
+    //         for album in v {
+    //             vec.push((k.as_str(), album.title.as_str()))
+    //         }
+    //     }
+    //     vec
+    // }
 
-///Get all albums by an artist.
-pub fn albums_by_artist(artist: &str) -> &'static [Album] {
-    //TODO: No idea how to unwrap_or_default() this.
-    unsafe { &BTREE }.get(artist).map(|albums| albums).unwrap()
-}
+    ///Get all albums by an artist.
+    pub fn albums_by_artist(&self, artist: &str) -> &[Album] {
+        self.btree.get(artist).map(|albums| albums).unwrap()
+    }
 
-///Get an album by artist and album name.
-pub fn album(artist: &str, album: &str) -> &'static Album {
-    if let Some(albums) = unsafe { &BTREE }.get(artist) {
-        for al in albums {
-            if album == al.title {
-                return al;
+    ///Get an album by artist and album name.
+    pub fn album(&self, artist: &str, album: &str) -> &Album {
+        if let Some(albums) = self.btree.get(artist) {
+            for al in albums {
+                if album == al.title {
+                    return al;
+                }
             }
         }
+        panic!("Could not find album {} {}", artist, album);
     }
-    panic!("Could not find album {} {}", artist, album);
-}
 
-///Get an individual song in the database.
-pub fn song(artist: &str, album: &str, disc: u8, number: u8) -> Option<&'static Song> {
-    if let Some(albums) = unsafe { &BTREE }.get(artist) {
-        for al in albums {
+    ///Get an individual song in the database.
+    pub fn song(&self, artist: &str, album: &str, disc: u8, number: u8) -> &Song {
+        for al in self.btree.get(artist).unwrap() {
             if al.title == album {
                 for song in &al.songs {
                     if song.disc_number == disc && song.track_number == number {
-                        return Some(song);
+                        return song;
                     }
                 }
             }
         }
+        unreachable!();
     }
 
-    None
-}
+    ///Search the database and return the 25 most accurate matches.
+    pub fn search(&self, query: &str) -> Vec<Item> {
+        profile!();
 
-///Search the database and return the 25 most accurate matches.
-pub fn search(query: &str) -> Vec<Item> {
-    profile!();
+        if query.is_empty() {
+            return Vec::new();
+        }
 
-    if query.is_empty() {
-        return Vec::new();
-    }
+        let query = query.to_lowercase();
+        let mut results = Vec::new();
 
-    let query = query.to_lowercase();
-    let mut results = Vec::new();
-
-    for (artist, albums) in unsafe { &BTREE }.iter() {
-        for album in albums.iter() {
-            for song in album.songs.iter() {
-                results.push(jaro(
-                    &query,
-                    Item::Song((
-                        &song.artist,
-                        &song.album,
-                        &song.title,
-                        song.disc_number,
-                        song.track_number,
-                    )),
-                ));
+        for (artist, albums) in self.btree.iter() {
+            for album in albums.iter() {
+                for song in album.songs.iter() {
+                    results.push(jaro(
+                        &query,
+                        Item::Song((
+                            &song.artist,
+                            &song.album,
+                            &song.title,
+                            song.disc_number,
+                            song.track_number,
+                        )),
+                    ));
+                }
+                results.push(jaro(&query, Item::Album((artist, &album.title))));
             }
-            results.push(jaro(&query, Item::Album((artist, album.title))));
+            results.push(jaro(&query, Item::Artist(artist)));
         }
-        results.push(jaro(&query, Item::Artist(artist)));
-    }
 
-    let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
+        let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
 
-    //Sort results by score.
-    results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+        //Sort results by score.
+        results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
-    if results.len() > 40 {
-        //Remove the less accurate results.
-        unsafe {
-            results.set_len(40);
+        if results.len() > 40 {
+            //Remove the less accurate results.
+            unsafe {
+                results.set_len(40);
+            }
         }
-    }
 
-    results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
-        if score_1 == score_2 {
-            match item_1 {
-                Item::Artist(_) => match item_2 {
-                    Item::Song(_) | Item::Album(_) => Ordering::Less,
-                    Item::Artist(_) => Ordering::Equal,
-                },
-                Item::Album(_) => match item_2 {
-                    Item::Song(_) => Ordering::Less,
-                    Item::Album(_) => Ordering::Equal,
-                    Item::Artist(_) => Ordering::Greater,
-                },
-                Item::Song((_, _, _, disc_a, number_a)) => match item_2 {
-                    Item::Song((_, _, _, disc_b, number_b)) => match disc_a.cmp(disc_b) {
-                        Ordering::Less => Ordering::Less,
-                        Ordering::Equal => number_a.cmp(number_b),
-                        Ordering::Greater => Ordering::Greater,
+        results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
+            if score_1 == score_2 {
+                match item_1 {
+                    Item::Artist(_) => match item_2 {
+                        Item::Song(_) | Item::Album(_) => Ordering::Less,
+                        Item::Artist(_) => Ordering::Equal,
                     },
-                    Item::Album(_) | Item::Artist(_) => Ordering::Greater,
-                },
+                    Item::Album(_) => match item_2 {
+                        Item::Song(_) => Ordering::Less,
+                        Item::Album(_) => Ordering::Equal,
+                        Item::Artist(_) => Ordering::Greater,
+                    },
+                    Item::Song((_, _, _, disc_a, number_a)) => match item_2 {
+                        Item::Song((_, _, _, disc_b, number_b)) => match disc_a.cmp(disc_b) {
+                            Ordering::Less => Ordering::Less,
+                            Ordering::Equal => number_a.cmp(number_b),
+                            Ordering::Greater => Ordering::Greater,
+                        },
+                        Item::Album(_) | Item::Artist(_) => Ordering::Greater,
+                    },
+                }
+            } else if score_2 > score_1 {
+                Ordering::Equal
+            } else {
+                Ordering::Less
             }
-        } else if score_2 > score_1 {
-            Ordering::Equal
-        } else {
-            Ordering::Less
-        }
-    });
+        });
 
-    results.into_iter().map(|(item, _)| item).collect()
+        results.into_iter().map(|(item, _)| item).collect()
+    }
 }

@@ -1,5 +1,4 @@
-use crate::{widgets::*, Frame, Widget};
-use crossterm::event::MouseEvent;
+use crate::{widgets::*, Frame};
 use gonk_player::{default_device, devices, Device};
 use tui::{
     layout::Rect,
@@ -31,52 +30,42 @@ impl Settings {
             current_device,
         }
     }
+}
 
-    pub fn selected(&self) -> Option<&str> {
-        if let Some(index) = self.index {
-            if let Some(device) = self.devices.get(index) {
-                return Some(&device.name);
-            }
+pub fn selected(settings: &mut Settings) -> Option<&str> {
+    if let Some(index) = settings.index {
+        if let Some(device) = settings.devices.get(index) {
+            return Some(&device.name);
         }
-        None
+    }
+    None
+}
+
+pub fn up(settings: &mut Settings) {
+    if settings.devices.is_empty() {
+        return;
+    }
+
+    match settings.index {
+        Some(0) => settings.index = Some(settings.devices.len() - 1),
+        Some(n) => settings.index = Some(n - 1),
+        None => (),
     }
 }
 
-impl Widget for Settings {
-    fn up(&mut self) {
-        if self.devices.is_empty() {
-            return;
-        }
-
-        match self.index {
-            Some(0) => self.index = Some(self.devices.len() - 1),
-            Some(n) => self.index = Some(n - 1),
-            None => (),
-        }
+pub fn down(settings: &mut Settings) {
+    if settings.devices.is_empty() {
+        return;
     }
 
-    fn down(&mut self) {
-        if self.devices.is_empty() {
-            return;
-        }
-
-        match self.index {
-            Some(n) if n + 1 < self.devices.len() => self.index = Some(n + 1),
-            Some(_) => self.index = Some(0),
-            None => (),
-        }
-    }
-
-    fn left(&mut self) {}
-
-    fn right(&mut self) {}
-
-    fn draw(&mut self, f: &mut Frame, area: Rect, _: Option<MouseEvent>) {
-        draw(self, area, f);
+    match settings.index {
+        Some(n) if n + 1 < settings.devices.len() => settings.index = Some(n + 1),
+        Some(_) => settings.index = Some(0),
+        None => (),
     }
 }
 
-pub fn draw(settings: &mut Settings, area: Rect, f: &mut Frame) {
+pub fn draw(settings: &mut Settings, f: &mut Frame, area: Rect) {
     let devices: Vec<&str> = settings
         .devices
         .iter()

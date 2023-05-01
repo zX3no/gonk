@@ -1,7 +1,7 @@
 use crate::widgets::{List, ListItem, ListState};
-use crate::{Frame, Widget};
+use crate::Frame;
 use crossterm::event::MouseEvent;
-use gonk_core::{vdb, Album};
+use gonk_core::{vdb::Database, Album};
 use gonk_core::{Index, Song};
 use tui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -16,21 +16,21 @@ pub enum Mode {
 }
 
 pub struct Browser {
-    artists: Index<&'static str>,
-    albums: Index<&'static Album>,
+    artists: Index<String>,
+    albums: Index<Album>,
     ///Title, (disc, track)
     songs: Index<(String, (u8, u8))>,
     pub mode: Mode,
 }
 
 impl Browser {
-    pub fn new() -> Self {
-        let artists = Index::new(vdb::artists(), Some(0));
-        let mut albums: Index<&'static Album> = Index::default();
+    pub fn new(db: &Database) -> Self {
+        let artists = Index::new(db.artists().into_iter().cloned().collect(), Some(0));
+        let mut albums: Index<Album> = Index::default();
         let mut songs = Index::default();
 
         if let Some(artist) = artists.selected() {
-            albums = Index::from(vdb::albums_by_artist(artist));
+            albums = Index::from(db.albums_by_artist(artist).clone());
             if let Some(album) = albums.selected() {
                 songs = Index::from(
                     album
@@ -56,104 +56,101 @@ impl Browser {
     }
 }
 
-impl Widget for Browser {
-    fn up(&mut self) {
-        match self.mode {
-            Mode::Artist => self.artists.up(),
-            Mode::Album => self.albums.up(),
-            Mode::Song => self.songs.up(),
+pub fn up(browser: &mut Browser, db: &Database) {
+    match browser.mode {
+        Mode::Artist => browser.artists.up(),
+        Mode::Album => browser.albums.up(),
+        Mode::Song => browser.songs.up(),
+    }
+    update(browser, db);
+}
+
+pub fn down(browser: &mut Browser, db: &Database) {
+    match browser.mode {
+        Mode::Artist => browser.artists.down(),
+        Mode::Album => browser.albums.down(),
+        Mode::Song => browser.songs.down(),
+    }
+    update(browser, db);
+}
+
+pub fn left(browser: &mut Browser) {
+    match browser.mode {
+        Mode::Artist => (),
+        Mode::Album => browser.mode = Mode::Artist,
+        Mode::Song => browser.mode = Mode::Album,
+    }
+}
+
+pub fn right(browser: &mut Browser) {
+    match browser.mode {
+        Mode::Artist => browser.mode = Mode::Album,
+        Mode::Album => browser.mode = Mode::Song,
+        Mode::Song => (),
+    }
+}
+
+pub fn draw(browser: &mut Browser, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
+    let size = area.width / 3;
+    let rem = area.width % 3;
+
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(size),
+            Constraint::Length(size),
+            Constraint::Length(size + rem),
+        ])
+        .split(area);
+
+    if let Some(event) = mouse_event {
+        let rect = Rect {
+            x: event.column,
+            y: event.row,
+            ..Default::default()
+        };
+        if rect.intersects(chunks[2]) {
+            browser.mode = Mode::Song;
+        } else if rect.intersects(chunks[1]) {
+            browser.mode = Mode::Album;
+        } else if rect.intersects(chunks[0]) {
+            browser.mode = Mode::Artist;
         }
-        update(self);
     }
 
-    fn down(&mut self) {
-        match self.mode {
-            Mode::Artist => self.artists.down(),
-            Mode::Album => self.albums.down(),
-            Mode::Song => self.songs.down(),
-        }
-        update(self);
-    }
+    let a: Vec<ListItem> = browser
+        .artists
+        .iter()
+        .map(|artist| ListItem::new(artist.as_str()))
+        .collect();
 
-    fn left(&mut self) {
-        match self.mode {
-            Mode::Artist => (),
-            Mode::Album => self.mode = Mode::Artist,
-            Mode::Song => self.mode = Mode::Album,
-        }
-    }
+    let b: Vec<ListItem> = browser
+        .albums
+        .iter()
+        .map(|album| ListItem::new(album.title.as_str()))
+        .collect();
 
-    fn right(&mut self) {
-        match self.mode {
-            Mode::Artist => self.mode = Mode::Album,
-            Mode::Album => self.mode = Mode::Song,
-            Mode::Song => (),
-        }
-    }
+    let c: Vec<ListItem> = browser
+        .songs
+        .iter()
+        .map(|(title, _)| ListItem::new(title.as_str()))
+        .collect();
 
-    fn draw(&mut self, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
-        let browser = self;
-        let size = area.width / 3;
-        let rem = area.width % 3;
+    let artists = list("─Aritst", &a, browser.mode == Mode::Artist);
+    let albums = list("─Album", &b, browser.mode == Mode::Album);
+    let songs = list("─Song", &c, browser.mode == Mode::Song);
 
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(size),
-                Constraint::Length(size),
-                Constraint::Length(size + rem),
-            ])
-            .split(area);
-
-        if let Some(event) = mouse_event {
-            let rect = Rect {
-                x: event.column,
-                y: event.row,
-                ..Default::default()
-            };
-            if rect.intersects(chunks[2]) {
-                browser.mode = Mode::Song;
-            } else if rect.intersects(chunks[1]) {
-                browser.mode = Mode::Album;
-            } else if rect.intersects(chunks[0]) {
-                browser.mode = Mode::Artist;
-            }
-        }
-
-        let a: Vec<ListItem> = browser
-            .artists
-            .iter()
-            .map(|artist| ListItem::new(*artist))
-            .collect();
-
-        let b: Vec<ListItem> = browser
-            .albums
-            .iter()
-            .map(|album| ListItem::new(album.title))
-            .collect();
-
-        let c: Vec<ListItem> = browser
-            .songs
-            .iter()
-            .map(|(title, _)| ListItem::new(title.as_str()))
-            .collect();
-
-        let artists = list("─Aritst", &a, browser.mode == Mode::Artist);
-        let albums = list("─Album", &b, browser.mode == Mode::Album);
-        let songs = list("─Song", &c, browser.mode == Mode::Song);
-
-        f.render_stateful_widget(
-            artists,
-            chunks[0],
-            &mut ListState::new(browser.artists.index()),
-        );
-        f.render_stateful_widget(
-            albums,
-            chunks[1],
-            &mut ListState::new(browser.albums.index()),
-        );
-        f.render_stateful_widget(songs, chunks[2], &mut ListState::new(browser.songs.index()));
-    }
+    f.render_stateful_widget(
+        artists,
+        chunks[0],
+        &mut ListState::new(browser.artists.index()),
+    );
+    f.render_stateful_widget(
+        albums,
+        chunks[1],
+        &mut ListState::new(browser.albums.index()),
+    );
+    f.render_stateful_widget(songs, chunks[2], &mut ListState::new(browser.songs.index()));
 }
 
 fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
@@ -171,36 +168,37 @@ fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> L
     }
 }
 
-pub fn refresh(browser: &mut Browser) {
+pub fn refresh(browser: &mut Browser, db: &Database) {
     browser.mode = Mode::Artist;
 
-    browser.artists = Index::new(vdb::artists(), Some(0));
+    browser.artists = Index::new(db.artists().into_iter().cloned().collect(), Some(0));
     browser.albums = Index::default();
     browser.songs = Index::default();
 
-    update_albums(browser);
+    update_albums(browser, db);
 }
 
-pub fn update(browser: &mut Browser) {
+pub fn update(browser: &mut Browser, db: &Database) {
     match browser.mode {
-        Mode::Artist => update_albums(browser),
-        Mode::Album => update_songs(browser),
+        Mode::Artist => update_albums(browser, db),
+        Mode::Album => update_songs(browser, db),
         Mode::Song => (),
     }
 }
 
-pub fn update_albums(browser: &mut Browser) {
+pub fn update_albums(browser: &mut Browser, db: &Database) {
     //Update the album based on artist selection
     if let Some(artist) = browser.artists.selected() {
-        browser.albums = Index::from(vdb::albums_by_artist(artist));
-        update_songs(browser);
+        browser.albums = Index::from(db.albums_by_artist(artist));
+        update_songs(browser, db);
     }
 }
 
-pub fn update_songs(browser: &mut Browser) {
+pub fn update_songs(browser: &mut Browser, db: &Database) {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
-            let songs: Vec<(String, (u8, u8))> = vdb::album(artist, &album.title)
+            let songs: Vec<(String, (u8, u8))> = db
+                .album(artist, &album.title)
                 .songs
                 .iter()
                 .map(|song| {
@@ -215,25 +213,24 @@ pub fn update_songs(browser: &mut Browser) {
     }
 }
 
-pub fn get_selected(browser: &Browser) -> Vec<Song> {
+pub fn get_selected(browser: &Browser, db: &Database) -> Vec<Song> {
     if let Some(artist) = browser.artists.selected() {
         if let Some(album) = browser.albums.selected() {
             if let Some((_, (disc, number))) = browser.songs.selected() {
                 return match browser.mode {
-                    Mode::Artist => vdb::albums_by_artist(artist)
+                    Mode::Artist => db
+                        .albums_by_artist(artist)
                         .iter()
                         .flat_map(|album| album.songs.iter().map(|song| song.clone().clone()))
                         .collect(),
-                    Mode::Album => vdb::album(artist, &album.title)
+                    Mode::Album => db
+                        .album(artist, &album.title)
                         .songs
                         .iter()
-                        .map(|song| *song)
                         .cloned()
                         .collect(),
                     Mode::Song => {
-                        vec![vdb::song(artist, album.title, *disc, *number)
-                            .unwrap()
-                            .clone()]
+                        vec![db.song(artist, &album.title, *disc, *number).clone()]
                     }
                 };
             }

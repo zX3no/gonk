@@ -113,8 +113,8 @@ impl Song {
 
 #[derive(Debug, Default, Clone)]
 pub struct Album {
-    pub title: &'static str,
-    pub songs: Vec<&'static Song>,
+    pub title: String,
+    pub songs: Vec<Song>,
 }
 
 #[derive(Debug, Default)]

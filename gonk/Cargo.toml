@@ -17,3 +17,4 @@ unicode-width = "0.1.10"
 rayon = "1.6.0"
 gonk-player = { version = "0.2.0", path = "../gonk-player" }
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
+once_cell = "1.17.1"
