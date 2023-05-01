@@ -4,13 +4,13 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
-use crate::strsim;
+use crate::{database_path, strsim, Deserialize};
 use crate::{
     db::{Album, Song},
     profile,
 };
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::{cmp::Ordering, error::Error, fs, str::from_utf8_unchecked};
 
 const MIN_ACCURACY: f64 = 0.70;
 
@@ -43,9 +43,15 @@ static mut SONGS: Vec<Song> = Vec::new();
 static mut BTREE: BTreeMap<&str, Vec<Album>> = BTreeMap::new();
 
 ///Read the database from disk and load it into memory.
-pub fn create() -> Result<usize, Box<dyn std::error::Error>> {
+pub fn create() -> Result<usize, Box<dyn Error>> {
     unsafe {
-        SONGS = crate::db::read()?;
+        let bytes = fs::read(database_path())?;
+        let songs: Vec<Song> = from_utf8_unchecked(&bytes)
+            .lines()
+            .flat_map(|line| Song::deserialize(line))
+            .collect();
+        SONGS = songs;
+
         let mut albums: BTreeMap<(&str, &str), Vec<&Song>> = BTreeMap::new();
 
         //Add songs to albums.

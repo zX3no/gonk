@@ -4,7 +4,6 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    str::from_utf8_unchecked,
     thread::{self, JoinHandle},
 };
 use walkdir::{DirEntry, WalkDir};
@@ -164,71 +163,53 @@ impl TryFrom<&Path> for Song {
 
             let mut metadata_revision = probe.format.metadata();
             let mut metadata = probe.metadata.get();
+            let mut m = None;
 
-            //TODO: WTF IS THIS???
-            let metadata = match metadata_revision.skip_to_latest() {
-                Some(metadata) => metadata,
-                None => match &mut metadata {
-                    Some(metadata) => match metadata.skip_to_latest() {
-                        Some(metadata) => metadata,
-                        None => {
-                            return Ok(Song {
-                                title,
-                                album,
-                                artist,
-                                disc_number,
-                                track_number,
-                                path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
-                                gain,
-                            });
-                        }
-                    },
-                    None => {
-                        return Ok(Song {
-                            title,
-                            album,
-                            artist,
-                            disc_number,
-                            track_number,
-                            path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
-                            gain,
-                        });
-                    }
-                },
+            if let Some(metadata) = metadata_revision.skip_to_latest() {
+                m = Some(metadata);
             };
 
-            for tag in metadata.tags() {
-                if let Some(std_key) = tag.std_key {
-                    match std_key {
-                        StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
-                        StandardTagKey::Artist if artist == "Unknown Artist" => {
-                            artist = tag.value.to_string()
-                        }
-                        StandardTagKey::Album => album = tag.value.to_string(),
-                        StandardTagKey::TrackTitle => title = tag.value.to_string(),
-                        StandardTagKey::TrackNumber => {
-                            let num = tag.value.to_string();
-                            if let Some((num, _)) = num.split_once('/') {
-                                track_number = num.parse().unwrap_or(1);
-                            } else {
-                                track_number = num.parse().unwrap_or(1);
+            if let Some(metadata) = &mut metadata {
+                if let Some(metadata) = metadata.skip_to_latest() {
+                    m = Some(metadata)
+                };
+            }
+
+            if let Some(metadata) = m {
+                for tag in metadata.tags() {
+                    if let Some(std_key) = tag.std_key {
+                        match std_key {
+                            StandardTagKey::AlbumArtist => artist = tag.value.to_string(),
+                            StandardTagKey::Artist if artist == "Unknown Artist" => {
+                                artist = tag.value.to_string()
                             }
-                        }
-                        StandardTagKey::DiscNumber => {
-                            let num = tag.value.to_string();
-                            if let Some((num, _)) = num.split_once('/') {
-                                disc_number = num.parse().unwrap_or(1);
-                            } else {
-                                disc_number = num.parse().unwrap_or(1);
+                            StandardTagKey::Album => album = tag.value.to_string(),
+                            StandardTagKey::TrackTitle => title = tag.value.to_string(),
+                            StandardTagKey::TrackNumber => {
+                                let num = tag.value.to_string();
+                                if let Some((num, _)) = num.split_once('/') {
+                                    track_number = num.parse().unwrap_or(1);
+                                } else {
+                                    track_number = num.parse().unwrap_or(1);
+                                }
                             }
+                            StandardTagKey::DiscNumber => {
+                                let num = tag.value.to_string();
+                                if let Some((num, _)) = num.split_once('/') {
+                                    disc_number = num.parse().unwrap_or(1);
+                                } else {
+                                    disc_number = num.parse().unwrap_or(1);
+                                }
+                            }
+                            StandardTagKey::ReplayGainTrackGain => {
+                                let tag = tag.value.to_string();
+                                let (_, value) =
+                                    tag.split_once(' ').ok_or("Invalid replay gain.")?;
+                                let db = value.parse().unwrap_or(0.0);
+                                gain = 10.0f32.powf(db / 20.0);
+                            }
+                            _ => (),
                         }
-                        StandardTagKey::ReplayGainTrackGain => {
-                            let tag = tag.value.to_string();
-                            let (_, value) = tag.split_once(' ').ok_or("Invalid replay gain.")?;
-                            let db = value.parse().unwrap_or(0.0);
-                            gain = 10.0f32.powf(db / 20.0);
-                        }
-                        _ => (),
                     }
                 }
             }
@@ -371,27 +352,9 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
     })
 }
 
-pub unsafe fn read() -> Result<Vec<Song>, Box<dyn Error>> {
-    profile!();
-    let bytes = match fs::read(database_path()) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return match error.kind() {
-                std::io::ErrorKind::NotFound => Ok(Vec::new()),
-                _ => Err(error)?,
-            }
-        }
-    };
-
-    from_utf8_unchecked(&bytes)
-        .lines()
-        .map(|line| Song::deserialize(line))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{str::from_utf8_unchecked, time::Duration};
 
     use super::*;
 
@@ -418,6 +381,11 @@ mod tests {
             thread::sleep(Duration::from_millis(1));
         }
         handle.join().unwrap();
-        let _ = unsafe { read().unwrap() };
+        let bytes = fs::read(database_path()).unwrap();
+        let db: Result<Vec<Song>, Box<dyn Error>> = unsafe { from_utf8_unchecked(&bytes) }
+            .lines()
+            .map(|line| Song::deserialize(line))
+            .collect();
+        let _ = db.unwrap();
     }
 }
