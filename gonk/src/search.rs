@@ -20,23 +20,21 @@ pub enum Mode {
     Select,
 }
 
-pub struct Search<'a> {
+pub struct Search {
     pub query: String,
     pub query_changed: bool,
     pub mode: Mode,
-    pub results: Index<Item<'a>>,
+    pub results: Index<Item>,
 }
 
-impl<'a> Search<'a> {
-    pub fn new(db: &'a Database) -> Self {
-        let mut search = Self {
+impl Search {
+    pub fn new() -> Self {
+        Self {
             query: String::new(),
             query_changed: false,
             mode: Mode::Search,
             results: Index::default(),
-        };
-        *search.results = db.search(&search.query);
-        search
+        }
     }
 }
 
@@ -49,12 +47,12 @@ pub fn down(search: &mut Search) {
 }
 
 //TODO: Artist and albums colors aren't quite right.
-pub fn draw<'a>(
-    search: &'a mut Search<'a>,
+pub fn draw(
+    search: &mut Search,
     f: &mut Frame,
     area: Rect,
     mouse_event: Option<MouseEvent>,
-    db: &'a Database,
+    db: &Database,
 ) {
     let area = area.inner(&SEARCH_MARGIN);
     f.render_widget(Clear, area);
@@ -104,60 +102,19 @@ pub fn draw<'a>(
         v[0],
     );
 
-    let get_cell = |item: &'a Item, selected: bool| -> Row {
-        let selected_cell = if selected {
-            Cell::from(">")
-        } else {
-            Cell::default()
-        };
-
-        match item {
-            Item::Song((artist, album, name, _, _)) => Row::new(vec![
-                selected_cell,
-                Cell::from(*name).style(Style::default().fg(TITLE)),
-                Cell::from(*album).style(Style::default().fg(ALBUM)),
-                Cell::from(*artist).style(Style::default().fg(ARTIST)),
-            ]),
-            Item::Album((artist, album)) => Row::new(vec![
-                selected_cell,
-                Cell::from(Spans::from(vec![
-                    Span::styled(format!("{album} - "), Style::default().fg(ALBUM)),
-                    Span::styled(
-                        "Album",
-                        Style::default().fg(ALBUM).add_modifier(Modifier::ITALIC),
-                    ),
-                ])),
-                Cell::from("-"),
-                Cell::from(*artist).style(Style::default().fg(ARTIST)),
-            ]),
-            Item::Artist(artist) => Row::new(vec![
-                selected_cell,
-                Cell::from(Spans::from(vec![
-                    Span::styled(format!("{artist} - "), Style::default().fg(ARTIST)),
-                    Span::styled(
-                        "Artist",
-                        Style::default().fg(ARTIST).add_modifier(Modifier::ITALIC),
-                    ),
-                ])),
-                Cell::from("-"),
-                Cell::from("-"),
-            ]),
-        }
-    };
-
     let rows: Vec<Row> = search
         .results
         .iter()
         .enumerate()
         .map(|(i, item)| {
-            if let Some(s) = search.results.index() {
-                if s == i {
-                    return get_cell(item, true);
-                }
-            } else if i == 0 {
-                return get_cell(item, false);
+            let Some(s) = search.results.index() else {
+                return cell(item, false);
+            };
+            if s == i {
+                cell(item, true)
+            } else {
+                cell(item, false)
             }
-            get_cell(item, false)
         })
         .collect();
 
@@ -202,6 +159,47 @@ pub fn draw<'a>(
                 f.set_cursor(x + len, y);
             }
         }
+    }
+}
+
+fn cell<'a>(item: &'a Item, selected: bool) -> Row<'a> {
+    let selected_cell = if selected {
+        Cell::from(">")
+    } else {
+        Cell::default()
+    };
+
+    match item {
+        Item::Song((artist, album, name, _, _)) => Row::new(vec![
+            selected_cell,
+            Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
+            Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
+            Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+        ]),
+        Item::Album((artist, album)) => Row::new(vec![
+            selected_cell,
+            Cell::from(Spans::from(vec![
+                Span::styled(format!("{album} - "), Style::default().fg(ALBUM)),
+                Span::styled(
+                    "Album",
+                    Style::default().fg(ALBUM).add_modifier(Modifier::ITALIC),
+                ),
+            ])),
+            Cell::from("-"),
+            Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
+        ]),
+        Item::Artist(artist) => Row::new(vec![
+            selected_cell,
+            Cell::from(Spans::from(vec![
+                Span::styled(format!("{artist} - "), Style::default().fg(ARTIST)),
+                Span::styled(
+                    "Artist",
+                    Style::default().fg(ARTIST).add_modifier(Modifier::ITALIC),
+                ),
+            ])),
+            Cell::from("-"),
+            Cell::from("-"),
+        ]),
     }
 }
 

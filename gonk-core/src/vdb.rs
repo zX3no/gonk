@@ -27,21 +27,21 @@ mod tests {
 const MIN_ACCURACY: f64 = 0.70;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Item<'a> {
+pub enum Item {
     ///(Artist, Album, Name, Disc Number, Track Number)
-    Song((&'a str, &'a str, &'a str, u8, u8)),
+    Song((String, String, String, u8, u8)),
     ///(Artist, Album)
-    Album((&'a str, &'a str)),
+    Album((String, String)),
     ///(Artist)
-    Artist(&'a str),
+    Artist(String),
 }
 
 ///https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance
-fn jaro<'a>(query: &str, input: Item<'a>) -> Result<(Item<'a>, f64), (Item<'a>, f64)> {
+fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     let str = match input {
-        Item::Artist(artist) => artist,
-        Item::Album((_, album)) => album,
-        Item::Song((_, _, song, _, _)) => song,
+        Item::Artist(ref artist) => artist,
+        Item::Album((_, ref album)) => album,
+        Item::Song((_, _, ref song, _, _)) => song,
     };
     let acc = strsim::jaro_winkler(query, &str.to_lowercase());
     if acc > MIN_ACCURACY {
@@ -59,7 +59,13 @@ pub struct Database {
 impl Database {
     ///Read the database from disk and load it into memory.
     pub fn new() -> Self {
-        let bytes = fs::read(database_path()).unwrap();
+        let bytes = match fs::read(database_path()) {
+            Ok(bytes) => bytes,
+            Err(error) => match error.kind() {
+                std::io::ErrorKind::NotFound => Vec::new(),
+                _ => panic!("{error}"),
+            },
+        };
         let songs: Vec<Song> = unsafe { from_utf8_unchecked(&bytes) }
             .lines()
             .flat_map(|line| Song::deserialize(line))
@@ -170,17 +176,20 @@ impl Database {
                     results.push(jaro(
                         &query,
                         Item::Song((
-                            &song.artist,
-                            &song.album,
-                            &song.title,
+                            song.artist.clone(),
+                            song.album.clone(),
+                            song.title.clone(),
                             song.disc_number,
                             song.track_number,
                         )),
                     ));
                 }
-                results.push(jaro(&query, Item::Album((artist, &album.title))));
+                results.push(jaro(
+                    &query,
+                    Item::Album((artist.clone(), album.title.clone())),
+                ));
             }
-            results.push(jaro(&query, Item::Artist(artist)));
+            results.push(jaro(&query, Item::Artist(artist.clone())));
         }
 
         let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();

@@ -274,22 +274,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     );
 
     let mut db = Database::new();
-
-    //Somehow the easiest way of doing this.
     let mut queue = Queue::new(ui_index, addr_of_mut!(player));
     let mut browser = Browser::new(&db);
     let mut playlist = Playlist::new()?;
     let mut settings = Settings::new(&persist.output_device);
-
-    // let mut search = Search::new(&db);
-    let mut search = Search {
-        query: String::new(),
-        query_changed: false,
-        mode: search::Mode::Search,
-        results: Index::default(),
-    };
-    // *search.results = db.search(&search.query);
-
+    let mut search = Search::new();
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut dots: usize = 1;
@@ -309,6 +298,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 let result = handle.join().unwrap();
 
                 db = Database::new();
+
                 log::clear();
 
                 match result {
@@ -344,7 +334,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 }
 
                 browser::refresh(&mut browser, &db);
-                // search.results = Index::new(db.search(&search.query), None);
+                search.results = Index::new(db.search(&search.query), None);
 
                 //No need to reset scan_timer since it's reset with new scans.
                 scan_handle = None;
@@ -381,7 +371,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         //Update the UI index.
         queue.len = player.songs.len();
-
         player.update();
 
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
@@ -422,7 +411,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                 f.render_widget(table, area);
             } else if searching {
-                // search::draw(&mut search, f, top, None, &db);
+                search::draw(&mut search, f, top, None, &db);
             }
         })?;
 
@@ -453,14 +442,13 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                         match mode {
                             Mode::Browser => browser::draw(&mut browser, f, top, event),
-                            Mode::Queue => browser::draw(&mut browser, f, top, event),
-                            Mode::Playlist => browser::draw(&mut browser, f, top, event),
-                            Mode::Settings => browser::draw(&mut browser, f, top, event),
+                            Mode::Queue => queue::draw(&mut queue, f, top, event),
+                            Mode::Playlist => playlist::draw(&mut playlist, f, top, event),
+                            Mode::Settings => settings::draw(&mut settings, f, top),
                         }
 
                         if searching {
-                            // search::draw(&mut search, f, top, Some(mouse_event), &db);
-                            todo!();
+                            search::draw(&mut search, f, top, Some(mouse_event), &db);
                         }
                     })?;
                 }
