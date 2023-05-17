@@ -117,17 +117,6 @@ impl Database {
         v
     }
 
-    ///Get all albums names (Artist, Album).
-    // pub fn albums(&self) -> Vec<(&str, &str)> {
-    //     let mut vec = Vec::new();
-    //     for (k, v) in self.btree.iter() {
-    //         for album in v {
-    //             vec.push((k.as_str(), album.title.as_str()))
-    //         }
-    //     }
-    //     vec
-    // }
-
     ///Get all albums by an artist.
     pub fn albums_by_artist(&self, artist: &str) -> &[Album] {
         self.btree.get(artist).map(|albums| albums).unwrap()

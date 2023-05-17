@@ -1,3 +1,4 @@
+use crate::widgets::{Cell, Row, Table};
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_core::{vdb::Database, *};
@@ -7,20 +8,22 @@ use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
-use std::{error::Error, fs, ptr::addr_of_mut};
 use std::{
+    error::Error,
+    fs,
     io::{stdout, Stdout},
     path::Path,
+    ptr::addr_of_mut,
     time::{Duration, Instant},
 };
 use tui::{
+    backend::CrosstermBackend,
+    layout::*,
+    style::Color,
     style::*,
     widgets::{Block, BorderType, Borders, Paragraph},
+    Terminal,
 };
-
-use crate::widgets::{Cell, Row, Table};
-
-use tui::{backend::CrosstermBackend, layout::*, style::Color, Terminal};
 
 mod browser;
 mod playlist;

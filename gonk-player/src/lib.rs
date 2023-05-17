@@ -52,7 +52,6 @@ pub struct Player {
     backend: Box<dyn Backend>,
     output_device: Device,
     symphonia: Option<Symphonia>,
-    sample_rate: usize,
     gain: f32,
     volume: f32,
     elapsed: Duration,
@@ -75,7 +74,6 @@ impl Player {
         let mut player = Self {
             songs,
             output_device: device.clone(),
-            sample_rate: backend.sample_rate(),
             backend,
             symphonia: None,
             gain: 0.5,
@@ -116,7 +114,26 @@ impl Player {
 
         let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
         let volume = if self.mute { 0.0 } else { self.volume * gain };
-        self.backend.fill_buffer(volume, symphonia);
+
+        //(WASAPI): Can fail when the device sample-rate is changed.
+        if self.backend.fill_buffer(volume, symphonia).is_err() {
+            #[cfg(windows)]
+            unsafe {
+                //HACK: Wait for default device to be updated.
+                std::thread::sleep(Duration::from_millis(302));
+                let device = default_device();
+
+                //TODO: Why does the backend needs to be updated twice?
+                self.output_device = device.clone();
+                self.backend = backend::new(&device, None);
+                self.backend
+                    .set_sample_rate(symphonia.sample_rate(), &device);
+            }
+            #[cfg(unix)]
+            {
+                todo!();
+            }
+        };
 
         if symphonia.is_full() {
             return;
@@ -132,9 +149,8 @@ impl Player {
                 self.duration = sym.duration();
                 let new = sym.sample_rate();
 
-                if self.sample_rate != new {
+                if self.backend.sample_rate() != new {
                     self.backend.set_sample_rate(new, &self.output_device);
-                    self.sample_rate = new;
                 }
 
                 self.symphonia = Some(sym);
@@ -279,6 +295,6 @@ impl Player {
             unreachable!("Requested a device that does not exist.")
         };
 
-        self.backend = backend::new(device, Some(self.sample_rate));
+        self.backend = backend::new(device, Some(self.backend.sample_rate()));
     }
 }

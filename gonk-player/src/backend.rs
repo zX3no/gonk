@@ -1,4 +1,5 @@
 use crate::decoder::Symphonia;
+use std::error::Error;
 
 #[cfg(windows)]
 pub use crate::wasapi::*;
@@ -9,7 +10,9 @@ pub use crate::pipewire::*;
 pub trait Backend {
     fn sample_rate(&self) -> usize;
     fn set_sample_rate(&mut self, sample_rate: usize, device: &Device);
-    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia);
+    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia)
+        -> Result<(), Box<dyn Error>>;
+    //TODO: Move devices() and default_devices() into the backend?
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

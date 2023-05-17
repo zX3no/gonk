@@ -1,6 +1,8 @@
 //! Ripped from <https://github.com/dguo/strsim-rs>
 use std::cmp::{max, min};
 
+use crate::profile;
+
 pub fn jaro_winkler(a: &str, b: &str) -> f64 {
     let jaro_distance = generic_jaro(a, b);
 
@@ -18,6 +20,7 @@ pub fn jaro_winkler(a: &str, b: &str) -> f64 {
 }
 
 pub fn generic_jaro(a: &str, b: &str) -> f64 {
+    profile!();
     let a_len = a.chars().count();
     let b_len = b.chars().count();
 

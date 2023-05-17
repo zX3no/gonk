@@ -1,4 +1,5 @@
 use crate::backend::{Backend, Device};
+use std::error::Error;
 
 pub struct PipeWire {}
 
@@ -17,7 +18,11 @@ impl Backend for PipeWire {
         todo!()
     }
 
-    fn fill_buffer(&mut self, volume: f32, symphonia: &mut crate::decoder::Symphonia) {
+    fn fill_buffer(
+        &mut self,
+        volume: f32,
+        symphonia: &mut crate::decoder::Symphonia,
+    ) -> Result<(), Box<dyn Error>> {
         todo!()
     }
 }

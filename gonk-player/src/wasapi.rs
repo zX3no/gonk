@@ -1,9 +1,12 @@
 use core::{ffi::c_void, slice};
-use std::mem::{size_of, transmute, zeroed};
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::thread;
 use std::time::Duration;
+use std::{
+    error::Error,
+    mem::{size_of, transmute, zeroed},
+};
 use std::{ffi::OsString, sync::Once};
 use winapi::{
     shared::devpkey::DEVPKEY_Device_FriendlyName,
@@ -59,15 +62,7 @@ pub unsafe fn init() {
     ONCE.call_once(|| {
         CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
 
-        let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-        check(CoCreateInstance(
-            &CLSID_MMDeviceEnumerator,
-            null_mut(),
-            CLSCTX_ALL,
-            &IMMDeviceEnumerator::uuidof(),
-            &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-        ));
-
+        let enumerator = imm_device_enumerator();
         update_output_devices(enumerator);
 
         //HACK: Not a hack apparently.
@@ -80,6 +75,44 @@ pub unsafe fn init() {
             }
         });
     });
+}
+
+pub unsafe fn imm_device_enumerator() -> *mut IMMDeviceEnumerator {
+    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
+    check(CoCreateInstance(
+        &CLSID_MMDeviceEnumerator,
+        null_mut(),
+        CLSCTX_ALL,
+        &IMMDeviceEnumerator::uuidof(),
+        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
+    ));
+    enumerator
+}
+
+pub unsafe fn default_device(enumerator: *mut IMMDeviceEnumerator) -> Device {
+    let mut device: *mut IMMDevice = null_mut();
+    check((*enumerator).GetDefaultAudioEndpoint(
+        eRender,
+        eConsole,
+        &mut device as *mut *mut IMMDevice,
+    ));
+    let mut store = null_mut();
+    check((*device).OpenPropertyStore(STGM_READ, &mut store));
+
+    let mut prop = zeroed();
+    check((*store).GetValue(
+        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+        &mut prop,
+    ));
+
+    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
+    let name = utf16_string(ptr_utf16);
+    PropVariantClear(&mut prop);
+
+    Device {
+        inner: device,
+        name,
+    }
 }
 
 pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
@@ -124,35 +157,7 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
         devices.push(device);
     }
 
-    //Default default device.
-    let mut device: *mut IMMDevice = null_mut();
-    check((*enumerator).GetDefaultAudioEndpoint(
-        eRender,
-        eConsole,
-        &mut device as *mut *mut IMMDevice,
-    ));
-    //TODO: This can crash when there are no devices.
-
-    //Get default device name.
-    let mut store = null_mut();
-    check((*device).OpenPropertyStore(STGM_READ, &mut store));
-
-    let mut prop = zeroed();
-    check((*store).GetValue(
-        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-        &mut prop,
-    ));
-
-    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-    let name = utf16_string(ptr_utf16);
-    PropVariantClear(&mut prop);
-
-    devices.sort_by(|a, b| a.name.cmp(&b.name));
-
-    DEFAULT_DEVICE = Some(Device {
-        inner: device,
-        name,
-    });
+    DEFAULT_DEVICE = Some(default_device(enumerator));
     DEVICES = devices;
 }
 
@@ -297,20 +302,6 @@ impl Wasapi {
             }
         }
     }
-    pub unsafe fn buffer_frame_count(&mut self) -> Option<usize> {
-        let mut padding_count = zeroed();
-        let result = (*self.audio_client).GetCurrentPadding(&mut padding_count);
-        //This can occur when a devices sample rate is changed.
-        //TODO: Find a way to recover and notify the user.
-        if result != 0 {
-            return None;
-        }
-
-        let mut buffer_frame_count = zeroed();
-        check((*self.audio_client).GetBufferSize(&mut buffer_frame_count));
-
-        Some((buffer_frame_count - padding_count) as usize)
-    }
 }
 
 impl Backend for Wasapi {
@@ -320,6 +311,7 @@ impl Backend for Wasapi {
 
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
+    ///Name is misleading since the device is updated aswell.
     fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
         if sample_rate == self.sample_rate() {
@@ -332,16 +324,28 @@ impl Backend for Wasapi {
         *self = Wasapi::new(device, Some(sample_rate));
     }
 
-    fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) {
+    fn fill_buffer(
+        &mut self,
+        volume: f32,
+        symphonia: &mut Symphonia,
+    ) -> Result<(), Box<dyn Error>> {
         unsafe {
+            let mut padding_count = zeroed();
+            if (*self.audio_client).GetCurrentPadding(&mut padding_count) != 0 {
+                return Err("Sample-rate changed.")?;
+            }
+
+            let mut buffer_frame_count = zeroed();
+            check((*self.audio_client).GetBufferSize(&mut buffer_frame_count));
+
+            let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
             let block_align = self.format.Format.nBlockAlign as usize;
-            let Some(buffer_frame_count) = self.buffer_frame_count() else {
-                return
-            };
             let buffer_size = buffer_frame_count * block_align;
             let channels = self.format.Format.nChannels as usize;
+
             let mut buffer_ptr = null_mut();
             check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
+
             let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
             //Channel [0] & [1] are left and right. Other channels should be zeroed.
@@ -359,6 +363,7 @@ impl Backend for Wasapi {
             if WaitForSingleObject(self.h_event, INFINITE) != WAIT_OBJECT_0 {
                 unreachable!()
             }
+            Ok(())
         }
     }
 }
