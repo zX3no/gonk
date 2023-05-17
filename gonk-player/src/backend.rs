@@ -19,6 +19,7 @@ pub trait Backend {
 pub struct Device {
     #[cfg(windows)]
     pub inner: *mut winapi::um::mmdeviceapi::IMMDevice,
+
     pub name: String,
 }
 

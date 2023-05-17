@@ -13,7 +13,9 @@ use winapi::{
     shared::guiddef::GUID,
     shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
     um::{
-        audioclient::{IAudioClient, IAudioRenderClient, IID_IAudioClient},
+        audioclient::{
+            IAudioClient, IAudioRenderClient, IID_IAudioClient, AUDCLNT_E_DEVICE_INVALIDATED,
+        },
         audiosessiontypes::{
             AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
             AUDCLNT_STREAMFLAGS_RATEADJUST,
@@ -167,7 +169,7 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
 pub unsafe fn check(result: i32) {
     if result != 0 {
         let mut buf = [0u16; 2048];
-        let result = FormatMessageW(
+        let message_result = FormatMessageW(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
             null_mut(),
             result as u32,
@@ -177,7 +179,7 @@ pub unsafe fn check(result: i32) {
             null_mut(),
         );
 
-        if result == 0 {
+        if message_result == 0 {
             let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
             if b > 2 {
                 if let Some(slice) = &buf.get(..b - 2) {
@@ -187,7 +189,7 @@ pub unsafe fn check(result: i32) {
             }
         }
 
-        panic!("Failed to get error message from Windows. Error Code: {result:#x}");
+        panic!("Failed to get error message from Windows. Error Code: {result:#x} {result}");
     }
 }
 
@@ -211,6 +213,15 @@ pub struct Wasapi {
     pub h_event: *mut c_void,
 }
 
+impl Drop for Wasapi {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.render_client).Release();
+            (*self.audio_client).Release();
+        };
+    }
+}
+
 impl Wasapi {
     pub fn new(device: &Device, sample_rate: Option<usize>) -> Self {
         unsafe {
@@ -218,12 +229,16 @@ impl Wasapi {
 
             let audio_client: *mut IAudioClient = {
                 let mut audio_client = null_mut();
-                check((*device.inner).Activate(
+                let result = (*device.inner).Activate(
                     &IID_IAudioClient,
                     CLSCTX_ALL,
                     null_mut(),
                     &mut audio_client,
-                ));
+                );
+                if result == AUDCLNT_E_DEVICE_INVALIDATED {
+                    todo!("	The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.");
+                }
+                check(result);
 
                 assert!(!audio_client.is_null());
                 audio_client as *mut _
@@ -270,7 +285,7 @@ impl Wasapi {
             let mut _min_period = zeroed();
             (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
 
-            check((*audio_client).Initialize(
+            let result = (*audio_client).Initialize(
                 AUDCLNT_SHAREMODE_SHARED,
                 AUDCLNT_STREAMFLAGS_EVENTCALLBACK
                     | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
@@ -280,7 +295,8 @@ impl Wasapi {
                 default_period,
                 &format as *const _ as *const WAVEFORMATEX,
                 null(),
-            ));
+            );
+            check(result);
 
             //This must be set for some reason.
             let h_event = CreateEventA(null_mut(), 0, 0, null());

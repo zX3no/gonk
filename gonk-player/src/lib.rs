@@ -122,7 +122,6 @@ impl Player {
                 //HACK: Wait for default device to be updated.
                 std::thread::sleep(Duration::from_millis(302));
                 let device = default_device();
-
                 //TODO: Why does the backend needs to be updated twice?
                 self.output_device = device.clone();
                 self.backend = backend::new(&device, None);
