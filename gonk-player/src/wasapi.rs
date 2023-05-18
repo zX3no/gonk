@@ -278,7 +278,7 @@ impl Wasapi {
             };
 
             if format.Format.nChannels < 2 {
-                panic!("Ouput device has less than 2 channels.");
+                // panic!("Ouput device has less than 2 channels.");
             }
 
             let mut default_period = zeroed();
@@ -325,8 +325,10 @@ impl Backend for Wasapi {
         self.format.Format.nSamplesPerSec as usize
     }
 
+    //(Outdated): IAudioClockAdjustment::SetSampleRate is not used anymore.
     //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
     //44100 cannot convert to 192_000 and vise versa.
+
     ///Name is misleading since the device is updated aswell.
     fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
@@ -371,7 +373,9 @@ impl Backend for Wasapi {
                 bytes[0..4].copy_from_slice(sample_bytes);
 
                 let sample_bytes = &(symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
-                bytes[4..8].copy_from_slice(sample_bytes);
+                if channels > 1 {
+                    bytes[4..8].copy_from_slice(sample_bytes);
+                }
             }
 
             (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
