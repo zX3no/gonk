@@ -582,7 +582,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         _ => (),
                     },
                     KeyCode::Char('X') if mode == Mode::Playlist => {
-                        playlist::delete(&mut playlist, true)
+                        playlist::delete(&mut playlist, false)
                     }
                     KeyCode::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                         if scan_handle.is_none() {
