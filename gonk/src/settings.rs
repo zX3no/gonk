@@ -1,5 +1,5 @@
 use crate::{widgets::*, Frame};
-use gonk_player::{default_device, devices, Device};
+use gonk_player::{Device, Wasapi};
 use tui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -15,9 +15,8 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(wanted_device: &str) -> Self {
-        let default = unsafe { default_device() };
-
-        let devices = devices();
+        let default = Wasapi::default_device();
+        let devices = Wasapi::devices();
         let current_device = if devices.iter().any(|device| device.name == wanted_device) {
             wanted_device.to_string()
         } else {

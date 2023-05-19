@@ -9,34 +9,20 @@
     non_snake_case
 )]
 
-pub use backend::{default_device, devices, Device};
-
-use backend::Backend;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
-use std::{path::Path, sync::Once, time::Duration};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
+use wasapi::init;
 
-mod backend;
 pub mod decoder;
-
-#[cfg(windows)]
 mod wasapi;
 
-#[cfg(unix)]
-mod pipewire;
+pub use wasapi::{default_device, Device, Wasapi};
 
 const VOLUME_REDUCTION: f32 = 150.0;
-
-static INIT: Once = Once::new();
-
-fn init() {
-    INIT.call_once(|| {
-        #[cfg(windows)]
-        unsafe {
-            wasapi::init()
-        };
-    });
-}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum State {
@@ -49,7 +35,8 @@ pub enum State {
 pub struct Player {
     //TODO: Should this be Index<'static Song>?
     pub songs: Index<Song>,
-    backend: Box<dyn Backend>,
+    pub backend: Wasapi,
+    pub mute: bool,
     output_device: Device,
     symphonia: Option<Symphonia>,
     gain: f32,
@@ -57,19 +44,17 @@ pub struct Player {
     elapsed: Duration,
     duration: Duration,
     state: State,
-    pub mute: bool,
 }
 
 impl Player {
     #[allow(clippy::new_without_default)]
     pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-        init();
-
-        let devices = devices();
-        let default = unsafe { default_device() };
+        unsafe { init() };
+        let devices = Wasapi::devices();
+        let default = Wasapi::default_device();
         let device = devices.iter().find(|d| d.name == device);
         let device = device.unwrap_or(default);
-        let backend = backend::new(device, None);
+        let backend = Wasapi::new(device, None).unwrap();
 
         let mut player = Self {
             songs,
@@ -117,20 +102,30 @@ impl Player {
 
         //(WASAPI): Can fail when the device sample-rate is changed.
         if self.backend.fill_buffer(volume, symphonia).is_err() {
-            #[cfg(windows)]
-            unsafe {
-                //HACK: Wait for default device to be updated.
-                std::thread::sleep(Duration::from_millis(302));
-                let device = default_device();
-                //TODO: Why does the backend needs to be updated twice?
-                self.output_device = device.clone();
-                self.backend = backend::new(&device, None);
-                self.backend
-                    .set_sample_rate(symphonia.sample_rate(), &device);
-            }
-            #[cfg(unix)]
-            {
-                todo!();
+            let now = Instant::now();
+            //TODO: Log what is happening to the user.
+            loop {
+                if now.elapsed() > Duration::from_secs(5) {
+                    panic!("Audio device timeout.");
+                }
+
+                //Find the current device.
+                if let Some(device) = Wasapi::devices()
+                    .into_iter()
+                    .find(|d| self.output_device.name == d.name)
+                {
+                    //Try to update the new device.
+                    match Wasapi::new(&device, Some(symphonia.sample_rate())) {
+                        Ok(wasapi) => {
+                            self.backend = wasapi;
+                            self.output_device = device.clone();
+                            break;
+                        }
+                        Err(_) => (),
+                    }
+                }
+
+                std::thread::sleep(Duration::from_millis(1));
             }
         };
 
@@ -149,7 +144,9 @@ impl Player {
                 let new = sym.sample_rate();
 
                 if self.backend.sample_rate() != new {
-                    self.backend.set_sample_rate(new, &self.output_device);
+                    self.backend
+                        .set_sample_rate(new, &self.output_device)
+                        .unwrap();
                 }
 
                 self.symphonia = Some(sym);
@@ -287,13 +284,13 @@ impl Player {
         (self.volume * VOLUME_REDUCTION) as u8
     }
     pub fn set_output_device(&mut self, device: &str) {
-        let devices = devices();
+        let devices = Wasapi::devices();
         let device = if let Some(device) = devices.iter().find(|d| d.name == device) {
             device
         } else {
             unreachable!("Requested a device that does not exist.")
         };
 
-        self.backend = backend::new(device, Some(self.backend.sample_rate()));
+        self.backend = Wasapi::new(device, Some(self.backend.sample_rate())).unwrap();
     }
 }

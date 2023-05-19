@@ -2,7 +2,7 @@ use crate::widgets::{Cell, Row, Table};
 use browser::Browser;
 use crossterm::{event::*, terminal::*, *};
 use gonk_core::{vdb::Database, *};
-use gonk_player::Player;
+use gonk_player::{Player, Wasapi};
 use once_cell::sync::Lazy;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
@@ -362,7 +362,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
             //Update the list of output devices
             //TODO: I don't like how this is done.
-            settings.devices = gonk_player::devices();
+            settings.devices = Wasapi::devices();
             let mut index = settings.index.unwrap_or(0);
             if index >= settings.devices.len() {
                 index = settings.devices.len().saturating_sub(1);

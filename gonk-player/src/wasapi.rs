@@ -34,7 +34,6 @@ use winapi::{
     Interface,
 };
 
-use crate::backend::{Backend, Device};
 use crate::decoder::Symphonia;
 
 const STGM_READ: u32 = 0;
@@ -59,6 +58,12 @@ pub static mut DEVICES: Vec<Device> = Vec::new();
 pub static mut DEFAULT_DEVICE: Option<Device> = None;
 
 static ONCE: Once = Once::new();
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct Device {
+    pub inner: *mut winapi::um::mmdeviceapi::IMMDevice,
+    pub name: String,
+}
 
 pub unsafe fn init() {
     ONCE.call_once(|| {
@@ -189,7 +194,12 @@ pub unsafe fn check(result: i32) {
             }
         }
 
-        panic!("Failed to get error message from Windows. Error Code: {result:#x} {result}");
+        match result {
+            AUDCLNT_E_DEVICE_INVALIDATED => todo!("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to."),
+            _ => {
+                panic!("Failed to get error message from Windows. Error Code: {result:#x} {result}")
+            }
+        }
     }
 }
 
@@ -223,26 +233,25 @@ impl Drop for Wasapi {
 }
 
 impl Wasapi {
-    pub fn new(device: &Device, sample_rate: Option<usize>) -> Self {
+    pub fn new(device: &Device, sample_rate: Option<usize>) -> Result<Self, Box<dyn Error>> {
         unsafe {
             init();
 
-            let audio_client: *mut IAudioClient = {
-                let mut audio_client = null_mut();
-                let result = (*device.inner).Activate(
-                    &IID_IAudioClient,
-                    CLSCTX_ALL,
-                    null_mut(),
-                    &mut audio_client,
-                );
-                if result == AUDCLNT_E_DEVICE_INVALIDATED {
-                    todo!("	The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.");
-                }
-                check(result);
+            let mut audio_client = null_mut();
+            let result = (*device.inner).Activate(
+                &IID_IAudioClient,
+                CLSCTX_ALL,
+                null_mut(),
+                &mut audio_client,
+            );
 
-                assert!(!audio_client.is_null());
-                audio_client as *mut _
-            };
+            if result == AUDCLNT_E_DEVICE_INVALIDATED {
+                return Err("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.")?;
+            }
+
+            assert!(!audio_client.is_null());
+            let audio_client: *mut IAudioClient = audio_client as *mut _;
+            check(result);
 
             let mut format = null_mut();
             (*audio_client).GetMixFormat(&mut format);
@@ -296,6 +305,9 @@ impl Wasapi {
                 &format as *const _ as *const WAVEFORMATEX,
                 null(),
             );
+            if result == AUDCLNT_E_DEVICE_INVALIDATED {
+                return Err("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.")?;
+            }
             check(result);
 
             //This must be set for some reason.
@@ -309,19 +321,17 @@ impl Wasapi {
 
             (*audio_client).Start();
 
-            Self {
+            Ok(Self {
                 audio_client,
                 render_client,
                 format,
                 buffer: Vec::new(),
                 h_event,
-            }
+            })
         }
     }
-}
 
-impl Backend for Wasapi {
-    fn sample_rate(&self) -> usize {
+    pub fn sample_rate(&self) -> usize {
         self.format.Format.nSamplesPerSec as usize
     }
 
@@ -330,19 +340,24 @@ impl Backend for Wasapi {
     //44100 cannot convert to 192_000 and vise versa.
 
     ///Name is misleading since the device is updated aswell.
-    fn set_sample_rate(&mut self, sample_rate: usize, device: &Device) {
+    pub fn set_sample_rate(
+        &mut self,
+        sample_rate: usize,
+        device: &Device,
+    ) -> Result<(), Box<dyn Error>> {
         debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
         if sample_rate == self.sample_rate() {
-            return;
+            return Ok(());
         }
 
         //Not sure if this is necessary.
         unsafe { check((*self.audio_client).Stop()) };
+        *self = Wasapi::new(device, Some(sample_rate))?;
 
-        *self = Wasapi::new(device, Some(sample_rate));
+        Ok(())
     }
 
-    fn fill_buffer(
+    pub fn fill_buffer(
         &mut self,
         volume: f32,
         symphonia: &mut Symphonia,
@@ -385,5 +400,15 @@ impl Backend for Wasapi {
             }
             Ok(())
         }
+    }
+
+    //TODO: Remove?
+    pub fn devices() -> Vec<Device> {
+        unsafe { DEVICES.to_vec() }
+    }
+
+    //TODO: Remove?
+    pub fn default_device() -> &'static Device {
+        unsafe { DEFAULT_DEVICE.as_mut().unwrap() }
     }
 }
