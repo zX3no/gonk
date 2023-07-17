@@ -374,6 +374,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         //Update the UI index.
         queue.len = player.songs.len();
+
+        //TODO: This is very slow and causes scrolling to feel laggy.
         player.update();
 
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
@@ -425,13 +427,13 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         match event::read()? {
             Event::Mouse(mouse_event) if !help => match mouse_event.kind {
                 MouseEventKind::ScrollUp if searching => search::up(&mut search),
+                MouseEventKind::ScrollDown if searching => search::down(&mut search),
                 MouseEventKind::ScrollUp => match mode {
                     Mode::Browser => browser::up(&mut browser, &db),
                     Mode::Queue => queue::up(&mut queue),
                     Mode::Playlist => playlist::up(&mut playlist),
                     Mode::Settings => settings::up(&mut settings),
                 },
-                MouseEventKind::ScrollDown if searching => search::down(&mut search),
                 MouseEventKind::ScrollDown => match mode {
                     Mode::Browser => browser::down(&mut browser, &db),
                     Mode::Queue => queue::down(&mut queue),
@@ -439,10 +441,13 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     Mode::Settings => settings::down(&mut settings),
                 },
                 MouseEventKind::Down(_) => {
+                    //FIXME: Copy-paste drawing. Need to swap to custom tui library.
+                    //tui-rs has private fields which makes the api to inflexable for my use.
                     terminal.draw(|f| {
                         let top = draw_log(f);
                         let event = if searching { None } else { Some(mouse_event) };
 
+                        //TODO: Remove mouse_event from draw.
                         match mode {
                             Mode::Browser => browser::draw(&mut browser, f, top, event),
                             Mode::Queue => queue::draw(&mut queue, f, top, event),
