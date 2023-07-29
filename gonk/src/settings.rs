@@ -106,7 +106,6 @@ pub fn draw(settings: &mut Settings, f: &mut Frame, area: Rect) {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded),
         )
-        .style(Style::default().fg(Color::White))
         .highlight_style(Style::default());
 
     let mut state = ListState::default();
