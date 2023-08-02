@@ -166,12 +166,9 @@ fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
             Constraint::Min(2),
             Constraint::Length(3)
         );
-        lines(
-            [text![msg]],
-            Some(block(None, Borders::ALL, BorderType::Rounded)),
-            None,
-        )
-        .draw(area[1], buf);
+        lines([text![msg]])
+            .block(None, Borders::ALL, BorderType::Rounded)
+            .draw(area[1], buf);
         area[0]
     } else {
         area
