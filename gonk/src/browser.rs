@@ -116,34 +116,29 @@ pub fn draw(
         }
     }
 
-    //TODO: This is awful.
     let artists: Vec<_> = browser.artists.iter().map(|a| text!(a)).collect();
     let artists = lines(artists, None, None);
-    let a = &[artists];
 
     let albums: Vec<_> = browser.albums.iter().map(|a| text!(&a.title)).collect();
     let albums = lines(albums, None, None);
-    let b = &[albums];
 
     let songs: Vec<_> = browser.songs.iter().map(|(s, _)| text!(s)).collect();
     let songs = lines(songs, None, None);
-    let c = &[songs];
 
-    fn browser_list<'a>(title: &'static str, items: &'a [Lines<'a>], use_symbol: bool) -> List<'a> {
+    fn browser_list<'a>(title: &'static str, items: Lines<'a>, use_symbol: bool) -> List<'a> {
         let block = block(
             Some(text!(title, bold())),
-            1,
             Borders::ALL,
             BorderType::Rounded,
-            style(),
-        );
+        )
+        .margin(1);
         let symbol = if use_symbol { ">" } else { " " };
-        list(Some(block), items, Some(symbol), None)
+        list(Some(block), [items], Some(symbol), None)
     }
 
-    let artists = browser_list("─Aritst", a, browser.mode == Mode::Artist);
-    let albums = browser_list("─Album", b, browser.mode == Mode::Album);
-    let songs = browser_list("─Song", c, browser.mode == Mode::Song);
+    let artists = browser_list("─Aritst", artists, browser.mode == Mode::Artist);
+    let albums = browser_list("─Album", albums, browser.mode == Mode::Album);
+    let songs = browser_list("─Song", songs, browser.mode == Mode::Song);
 
     //TODO: Re-work list_state and index.
     artists.draw(chunks[0], buf, &mut list_state(browser.artists.index()));
