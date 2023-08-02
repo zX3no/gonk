@@ -88,7 +88,7 @@ pub fn draw(
     browser: &mut Browser,
     area: winter::Rect,
     buf: &mut winter::Buffer,
-    mouse: Option<Event>,
+    mouse: Option<(u16, u16)>,
 ) {
     let size = area.width / 3;
     let rem = area.width % 3;
@@ -101,7 +101,7 @@ pub fn draw(
         Constraint::Length(size + rem)
     );
 
-    if let Some(Event::Mouse(x, y)) = mouse {
+    if let Some((x, y)) = mouse {
         let rect = Rect {
             x,
             y,
@@ -116,16 +116,11 @@ pub fn draw(
         }
     }
 
-    let artists: Vec<_> = browser.artists.iter().map(|a| text!(a)).collect();
-    let artists = lines(artists, None, None);
+    let artists: Vec<_> = browser.artists.iter().map(|a| lines!(a)).collect();
+    let albums: Vec<_> = browser.albums.iter().map(|a| lines!(&a.title)).collect();
+    let songs: Vec<_> = browser.songs.iter().map(|(s, _)| lines!(s)).collect();
 
-    let albums: Vec<_> = browser.albums.iter().map(|a| text!(&a.title)).collect();
-    let albums = lines(albums, None, None);
-
-    let songs: Vec<_> = browser.songs.iter().map(|(s, _)| text!(s)).collect();
-    let songs = lines(songs, None, None);
-
-    fn browser_list<'a>(title: &'static str, items: Lines<'a>, use_symbol: bool) -> List<'a> {
+    fn list<'a>(title: &'static str, items: Vec<Lines<'a>>, use_symbol: bool) -> List<'a> {
         let block = block(
             Some(text!(title, bold())),
             Borders::ALL,
@@ -133,17 +128,17 @@ pub fn draw(
         )
         .margin(1);
         let symbol = if use_symbol { ">" } else { " " };
-        list(Some(block), [items], Some(symbol), None)
+        winter::list(Some(block), items, Some(symbol), None)
     }
 
-    let artists = browser_list("─Aritst", artists, browser.mode == Mode::Artist);
-    let albums = browser_list("─Album", albums, browser.mode == Mode::Album);
-    let songs = browser_list("─Song", songs, browser.mode == Mode::Song);
+    let artists = list("Aritst", artists, browser.mode == Mode::Artist);
+    let albums = list("Album", albums, browser.mode == Mode::Album);
+    let songs = list("Song", songs, browser.mode == Mode::Song);
 
     //TODO: Re-work list_state and index.
-    artists.draw(chunks[0], buf, &mut list_state(browser.artists.index()));
-    albums.draw(chunks[1], buf, &mut list_state(browser.albums.index()));
-    songs.draw(chunks[2], buf, &mut list_state(browser.songs.index()));
+    artists.draw(chunks[0], buf, browser.artists.index());
+    albums.draw(chunks[1], buf, browser.albums.index());
+    songs.draw(chunks[2], buf, browser.songs.index());
 }
 
 pub fn refresh(browser: &mut Browser, db: &Database) {

@@ -64,9 +64,9 @@ pub fn draw<'a>(settings: &'a mut Settings, area: winter::Rect, buf: &mut winter
     let mut items = Vec::new();
     for device in &settings.devices {
         let item = if device.name == settings.current_device {
-            lines([text!(">> ", dim()), text!(&device.name)], None, None)
+            lines([text!(">> ", dim()), text!(&device.name)])
         } else {
-            lines([text!("   "), text!(&device.name)], None, None)
+            lines([text!("   "), text!(&device.name)])
         };
         items.push(item);
     }
@@ -89,5 +89,5 @@ pub fn draw<'a>(settings: &'a mut Settings, area: winter::Rect, buf: &mut winter
         None,
     );
 
-    list.draw(area, buf, &mut list_state(settings.index));
+    list.draw(area, buf, settings.index);
 }

@@ -219,7 +219,7 @@ pub fn draw(queue: &mut Queue, area: winter::Rect, buf: &mut winter::Buffer, mou
         );
         let header = header!["", "#", "Title", "Album", "Artist"];
         let table = table(Some(header), Some(block), &con, rows, None, style());
-        table.draw(area[1], buf, &mut table_state(ui_index));
+        table.draw(area[1], buf, ui_index);
 
         let row_bounds = Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])));
         row_bounds
