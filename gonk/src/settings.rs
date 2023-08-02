@@ -1,11 +1,5 @@
-use crate::{widgets::*, Frame};
 use gonk_player::{Device, Wasapi};
-use tui::{
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, BorderType, Borders},
-};
+use winter::*;
 
 pub struct Settings {
     pub devices: Vec<Device>,
@@ -64,52 +58,63 @@ pub fn down(settings: &mut Settings) {
     }
 }
 
-pub fn draw(settings: &mut Settings, f: &mut Frame, area: Rect) {
-    let devices: Vec<&str> = settings
-        .devices
-        .iter()
-        .map(|device| device.name.as_str())
-        .collect();
-
-    //TODO: I liked the old item menu bold selections.
-    //It doesn't work on most terminals though :(
-    let mut items: Vec<ListItem> = devices
-        .iter()
-        .map(|name| {
-            if *name == settings.current_device {
-                ListItem::new(Spans::from(vec![
-                    Span::styled(
-                        ">> ",
-                        Style::default()
-                            .fg(Color::White)
-                            .add_modifier(Modifier::DIM | Modifier::BOLD),
-                    ),
-                    Span::styled(*name, Style::default().add_modifier(Modifier::BOLD)),
-                ]))
-            } else {
-                ListItem::new(format!("   {name}"))
-            }
-        })
-        .collect();
-
-    if let Some(index) = settings.index {
-        let item = items[index]
-            .clone()
-            .style(Style::default().fg(Color::Black).bg(Color::White));
-        items[index] = item;
+//TODO: I liked the old item menu bold selections.
+//It doesn't work on most terminals though :(
+pub fn draw<'a>(settings: &'a mut Settings, area: winter::Rect, buf: &mut winter::Buffer) {
+    let mut items = Vec::new();
+    for device in &settings.devices {
+        if device.name == settings.current_device {
+            items.push(vec![
+                text![">> ", fg(White).dim().bold()],
+                text![device.name.as_str(), fg(White).dim().bold()],
+            ]);
+        } else {
+            // items.push(text!(format!("   {}", device.name)));
+            items.push(vec![text!(device.name.as_str())]);
+        }
     }
 
-    let list = List::new(&items)
-        .block(
-            Block::default()
-                .title("─Output Device")
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        )
-        .highlight_style(Style::default());
+    if let Some(index) = settings.index {
+        if let Some(item) = items[index].get_mut(0) {
+            item.style = fg(Black).bg(White);
+        }
+        if let Some(item) = items[index].get_mut(1) {
+            item.style = fg(Black).bg(White);
+        }
 
-    let mut state = ListState::default();
-    state.select(settings.index);
+        // let item = items[index]
+        //     .clone()
+        //     .style(Style::default().fg(Color::Black).bg(Color::White));
+        // items[index] = item;
+    }
 
-    f.render_stateful_widget(list, area, &mut state);
+    let items: Vec<_> = items.iter().map(|vec| lines(vec, None, None)).collect();
+    let list = list(
+        Some(block(
+            Some("Output Device".into()),
+            1,
+            Borders::ALL,
+            BorderType::Rounded,
+            style(),
+        )),
+        &items,
+        None,
+        style(),
+    );
+
+    list.draw(area, buf, &mut list_state(settings.index));
+
+    // let list = List::new(&items)
+    //     .block(
+    //         Block::default()
+    //             .title("─Output Device")
+    //             .borders(Borders::ALL)
+    //             .border_type(BorderType::Rounded),
+    //     )
+    //     .highlight_style(Style::default());
+
+    // let mut state = ListState::default();
+    // state.select(settings.index);
+
+    // f.render_stateful_widget(list, area, &mut state);
 }
