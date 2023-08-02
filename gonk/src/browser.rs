@@ -1,12 +1,6 @@
-use crate::widgets::{List, ListItem, ListState};
-use crate::Frame;
-use crossterm::event::MouseEvent;
 use gonk_core::{vdb::Database, Album};
 use gonk_core::{Index, Song};
-use tui::{
-    layout::{Constraint, Direction, Layout, Rect},
-    widgets::{Block, BorderType, Borders},
-};
+use winter::*;
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {
@@ -90,23 +84,27 @@ pub fn right(browser: &mut Browser) {
     }
 }
 
-pub fn draw(browser: &mut Browser, f: &mut Frame, area: Rect, mouse_event: Option<MouseEvent>) {
+pub fn draw(
+    browser: &mut Browser,
+    area: winter::Rect,
+    buf: &mut winter::Buffer,
+    mouse: Option<Event>,
+) {
     let size = area.width / 3;
     let rem = area.width % 3;
 
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(size),
-            Constraint::Length(size),
-            Constraint::Length(size + rem),
-        ])
-        .split(area);
+    let chunks = layout!(
+        area,
+        Direction::Horizontal,
+        Constraint::Length(size),
+        Constraint::Length(size),
+        Constraint::Length(size + rem)
+    );
 
-    if let Some(event) = mouse_event {
+    if let Some(Event::Mouse(x, y)) = mouse {
         let rect = Rect {
-            x: event.column,
-            y: event.row,
+            x,
+            y,
             ..Default::default()
         };
         if rect.intersects(chunks[2]) {
@@ -118,54 +116,39 @@ pub fn draw(browser: &mut Browser, f: &mut Frame, area: Rect, mouse_event: Optio
         }
     }
 
-    let a: Vec<ListItem> = browser
-        .artists
-        .iter()
-        .map(|artist| ListItem::new(artist.as_str()))
-        .collect();
+    //TODO: This is awful.
+    let artists: Vec<_> = browser.artists.iter().map(|a| text!(a)).collect();
+    let artists = lines(&artists, None, None);
+    let a = &[artists];
 
-    let b: Vec<ListItem> = browser
-        .albums
-        .iter()
-        .map(|album| ListItem::new(album.title.as_str()))
-        .collect();
+    let albums: Vec<_> = browser.albums.iter().map(|a| text!(&a.title)).collect();
+    let albums = lines(&albums, None, None);
+    let b = &[albums];
 
-    let c: Vec<ListItem> = browser
-        .songs
-        .iter()
-        .map(|(title, _)| ListItem::new(title.as_str()))
-        .collect();
+    let songs: Vec<_> = browser.songs.iter().map(|(s, _)| text!(s)).collect();
+    let songs = lines(&songs, None, None);
+    let c = &[songs];
 
-    let artists = list("─Aritst", &a, browser.mode == Mode::Artist);
-    let albums = list("─Album", &b, browser.mode == Mode::Album);
-    let songs = list("─Song", &c, browser.mode == Mode::Song);
-
-    f.render_stateful_widget(
-        artists,
-        chunks[0],
-        &mut ListState::new(browser.artists.index()),
-    );
-    f.render_stateful_widget(
-        albums,
-        chunks[1],
-        &mut ListState::new(browser.albums.index()),
-    );
-    f.render_stateful_widget(songs, chunks[2], &mut ListState::new(browser.songs.index()));
-}
-
-fn list<'a>(title: &'static str, content: &'a [ListItem], use_symbol: bool) -> List<'a> {
-    let list = List::new(content).block(
-        Block::default()
-            .title(title)
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded),
-    );
-
-    if use_symbol {
-        list.highlight_symbol(">")
-    } else {
-        list.highlight_symbol("")
+    fn browser_list<'a>(title: &'static str, items: &'a [Lines<'a>], use_symbol: bool) -> List<'a> {
+        let block = block(
+            Some(text!(title, bold())),
+            1,
+            Borders::ALL,
+            BorderType::Rounded,
+            style(),
+        );
+        let symbol = if use_symbol { ">" } else { " " };
+        list(Some(block), items, Some(symbol), style())
     }
+
+    let artists = browser_list("─Aritst", a, browser.mode == Mode::Artist);
+    let albums = browser_list("─Album", b, browser.mode == Mode::Album);
+    let songs = browser_list("─Song", c, browser.mode == Mode::Song);
+
+    //TODO: Re-work list_state and index.
+    artists.draw(chunks[0], buf, &mut list_state(browser.artists.index()));
+    albums.draw(chunks[1], buf, &mut list_state(browser.albums.index()));
+    songs.draw(chunks[2], buf, &mut list_state(browser.songs.index()));
 }
 
 pub fn refresh(browser: &mut Browser, db: &Database) {
