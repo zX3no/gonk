@@ -76,14 +76,15 @@ pub fn draw<'a>(settings: &'a mut Settings, area: winter::Rect, buf: &mut winter
     }
 
     let list = list(
-        Some(block(
-            Some("Output Device".into()),
-            1,
-            Borders::ALL,
-            BorderType::Rounded,
-            style(),
-        )),
-        &items,
+        Some(
+            block(
+                Some("Output Device".into()),
+                Borders::ALL,
+                BorderType::Rounded,
+            )
+            .margin(1),
+        ),
+        items,
         None,
         None,
     );

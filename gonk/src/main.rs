@@ -10,7 +10,7 @@ use settings::Settings;
 use std::{
     error::Error,
     fs,
-    io::{stdout, Stdout},
+    io::{stdout, Stdout, Write},
     path::Path,
     ptr::addr_of_mut,
     time::{Duration, Instant},
@@ -166,24 +166,12 @@ fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
             Constraint::Min(2),
             Constraint::Length(3)
         );
-
-        //TODO: Rework this.
-        let lines = lines(
+        lines(
             [text![msg]],
-            Some(block(None, 0, Borders::ALL, BorderType::Rounded, style())),
+            Some(block(None, Borders::ALL, BorderType::Rounded)),
             None,
-        );
-        lines.draw(area[1], buf);
-
-        // f.render_widget(
-        //     Paragraph::new(msg).alignment(Alignment::Left).block(
-        //         Block::default()
-        //             .borders(Borders::ALL)
-        //             .border_type(BorderType::Rounded),
-        //     ),
-        //     area[1],
-        // );
-
+        )
+        .draw(area[1], buf);
         area[0]
     } else {
         area
@@ -252,12 +240,12 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     //Prevents panic messages from being hidden.
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        // let mut stdout = stdout();
+        let mut stdout = stdout();
         // disable_raw_mode();
         // disable_mouse_caputure();
-        // leave_alternate_screen(&mut stdout);
-        // show_cursor(&mut stdout);
-        // stdout.flush().unwrap();
+        leave_alternate_screen(&mut stdout);
+        show_cursor(&mut stdout);
+        stdout.flush().unwrap();
 
         orig_hook(panic_info);
         std::process::exit(1);
@@ -388,10 +376,12 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             let area = draw_log(viewport, buf);
 
             // mode = Mode::Browser;
-            mode = Mode::Settings;
+            // mode = Mode::Settings;
+            mode = Mode::Queue;
             match mode {
                 Mode::Browser => browser::draw(&mut browser, area, buf, None),
                 Mode::Settings => settings::draw(&mut settings, area, buf),
+                Mode::Queue => queue::draw(&mut queue, area, buf, None),
                 _ => (),
             }
 
