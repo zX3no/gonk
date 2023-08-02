@@ -168,10 +168,8 @@ fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
         );
 
         //TODO: Rework this.
-        let text = text![msg];
-        let temp = &[text];
         let lines = lines(
-            temp,
+            [text![msg]],
             Some(block(None, 0, Borders::ALL, BorderType::Rounded, style())),
             None,
         );

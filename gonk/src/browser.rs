@@ -118,15 +118,15 @@ pub fn draw(
 
     //TODO: This is awful.
     let artists: Vec<_> = browser.artists.iter().map(|a| text!(a)).collect();
-    let artists = lines(&artists, None, None);
+    let artists = lines(artists, None, None);
     let a = &[artists];
 
     let albums: Vec<_> = browser.albums.iter().map(|a| text!(&a.title)).collect();
-    let albums = lines(&albums, None, None);
+    let albums = lines(albums, None, None);
     let b = &[albums];
 
     let songs: Vec<_> = browser.songs.iter().map(|(s, _)| text!(s)).collect();
-    let songs = lines(&songs, None, None);
+    let songs = lines(songs, None, None);
     let c = &[songs];
 
     fn browser_list<'a>(title: &'static str, items: &'a [Lines<'a>], use_symbol: bool) -> List<'a> {
@@ -138,7 +138,7 @@ pub fn draw(
             style(),
         );
         let symbol = if use_symbol { ">" } else { " " };
-        list(Some(block), items, Some(symbol), style())
+        list(Some(block), items, Some(symbol), None)
     }
 
     let artists = browser_list("─Aritst", a, browser.mode == Mode::Artist);
