@@ -61,7 +61,7 @@ pub fn draw(
             .into(),
         ),
         Borders::TOP | Borders::LEFT | Borders::RIGHT,
-        BorderType::Rounded,
+        Rounded,
     )
     .margin(1)
     .draw(area[0], buf);
@@ -133,12 +133,12 @@ pub fn draw(
         block(
             None,
             Borders::LEFT | Borders::RIGHT | Borders::BOTTOM,
-            BorderType::Rounded,
+            Rounded,
         )
         .draw(area[1], buf);
         None
     } else if player.songs.is_empty() {
-        block(None, Borders::LEFT | Borders::RIGHT, BorderType::Rounded).draw(area[1], buf);
+        block(None, Borders::LEFT | Borders::RIGHT, Rounded).draw(area[1], buf);
         None
     } else {
         let (songs, player_index, ui_index) =
@@ -199,7 +199,7 @@ pub fn draw(
         let block = block(
             None,
             Borders::LEFT | Borders::RIGHT | Borders::BOTTOM,
-            BorderType::Rounded,
+            Rounded,
         );
         //TODO: Header style.
         let header = header![
@@ -222,7 +222,7 @@ pub fn draw(
             return block(
                 None,
                 Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
-                BorderType::Rounded,
+                Rounded,
             )
             .draw(area[2], buf);
         }
@@ -245,7 +245,7 @@ pub fn draw(
             ratio.clamp(0.0, 1.0)
         };
 
-        let block = block(None, Borders::ALL, BorderType::Rounded);
+        let block = block(None, Borders::ALL, Rounded);
         guage(Some(block), 0.5, seeker.into(), bg(SEEKER), style()).draw(area[2], buf);
     }
 

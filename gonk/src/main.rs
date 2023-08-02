@@ -167,7 +167,7 @@ fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
             Constraint::Length(3)
         );
         lines([text![msg]])
-            .block(None, Borders::ALL, BorderType::Rounded)
+            .block(None, Borders::ALL, Rounded)
             .draw(area[1], buf);
         area[0]
     } else {
@@ -374,20 +374,14 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
             // mode = Mode::Browser;
             // mode = Mode::Settings;
-            mode = Mode::Queue;
+            // mode = Mode::Queue;
+            mode = Mode::Playlist;
             match mode {
                 Mode::Browser => browser::draw(&mut browser, area, buf, None),
                 Mode::Settings => settings::draw(&mut settings, area, buf),
                 Mode::Queue => queue::draw(&mut queue, area, buf, None),
-                _ => (),
+                Mode::Playlist => playlist::draw(&mut playlist, area, buf, None, &mut stdout),
             }
-
-            // match mode {
-            //     Mode::Browser => browser::draw(&mut browser, f, top, None),
-            //     Mode::Queue => queue::draw(&mut queue, f, top, None),
-            //     Mode::Playlist => playlist::draw(&mut playlist, f, top, None),
-            //     Mode::Settings => settings::draw(&mut settings, f, top),
-            // }
 
             // if help {
             //     let area = top.inner(&SEARCH_MARGIN);
@@ -409,7 +403,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             //             Block::default()
             //                 .title("Help:")
             //                 .borders(Borders::ALL)
-            //                 .border_type(BorderType::Rounded),
+            //                 .border_type(Rounded),
             //         )
             //         .widths(&widths);
 

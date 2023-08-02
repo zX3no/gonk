@@ -84,7 +84,7 @@ pub fn down(search: &mut Search) {
 //             .block(
 //                 Block::default()
 //                     .borders(Borders::ALL)
-//                     .border_type(BorderType::Rounded)
+//                     .border_type(Rounded)
 //                     .title("Search:"),
 //             )
 //             .alignment(Alignment::Left)
@@ -122,7 +122,7 @@ pub fn down(search: &mut Search) {
 //         .block(
 //             Block::default()
 //                 .borders(Borders::ALL)
-//                 .border_type(BorderType::Rounded),
+//                 .border_type(Rounded),
 //         )
 //         .widths(&[
 //             Constraint::Length(1),
