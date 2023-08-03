@@ -175,9 +175,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     }));
 
     let mut stdout = stdout();
-    enter_alternate_screen(&mut stdout);
-    hide_cursor(&mut stdout);
-    clear(&mut stdout);
+    winter::init(&mut stdout);
 
     let index = if persist.queue.is_empty() {
         None
@@ -293,15 +291,15 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
-        //Widgets
-        {
+        //Draw widgets
+        let mut draw = || {
             let buf = &mut buffers[current];
             let area = draw_log(viewport, buf);
 
-            // mode = Mode::Browser;
-            // mode = Mode::Settings;
-            // mode = Mode::Queue;
-            // mode = Mode::Playlist;
+            //TODO: Handle mouse events.
+            // let event = if searching { None } else { Some(mouse_event) };
+
+            //TODO: Remove mouse_event from draw.
             match mode {
                 Mode::Browser => browser::draw(&mut browser, area, buf, None),
                 Mode::Settings => settings::draw(&mut settings, area, buf),
@@ -327,9 +325,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 );
                 table.draw(area, buf, None);
             }
-        }
+        };
 
-        //Events
+        draw();
+
+        //Handle events
         'events: {
             let Some(event) = poll(Duration::from_millis(16)) else {
                 break 'events;
@@ -341,176 +341,123 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             let control = false;
 
             match event {
-                // Event::Mouse(mouse_event) if !help => match mouse_event.kind {
-                //     MouseEventKind::ScrollUp if searching => search::up(&mut search),
-                //     MouseEventKind::ScrollDown if searching => search::down(&mut search),
-                //     MouseEventKind::ScrollUp => match mode {
-                //         Mode::Browser => browser::up(&mut browser, &db),
-                //         Mode::Queue => queue::up(&mut queue),
-                //         Mode::Playlist => playlist::up(&mut playlist),
-                //         Mode::Settings => settings::up(&mut settings),
-                //     },
-                //     MouseEventKind::ScrollDown => match mode {
-                //         Mode::Browser => browser::down(&mut browser, &db),
-                //         Mode::Queue => queue::down(&mut queue),
-                //         Mode::Playlist => playlist::down(&mut playlist),
-                //         Mode::Settings => settings::down(&mut settings),
-                //     },
-                //     MouseEventKind::Down(_) => {
-                //         //FIXME: Copy-paste drawing. Need to swap to custom tui library.
-                //         //tui-rs has private fields which makes the api to inflexable for my use.
-                //         terminal.draw(|f| {
-                //             let top = draw_log(f);
-                //             let event = if searching { None } else { Some(mouse_event) };
+                Event::LeftMouse if !help => {
+                    // draw();
 
-                //             //TODO: Remove mouse_event from draw.
-                //             match mode {
-                //                 Mode::Browser => browser::draw(&mut browser, f, top, event),
-                //                 Mode::Queue => queue::draw(&mut queue, f, top, event),
-                //                 Mode::Playlist => playlist::draw(&mut playlist, f, top, event),
-                //                 Mode::Settings => settings::draw(&mut settings, f, top),
-                //             }
+                    //FIXME: Copy-paste drawing. Need to swap to custom tui library.
+                    //tui-rs has private fields which makes the api to inflexable for my use.
+                    // terminal.draw(|f| {
+                    //     let top = draw_log(f);
+                    //     let event = if searching { None } else { Some(mouse_event) };
 
-                //             if searching {
-                //                 search::draw(&mut search, f, top, Some(mouse_event), &db);
-                //             }
-                //         })?;
-                //     }
-                //     _ => (),
-                // },
+                    //     match mode {
+                    //         Mode::Browser => browser::draw(&mut browser, f, top, event),
+                    //         Mode::Queue => queue::draw(&mut queue, f, top, event),
+                    //         Mode::Playlist => playlist::draw(&mut playlist, f, top, event),
+                    //         Mode::Settings => settings::draw(&mut settings, f, top),
+                    //     }
+
+                    //     if searching {
+                    //         search::draw(&mut search, f, top, Some(mouse_event), &db);
+                    //     }
+                    // })?;
+                }
+                Event::ScrollUp => match mode {
+                    Mode::Browser => browser::up(&mut browser, &db),
+                    Mode::Queue => queue::up(&mut queue),
+                    Mode::Playlist => playlist::up(&mut playlist),
+                    Mode::Settings => settings::up(&mut settings),
+                    Mode::Search => search::up(&mut search),
+                },
+                Event::ScrollDown => match mode {
+                    Mode::Browser => browser::down(&mut browser, &db),
+                    Mode::Queue => queue::down(&mut queue),
+                    Mode::Playlist => playlist::down(&mut playlist),
+                    Mode::Settings => settings::down(&mut settings),
+                    Mode::Search => search::down(&mut search),
+                },
+                //TODO: REMOVE
+                Event::Char('c') => break 'outer,
                 Event::Char('c') if control => break 'outer,
                 _ if help => match event {
                     Event::Char('?') | Event::Char('/') | Event::Escape => help = false,
                     _ => (),
                 },
-                // _ if searching => {
-                //     match event.code {
-                //         Event::Char('/') => match search.mode {
-                //             SearchMode::Search if search.query.is_empty() => {
-                //                 searching = false;
-                //             }
-                //             SearchMode::Search => {
-                //                 search.query.push('/');
-                //                 search.query_changed = true;
-                //             }
-                //             SearchMode::Select => {
-                //                 search.mode = SearchMode::Search;
-                //                 search.results.select(None);
-                //             }
-                //         },
-                //         Event::Char(c) if search.mode == SearchMode::Search => {
-                //             //Handle ^W as control backspace.
-                //             if control && c == 'w' {
-                //                 search::on_backspace(&mut search, true);
-                //             } else {
-                //                 search.query.push(c);
-                //                 search.query_changed = true;
-                //             }
-                //         }
-                //         Event::Up | Event::Char('k') => search::up(&mut search),
-                //         Event::Down | Event::Char('j') => search::down(&mut search),
-                //         Event::Backspace => match search.mode {
-                //             SearchMode::Search if !search.query.is_empty() => {
-                //                 if control {
-                //                     search.query.clear();
-                //                 } else {
-                //                     search.query.pop();
-                //                 }
+                Event::Char('?') => help = true,
+                Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
+                    //Handle ^W as control backspace.
+                    if control && c == 'w' {
+                        search::on_backspace(&mut search, true);
+                    } else {
+                        search.query.push(c);
+                        search.query_changed = true;
+                    }
+                }
+                Event::Char('/') => {
+                    mode = Mode::Search;
 
-                //                 search.query_changed = true;
-                //             }
-                //             SearchMode::Search => (),
-                //             SearchMode::Select => {
-                //                 search.results.select(None);
-                //                 search.mode = SearchMode::Search;
-                //             }
-                //         },
-                //         Event::Esc => match search.mode {
-                //             SearchMode::Search => {
-                //                 searching = false;
-                //                 search.query = String::new();
-                //                 search.query_changed = true;
-                //             }
-                //             SearchMode::Select => {
-                //                 searching = false;
+                    match search.mode {
+                        SearchMode::Search if search.query.is_empty() => {
+                            searching = false;
+                        }
+                        SearchMode::Search => {
+                            search.query.push('/');
+                            search.query_changed = true;
+                        }
+                        SearchMode::Select => {
+                            search.mode = SearchMode::Search;
+                            search.results.select(None);
+                        }
+                    }
+                }
+                Event::Char(c) if input_playlist => {
+                    if control && c == 'w' {
+                        playlist::on_backspace(&mut playlist, true);
+                    } else {
+                        playlist.changed = true;
+                        playlist.search_query.push(c);
+                    }
+                }
+                Event::Char(' ') => player.toggle_playback(),
+                Event::Char('C') => {
+                    player.clear_except_playing();
+                    queue.ui.select(Some(0));
+                }
+                Event::Char('c') => {
+                    player.clear();
+                    queue.ui.select(Some(0));
+                }
+                Event::Char('x') => match mode {
+                    Mode::Queue => {
+                        if let Some(i) = queue.ui.index() {
+                            player.delete_index(i);
 
-                //                 search.mode = SearchMode::Search;
-                //                 search.results.select(None);
-                //                 search.query = String::new();
-                //                 search.query_changed = true;
-                //             }
-                //         },
-                //         Event::Enter if shift && searching => {
-                //             if let Some(songs) = search::on_enter(&mut search, &db) {
-                //                 playlist::add(
-                //                     &mut playlist,
-                //                     songs.iter().map(|song| song.clone().clone()).collect(),
-                //                 );
-                //                 mode = Mode::Playlist;
-                //             }
-                //         }
-                //         Event::Enter => {
-                //             if let Some(songs) = search::on_enter(&mut search, &db) {
-                //                 //Swap to the queue so people can see what they added.
-                //                 mode = Mode::Queue;
-                //                 let songs: Vec<Song> =
-                //                     songs.iter().map(|song| song.clone().clone()).collect();
-                //                 player.add(songs);
-                //             }
-                //         }
-                //         _ => (),
-                //     }
-                // }
-                // Event::Char('?') => help = true,
-                // Event::Char('/') => searching = true,
-                // Event::Char(c) if input_playlist => {
-                //     if control && c == 'w' {
-                //         playlist::on_backspace(&mut playlist, true);
-                //     } else {
-                //         playlist.changed = true;
-                //         playlist.search_query.push(c);
-                //     }
-                // }
-                // Event::Char(' ') => player.toggle_playback(),
-                // Event::Char('C') => {
-                //     player.clear_except_playing();
-                //     queue.ui.select(Some(0));
-                // }
-                // Event::Char('c') => {
-                //     player.clear();
-                //     queue.ui.select(Some(0));
-                // }
-                // Event::Char('x') => match mode {
-                //     Mode::Queue => {
-                //         if let Some(i) = queue.ui.index() {
-                //             player.delete_index(i);
-
-                //             //Sync the UI index.
-                //             let len = player.songs.len().saturating_sub(1);
-                //             if i > len {
-                //                 queue.ui.select(Some(len));
-                //             }
-                //         }
-                //     }
-                //     Mode::Playlist => {
-                //         playlist::delete(&mut playlist, false);
-                //     }
-                //     _ => (),
-                // },
-                // Event::Char('X') if mode == Mode::Playlist => {
-                //     playlist::delete(&mut playlist, false)
-                // }
-                // Event::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
-                //     if scan_handle.is_none() {
-                //         if persist.music_folder.is_empty() {
-                //             gonk_core::log!("Nothing to scan! Add a folder with 'gonk add /path/'");
-                //         } else {
-                //             scan_handle = Some(db::create(persist.music_folder.clone()));
-                //             scan_timer = Instant::now();
-                //             playlist.lists = Index::from(gonk_core::playlist::playlists());
-                //         }
-                //     }
-                // }
+                            //Sync the UI index.
+                            let len = player.songs.len().saturating_sub(1);
+                            if i > len {
+                                queue.ui.select(Some(len));
+                            }
+                        }
+                    }
+                    Mode::Playlist => {
+                        playlist::delete(&mut playlist, false);
+                    }
+                    _ => (),
+                },
+                Event::Char('X') if mode == Mode::Playlist => {
+                    playlist::delete(&mut playlist, false)
+                }
+                Event::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
+                    if scan_handle.is_none() {
+                        if persist.music_folder.is_empty() {
+                            gonk_core::log!("Nothing to scan! Add a folder with 'gonk add /path/'");
+                        } else {
+                            scan_handle = Some(db::create(persist.music_folder.clone()));
+                            scan_timer = Instant::now();
+                            playlist.lists = Index::from(gonk_core::playlist::playlists());
+                        }
+                    }
+                }
                 Event::Char('z') => player.mute(),
                 Event::Char('q') => player.seek_backward(),
                 Event::Char('e') => player.seek_foward(),
@@ -534,6 +481,21 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         playlist.changed = true;
                     }
                 }
+                Event::Escape if mode == Mode::Search => match search.mode {
+                    SearchMode::Search => {
+                        searching = false;
+                        search.query = String::new();
+                        search.query_changed = true;
+                    }
+                    SearchMode::Select => {
+                        searching = false;
+
+                        search.mode = SearchMode::Search;
+                        search.results.select(None);
+                        search.query = String::new();
+                        search.query_changed = true;
+                    }
+                },
                 Event::Enter if shift => match mode {
                     Mode::Browser => {
                         playlist::add(&mut playlist, browser::get_selected(&browser, &db));
@@ -567,11 +529,46 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         }
                     }
                     Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
-                    Mode::Search => todo!(),
+                    Mode::Search => {
+                        if shift {
+                            if let Some(songs) = search::on_enter(&mut search, &db) {
+                                playlist::add(
+                                    &mut playlist,
+                                    songs.iter().map(|song| song.clone().clone()).collect(),
+                                );
+                                mode = Mode::Playlist;
+                            }
+                        } else {
+                            if let Some(songs) = search::on_enter(&mut search, &db) {
+                                //Swap to the queue so people can see what they added.
+                                mode = Mode::Queue;
+                                let songs: Vec<Song> =
+                                    songs.iter().map(|song| song.clone().clone()).collect();
+                                player.add(songs);
+                            }
+                        }
+                    }
                 },
                 Event::Backspace => {
-                    if let Mode::Playlist = mode {
+                    if mode == Mode::Playlist {
                         playlist::on_backspace(&mut playlist, control)
+                    } else if mode == Mode::Search {
+                        match search.mode {
+                            SearchMode::Search if !search.query.is_empty() => {
+                                if control {
+                                    search.query.clear();
+                                } else {
+                                    search.query.pop();
+                                }
+
+                                search.query_changed = true;
+                            }
+                            SearchMode::Search => (),
+                            SearchMode::Select => {
+                                search.results.select(None);
+                                search.mode = SearchMode::Search;
+                            }
+                        }
                     }
                 }
                 Event::Char('1') => mode = Mode::Queue,
@@ -613,45 +610,39 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             }
         }
 
-        //Rendering
-        {
-            //Calculate difference and draw to the terminal.
-            let previous_buffer = &buffers[1 - current];
-            let current_buffer = &buffers[current];
-            let diff = previous_buffer.diff(current_buffer);
-            buffer::draw(&mut stdout, diff);
+        //Calculate difference and draw to the terminal.
+        let previous_buffer = &buffers[1 - current];
+        let current_buffer = &buffers[current];
+        let diff = previous_buffer.diff(current_buffer);
+        buffer::draw(&mut stdout, diff);
 
-            //Swap buffers
+        //Swap buffers
+        buffers[1 - current].reset();
+        current = 1 - current;
+
+        //Update the viewport area.
+        //TODO: I think there is a resize event that might be better.
+        let (width, height) = info(output_handle).window_size;
+        viewport = Rect::new(0, 0, width, height);
+
+        //Resize
+        if buffers[current].area != viewport {
+            buffers[current].resize(viewport);
+            buffers[1 - current].resize(viewport);
+
+            // Reset the back buffer to make sure the next update will redraw everything.
             buffers[1 - current].reset();
-            current = 1 - current;
-
-            //Update the viewport area.
-            //TODO: I think there is a resize event that might be better.
-            let (width, height) = info(output_handle).window_size;
-            viewport = Rect::new(0, 0, width, height);
-
-            //Resize
-            if buffers[current].area != viewport {
-                buffers[current].resize(viewport);
-                buffers[1 - current].resize(viewport);
-
-                // Reset the back buffer to make sure the next update will redraw everything.
-                buffers[1 - current].reset();
-                clear(&mut stdout);
-            }
+            clear(&mut stdout);
         }
     }
+
     persist.queue = player.songs.to_vec();
     persist.index = player.songs.index().unwrap_or(0) as u16;
     persist.elapsed = player.elapsed().as_secs_f32();
     persist.save()?;
 
-    // disable_raw_mode()?;
-    // execute!(
-    //     terminal.backend_mut(),
-    //     LeaveAlternateScreen,
-    //     DisableMouseCapture
-    // )?;
+    uninit(&mut stdout);
+
     gonk_core::profiler::print();
 
     Ok(())
