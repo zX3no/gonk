@@ -31,50 +31,35 @@ const SEEKER: Color = Color::White;
 
 static HELP: Lazy<[Row; 29]> = Lazy::new(|| {
     [
-        row![text!("Move Up", fg(Cyan)), text!("K / UP")],
-        row![text!("Move Down", fg(Cyan)), text!("J / Down")],
-        row![text!("Move Left", fg(Cyan)), text!("H / Left")],
-        row![text!("Move Right", fg(Cyan)), text!("L / Right")],
-        row![text!("Volume Up", fg(Green)), text!("W")],
-        row![text!("Volume Down", fg(Green)), text!("S")],
-        row![text!("Mute", fg(Green)), text!("Z")],
-        row![text!("Play/Pause", fg(Magenta)), text!("Space")],
-        row![text!("Previous", fg(Magenta)), text!("A")],
-        row![text!("Next", fg(Magenta)), text!("D")],
-        row![text!("Seek -10s", fg(Magenta)), text!("Q")],
-        row![text!("Seek 10s", fg(Magenta)), text!("E")],
-        row![text!("Queue", fg(Blue)), text!("1")],
-        row![text!("Browser", fg(Blue)), text!("2")],
-        row![text!("Playlists", fg(Blue)), text!("3")],
-        row![text!("Settings", fg(Blue)), text!("4")],
-        row![text!("Search", fg(Blue)), text!("/")],
-        row![text!("Exit Search", fg(Blue)), text!("Escape")],
-        row![text!("Add song to queue", fg(Cyan)), text!("Enter")],
-        row![
-            text!("Add song to playlist", fg(Cyan)),
-            text!("Shift + Enter")
-        ],
-        row![
-            text!("Move song margin", fg(Green)),
-            text!("F1 / Shift + F1")
-        ],
-        row![
-            text!("Move album margin", fg(Green)),
-            text!("F2 / Shift + F2")
-        ],
-        row![
-            text!("Move artist margin", fg(Green)),
-            text!("F3 / Shift + F3")
-        ],
-        row![text!("Update database", fg(Yellow)), text!("U")],
-        row![text!("Quit player", fg(Yellow)), text!("Ctrl + C")],
-        row![text!("Clear queue", fg(Red)), text!("C")],
-        row![text!("Clear except playing", fg(Red)), text!("Shift + C")],
-        row![text!("Delete song/playlist", fg(Red)), text!("X")],
-        row![
-            text!("Delete without confirmation", fg(Red)),
-            text!("Shift + X")
-        ],
+        row![text!("Move Up", fg(Cyan)), "K / UP"],
+        row![text!("Move Down", fg(Cyan)), "J / Down"],
+        row![text!("Move Left", fg(Cyan)), "H / Left"],
+        row![text!("Move Right", fg(Cyan)), "L / Right"],
+        row![text!("Volume Up", fg(Green)), "W"],
+        row![text!("Volume Down", fg(Green)), "S"],
+        row![text!("Mute", fg(Green)), "Z"],
+        row![text!("Play/Pause", fg(Magenta)), "Space"],
+        row![text!("Previous", fg(Magenta)), "A"],
+        row![text!("Next", fg(Magenta)), "D"],
+        row![text!("Seek -10s", fg(Magenta)), "Q"],
+        row![text!("Seek 10s", fg(Magenta)), "E"],
+        row![text!("Queue", fg(Blue)), "1"],
+        row![text!("Browser", fg(Blue)), "2"],
+        row![text!("Playlists", fg(Blue)), "3"],
+        row![text!("Settings", fg(Blue)), "4"],
+        row![text!("Search", fg(Blue)), "/"],
+        row![text!("Exit Search", fg(Blue)), "Escape"],
+        row![text!("Add song to queue", fg(Cyan)), "Enter"],
+        row![text!("Add song to playlist", fg(Cyan)), "Shift + Enter"],
+        row![text!("Move song margin", fg(Green)), "F1 / Shift + F1"],
+        row![text!("Move album margin", fg(Green)), "F2 / Shift + F2"],
+        row![text!("Move artist margin", fg(Green)), "F3 / Shift + F3"],
+        row![text!("Update database", fg(Yellow)), "U"],
+        row![text!("Quit player", fg(Yellow)), "Ctrl + C"],
+        row![text!("Clear queue", fg(Red)), "C"],
+        row![text!("Clear except playing", fg(Red)), "Shift + C"],
+        row![text!("Delete song/playlist", fg(Red)), "X"],
+        row![text!("Delete without confirmation", fg(Red)), "Shift + X"],
     ]
 });
 
