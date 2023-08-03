@@ -203,7 +203,7 @@ pub fn draw(
         );
         //TODO: Header style.
         let header = header![
-            "",
+            text!(),
             text!("#", bold()),
             text!("Title", bold()),
             text!("Album", bold()),
