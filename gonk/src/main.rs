@@ -316,7 +316,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         //Handle events
         'events: {
-            let Some(event) = poll(Duration::from_millis(16)) else {
+            let Some(event) = poll(Duration::from_millis(2)) else {
                 break 'events;
             };
 
@@ -366,7 +366,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char('c') if control => break 'outer,
                 _ if help => match event {
                     Event::Char('?') | Event::Char('/') | Event::Escape => help = false,
-                    _ => (),
+                    _ => {}
                 },
                 Event::Char('?') => help = true,
                 Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
@@ -403,7 +403,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         playlist.search_query.push(c);
                     }
                 }
-                Event::Char(' ') => player.toggle_playback(),
+                Event::Space => player.toggle_playback(),
                 Event::Char('C') => {
                     player.clear_except_playing();
                     queue.ui.select(Some(0));
@@ -494,7 +494,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             }
                         }
                     }
-                    _ => (),
+                    _ => {}
                 },
                 Event::Enter => match mode {
                     Mode::Browser => {
@@ -591,7 +591,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     Mode::Settings => {}
                     Mode::Search => {}
                 },
-                _ => (),
+                _ => {}
             }
         }
 
