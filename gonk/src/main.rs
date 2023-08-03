@@ -316,6 +316,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         //Handle events
         'events: {
+            //TODO: I feel like event handling and audio playback should be on different thread.
             let Some(event) = poll(Duration::from_millis(2)) else {
                 break 'events;
             };
