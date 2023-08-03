@@ -148,7 +148,7 @@ pub fn draw(
             .iter()
             .map(|song| {
                 row![
-                    text!(""),
+                    text!(),
                     text!(song.track_number.to_string(), fg(NUMBER)),
                     text!(song.title.as_str(), fg(TITLE)),
                     text!(song.album.as_str(), fg(ALBUM)),
@@ -164,24 +164,31 @@ pub fn draw(
                     let row = if ui_index == player_index {
                         rows[player_index] = row![
                             text!(">>", fg(White).dim().bold()),
-                            text!(song.track_number.to_string(), bg(NUMBER).fg(Black)),
-                            text!(song.title.as_str(), bg(TITLE).fg(Black)),
-                            text!(song.album.as_str(), bg(ALBUM).fg(Black)),
-                            text!(song.artist.as_str(), bg(ARTIST).fg(Black))
+                            text!(song.track_number.to_string(), bg(NUMBER).fg(Black).dim()),
+                            text!(song.title.as_str(), bg(TITLE).fg(Black).dim()),
+                            text!(song.album.as_str(), bg(ALBUM).fg(Black).dim()),
+                            text!(song.artist.as_str(), bg(ARTIST).fg(Black).dim())
                         ];
                     } else {
-                        rows[player_index].columns[0] = text!(">>", fg(White).dim().bold()).into();
+                        rows[player_index] = row![
+                            text!(">>", fg(White).dim().bold()),
+                            text!(song.track_number.to_string(), fg(NUMBER)),
+                            text!(song.title.as_str(), fg(TITLE)),
+                            text!(song.album.as_str(), fg(ALBUM)),
+                            text!(song.artist.as_str(), fg(ARTIST))
+                        ]
                     };
 
                     //Current selection
                     if ui_index != player_index {
                         if let Some(song) = songs.get(ui_index) {
+                            //TODO: Something is not working here.
                             rows[ui_index] = row![
-                                text!(""),
-                                text!(song.track_number.to_string(), fg(Black).bg(NUMBER)),
-                                text!(song.title.as_str(), fg(Black).bg(TITLE)),
-                                text!(song.album.as_str(), fg(Black).bg(ALBUM)),
-                                text!(song.artist.as_str(), fg(Black).bg(ARTIST))
+                                text!(),
+                                text!(song.track_number.to_string(), fg(Black).bg(NUMBER).dim()),
+                                text!(song.title.as_str(), fg(Black).bg(TITLE).dim()),
+                                text!(song.album.as_str(), fg(Black).bg(ALBUM).dim()),
+                                text!(song.artist.as_str(), fg(Black).bg(ARTIST).dim())
                             ];
                         }
                     }
@@ -209,7 +216,7 @@ pub fn draw(
             text!("Album", bold()),
             text!("Artist", bold())
         ];
-        let table = table(Some(header), Some(block), &con, rows, None, style());
+        let table = table(Some(header), Some(block), &con, rows, None, style()).spacing(1);
         table.draw(area[1], buf, ui_index);
 
         let row_bounds = Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])));
@@ -246,7 +253,7 @@ pub fn draw(
         };
 
         let block = block(None, Borders::ALL, Rounded);
-        guage(Some(block), 0.5, seeker.into(), bg(SEEKER), style()).draw(area[2], buf);
+        guage(Some(block), ratio, seeker.into(), bg(SEEKER), style()).draw(area[2], buf);
     }
 
     //Don't handle mouse input when the queue is empty.
