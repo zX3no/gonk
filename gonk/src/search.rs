@@ -1,8 +1,9 @@
-use crate::{ALBUM, ARTIST, TITLE};
+use crate::{ALBUM, ARTIST, SEARCH_MARGIN, TITLE};
 use gonk_core::{
     vdb::{Database, Item},
     Index, Song,
 };
+use winter::*;
 
 #[derive(PartialEq, Eq)]
 pub enum Mode {
@@ -37,161 +38,144 @@ pub fn down(search: &mut Search) {
 }
 
 //TODO: Artist and albums colors aren't quite right.
-// pub fn draw(
-//     search: &mut Search,
-//     f: &mut Frame,
-//     area: Rect,
-//     mouse_event: Option<MouseEvent>,
-//     db: &Database,
-// ) {
-//     let area = area.inner(&SEARCH_MARGIN);
-//     f.render_widget(Clear, area);
+pub fn draw(
+    search: &mut Search,
+    area: winter::Rect,
+    buf: &mut winter::Buffer,
+    mouse: Option<(u16, u16)>,
+    db: &Database,
+) {
+    // let area = area.inner(SEARCH_MARGIN);
+    //TODO: Clear
+    // f.render_widget(Clear, area);
 
-//     if search.query_changed {
-//         search.query_changed = !search.query_changed;
-//         *search.results = db.search(&search.query);
-//     }
+    if search.query_changed {
+        search.query_changed = !search.query_changed;
+        *search.results = db.search(&search.query);
+    }
 
-//     let layout_margin = 1;
-//     let v = Layout::default()
-//         .margin(layout_margin)
-//         .direction(Direction::Vertical)
-//         .constraints([Constraint::Length(3), Constraint::Min(40)])
-//         .split(area);
+    let layout_margin = 1;
+    let v = layout(area, Vertical, (1, 1), [Length(3), Min(40)].into());
 
-//     if let Some(event) = mouse_event {
-//         let rect = Rect {
-//             x: event.column,
-//             y: event.row,
-//             ..Default::default()
-//         };
-//         if rect.intersects(v[0]) {
-//             search.mode = Mode::Search;
-//             search.results.select(None);
-//         } else if rect.intersects(v[1]) && !search.results.is_empty() {
-//             search.mode = Mode::Select;
-//             search.results.select(Some(0));
-//         }
-//     }
+    if let Some((x, y)) = mouse {
+        let rect = Rect {
+            x,
+            y,
+            ..Default::default()
+        };
+        if rect.intersects(v[0]) {
+            search.mode = Mode::Search;
+            search.results.select(None);
+        } else if rect.intersects(v[1]) && !search.results.is_empty() {
+            search.mode = Mode::Select;
+            search.results.select(Some(0));
+        }
+    }
 
-//     let len = search.query.len() as u16;
-//     //Search box is a little smaller than the max width
-//     let width = area.width.saturating_sub(1);
-//     let offset_x = if len < width { 0 } else { len - width + 1 };
+    let len = search.query.len() as u16;
+    //Search box is a little smaller than the max width
+    let width = area.width.saturating_sub(1);
+    let offset_x = if len < width { 0 } else { len - width + 1 };
 
-//     f.render_widget(
-//         Paragraph::new(search.query.as_str())
-//             .block(
-//                 Block::default()
-//                     .borders(Borders::ALL)
-//                     .border_type(Rounded)
-//                     .title("Search:"),
-//             )
-//             .alignment(Alignment::Left)
-//             .scroll((0, offset_x)),
-//         v[0],
-//     );
+    //TODO: Scroll
+    lines!(search.query.as_str())
+        .block(Some("Search:".into()), ALL, Rounded)
+        .draw(v[0], buf);
+    // .scroll((0, offset_x)),
 
-//     let rows: Vec<Row> = search
-//         .results
-//         .iter()
-//         .enumerate()
-//         .map(|(i, item)| {
-//             let Some(s) = search.results.index() else {
-//                 return cell(item, false);
-//             };
-//             if s == i {
-//                 cell(item, true)
-//             } else {
-//                 cell(item, false)
-//             }
-//         })
-//         .collect();
+    let rows: Vec<Row> = search
+        .results
+        .iter()
+        .enumerate()
+        .map(|(i, item)| {
+            let Some(s) = search.results.index() else {
+                return cell(item, false);
+            };
+            if s == i {
+                cell(item, true)
+            } else {
+                cell(item, false)
+            }
+        })
+        .collect();
 
-//     let italic = Style::default().add_modifier(Modifier::ITALIC);
-//     let table = Table::new(&rows)
-//         .header(
-//             Row::new(vec![
-//                 Cell::default(),
-//                 Cell::from("Name").style(italic),
-//                 Cell::from("Album").style(italic),
-//                 Cell::from("Artist").style(italic),
-//             ])
-//             .bottom_margin(1),
-//         )
-//         .block(
-//             Block::default()
-//                 .borders(Borders::ALL)
-//                 .border_type(Rounded),
-//         )
-//         .widths(&[
-//             Constraint::Length(1),
-//             Constraint::Percentage(50),
-//             Constraint::Percentage(30),
-//             Constraint::Percentage(20),
-//         ]);
+    // let italic = Style::default().add_modifier(Modifier::ITALIC);
+    let header = header![
+        text!(),
+        text!("Name", italic()),
+        text!("Album", italic()),
+        text!("Artist", italic())
+    ];
+    let table = table(
+        Some(header),
+        Some(block(None, ALL, Rounded)),
+        &[
+            Constraint::Length(1),
+            Constraint::Percentage(50),
+            Constraint::Percentage(30),
+            Constraint::Percentage(20),
+        ],
+        rows,
+        None,
+        style(),
+    );
 
-//     f.render_stateful_widget(table, v[1], &mut TableState::new(search.results.index()));
+    table.draw(v[1], buf, search.results.index());
 
-//     let y = SEARCH_MARGIN.vertical + 1 + layout_margin;
-//     let x = SEARCH_MARGIN.horizontal + 1 + layout_margin;
+    let x = SEARCH_MARGIN.0 + 1 + layout_margin;
+    let y = SEARCH_MARGIN.1 + 1 + layout_margin;
 
-//     //Move the cursor position when typing
-//     if let Mode::Search = search.mode {
-//         if search.results.index().is_none() && search.query.is_empty() {
-//             f.set_cursor(x, y);
-//         } else {
-//             let len = search.query.len() as u16;
-//             let max_width = area.width.saturating_sub(3);
-//             if len >= max_width {
-//                 f.set_cursor(x - 1 + max_width, y);
-//             } else {
-//                 f.set_cursor(x + len, y);
-//             }
-//         }
-//     }
-// }
+    //TODO: Set cursor position.
+    //Move the cursor position when typing
+    if let Mode::Search = search.mode {
+        if search.results.index().is_none() && search.query.is_empty() {
+            // f.set_cursor(x, y);
+        } else {
+            let len = search.query.len() as u16;
+            let max_width = area.width.saturating_sub(3);
+            if len >= max_width {
+                // f.set_cursor(x - 1 + max_width, y);
+            } else {
+                // f.set_cursor(x + len, y);
+            }
+        }
+    }
+}
 
-// fn cell<'a>(item: &'a Item, selected: bool) -> Row<'a> {
-//     let selected_cell = if selected {
-//         Cell::from(">")
-//     } else {
-//         Cell::default()
-//     };
+fn cell<'a>(item: &'a Item, selected: bool) -> Row<'a> {
+    let selected_cell = if selected { ">" } else { "" };
 
-//     match item {
-//         Item::Song((artist, album, name, _, _)) => Row::new(vec![
-//             selected_cell,
-//             Cell::from(name.as_str()).style(Style::default().fg(TITLE)),
-//             Cell::from(album.as_str()).style(Style::default().fg(ALBUM)),
-//             Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
-//         ]),
-//         Item::Album((artist, album)) => Row::new(vec![
-//             selected_cell,
-//             Cell::from(Spans::from(vec![
-//                 Span::styled(format!("{album} - "), Style::default().fg(ALBUM)),
-//                 Span::styled(
-//                     "Album",
-//                     Style::default().fg(ALBUM).add_modifier(Modifier::ITALIC),
-//                 ),
-//             ])),
-//             Cell::from("-"),
-//             Cell::from(artist.as_str()).style(Style::default().fg(ARTIST)),
-//         ]),
-//         Item::Artist(artist) => Row::new(vec![
-//             selected_cell,
-//             Cell::from(Spans::from(vec![
-//                 Span::styled(format!("{artist} - "), Style::default().fg(ARTIST)),
-//                 Span::styled(
-//                     "Artist",
-//                     Style::default().fg(ARTIST).add_modifier(Modifier::ITALIC),
-//                 ),
-//             ])),
-//             Cell::from("-"),
-//             Cell::from("-"),
-//         ]),
-//     }
-// }
+    match item {
+        Item::Song((artist, album, name, _, _)) => row![
+            text!(selected_cell),
+            text!(name.as_str(), fg(TITLE)),
+            text!(album.as_str(), fg(ALBUM)),
+            text!(artist.as_str(), fg(ARTIST))
+        ],
+        Item::Album((artist, album)) => row![
+            text!(selected_cell),
+            lines_s!(
+                format!("{album} - "),
+                fg(ALBUM),
+                "Album",
+                fg(ALBUM).italic()
+            ),
+            text!("-"),
+            text!(artist.as_str(), fg(ARTIST))
+        ],
+        Item::Artist(artist) => row![
+            text!(selected_cell),
+            lines_s!(
+                format!("{artist} - "),
+                fg(ARTIST),
+                "Artist",
+                fg(ARTIST).italic()
+            ),
+            text!("-"),
+            text!("-")
+        ],
+    }
+}
 
 pub fn on_backspace(search: &mut Search, control: bool) {
     match search.mode {
