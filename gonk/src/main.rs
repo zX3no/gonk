@@ -192,8 +192,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         mode = Mode::Queue;
     }
 
-    let mut searching = false;
     let mut help = false;
+
+    //Stores previous mode for search.
+    let mut prev_mode = Mode::Search;
 
     'outer: loop {
         if let Some(handle) = &scan_handle {
@@ -317,14 +319,12 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         //Handle events
         'events: {
             //TODO: I feel like event handling and audio playback should be on different thread.
-            let Some(event) = poll(Duration::from_millis(2)) else {
+            let Some((event, state)) = poll(Duration::from_millis(2)) else {
                 break 'events;
             };
 
-            // let shift = event.modifiers == KeyModifiers::SHIFT;
-            // let control = event.modifiers == KeyModifiers::CONTROL;
-            let shift = false;
-            let control = false;
+            let shift = state.shift();
+            let control = state.ctrl();
 
             match event {
                 Event::LeftMouse if !help => {
@@ -362,14 +362,33 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     Mode::Settings => settings::down(&mut settings),
                     Mode::Search => search::down(&mut search),
                 },
-                //TODO: REMOVE
-                Event::Char('c') => break 'outer,
                 Event::Char('c') if control => break 'outer,
                 _ if help => match event {
                     Event::Char('?') | Event::Char('/') | Event::Escape => help = false,
                     _ => {}
                 },
                 Event::Char('?') => help = true,
+                //TODO: Fix search cursor.
+                Event::Char('/') => {
+                    if mode != Mode::Search {
+                        prev_mode = mode;
+                        mode = Mode::Search;
+                    } else {
+                        match search.mode {
+                            SearchMode::Search if search.query.is_empty() => {
+                                mode = prev_mode.clone();
+                            }
+                            SearchMode::Search => {
+                                search.query.push('/');
+                                search.query_changed = true;
+                            }
+                            SearchMode::Select => {
+                                search.mode = SearchMode::Search;
+                                search.results.select(None);
+                            }
+                        }
+                    }
+                }
                 Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
                     //Handle ^W as control backspace.
                     if control && c == 'w' {
@@ -377,23 +396,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     } else {
                         search.query.push(c);
                         search.query_changed = true;
-                    }
-                }
-                Event::Char('/') => {
-                    mode = Mode::Search;
-
-                    match search.mode {
-                        SearchMode::Search if search.query.is_empty() => {
-                            searching = false;
-                        }
-                        SearchMode::Search => {
-                            search.query.push('/');
-                            search.query_changed = true;
-                        }
-                        SearchMode::Select => {
-                            search.mode = SearchMode::Search;
-                            search.results.select(None);
-                        }
                     }
                 }
                 Event::Char(c) if input_playlist => {
@@ -469,13 +471,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 }
                 Event::Escape if mode == Mode::Search => match search.mode {
                     SearchMode::Search => {
-                        searching = false;
                         search.query = String::new();
                         search.query_changed = true;
+                        mode = prev_mode.clone();
                     }
                     SearchMode::Select => {
-                        searching = false;
-
                         search.mode = SearchMode::Search;
                         search.results.select(None);
                         search.query = String::new();
