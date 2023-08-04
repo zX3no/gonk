@@ -5,7 +5,7 @@ use gonk_core::{
 };
 use winter::*;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Mode {
     Search,
     Select,
@@ -38,6 +38,7 @@ pub fn down(search: &mut Search) {
 }
 
 //TODO: Artist and albums colors aren't quite right.
+//Also everything is italic.
 pub fn draw(
     search: &mut Search,
     area: winter::Rect,
@@ -45,17 +46,12 @@ pub fn draw(
     mouse: Option<(u16, u16)>,
     db: &Database,
 ) {
-    // let area = area.inner(SEARCH_MARGIN);
-    //TODO: Clear
-    // f.render_widget(Clear, area);
-
     if search.query_changed {
         search.query_changed = !search.query_changed;
         *search.results = db.search(&search.query);
     }
 
-    let layout_margin = 1;
-    let v = layout(area, Vertical, (1, 1), [Length(3), Min(40)].into());
+    let v = layout![area, Vertical, Length(3), Min(40)];
 
     if let Some((x, y)) = mouse {
         let rect = Rect {
@@ -122,8 +118,9 @@ pub fn draw(
 
     table.draw(v[1], buf, search.results.index());
 
-    let x = SEARCH_MARGIN.0 + 1 + layout_margin;
-    let y = SEARCH_MARGIN.1 + 1 + layout_margin;
+    // let layout_margin = 1;
+    // let x = SEARCH_MARGIN.0 + 1 + layout_margin;
+    // let y = SEARCH_MARGIN.1 + 1 + layout_margin;
 
     //TODO: Set cursor position.
     //Move the cursor position when typing
