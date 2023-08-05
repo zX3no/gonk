@@ -156,12 +156,8 @@ pub fn draw(
             })
             .collect();
 
-        let symbol = if playlist.mode == Mode::Playlist {
-            ">"
-        } else {
-            ""
-        };
-        table(
+        let symbol = if playlist.mode == Mode::Song { ">" } else { "" };
+        let table = table(
             None,
             Some(song_block),
             &[
@@ -172,8 +168,8 @@ pub fn draw(
             rows,
             Some(symbol),
             style(),
-        )
-        .draw(horizontal[1], buf, selected.songs.index());
+        );
+        table.draw(horizontal[1], buf, selected.songs.index());
     } else {
         song_block.draw(horizontal[1], buf);
     }
@@ -194,10 +190,9 @@ pub fn draw(
             ];
 
             let (yes, no) = if playlist.yes {
-                //TODO: This was DarkGray. I don't know what it's suppose to e.
-                (underlined(), fg(Black).dim())
+                (underlined(), fg(BrightBlack).dim())
             } else {
-                (fg(Black).dim().underlined(), underlined())
+                (fg(BrightBlack).dim().underlined(), underlined())
             };
 
             let delete_msg = if let Mode::Playlist = playlist.mode {
@@ -206,8 +201,7 @@ pub fn draw(
                 "Delete song?"
             };
 
-            //TODO: Clear the area.
-            // f.render_widget(Clear, area);
+            buf.clear(area);
 
             lines!(delete_msg)
                 .block(None, Borders::TOP | Borders::LEFT | Borders::RIGHT, Rounded)
@@ -257,8 +251,7 @@ pub fn draw(
             //     Constraint::Percentage(50)
             // ];
 
-            //TODO: Clear area.
-            // f.render_widget(Clear, area);
+            buf.clear(area);
 
             block(Some("Add to playlist".into()), ALL, Rounded)
                 .margin(1)
@@ -416,7 +409,7 @@ fn delete_song(playlist: &mut Playlist) {
 
 fn delete_playlist(playlist: &mut Playlist) {
     if let Some(index) = playlist.lists.index() {
-        // playlist.playlists[index].delete();
+        playlist.lists[index].delete();
         playlist.lists.remove_and_move(index);
         playlist.delete = false;
     }

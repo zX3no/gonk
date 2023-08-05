@@ -1,6 +1,9 @@
 #![allow(unused)]
 use browser::Browser;
-use gonk_core::{vdb::Database, *};
+use gonk_core::{
+    vdb::{Database, Item},
+    *,
+};
 use gonk_player::{Player, Wasapi};
 use once_cell::sync::Lazy;
 use playlist::{Mode as PlaylistMode, Playlist};
@@ -406,6 +409,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         playlist.search_query.push(c);
                     }
                 }
+                Event::Space if input_playlist => {
+                    playlist.changed = true;
+                    playlist.search_query.push(' ');
+                }
                 Event::Space => player.toggle_playback(),
                 Event::Char('C') => {
                     player.clear_except_playing();
@@ -495,36 +502,37 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             }
                         }
                     }
+                    Mode::Search => {
+                        if let Some(songs) = search::on_enter(&mut search, &db) {
+                            playlist::add(
+                                &mut playlist,
+                                songs.iter().map(|song| song.clone().clone()).collect(),
+                            );
+                            mode = Mode::Playlist;
+                        }
+                    }
                     _ => {}
                 },
-                Event::Enter => match mode {
-                    Mode::Browser => {
-                        player.add(browser::get_selected(&browser, &db));
-                    }
-                    Mode::Queue => {
-                        if let Some(i) = queue.ui.index() {
-                            player.play_index(i);
+                Event::Enter => {
+                    match mode {
+                        Mode::Browser => {
+                            player.add(browser::get_selected(&browser, &db));
                         }
-                    }
-                    Mode::Settings => {
-                        if let Some(device) = settings::selected(&mut settings) {
-                            let device = device.to_string();
-                            player.set_output_device(&device);
-                            settings.current_device = device.clone();
-                            persist.output_device = device.clone();
-                        }
-                    }
-                    Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
-                    Mode::Search => {
-                        if shift {
-                            if let Some(songs) = search::on_enter(&mut search, &db) {
-                                playlist::add(
-                                    &mut playlist,
-                                    songs.iter().map(|song| song.clone().clone()).collect(),
-                                );
-                                mode = Mode::Playlist;
+                        Mode::Queue => {
+                            if let Some(i) = queue.ui.index() {
+                                player.play_index(i);
                             }
-                        } else {
+                        }
+                        Mode::Settings => {
+                            if let Some(device) = settings::selected(&mut settings) {
+                                let device = device.to_string();
+                                player.set_output_device(&device);
+                                settings.current_device = device.clone();
+                                persist.output_device = device.clone();
+                            }
+                        }
+                        Mode::Playlist => playlist::on_enter(&mut playlist, &mut player),
+                        Mode::Search => {
                             if let Some(songs) = search::on_enter(&mut search, &db) {
                                 //Swap to the queue so people can see what they added.
                                 mode = Mode::Queue;
@@ -534,7 +542,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             }
                         }
                     }
-                },
+                }
                 Event::Backspace => {
                     if mode == Mode::Playlist {
                         playlist::on_backspace(&mut playlist, control)
