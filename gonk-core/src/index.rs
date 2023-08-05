@@ -100,7 +100,7 @@ impl<T> From<Vec<T>> for Index<T> {
 
 impl<'a, T> From<&'a [T]> for Index<&'a T> {
     fn from(slice: &'a [T]) -> Self {
-        let data: Vec<&T> = slice.iter().map(|x| x).collect();
+        let data: Vec<&T> = slice.iter().collect();
         let index = if data.is_empty() { None } else { Some(0) };
         Self { data, index }
     }

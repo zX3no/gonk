@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use crate::{ALBUM, ARTIST, NUMBER, SEEKER, TITLE};
 use gonk_core::{log, Index};
 use gonk_player::Player;
@@ -161,7 +159,7 @@ pub fn draw(
             if let Some(song) = songs.get(player_index) {
                 if let Some(ui_index) = ui_index {
                     //Currently playing song
-                    let row = if ui_index == player_index {
+                    if ui_index == player_index {
                         rows[player_index] = row![
                             text!(">>", fg(White).dim().bold()),
                             text!(song.track_number.to_string(), bg(NUMBER).fg(Black).dim()),
@@ -219,8 +217,7 @@ pub fn draw(
         let table = table(Some(header), Some(block), &con, rows, None, style()).spacing(1);
         table.draw(area[1], buf, ui_index);
 
-        let row_bounds = Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])));
-        row_bounds
+        Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])))
     };
 
     if log::last_message().is_none() {

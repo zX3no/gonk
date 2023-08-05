@@ -1,4 +1,4 @@
-use crate::{ALBUM, ARTIST, SEARCH_MARGIN, TITLE};
+use crate::{ALBUM, ARTIST, TITLE};
 use gonk_core::{
     vdb::{Database, Item},
     Index, Song,
@@ -68,10 +68,10 @@ pub fn draw(
         }
     }
 
-    let len = search.query.len() as u16;
     //Search box is a little smaller than the max width
-    let width = area.width.saturating_sub(1);
-    let offset_x = if len < width { 0 } else { len - width + 1 };
+    // let len = search.query.len() as u16;
+    // let width = area.width.saturating_sub(1);
+    // let offset_x = if len < width { 0 } else { len - width + 1 };
 
     //TODO: Scroll
     lines!(search.query.as_str())
@@ -139,7 +139,7 @@ pub fn draw(
     }
 }
 
-fn cell<'a>(item: &'a Item, selected: bool) -> Row<'a> {
+fn cell(item: &Item, selected: bool) -> Row<'_> {
     let selected_cell = if selected { ">" } else { "" };
 
     match item {

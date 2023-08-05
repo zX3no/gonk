@@ -111,7 +111,7 @@ impl Settings {
         unsafe {
             FILE.as_ref().unwrap().set_len(0)?;
             FILE.as_ref().unwrap().rewind()?;
-            let mut writer = BufWriter::new(&*FILE.as_ref().unwrap());
+            let mut writer = BufWriter::new(FILE.as_ref().unwrap());
             writer.write_all(self.serialize().as_bytes())?;
             writer.flush()?;
         };

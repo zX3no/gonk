@@ -115,13 +115,10 @@ impl Player {
                     .find(|d| self.output_device.name == d.name)
                 {
                     //Try to update the new device.
-                    match Wasapi::new(&device, Some(symphonia.sample_rate())) {
-                        Ok(wasapi) => {
-                            self.backend = wasapi;
-                            self.output_device = device.clone();
-                            break;
-                        }
-                        Err(_) => (),
+                    if let Ok(wasapi) = Wasapi::new(&device, Some(symphonia.sample_rate())) {
+                        self.backend = wasapi;
+                        self.output_device = device.clone();
+                        break;
                     }
                 }
 

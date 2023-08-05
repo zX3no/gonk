@@ -25,7 +25,7 @@ impl Settings {
     }
 }
 
-pub fn selected(settings: &mut Settings) -> Option<&str> {
+pub fn selected(settings: &Settings) -> Option<&str> {
     if let Some(index) = settings.index {
         if let Some(device) = settings.devices.get(index) {
             return Some(&device.name);
@@ -60,7 +60,7 @@ pub fn down(settings: &mut Settings) {
 
 //TODO: I liked the old item menu bold selections instead of white background.
 //It doesn't work on most terminals though :(
-pub fn draw<'a>(settings: &'a mut Settings, area: winter::Rect, buf: &mut winter::Buffer) {
+pub fn draw(settings: &Settings, area: winter::Rect, buf: &mut winter::Buffer) {
     let mut items = Vec::new();
     for device in &settings.devices {
         let item = if device.name == settings.current_device {

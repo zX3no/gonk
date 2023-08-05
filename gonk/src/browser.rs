@@ -191,12 +191,7 @@ pub fn get_selected(browser: &Browser, db: &Database) -> Vec<Song> {
                         .iter()
                         .flat_map(|album| album.songs.iter().map(|song| song.clone().clone()))
                         .collect(),
-                    Mode::Album => db
-                        .album(artist, &album.title)
-                        .songs
-                        .iter()
-                        .cloned()
-                        .collect(),
+                    Mode::Album => db.album(artist, &album.title).songs.to_vec(),
                     Mode::Song => {
                         vec![db.song(artist, &album.title, *disc, *number).clone()]
                     }
