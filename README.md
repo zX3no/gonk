@@ -29,7 +29,7 @@ gonk add ~/Music
 
 ### Building from Source
 
-> Current master branch cannot be built on linux, see [#19](https://github.com/zX3no/gonk/issues/19)
+> Current master branch cannot be built on linux. You can still use an older version [0.1.2](https://github.com/zX3no/gonk/releases/tag/0.1.2), see [#19](https://github.com/zX3no/gonk/issues/19).
 
 ```
 git clone https://github.com/zX3no/gonk
