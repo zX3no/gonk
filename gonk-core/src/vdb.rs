@@ -68,7 +68,7 @@ impl Database {
         };
         let songs: Vec<Song> = unsafe { from_utf8_unchecked(&bytes) }
             .lines()
-            .flat_map(|line| Song::deserialize(line))
+            .flat_map(Song::deserialize)
             .collect();
 
         let len = songs.len();
@@ -119,7 +119,7 @@ impl Database {
 
     ///Get all albums by an artist.
     pub fn albums_by_artist(&self, artist: &str) -> &[Album] {
-        self.btree.get(artist).map(|albums| albums).unwrap()
+        self.btree.get(artist).unwrap()
     }
 
     ///Get an album by artist and album name.

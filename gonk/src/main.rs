@@ -1,9 +1,5 @@
-#![allow(unused)]
 use browser::Browser;
-use gonk_core::{
-    vdb::{Database, Item},
-    *,
-};
+use gonk_core::{vdb::*, *};
 use gonk_player::{Player, Wasapi};
 use once_cell::sync::Lazy;
 use playlist::{Mode as PlaylistMode, Playlist};
@@ -13,12 +9,12 @@ use settings::Settings;
 use std::{
     error::Error,
     fs,
-    io::{stdout, Stdout, Write},
+    io::{stdout, Write},
     path::Path,
     ptr::addr_of_mut,
     time::{Duration, Instant},
 };
-use winter::{symbols::line::ROUNDED, *};
+use winter::*;
 
 mod browser;
 mod playlist;
@@ -92,8 +88,6 @@ fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
     }
 }
 
-const SEARCH_MARGIN: (u16, u16) = (6, 8);
-
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -141,7 +135,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
     }
 
-    let (output_handle, input_handle) = handles();
+    //TODO: Cleanup input handle usage.
+    let (output_handle, _input_handle) = handles();
     let (width, height) = info(output_handle).window_size;
 
     let mut viewport = Rect::new(0, 0, width, height);
@@ -282,25 +277,21 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
         //Draw widgets
-        let mut draw = || {
+        let mut draw = |mouse: Option<(u16, u16)>| {
             let buf = &mut buffers[current];
             let area = draw_log(viewport, buf);
 
-            //TODO: Handle mouse events.
-            // let event = if searching { None } else { Some(mouse_event) };
-
-            //TODO: Remove mouse_event from draw.
+            //TOOD: Mouse does not work in settings.
             match mode {
-                Mode::Browser => browser::draw(&mut browser, area, buf, None),
-                Mode::Settings => settings::draw(&mut settings, area, buf),
-                Mode::Queue => queue::draw(&mut queue, area, buf, None),
-                Mode::Playlist => playlist::draw(&mut playlist, area, buf, None, &mut stdout),
-                Mode::Search => search::draw(&mut search, area, buf, None, &db),
+                Mode::Browser => browser::draw(&mut browser, area, buf, mouse),
+                Mode::Settings => settings::draw(&settings, area, buf),
+                Mode::Queue => queue::draw(&mut queue, area, buf, mouse),
+                Mode::Playlist => playlist::draw(&mut playlist, area, buf, mouse),
+                Mode::Search => search::draw(&mut search, area, buf, mouse, &db),
             }
 
             if help {
-                let area = area.inner(SEARCH_MARGIN);
-                buf.clear(area);
+                let area = area.inner((6, 8));
                 let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
 
                 //TODO: This is hard to read because the gap between command and key is large.
@@ -313,11 +304,12 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     None,
                     style(),
                 );
+                buf.clear(area);
                 table.draw(area, buf, None);
             }
         };
 
-        draw();
+        draw(None);
 
         //Handle events
         'events: {
@@ -330,27 +322,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             let control = state.ctrl();
 
             match event {
-                Event::LeftMouse if !help => {
-                    // draw();
-
-                    //FIXME: Copy-paste drawing. Need to swap to custom tui library.
-                    //tui-rs has private fields which makes the api to inflexable for my use.
-                    // terminal.draw(|f| {
-                    //     let top = draw_log(f);
-                    //     let event = if searching { None } else { Some(mouse_event) };
-
-                    //     match mode {
-                    //         Mode::Browser => browser::draw(&mut browser, f, top, event),
-                    //         Mode::Queue => queue::draw(&mut queue, f, top, event),
-                    //         Mode::Playlist => playlist::draw(&mut playlist, f, top, event),
-                    //         Mode::Settings => settings::draw(&mut settings, f, top),
-                    //     }
-
-                    //     if searching {
-                    //         search::draw(&mut search, f, top, Some(mouse_event), &db);
-                    //     }
-                    // })?;
-                }
+                Event::LeftMouse(x, y) if !help => draw(Some((x, y))),
                 Event::ScrollUp => match mode {
                     Mode::Browser => browser::up(&mut browser, &db),
                     Mode::Queue => queue::up(&mut queue),
@@ -366,10 +338,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     Mode::Search => search::down(&mut search),
                 },
                 Event::Char('c') if control => break 'outer,
-                _ if help => match event {
-                    Event::Char('?') | Event::Char('/') | Event::Escape => help = false,
-                    _ => {}
-                },
+                Event::Char('?') | Event::Char('/') | Event::Escape if help => help = false,
                 Event::Char('?') => help = true,
                 //TODO: Fix search cursor.
                 Event::Char('/') => {
@@ -511,7 +480,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             mode = Mode::Playlist;
                         }
                     }
-                    _ => {}
+                    //TODO: Add playlist items to another playlist
+                    Mode::Playlist => {}
+                    Mode::Settings => {}
                 },
                 Event::Enter => {
                     match mode {
@@ -524,7 +495,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             }
                         }
                         Mode::Settings => {
-                            if let Some(device) = settings::selected(&mut settings) {
+                            if let Some(device) = settings::selected(&settings) {
                                 let device = device.to_string();
                                 player.set_output_device(&device);
                                 settings.current_device = device.clone();

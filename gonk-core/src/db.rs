@@ -30,9 +30,9 @@ impl Serialize for Song {
             self.gain.to_string()
         };
 
-        let result = write!(
+        let result = writeln!(
             &mut buffer,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
             escape(&self.title),
             escape(&self.album),
             escape(&self.artist),
@@ -384,7 +384,7 @@ mod tests {
         let bytes = fs::read(database_path()).unwrap();
         let db: Result<Vec<Song>, Box<dyn Error>> = unsafe { from_utf8_unchecked(&bytes) }
             .lines()
-            .map(|line| Song::deserialize(line))
+            .map(Song::deserialize)
             .collect();
         let _ = db.unwrap();
     }

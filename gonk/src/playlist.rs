@@ -1,7 +1,7 @@
 use crate::{ALBUM, ARTIST, TITLE};
 use gonk_core::{Index, Song};
 use gonk_player::Player;
-use std::{error::Error, io::Stdout, mem};
+use std::{error::Error, mem};
 use winter::*;
 
 #[derive(PartialEq, Eq)]
@@ -106,7 +106,6 @@ pub fn draw(
     area: winter::Rect,
     buf: &mut winter::Buffer,
     mouse: Option<(u16, u16)>,
-    stdout: &mut Stdout,
 ) {
     let horizontal = layout![
         area,
@@ -257,12 +256,14 @@ pub fn draw(
                 .margin(1)
                 .draw(area, buf);
 
-            //Scroll the playlist name.
-            let len = playlist.search_query.len() as u16;
-            let width = v[0].width.saturating_sub(1);
-            let offset_x = if len < width { 0 } else { len - width + 1 };
+            //FIXME: Fix scrolling.
 
-            //TODO: Scroll.
+            //Scroll the playlist name.
+
+            let len = playlist.search_query.len() as u16;
+            // let width = v[0].width.saturating_sub(1);
+            // let offset_x = if len < width { 0 } else { len - width + 1 };
+
             lines!(playlist.search_query.as_str())
                 .block(None, ALL, Rounded)
                 .draw(v[0], buf);
@@ -302,7 +303,7 @@ pub fn draw(
             //Draw the cursor.
             //TODO: Is move_to the same as set_cursor?
             //TODO: Need to deal with hiding and unhiding the curosr.
-            let (x, y) = (v[0].x + 1, v[0].y + 1);
+            // let (x, y) = (v[0].x + 1, v[0].y + 1);
             if playlist.search_query.is_empty() {
                 // f.set_cursor(x, y);
             } else {
@@ -409,7 +410,7 @@ fn delete_song(playlist: &mut Playlist) {
 
 fn delete_playlist(playlist: &mut Playlist) {
     if let Some(index) = playlist.lists.index() {
-        playlist.lists[index].delete();
+        playlist.lists[index].delete().unwrap();
         playlist.lists.remove_and_move(index);
         playlist.delete = false;
     }
