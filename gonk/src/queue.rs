@@ -126,18 +126,20 @@ pub fn draw(
     };
     volume.align(Right).draw(area[0], buf);
 
+    let mut row_bounds = None;
+
     //Body
-    let row_bounds = if log::last_message().is_some() && player.songs.is_empty() {
-        block(
-            None,
-            Borders::LEFT | Borders::RIGHT | Borders::BOTTOM,
-            Rounded,
-        )
-        .draw(area[1], buf);
-        None
-    } else if player.songs.is_empty() {
-        block(None, Borders::LEFT | Borders::RIGHT, Rounded).draw(area[1], buf);
-        None
+    if player.songs.is_empty() {
+        let block = if log::last_message().is_some() {
+            block(
+                None,
+                Borders::LEFT | Borders::RIGHT | Borders::BOTTOM,
+                Rounded,
+            )
+        } else {
+            block(None, Borders::LEFT | Borders::RIGHT, Rounded)
+        };
+        block.draw(area[1], buf);
     } else {
         let (songs, player_index, ui_index) =
             (&player.songs, player.songs.index(), queue.ui.index());
@@ -216,8 +218,7 @@ pub fn draw(
         ];
         let table = table(Some(header), Some(block), &con, rows, None, style()).spacing(1);
         table.draw(area[1], buf, ui_index);
-
-        Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])))
+        row_bounds = Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])));
     };
 
     if log::last_message().is_none() {
