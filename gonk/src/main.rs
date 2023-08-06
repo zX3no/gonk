@@ -378,11 +378,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         playlist.search_query.push(c);
                     }
                 }
-                Event::Space if input_playlist => {
-                    playlist.changed = true;
-                    playlist.search_query.push(' ');
-                }
-                Event::Space => player.toggle_playback(),
+                Event::Char(' ') => player.toggle_playback(),
                 Event::Char('C') => {
                     player.clear_except_playing();
                     queue.ui.select(Some(0));

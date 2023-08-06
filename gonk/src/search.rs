@@ -38,7 +38,6 @@ pub fn down(search: &mut Search) {
 }
 
 //TODO: Artist and albums colors aren't quite right.
-//Also everything is italic.
 pub fn draw(
     search: &mut Search,
     area: winter::Rect,
@@ -68,16 +67,10 @@ pub fn draw(
         }
     }
 
-    //Search box is a little smaller than the max width
-    // let len = search.query.len() as u16;
-    // let width = area.width.saturating_sub(1);
-    // let offset_x = if len < width { 0 } else { len - width + 1 };
-
-    //TODO: Scroll
     lines!(search.query.as_str())
         .block(Some("Search:".into()), ALL, Rounded)
+        .scroll()
         .draw(v[0], buf);
-    // .scroll((0, offset_x)),
 
     let rows: Vec<Row> = search
         .results
@@ -95,7 +88,6 @@ pub fn draw(
         })
         .collect();
 
-    // let italic = Style::default().add_modifier(Modifier::ITALIC);
     let header = header![
         text!(),
         text!("Name", italic()),

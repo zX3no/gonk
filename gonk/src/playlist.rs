@@ -241,38 +241,17 @@ pub fn draw(
                 (1, 1),
                 [Constraint::Length(3), Constraint::Percentage(50)].into(),
             );
-            //TODO: Fix margin in macro.
-            // let v = layout![
-            //     area,
-            //     Direction::Vertical,
-            //     (1, 1),
-            //     Constraint::Length(3),
-            //     Constraint::Percentage(50)
-            // ];
 
             buf.clear(area);
 
-            block(Some("Add to playlist".into()), ALL, Rounded)
-                .margin(1)
-                .draw(area, buf);
-
-            //FIXME: Fix scrolling.
-
-            //Scroll the playlist name.
-
-            let len = playlist.search_query.len() as u16;
-            // let width = v[0].width.saturating_sub(1);
-            // let offset_x = if len < width { 0 } else { len - width + 1 };
+            //TODO: This doesn't look right.
+            let block = block(Some("Add to playlist".into()), ALL, Rounded).margin(1);
+            block.draw(area, buf);
 
             lines!(playlist.search_query.as_str())
                 .block(None, ALL, Rounded)
+                .scroll()
                 .draw(v[0], buf);
-            // f.render_widget(
-            //     Paragraph::new(playlist.search_query.as_str())
-            //         .block(Block::default().borders(Borders::ALL).border_type(Rounded))
-            //         .scroll((0, offset_x)),
-            //     v[0],
-            // );
 
             //TODO: Underline `new` and `existing` to clarify what is happening.
             if playlist.changed {
@@ -292,14 +271,6 @@ pub fn draw(
 
             lines!(playlist.search_result.as_str()).draw(v[1].inner((1, 0)), buf);
 
-            // f.render_widget(
-            //     Paragraph::new(playlist.search_result.as_str()),
-            //     v[1].inner(&Margin {
-            //         horizontal: 1,
-            //         vertical: 0,
-            //     }),
-            // );
-
             //Draw the cursor.
             //TODO: Is move_to the same as set_cursor?
             //TODO: Need to deal with hiding and unhiding the curosr.
@@ -308,7 +279,7 @@ pub fn draw(
                 // f.set_cursor(x, y);
             } else {
                 let width = v[0].width.saturating_sub(3);
-                if len < width {
+                if playlist.search_query.len() < width as usize {
                     // f.set_cursor(x + len, y);
                 } else {
                     // f.set_cursor(x + width, y);
