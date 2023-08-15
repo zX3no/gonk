@@ -24,7 +24,7 @@ impl Browser {
         let mut songs = Index::default();
 
         if let Some(artist) = artists.selected() {
-            albums = Index::from(db.albums_by_artist(artist).clone());
+            albums = Index::from(db.albums_by_artist(artist));
             if let Some(album) = albums.selected() {
                 songs = Index::from(
                     album
