@@ -524,7 +524,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                                 search.query_changed = true;
                             }
-                            SearchMode::Search => (),
+                            SearchMode::Search => {
+                                mode = prev_mode.clone();
+                                prev_mode = Mode::Search;
+                            }
                             SearchMode::Select => {
                                 search.results.select(None);
                                 search.mode = SearchMode::Search;
