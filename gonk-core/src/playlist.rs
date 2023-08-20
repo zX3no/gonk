@@ -7,7 +7,7 @@ use std::{
     fs::{self},
     path::PathBuf,
 };
-use walkdir::WalkDir;
+// use walkdir::WalkDir;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Playlist {
@@ -73,16 +73,16 @@ pub fn playlists() -> Vec<Playlist> {
     let mut path = database_path();
     path.pop();
 
-    WalkDir::new(path)
+    winwalk::walkdir(path, None)
         .into_iter()
         .flatten()
-        .filter(|path| match path.path().extension() {
+        .filter(|entry| match entry.path.extension() {
             Some(ex) => {
                 matches!(ex.to_str(), Some("playlist"))
             }
             None => false,
         })
-        .flat_map(|entry| fs::read_to_string(entry.path()))
+        .flat_map(|entry| fs::read_to_string(entry.path))
         .map(|string| Playlist::deserialize(&string).unwrap())
         .collect()
 }
