@@ -303,7 +303,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 
         match File::create(&db_path) {
             Ok(file) => {
-                let paths: Vec<winwalk::DirEntry> = winwalk::walkdir(path, None)
+                let paths: Vec<winwalk::DirEntry> = winwalk::walkdir(path, 0)
                     .into_iter()
                     .flatten()
                     .filter(|entry| match entry.path.extension() {
