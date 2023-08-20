@@ -73,7 +73,7 @@ pub fn playlists() -> Vec<Playlist> {
     let mut path = database_path();
     path.pop();
 
-    winwalk::walkdir(path, None)
+    winwalk::walkdir(path, 0)
         .into_iter()
         .flatten()
         .filter(|entry| match entry.path.extension() {
