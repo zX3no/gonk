@@ -7,13 +7,13 @@ edition = "2021"
 
 [dependencies]
 rayon = "1.6.0"
-walkdir = "2.3.2"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",
     "mp3",
     "ogg",
     "vorbis",
 ] }
+winwalk = { git = "https://github.com/zX3no/winwalk", version = "0.1.0" }
 
 [features]
 profile = []

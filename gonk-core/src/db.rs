@@ -6,7 +6,6 @@ use std::{
     io::{BufWriter, Write},
     thread::{self, JoinHandle},
 };
-use walkdir::{DirEntry, WalkDir};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Song {
@@ -304,10 +303,10 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 
         match File::create(&db_path) {
             Ok(file) => {
-                let paths: Vec<DirEntry> = WalkDir::new(path)
+                let paths: Vec<winwalk::DirEntry> = winwalk::walkdir(path, None)
                     .into_iter()
                     .flatten()
-                    .filter(|path| match path.path().extension() {
+                    .filter(|entry| match entry.path.extension() {
                         Some(ex) => {
                             matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
                         }
@@ -317,7 +316,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 
                 let songs: Vec<_> = paths
                     .into_par_iter()
-                    .map(|dir| Song::try_from(dir.path()))
+                    .map(|entry| Song::try_from(entry.path.as_path()))
                     .collect();
 
                 let errors: Vec<String> = songs

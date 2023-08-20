@@ -1,4 +1,4 @@
-use core::{ffi::c_void, slice};
+use core::slice;
 use std::os::windows::prelude::OsStringExt;
 use std::ptr::{null, null_mut};
 use std::thread;
@@ -9,6 +9,7 @@ use std::{
 };
 use std::{ffi::OsString, sync::Once};
 use winapi::{
+    ctypes::c_void,
     shared::devpkey::DEVPKEY_Device_FriendlyName,
     shared::guiddef::GUID,
     shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
