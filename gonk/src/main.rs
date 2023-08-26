@@ -345,6 +345,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     if mode != Mode::Search {
                         prev_mode = mode;
                         mode = Mode::Search;
+                        search.query_changed = true;
                     } else {
                         match search.mode {
                             SearchMode::Search if search.query.is_empty() => {

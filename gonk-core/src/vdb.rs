@@ -51,6 +51,7 @@ fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
     }
 }
 
+//I feel like Box<[String, Box<Album>]> might have been a better choice.
 pub struct Database {
     btree: BTreeMap<String, Vec<Album>>,
     pub len: usize,
@@ -151,10 +152,7 @@ impl Database {
     ///Search the database and return the 25 most accurate matches.
     pub fn search(&self, query: &str) -> Vec<Item> {
         profile!();
-
-        if query.is_empty() {
-            return Vec::new();
-        }
+        const MAX: usize = 40;
 
         let query = query.to_lowercase();
         let mut results = Vec::new();
@@ -181,15 +179,26 @@ impl Database {
             results.push(jaro(&query, Item::Artist(artist.clone())));
         }
 
+        if query.is_empty() {
+            return results
+                .into_iter()
+                .take(MAX)
+                .map(|item| match item {
+                    Ok((item, _)) => item,
+                    Err((item, _)) => item,
+                })
+                .collect();
+        }
+
         let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
 
         //Sort results by score.
         results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
 
-        if results.len() > 40 {
+        if results.len() > MAX {
             //Remove the less accurate results.
             unsafe {
-                results.set_len(40);
+                results.set_len(MAX);
             }
         }
 
