@@ -1,7 +1,7 @@
+#![feature(lazy_cell)]
 use browser::Browser;
 use gonk_core::{vdb::*, *};
 use gonk_player::{Player, Wasapi};
-use once_cell::sync::Lazy;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
@@ -12,6 +12,7 @@ use std::{
     io::{stdout, Write},
     path::Path,
     ptr::addr_of_mut,
+    sync::LazyLock,
     time::{Duration, Instant},
 };
 use winter::*;
@@ -28,7 +29,7 @@ const ALBUM: Color = Color::Magenta;
 const ARTIST: Color = Color::Blue;
 const SEEKER: Color = Color::White;
 
-static HELP: Lazy<[Row; 29]> = Lazy::new(|| {
+static HELP: LazyLock<[Row; 29]> = LazyLock::new(|| {
     [
         row![text!("Move Up", fg(Cyan)), "K / UP"],
         row![text!("Move Down", fg(Cyan)), "J / Down"],
