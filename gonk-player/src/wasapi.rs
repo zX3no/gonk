@@ -11,8 +11,8 @@ use std::{ffi::OsString, sync::Once};
 use winapi::{
     ctypes::c_void,
     shared::devpkey::DEVPKEY_Device_FriendlyName,
-    shared::guiddef::GUID,
     shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
+    shared::{guiddef::GUID, ntdef::HRESULT},
     um::{
         audioclient::{
             IAudioClient, IAudioRenderClient, IID_IAudioClient, AUDCLNT_E_DEVICE_INVALIDATED,
@@ -87,31 +87,32 @@ pub unsafe fn init() {
 
 pub unsafe fn imm_device_enumerator() -> *mut IMMDeviceEnumerator {
     let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-    check(CoCreateInstance(
+    CoCreateInstance(
         &CLSID_MMDeviceEnumerator,
         null_mut(),
         CLSCTX_ALL,
         &IMMDeviceEnumerator::uuidof(),
         &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-    ));
+    )
+    .unwrap();
     enumerator
 }
 
 pub unsafe fn default_device(enumerator: *mut IMMDeviceEnumerator) -> Device {
     let mut device: *mut IMMDevice = null_mut();
-    check((*enumerator).GetDefaultAudioEndpoint(
-        eRender,
-        eConsole,
-        &mut device as *mut *mut IMMDevice,
-    ));
+    (*enumerator)
+        .GetDefaultAudioEndpoint(eRender, eConsole, &mut device as *mut *mut IMMDevice)
+        .unwrap();
     let mut store = null_mut();
-    check((*device).OpenPropertyStore(STGM_READ, &mut store));
+    (*device).OpenPropertyStore(STGM_READ, &mut store).unwrap();
 
     let mut prop = zeroed();
-    check((*store).GetValue(
-        &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-        &mut prop,
-    ));
+    (*store)
+        .GetValue(
+            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+            &mut prop,
+        )
+        .unwrap();
 
     let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
     let name = utf16_string(ptr_utf16);
@@ -126,10 +127,14 @@ pub unsafe fn default_device(enumerator: *mut IMMDeviceEnumerator) -> Device {
 pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     let mut collection = null_mut();
 
-    check((*enumerator).EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection));
+    (*enumerator)
+        .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection)
+        .unwrap();
 
     let mut count: u32 = zeroed();
-    check((*collection).GetCount(&mut count as *mut u32 as *const u32));
+    (*collection)
+        .GetCount(&mut count as *mut u32 as *const u32)
+        .unwrap();
 
     if count == 0 {
         return;
@@ -140,18 +145,20 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     for i in 0..count {
         //Get IMMDevice.
         let mut device = null_mut();
-        check((*collection).Item(i, &mut device));
+        (*collection).Item(i, &mut device).unwrap();
 
         //Get name.
         let mut store = null_mut();
-        check((*device).OpenPropertyStore(STGM_READ, &mut store));
+        (*device).OpenPropertyStore(STGM_READ, &mut store).unwrap();
 
         let mut prop = zeroed();
         //This is slow. Around 250us.
-        check((*store).GetValue(
-            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-            &mut prop,
-        ));
+        (*store)
+            .GetValue(
+                &DEVPKEY_Device_FriendlyName as *const _ as *const _,
+                &mut prop,
+            )
+            .unwrap();
 
         let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
         let name = utf16_string(ptr_utf16);
@@ -169,36 +176,44 @@ pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
     DEVICES = devices;
 }
 
-///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-#[inline]
-#[track_caller]
-pub unsafe fn check(result: i32) {
-    if result != 0 {
-        let mut buf = [0u16; 2048];
-        let message_result = FormatMessageW(
-            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            null_mut(),
-            result as u32,
-            0,
-            buf.as_mut_ptr(),
-            buf.len() as u32,
-            null_mut(),
-        );
+pub trait WinError {
+    fn unwrap(self);
+}
 
-        if message_result == 0 {
-            let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-            if b > 2 {
-                if let Some(slice) = &buf.get(..b - 2) {
-                    let msg = String::from_utf16(slice).unwrap();
-                    panic!("{msg}");
+impl WinError for HRESULT {
+    ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
+    #[track_caller]
+    fn unwrap(self) {
+        let result = self;
+        unsafe {
+            if result != 0 {
+                let mut buf = [0u16; 2048];
+                let message_result = FormatMessageW(
+                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    null_mut(),
+                    result as u32,
+                    0,
+                    buf.as_mut_ptr(),
+                    buf.len() as u32,
+                    null_mut(),
+                );
+
+                if message_result == 0 {
+                    let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+                    if b > 2 {
+                        if let Some(slice) = buf.get(..b - 2) {
+                            let msg = String::from_utf16(slice).unwrap();
+                            panic!("{msg}");
+                        }
+                    }
                 }
-            }
-        }
 
-        match result {
+                match result {
             AUDCLNT_E_DEVICE_INVALIDATED => todo!("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to."),
             _ => {
                 panic!("Failed to get error message from Windows. Error Code: {result:#x} {result}")
+            }
+        }
             }
         }
     }
@@ -252,7 +267,7 @@ impl Wasapi {
 
             assert!(!audio_client.is_null());
             let audio_client: *mut IAudioClient = audio_client as *mut _;
-            check(result);
+            result.unwrap();
 
             let mut format = null_mut();
             (*audio_client).GetMixFormat(&mut format);
@@ -309,14 +324,16 @@ impl Wasapi {
             if result == AUDCLNT_E_DEVICE_INVALIDATED {
                 return Err("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.")?;
             }
-            check(result);
+            result.unwrap();
 
             //This must be set for some reason.
             let h_event = CreateEventA(null_mut(), 0, 0, null());
             (*audio_client).SetEventHandle(h_event);
 
             let mut renderclient_ptr = null_mut();
-            check((*audio_client).GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr));
+            (*audio_client)
+                .GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr)
+                .unwrap();
 
             let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
 
@@ -352,7 +369,7 @@ impl Wasapi {
         }
 
         //Not sure if this is necessary.
-        unsafe { check((*self.audio_client).Stop()) };
+        unsafe { (*self.audio_client).Stop().unwrap() };
         *self = Wasapi::new(device, Some(sample_rate))?;
 
         Ok(())
@@ -370,7 +387,9 @@ impl Wasapi {
             }
 
             let mut buffer_frame_count = zeroed();
-            check((*self.audio_client).GetBufferSize(&mut buffer_frame_count));
+            (*self.audio_client)
+                .GetBufferSize(&mut buffer_frame_count)
+                .unwrap();
 
             let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
             let block_align = self.format.Format.nBlockAlign as usize;
@@ -378,7 +397,9 @@ impl Wasapi {
             let channels = self.format.Format.nChannels as usize;
 
             let mut buffer_ptr = null_mut();
-            check((*self.render_client).GetBuffer(buffer_frame_count as u32, &mut buffer_ptr));
+            (*self.render_client)
+                .GetBuffer(buffer_frame_count as u32, &mut buffer_ptr)
+                .unwrap();
 
             let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
