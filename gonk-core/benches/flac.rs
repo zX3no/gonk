@@ -2,8 +2,6 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use gonk_core::{read_metadata, Song};
 use winwalk::DirEntry;
 
-const PATH: &str = "D:\\OneDrive\\Music";
-
 fn custom(files: &[DirEntry]) -> Vec<Result<Song, String>> {
     files
         .iter()
@@ -175,6 +173,8 @@ fn symphonia(files: &[DirEntry]) -> Vec<Result<Song, String>> {
         })
         .collect()
 }
+
+const PATH: &str = "D:\\OneDrive\\Music";
 
 fn flac(c: &mut Criterion) {
     let mut group = c.benchmark_group("flac");
