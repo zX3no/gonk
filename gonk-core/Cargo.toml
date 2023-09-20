@@ -3,8 +3,6 @@ name = "gonk-core"
 version = "0.2.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 rayon = "1.7.0"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
@@ -13,7 +11,7 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "ogg",
     "vorbis",
 ] }
-winwalk = { git = "https://github.com/zX3no/winwalk", version = "0.1.0" }
+winwalk = "0.1.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
