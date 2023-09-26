@@ -1,4 +1,4 @@
-use gonk_player::{Device, Wasapi};
+use gonk_player::*;
 use winter::*;
 
 pub struct Settings {
@@ -9,8 +9,8 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(wanted_device: &str) -> Self {
-        let default = Wasapi::default_device();
-        let devices = Wasapi::devices();
+        let default = default_device();
+        let devices = devices();
         let current_device = if devices.iter().any(|device| device.name == wanted_device) {
             wanted_device.to_string()
         } else {

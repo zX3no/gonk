@@ -15,12 +15,11 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-use wasapi::init;
 
 pub mod decoder;
 mod wasapi;
 
-pub use wasapi::{default_device, Device, Wasapi};
+pub use wasapi::{default_device, devices, imm_device_enumerator, init, Device, Wasapi};
 
 const VOLUME_REDUCTION: f32 = 150.0;
 
@@ -49,17 +48,15 @@ pub struct Player {
 impl Player {
     #[allow(clippy::new_without_default)]
     pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-        unsafe { init() };
-        let devices = Wasapi::devices();
-        let default = Wasapi::default_device();
+        let devices = devices();
+        let default = default_device();
         let device = devices.iter().find(|d| d.name == device);
-        let device = device.unwrap_or(default);
-        let backend = Wasapi::new(device, None).unwrap();
+        let device = device.unwrap_or(&default);
 
         let mut player = Self {
             songs,
             output_device: device.clone(),
-            backend,
+            backend: Wasapi::new(device, None).unwrap(),
             symphonia: None,
             gain: 0.5,
             volume: volume as f32 / VOLUME_REDUCTION,
@@ -110,7 +107,7 @@ impl Player {
                 }
 
                 //Find the current device.
-                if let Some(device) = Wasapi::devices()
+                if let Some(device) = devices()
                     .into_iter()
                     .find(|d| self.output_device.name == d.name)
                 {
@@ -281,7 +278,7 @@ impl Player {
         (self.volume * VOLUME_REDUCTION) as u8
     }
     pub fn set_output_device(&mut self, device: &str) {
-        let devices = Wasapi::devices();
+        let devices = devices();
         let device = if let Some(device) = devices.iter().find(|d| d.name == device) {
             device
         } else {

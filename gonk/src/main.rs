@@ -1,7 +1,7 @@
 #![feature(lazy_cell)]
 use browser::Browser;
 use gonk_core::{vdb::*, *};
-use gonk_player::{Player, Wasapi};
+use gonk_player::{devices, Player};
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
@@ -259,7 +259,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
             //Update the list of output devices
             //TODO: I don't like how this is done.
-            settings.devices = Wasapi::devices();
+            settings.devices = devices();
             let mut index = settings.index.unwrap_or(0);
             if index >= settings.devices.len() {
                 index = settings.devices.len().saturating_sub(1);

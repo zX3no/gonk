@@ -94,8 +94,8 @@ impl Symphonia {
         let time = tb.calc_time(self.duration);
         Duration::from_secs(time.seconds) + Duration::from_secs_f64(time.frac)
     }
-    pub fn sample_rate(&self) -> usize {
-        self.track.codec_params.sample_rate.unwrap() as usize
+    pub fn sample_rate(&self) -> u32 {
+        self.track.codec_params.sample_rate.unwrap()
     }
     pub fn channels(&self) -> usize {
         self.track.codec_params.channels.unwrap().count()

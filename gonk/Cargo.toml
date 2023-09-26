@@ -11,7 +11,7 @@ license = "CC0-1.0"
 default-run = "gonk"
 
 [dependencies]
-unicode-width = "0.1.10"
+unicode-width = "0.1.11"
 rayon = "1.7.0"
 gonk-player = { version = "0.2.0", path = "../gonk-player" }
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
