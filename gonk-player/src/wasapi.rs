@@ -1,411 +1,191 @@
-use core::slice;
-use std::os::windows::prelude::OsStringExt;
-use std::ptr::{null, null_mut};
-use std::thread;
-use std::time::Duration;
-use std::{
-    error::Error,
-    mem::{size_of, transmute, zeroed},
-};
-use std::{ffi::OsString, sync::Once};
-use winapi::{
-    ctypes::c_void,
-    shared::devpkey::DEVPKEY_Device_FriendlyName,
-    shared::mmreg::{WAVEFORMATEX, WAVEFORMATEXTENSIBLE, WAVE_FORMAT_IEEE_FLOAT},
-    shared::{guiddef::GUID, ntdef::HRESULT},
-    um::{
-        audioclient::{
-            IAudioClient, IAudioRenderClient, IID_IAudioClient, AUDCLNT_E_DEVICE_INVALIDATED,
-        },
-        audiosessiontypes::{
-            AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-            AUDCLNT_STREAMFLAGS_RATEADJUST,
-        },
-        combaseapi::{CoCreateInstance, CoInitializeEx, PropVariantClear, CLSCTX_ALL},
-        mmdeviceapi::{
-            eConsole, eRender, CLSID_MMDeviceEnumerator, IMMDevice, IMMDeviceEnumerator,
-            DEVICE_STATE_ACTIVE,
-        },
-        synchapi::{CreateEventA, WaitForSingleObject},
-        winbase::{
-            FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, INFINITE,
-            WAIT_OBJECT_0,
+use crate::decoder::Symphonia;
+use makepad_windows::{
+    core::{Result, PCSTR},
+    Win32::{
+        Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
+        Foundation::{BOOL, HANDLE, WAIT_OBJECT_0},
+        Media::{Audio::*, KernelStreaming::WAVE_FORMAT_EXTENSIBLE},
+        System::{
+            Com::{
+                CoCreateInstance, CoInitializeEx, StructuredStorage::PROPVARIANT, CLSCTX_ALL,
+                COINIT_MULTITHREADED, STGM_READ,
+            },
+            Threading::{CreateEventA, WaitForSingleObject},
+            Variant::VT_LPWSTR,
         },
     },
-    Interface,
 };
-
-use crate::decoder::Symphonia;
-
-const STGM_READ: u32 = 0;
-const COINIT_MULTITHREADED: u32 = 0;
-const AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM: u32 = 0x80000000;
-const AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY: u32 = 0x08000000;
-
-const KSDATAFORMAT_SUBTYPE_IEEE_FLOAT: GUID = GUID {
-    Data1: 0x00000003,
-    Data2: 0x0000,
-    Data3: 0x0010,
-    Data4: [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71],
+use std::{
+    mem::{self},
+    ops::{Deref, DerefMut},
+    slice,
+    sync::Once,
 };
-
-const COMMON_SAMPLE_RATES: [usize; 13] = [
-    5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
-];
-
-//TODO: It is very slow to collect devices
-//I'm not sure if this is necessary though.
-pub static mut DEVICES: Vec<Device> = Vec::new();
-pub static mut DEFAULT_DEVICE: Option<Device> = None;
-
-static ONCE: Once = Once::new();
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Device {
-    pub inner: *mut winapi::um::mmdeviceapi::IMMDevice,
+    pub device: IMMDevice,
     pub name: String,
 }
 
+impl Deref for Device {
+    type Target = IMMDevice;
+
+    fn deref(&self) -> &Self::Target {
+        &self.device
+    }
+}
+
+impl DerefMut for Device {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.device
+    }
+}
+
+static ONCE: Once = Once::new();
+
+#[rustfmt::skip]
+const COMMON_SAMPLE_RATES: [u32; 13] = [5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000];
+
+static mut ENUMERATOR: Option<IMMDeviceEnumerator> = None;
+
 pub unsafe fn init() {
     ONCE.call_once(|| {
-        CoInitializeEx(null_mut(), COINIT_MULTITHREADED);
+        CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
+        ENUMERATOR = Some(imm_device_enumerator());
 
-        let enumerator = imm_device_enumerator();
-        update_output_devices(enumerator);
+        // let enumerator = imm_device_enumerator();
+        // update_output_devices(enumerator);
 
         //HACK: Not a hack apparently.
-        let ptr: usize = enumerator as usize;
-        thread::spawn(move || {
-            let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
-            loop {
-                thread::sleep(Duration::from_millis(300));
-                update_output_devices(enumerator);
-            }
-        });
+        // let ptr: usize = enumerator as usize;
+        // thread::spawn(move || {
+        //     let enumerator: *mut IMMDeviceEnumerator = ptr as *mut IMMDeviceEnumerator;
+        //     loop {
+        //         thread::sleep(Duration::from_millis(300));
+        //         update_output_devices(enumerator);
+        //     }
+        // });
     });
 }
 
-pub unsafe fn imm_device_enumerator() -> *mut IMMDeviceEnumerator {
-    let mut enumerator: *mut IMMDeviceEnumerator = null_mut();
-    CoCreateInstance(
-        &CLSID_MMDeviceEnumerator,
-        null_mut(),
-        CLSCTX_ALL,
-        &IMMDeviceEnumerator::uuidof(),
-        &mut enumerator as *mut *mut IMMDeviceEnumerator as *mut _,
-    )
-    .unwrap();
-    enumerator
-}
-
-pub unsafe fn default_device(enumerator: *mut IMMDeviceEnumerator) -> Device {
-    let mut device: *mut IMMDevice = null_mut();
-    (*enumerator)
-        .GetDefaultAudioEndpoint(eRender, eConsole, &mut device as *mut *mut IMMDevice)
-        .unwrap();
-    let mut store = null_mut();
-    (*device).OpenPropertyStore(STGM_READ, &mut store).unwrap();
-
-    let mut prop = zeroed();
-    (*store)
-        .GetValue(
-            &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-            &mut prop,
-        )
-        .unwrap();
-
-    let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-    let name = utf16_string(ptr_utf16);
-    PropVariantClear(&mut prop);
-
-    Device {
-        inner: device,
-        name,
-    }
-}
-
-pub unsafe fn update_output_devices(enumerator: *mut IMMDeviceEnumerator) {
-    let mut collection = null_mut();
-
-    (*enumerator)
-        .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &mut collection)
-        .unwrap();
-
-    let mut count: u32 = zeroed();
-    (*collection)
-        .GetCount(&mut count as *mut u32 as *const u32)
-        .unwrap();
-
-    if count == 0 {
-        return;
-    }
-
-    let mut devices = Vec::new();
-
-    for i in 0..count {
-        //Get IMMDevice.
-        let mut device = null_mut();
-        (*collection).Item(i, &mut device).unwrap();
-
-        //Get name.
-        let mut store = null_mut();
-        (*device).OpenPropertyStore(STGM_READ, &mut store).unwrap();
-
-        let mut prop = zeroed();
-        //This is slow. Around 250us.
-        (*store)
-            .GetValue(
-                &DEVPKEY_Device_FriendlyName as *const _ as *const _,
-                &mut prop,
-            )
-            .unwrap();
-
-        let ptr_utf16 = *(&prop.data as *const _ as *const *const u16);
-        let name = utf16_string(ptr_utf16);
-        PropVariantClear(&mut prop);
-
-        let device = Device {
-            inner: device,
-            name,
-        };
-
-        devices.push(device);
-    }
-
-    DEFAULT_DEVICE = Some(default_device(enumerator));
-    DEVICES = devices;
-}
-
-pub trait WinError {
-    fn unwrap(self);
-}
-
-impl WinError for HRESULT {
-    ///https://docs.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values
-    #[track_caller]
-    fn unwrap(self) {
-        let result = self;
-        unsafe {
-            if result != 0 {
-                let mut buf = [0u16; 2048];
-                let message_result = FormatMessageW(
-                    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                    null_mut(),
-                    result as u32,
-                    0,
-                    buf.as_mut_ptr(),
-                    buf.len() as u32,
-                    null_mut(),
-                );
-
-                if message_result == 0 {
-                    let b = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-                    if b > 2 {
-                        if let Some(slice) = buf.get(..b - 2) {
-                            let msg = String::from_utf16(slice).unwrap();
-                            panic!("{msg}");
-                        }
-                    }
-                }
-
-                match result {
-            AUDCLNT_E_DEVICE_INVALIDATED => todo!("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to."),
-            _ => {
-                panic!("Failed to get error message from Windows. Error Code: {result:#x} {result}")
-            }
-        }
-            }
-        }
-    }
-}
-
-pub unsafe fn utf16_string(ptr_utf16: *const u16) -> String {
-    let mut len = 0;
-    while *ptr_utf16.offset(len) != 0 {
-        len += 1;
-    }
-    let slice = unsafe { slice::from_raw_parts(ptr_utf16, len as usize) };
-    let os_str: OsString = OsStringExt::from_wide(slice);
-    os_str.to_string_lossy().to_string()
-}
-
 pub struct Wasapi {
-    pub audio_client: *mut IAudioClient,
-    pub render_client: *mut IAudioRenderClient,
+    pub audio_client: IAudioClient,
+    pub render_client: IAudioRenderClient,
     pub format: WAVEFORMATEXTENSIBLE,
-
     pub buffer: Vec<f32>,
-
-    pub h_event: *mut c_void,
-}
-
-impl Drop for Wasapi {
-    fn drop(&mut self) {
-        unsafe {
-            (*self.render_client).Release();
-            (*self.audio_client).Release();
-        };
-    }
+    pub event: HANDLE,
 }
 
 impl Wasapi {
-    pub fn new(device: &Device, sample_rate: Option<usize>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(device: &Device, sample_rate: Option<u32>) -> Result<Self> {
         unsafe {
             init();
 
-            let mut audio_client = null_mut();
-            let result = (*device.inner).Activate(
-                &IID_IAudioClient,
-                CLSCTX_ALL,
-                null_mut(),
-                &mut audio_client,
-            );
+            let audio_client: IAudioClient = device.Activate(CLSCTX_ALL, None)?;
+            let fmt_ptr = audio_client.GetMixFormat()?;
+            let fmt = *fmt_ptr;
+            let mut format = if fmt.cbSize == 22 && fmt.wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE
+            {
+                (fmt_ptr as *const _ as *const WAVEFORMATEXTENSIBLE).read()
+            } else {
+                // let validbits = wavefmt.wBitsPerSample as usize;
+                // let blockalign = wavefmt.nBlockAlign as usize;
+                // let samplerate = wavefmt.nSamplesPerSec as usize;
+                // let formattag = wavefmt.wFormatTag;
+                // let channels = wavefmt.nChannels as usize;
+                // let sample_type = match formattag as u32 {
+                //     WAVE_FORMAT_IEEE_FLOAT => SampleType::Float,
+                //     _ => {
+                //         return Err(WasapiError::new("Unsupported format").into());
+                //     }
+                // };
+                // let storebits = 8 * blockalign / channels;
+                todo!()
+            };
 
-            if result == AUDCLNT_E_DEVICE_INVALIDATED {
-                return Err("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.")?;
+            if format.Format.nChannels < 2 {
+                todo!("Support mono devices.");
             }
-
-            assert!(!audio_client.is_null());
-            let audio_client: *mut IAudioClient = audio_client as *mut _;
-            result.unwrap();
-
-            let mut format = null_mut();
-            (*audio_client).GetMixFormat(&mut format);
-            let format = &mut *format;
 
             //Update format to desired sample rate.
             if let Some(sample_rate) = sample_rate {
                 assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
-                format.nSamplesPerSec = sample_rate as u32;
-                format.nAvgBytesPerSec = sample_rate as u32 * format.nBlockAlign as u32;
+                format.Format.nSamplesPerSec = sample_rate;
+                format.Format.nAvgBytesPerSec = sample_rate * format.Format.nBlockAlign as u32;
             }
 
-            if format.wFormatTag != WAVE_FORMAT_IEEE_FLOAT {
-                let format = &*(format as *const _ as *const WAVEFORMATEXTENSIBLE);
-                if format.SubFormat.Data1 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data1
-                    || format.SubFormat.Data2 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data2
-                    || format.SubFormat.Data3 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data3
-                    || format.SubFormat.Data4 != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT.Data4
-                {
-                    panic!("Unsupported sample format!");
-                }
-            }
-
-            let mut mask = 0;
-            for n in 0..format.nChannels {
-                mask += 1 << n;
-            }
-            let format = WAVEFORMATEXTENSIBLE {
-                Format: *format,
-                Samples: format.wBitsPerSample,
-                SubFormat: KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,
-                dwChannelMask: mask,
-            };
-
-            if format.Format.nChannels < 2 {
-                // panic!("Ouput device has less than 2 channels.");
-            }
-
-            let mut default_period = zeroed();
-            let mut _min_period = zeroed();
-            (*audio_client).GetDevicePeriod(&mut default_period, &mut _min_period);
-
-            let result = (*audio_client).Initialize(
-                AUDCLNT_SHAREMODE_SHARED,
-                AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-                    | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
-                    | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
-                    | AUDCLNT_STREAMFLAGS_RATEADJUST,
-                default_period,
-                default_period,
-                &format as *const _ as *const WAVEFORMATEX,
-                null(),
-            );
-            if result == AUDCLNT_E_DEVICE_INVALIDATED {
-                return Err("The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to.")?;
-            }
-            result.unwrap();
-
-            //This must be set for some reason.
-            let h_event = CreateEventA(null_mut(), 0, 0, null());
-            (*audio_client).SetEventHandle(h_event);
-
-            let mut renderclient_ptr = null_mut();
-            (*audio_client)
-                .GetService(&IAudioRenderClient::uuidof(), &mut renderclient_ptr)
+            let mut default_period = 0;
+            audio_client
+                .GetDevicePeriod(Some(&mut default_period), None)
                 .unwrap();
 
-            let render_client: *mut IAudioRenderClient = transmute(renderclient_ptr);
+            audio_client
+                .Initialize(
+                    AUDCLNT_SHAREMODE_SHARED,
+                    AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                        | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+                        | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+                    // | AUDCLNT_STREAMFLAGS_RATEADJUST,
+                    default_period,
+                    default_period,
+                    &format as *const _ as *const WAVEFORMATEX,
+                    None,
+                )
+                .unwrap();
 
-            (*audio_client).Start();
+            //This must be set for some reason.
+            let event = CreateEventA(None, BOOL(0), BOOL(0), PCSTR::null()).unwrap();
+            audio_client.SetEventHandle(event).unwrap();
+
+            let render_client: IAudioRenderClient = audio_client.GetService().unwrap();
+
+            audio_client.Start().unwrap();
 
             Ok(Self {
                 audio_client,
                 render_client,
                 format,
                 buffer: Vec::new(),
-                h_event,
+                event,
             })
         }
     }
 
-    pub fn sample_rate(&self) -> usize {
-        self.format.Format.nSamplesPerSec as usize
+    pub fn sample_rate(&self) -> u32 {
+        self.format.Format.nSamplesPerSec
     }
 
-    //(Outdated): IAudioClockAdjustment::SetSampleRate is not used anymore.
-    //It seems like 192_000 & 96_000 Hz are a different grouping than the rest.
-    //44100 cannot convert to 192_000 and vise versa.
-
-    ///Name is misleading since the device is updated aswell.
-    pub fn set_sample_rate(
-        &mut self,
-        sample_rate: usize,
-        device: &Device,
-    ) -> Result<(), Box<dyn Error>> {
-        debug_assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
+    pub fn set_sample_rate(&mut self, sample_rate: u32, device: &Device) -> Result<()> {
+        assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
         if sample_rate == self.sample_rate() {
             return Ok(());
         }
 
         //Not sure if this is necessary.
-        unsafe { (*self.audio_client).Stop().unwrap() };
-        *self = Wasapi::new(device, Some(sample_rate))?;
+        unsafe { self.audio_client.Stop().unwrap() };
 
-        Ok(())
+        Ok(*self = Wasapi::new(device, Some(sample_rate))?)
     }
 
-    pub fn fill_buffer(
-        &mut self,
-        volume: f32,
-        symphonia: &mut Symphonia,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn fill_buffer(&mut self, volume: f32, symphonia: &mut Symphonia) -> Result<()> {
         unsafe {
-            let mut padding_count = zeroed();
-            if (*self.audio_client).GetCurrentPadding(&mut padding_count) != 0 {
-                return Err("Sample-rate changed.")?;
-            }
+            //Sample-rate probably changed if this fails.
+            let padding = self.audio_client.GetCurrentPadding().unwrap();
+            let buffer_size = self.audio_client.GetBufferSize().unwrap();
+            let block_align = self.format.Format.nBlockAlign as u32;
 
-            let mut buffer_frame_count = zeroed();
-            (*self.audio_client)
-                .GetBufferSize(&mut buffer_frame_count)
-                .unwrap();
+            let n_frames = buffer_size - 1 - padding;
+            assert!(n_frames < buffer_size - padding);
 
-            let buffer_frame_count = (buffer_frame_count - padding_count) as usize;
-            let block_align = self.format.Format.nBlockAlign as usize;
-            let buffer_size = buffer_frame_count * block_align;
+            let buffer = self.render_client.GetBuffer(n_frames).unwrap();
+            let slice = slice::from_raw_parts_mut(buffer, (n_frames * block_align) as usize);
+
             let channels = self.format.Format.nChannels as usize;
-
-            let mut buffer_ptr = null_mut();
-            (*self.render_client)
-                .GetBuffer(buffer_frame_count as u32, &mut buffer_ptr)
-                .unwrap();
-
-            let slice = slice::from_raw_parts_mut(buffer_ptr, buffer_size);
 
             //Channel [0] & [1] are left and right. Other channels should be zeroed.
             //Float is 4 bytes so 0..4 is left and 4..8 is right.
-            for bytes in slice.chunks_mut(size_of::<f32>() * channels) {
+            for bytes in slice.chunks_mut(mem::size_of::<f32>() * channels) {
                 let sample_bytes = &(symphonia.pop().unwrap_or(0.0) * volume).to_le_bytes();
                 bytes[0..4].copy_from_slice(sample_bytes);
 
@@ -415,22 +195,68 @@ impl Wasapi {
                 }
             }
 
-            (*self.render_client).ReleaseBuffer(buffer_frame_count as u32, 0);
+            self.render_client.ReleaseBuffer(n_frames, 0)?;
 
-            if WaitForSingleObject(self.h_event, INFINITE) != WAIT_OBJECT_0 {
+            if WaitForSingleObject(self.event, u32::MAX) != WAIT_OBJECT_0 {
                 unreachable!()
             }
+
             Ok(())
         }
     }
+}
 
-    //TODO: Remove?
-    pub fn devices() -> Vec<Device> {
-        unsafe { DEVICES.to_vec() }
-    }
+///Get a list of output devices.
+pub fn devices() -> Vec<Device> {
+    unsafe {
+        init();
+        let collection = ENUMERATOR
+            .as_mut()
+            .unwrap()
+            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+            .unwrap();
 
-    //TODO: Remove?
-    pub fn default_device() -> &'static Device {
-        unsafe { DEFAULT_DEVICE.as_mut().unwrap() }
+        (0..collection.GetCount().unwrap())
+            .into_iter()
+            .map(|i| {
+                let device = collection.Item(i).unwrap();
+                let name = device_name(&device);
+                Device { device, name }
+            })
+            .collect()
     }
+}
+
+///Get the default output device.
+pub fn default_device() -> Device {
+    unsafe {
+        init();
+        let device = ENUMERATOR
+            .as_mut()
+            .unwrap()
+            .GetDefaultAudioEndpoint(eRender, eConsole)
+            .unwrap();
+        Device {
+            name: device_name(&device),
+            device,
+        }
+    }
+}
+pub unsafe fn device_name(device: &IMMDevice) -> String {
+    let store = device.OpenPropertyStore(STGM_READ).unwrap();
+    let name_prop = store.GetValue(&PKEY_Device_FriendlyName).unwrap();
+    prop_to_string(name_prop)
+}
+
+#[inline]
+#[track_caller]
+pub unsafe fn prop_to_string(prop: PROPVARIANT) -> String {
+    assert!(prop.Anonymous.Anonymous.vt == VT_LPWSTR);
+    let data = prop.Anonymous.Anonymous.Anonymous.pwszVal;
+    data.to_string().unwrap()
+}
+
+#[inline]
+pub unsafe fn imm_device_enumerator() -> IMMDeviceEnumerator {
+    CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).unwrap()
 }
