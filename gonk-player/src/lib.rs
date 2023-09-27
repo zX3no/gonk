@@ -17,8 +17,10 @@ use std::{
 };
 
 pub mod decoder;
+pub mod rb;
 mod wasapi;
 
+pub use rb::*;
 pub use wasapi::{default_device, devices, imm_device_enumerator, init, Device, Wasapi};
 
 const VOLUME_REDUCTION: f32 = 150.0;

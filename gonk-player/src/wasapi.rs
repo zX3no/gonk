@@ -204,6 +204,67 @@ impl Wasapi {
             Ok(())
         }
     }
+
+    pub fn fill(&mut self, volume: f32, samples: &[u8]) -> Result<()> {
+        unsafe {
+            //Sample-rate probably changed if this fails.
+            let padding = self.audio_client.GetCurrentPadding().unwrap();
+            let buffer_size = self.audio_client.GetBufferSize().unwrap();
+            let block_align = self.format.Format.nBlockAlign as u32;
+
+            let n_frames = buffer_size - 1 - padding;
+            assert!(n_frames < buffer_size - padding);
+
+            let size = (n_frames * block_align) as usize;
+
+            if size == 0 {
+                return Ok(());
+            }
+
+            let buffer = self.render_client.GetBuffer(n_frames).unwrap();
+            let slice = slice::from_raw_parts_mut(buffer, size);
+
+            let channels = self.format.Format.nChannels as usize;
+
+            let n = if channels > 1 {
+                mem::size_of::<f32>() * 2
+            } else {
+                mem::size_of::<f32>()
+            };
+
+            assert_eq!(size, samples.len());
+
+            //Channel [0] & [1] are left and right. Other channels should be zeroed.
+            //Float is 4 bytes so 0..4 is left and 4..8 is right.
+            for (buf, s) in slice
+                .chunks_mut(mem::size_of::<f32>() * channels)
+                .zip(samples.chunks(n))
+            {
+                buf[0..4].copy_from_slice(&s[0..4]);
+                if channels > 1 {
+                    buf[4..8].copy_from_slice(&s[4..8]);
+                }
+            }
+
+            self.render_client.ReleaseBuffer(n_frames, 0)?;
+
+            if WaitForSingleObject(self.event, u32::MAX) != WAIT_OBJECT_0 {
+                unreachable!()
+            }
+
+            Ok(())
+        }
+    }
+
+    pub fn buffer_size(&self) -> Result<u32> {
+        unsafe {
+            let padding = self.audio_client.GetCurrentPadding()?;
+            let buffer_size = self.audio_client.GetBufferSize()?;
+            let block_align = self.format.Format.nBlockAlign as u32;
+            let n_frames = buffer_size - 1 - padding;
+            Ok(n_frames * block_align)
+        }
+    }
 }
 
 ///Get a list of output devices.
