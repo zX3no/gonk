@@ -9,6 +9,7 @@ license = "CC0-1.0"
 
 [features]
 profile = ["gonk-core/profile"]
+strip = ["log/strip"]
 
 [dependencies]
 crossbeam-channel = "0.5.8"

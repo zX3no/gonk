@@ -1,4 +1,4 @@
-use crate::decoder::Symphonia;
+use crate::{decoder::Symphonia, Rb};
 use makepad_windows::{
     core::{Result, PCSTR},
     Win32::{
@@ -205,7 +205,10 @@ impl Wasapi {
         }
     }
 
-    pub fn fill(&mut self, volume: f32, samples: &[u8]) -> Result<()> {
+    pub fn fill<const N: usize>(&mut self, volume: f32, samples: &mut Rb<f32, N>) -> Result<()>
+    where
+        [(); N + 1]: Sized,
+    {
         unsafe {
             //Sample-rate probably changed if this fails.
             let padding = self.audio_client.GetCurrentPadding().unwrap();
@@ -223,26 +226,15 @@ impl Wasapi {
 
             let buffer = self.render_client.GetBuffer(n_frames).unwrap();
             let slice = slice::from_raw_parts_mut(buffer, size);
-
             let channels = self.format.Format.nChannels as usize;
 
-            let n = if channels > 1 {
-                mem::size_of::<f32>() * 2
-            } else {
-                mem::size_of::<f32>()
-            };
+            for bytes in slice.chunks_mut(mem::size_of::<f32>() * channels) {
+                let sample_bytes = &(samples.pop_front().unwrap_or(0.0) * volume).to_le_bytes();
+                bytes[0..4].copy_from_slice(sample_bytes);
 
-            assert_eq!(size, samples.len());
-
-            //Channel [0] & [1] are left and right. Other channels should be zeroed.
-            //Float is 4 bytes so 0..4 is left and 4..8 is right.
-            for (buf, s) in slice
-                .chunks_mut(mem::size_of::<f32>() * channels)
-                .zip(samples.chunks(n))
-            {
-                buf[0..4].copy_from_slice(&s[0..4]);
+                let sample_bytes = &(samples.pop_front().unwrap_or(0.0) * volume).to_le_bytes();
                 if channels > 1 {
-                    buf[4..8].copy_from_slice(&s[4..8]);
+                    bytes[4..8].copy_from_slice(sample_bytes);
                 }
             }
 
