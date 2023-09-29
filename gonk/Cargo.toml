@@ -7,8 +7,10 @@ description = "A terminal music player"
 repository = "https://github.com/zX3no/gonk"
 readme = "../README.md"
 license = "CC0-1.0"
-
 default-run = "gonk"
+
+[features]
+profile = ["gonk-core/profile"]
 
 [dependencies]
 unicode-width = "0.1.11"
