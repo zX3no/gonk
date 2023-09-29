@@ -1,3 +1,5 @@
+use gonk_core::profile;
+use log::*;
 use std::{
     ptr,
     sync::{
@@ -6,6 +8,7 @@ use std::{
     },
 };
 
+//TODO: Add logging to Condvar. Will help with debugging.
 #[derive(Debug)]
 pub struct Rb<T: Default + Clone> {
     pub buf: Vec<T>,
@@ -14,7 +17,7 @@ pub struct Rb<T: Default + Clone> {
     pub read: AtomicUsize,
 
     pub block: Condvar,
-    pub trigger: Mutex<bool>,
+    pub is_locked: Mutex<bool>,
 }
 
 impl<T: Default + Clone> Rb<T> {
@@ -25,11 +28,12 @@ impl<T: Default + Clone> Rb<T> {
             write: AtomicUsize::new(0),
             read: AtomicUsize::new(0),
             block: Condvar::new(),
-            trigger: Mutex::new(false),
+            is_locked: Mutex::new(false),
         }
     }
 
     pub fn push_back(&mut self, value: T) {
+        profile!();
         let write = self.write.load(Ordering::SeqCst);
         let read = self.read.load(Ordering::SeqCst);
 
@@ -38,9 +42,10 @@ impl<T: Default + Clone> Rb<T> {
 
             //Wait for read to free up space.
             {
-                let mut lock = self.trigger.lock().unwrap();
-                *lock = false;
-                lock = self.block.wait(lock).unwrap();
+                let mut is_locked = self.is_locked.lock().unwrap();
+                *is_locked = true;
+                info!("Locking thread. locked: {}", *is_locked);
+                is_locked = self.block.wait(is_locked).unwrap();
             }
 
             //Try again.
@@ -52,6 +57,7 @@ impl<T: Default + Clone> Rb<T> {
     }
 
     pub fn pop_front(&mut self) -> Option<T> {
+        profile!();
         let write = self.write.load(Ordering::SeqCst);
         let read = self.read.load(Ordering::SeqCst);
 
@@ -64,9 +70,12 @@ impl<T: Default + Clone> Rb<T> {
 
             //Notify the pushing thread to wake up.
             {
-                let mut lock = self.trigger.lock().unwrap();
-                *lock = true;
-                self.block.notify_all();
+                let mut is_locked = self.is_locked.lock().unwrap();
+                if *is_locked {
+                    *is_locked = false;
+                    info!("Unlocking thread. locked: {}", *is_locked);
+                    self.block.notify_all();
+                }
             }
 
             Some(item)
