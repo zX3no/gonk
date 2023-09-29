@@ -35,11 +35,11 @@ pub fn print() {
 
     for (k, v) in map.iter() {
         let mut mean = Duration::default();
-        let mut min = unsafe { v.get(0).unwrap_or(&Event::default()).elapsed() };
+        let mut min = v.get(0).unwrap_or(&Event::default()).elapsed();
         let mut max = Duration::default();
 
         for event in v {
-            let elapsed = unsafe { event.elapsed() };
+            let elapsed = event.elapsed();
 
             if elapsed < min {
                 min = elapsed;
@@ -84,10 +84,8 @@ pub struct Event {
 }
 
 impl Event {
-    pub unsafe fn elapsed(&self) -> Duration {
-        self.end
-            .unwrap_unchecked()
-            .duration_since(self.start.unwrap_unchecked())
+    pub fn elapsed(&self) -> Duration {
+        self.end.unwrap().duration_since(self.start.unwrap())
     }
 }
 
@@ -114,9 +112,7 @@ impl Drop for Event {
     #[inline(always)]
     fn drop(&mut self) {
         self.end = Some(Instant::now());
-
         let event = std::mem::take(self);
-
         unsafe { EVENTS.lock().unwrap().push(event) };
     }
 }
@@ -136,11 +132,10 @@ macro_rules! function {
 #[macro_export]
 macro_rules! profile {
     () => {
-        use $crate::profiler::*;
-        let _event;
-
-        if cfg!(feature = "profile") {
-            _event = Event {
+        #[cfg(feature = "profile")]
+        {
+            use $crate::profiler::*;
+            let _event = Event {
                 location: Location {
                     name: $crate::function!(),
                     file: file!(),
@@ -152,11 +147,10 @@ macro_rules! profile {
         }
     };
     ($name:expr) => {
-        use $crate::profiler::*;
-        let _event;
-
-        if cfg!(feature = "profile") {
-            _event = Event {
+        #[cfg(feature = "profile")]
+        {
+            use $crate::profiler::*;
+            let _event = Event {
                 location: Location {
                     name: $name,
                     file: file!(),
