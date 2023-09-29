@@ -1,6 +1,5 @@
-use log::*;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Condvar, Mutex,
 };
 
@@ -10,11 +9,12 @@ where
     [(); N + 1]: Sized,
 {
     /// Note that N-1 is the actual capacity.
-    pub buf: [T; N + 1],
+    pub buf: Mutex<[T; N + 1]>,
+    // pub buf: [T; N + 1],
     pub write: AtomicUsize,
     pub read: AtomicUsize,
     pub block: Condvar,
-    pub locked: Mutex<bool>,
+    pub can_write: AtomicBool,
 }
 
 impl<const N: usize> Rb<f32, N>
@@ -23,89 +23,71 @@ where
 {
     pub const fn new() -> Self {
         Self {
-            buf: [0.0; (N + 1)],
+            buf: Mutex::new([0.0; (N + 1)]),
+            // buf: [0.0; (N + 1)],
             write: AtomicUsize::new(0),
             read: AtomicUsize::new(0),
             block: Condvar::new(),
-            locked: Mutex::new(false),
+            can_write: AtomicBool::new(true),
         }
     }
 }
 
-// impl<const N: usize> Rb<u8, N>
-// where
-//     [u8; N + 1]: Sized,
-// {
-//     pub const fn new() -> Self {
-//         Self {
-//             buf: [0; (N + 1)],
-//             write: AtomicUsize::new(0),
-//             read: AtomicUsize::new(0),
-//             block: Condvar::new(),
-//             locked: Mutex::new(false),
-//         }
-//     }
-// }
+const MUTEX: Mutex<()> = Mutex::new(());
 
 impl<T: Default + Clone, const N: usize> Rb<T, N>
 where
     [(); N + 1]: Sized,
 {
-    pub fn push_back(&mut self, value: T) {
-        let write = self.write.load(Ordering::SeqCst);
-        let read = self.read.load(Ordering::SeqCst);
-        info!("Pushing read: {}, write: {}", read, write);
-
-        if (write + 1) % (N + 1) == read {
+    pub fn push_blocking(&mut self, value: T) {
+        let write = self.write.load(Ordering::Relaxed);
+        let read = self.read.load(Ordering::Relaxed);
+        let guard = self.buf.lock().unwrap();
+        let mut buf = if (write + 1) % (N + 1) == read {
             //Wait for read to free up space.
-            let mut locked = self.locked.lock().unwrap();
-            *locked = true;
-            info!("Buffer full. Blocking thread. locked: {}", *locked);
-            drop(self.block.wait(locked).unwrap());
-
-            //Try again.
-            return self.push_back(value);
-        }
-
-        self.write(write, value);
-        self.write.store((write + 1) % (N + 1), Ordering::SeqCst);
-    }
-
-    pub fn pop_front(&mut self) -> Option<T> {
-        let write = self.write.load(Ordering::SeqCst);
-        let read = self.read.load(Ordering::SeqCst);
-        info!("Pop read: {}, write: {}", read, write);
-
-        if read == write {
-            None
+            self.block.wait(guard).unwrap()
         } else {
-            //Don't allow write before reading.
-            let item = self.read(read);
-            self.read.store((read + 1) % (N + 1), Ordering::SeqCst);
+            guard
+        };
+        unsafe { std::ptr::write(buf.as_mut_ptr().add(write), value) };
+        self.write.store((write + 1) % (N + 1), Ordering::Relaxed);
+    }
 
-            //Notify the pushing thread to wake up.
-            let mut locked = self.locked.lock().unwrap();
-            if *locked {
-                *locked = false;
-                info!("Notifying all threads to unlock. locked: {}", *locked);
-                self.block.notify_all();
-            }
-
-            Some(item)
+    pub fn pop(&mut self) -> Option<T> {
+        let write = self.write.load(Ordering::Relaxed);
+        let read = self.read.load(Ordering::Relaxed);
+        if read == write {
+            return None;
         }
+        let mut buf = self.buf.lock().unwrap();
+        //Don't allow write before reading.
+        let item = unsafe { std::ptr::read(buf.as_mut_ptr().add(read)) };
+        self.read.store((read + 1) % (N + 1), Ordering::Relaxed);
+        self.block.notify_one();
+        Some(item)
     }
 
-    /// Writes an element into the buffer, moving it.
-    #[inline]
-    fn write(&mut self, off: usize, value: T) {
-        unsafe {
-            std::ptr::write(self.buf.as_mut_ptr().add(off), value);
-        }
-    }
+    // pub fn push_blocking(&mut self, value: T) {
+    //     let write = self.write.load(Ordering::Relaxed);
+    //     let read = self.read.load(Ordering::Relaxed);
+    //     if (write + 1) % (N + 1) == read {
+    //         //Wait for read to free up space.
+    //         drop(self.block.wait(MUTEX.lock().unwrap()).unwrap());
+    //     };
+    //     unsafe { std::ptr::write(self.buf.as_mut_ptr().add(write), value) };
+    //     self.write.store((write + 1) % (N + 1), Ordering::Relaxed);
+    // }
 
-    /// Read an element without moving it.
-    #[inline]
-    fn read(&mut self, off: usize) -> T {
-        unsafe { std::ptr::read(self.buf.as_mut_ptr().add(off)) }
-    }
+    // pub fn pop(&mut self) -> Option<T> {
+    //     let write = self.write.load(Ordering::Relaxed);
+    //     let read = self.read.load(Ordering::Relaxed);
+    //     if read == write {
+    //         return None;
+    //     }
+    //     //Don't allow write before reading.
+    //     let item = unsafe { std::ptr::read(self.buf.as_mut_ptr().add(read)) };
+    //     self.read.store((read + 1) % (N + 1), Ordering::Relaxed);
+    //     self.block.notify_one();
+    //     Some(item)
+    // }
 }

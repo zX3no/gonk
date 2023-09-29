@@ -229,10 +229,10 @@ impl Wasapi {
             let channels = self.format.Format.nChannels as usize;
 
             for bytes in slice.chunks_mut(mem::size_of::<f32>() * channels) {
-                let sample_bytes = &(samples.pop_front().unwrap_or(0.0) * volume).to_le_bytes();
+                let sample_bytes = &(samples.pop().unwrap_or(0.0) * volume).to_le_bytes();
                 bytes[0..4].copy_from_slice(sample_bytes);
 
-                let sample_bytes = &(samples.pop_front().unwrap_or(0.0) * volume).to_le_bytes();
+                let sample_bytes = &(samples.pop().unwrap_or(0.0) * volume).to_le_bytes();
                 if channels > 1 {
                     bytes[4..8].copy_from_slice(sample_bytes);
                 }

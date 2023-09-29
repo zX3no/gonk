@@ -16,28 +16,9 @@ fn main() {
         orig_hook(panic_info);
         std::process::exit(1);
     }));
-    // let mut buffer: Rb<f32, 1024> = Rb::new();
-    // let ptr = addr_of_mut!(buffer) as usize;
 
-    // thread::spawn(move || {
-    //     let buffer = ptr as *mut Rb<f32, 1024>;
-    //     thread::sleep(Duration::from_millis(100));
-    //     let _ = unsafe { (*buffer).pop_front() };
-    //     // let _ = unsafe { (*buffer).pop_front() };
-    // });
-
-    // for i in 0..1024 {
-    //     buffer.push_back(i as f32);
-    // }
-    // buffer.push_back(10.0 as f32);
-    // dbg!(buffer.buf.len());
-    // buffer.push_back(11.0);
-    // buffer.push_back(12.0);
-    // buffer.push_back(12.0);
-    // buffer.push_back(13.0);
-
-    const N: usize = 4;
-    let mut rb: Rb<f32, N> = Rb::new();
+    const N: usize = 1024 * 8;
+    let mut rb: Rb<f32, N> = Rb::<f32, N>::new();
     let ptr = addr_of_mut!(rb) as usize;
 
     thread::spawn(move || {
@@ -46,7 +27,9 @@ fn main() {
         // thread::sleep(Duration::from_millis(2000));
         let default = default_device();
         let mut wasapi = Wasapi::new(&default, None).unwrap();
-        wasapi.fill(0.05, rb).unwrap();
+        loop {
+            wasapi.fill(0.1, rb).unwrap();
+        }
     });
 
     #[rustfmt::skip]
@@ -57,9 +40,9 @@ fn main() {
     while let Some(packet) = sym.next_packet(&mut elapsed, &mut state) {
         let samples = packet.samples();
 
-        println!("Pushed samples {}", samples.len());
+        // println!("Pushed samples {}", samples.len());
         for sample in samples {
-            rb.push_back(*sample);
+            rb.push_blocking(*sample);
         }
     }
 
