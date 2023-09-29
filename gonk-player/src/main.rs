@@ -1,4 +1,5 @@
 use core::slice;
+use gonk_core::{profile, profiler};
 use gonk_player::decoder::Symphonia;
 use gonk_player::*;
 use std::{
@@ -21,20 +22,21 @@ fn main() {
     let mut buffer: Rb<f32> = Rb::new(2);
     let ptr = addr_of_mut!(buffer) as usize;
 
-    thread::spawn(move || {
-        let buffer = ptr as *mut Rb<f32>;
-        thread::sleep(Duration::from_millis(100));
-        let _ = unsafe { (*buffer).pop_front() };
-        let _ = unsafe { (*buffer).pop_front() };
-    });
+    // thread::spawn(move || {
+    //     let buffer = ptr as *mut Rb<f32>;
+    //     thread::sleep(Duration::from_millis(100));
+    //     let _ = unsafe { (*buffer).pop_front() };
+    //     // let _ = unsafe { (*buffer).pop_front() };
+    // });
 
     buffer.push_back(10.0);
     buffer.push_back(11.0);
-    buffer.push_back(12.0);
-    buffer.push_back(13.0);
+    // buffer.push_back(12.0);
+    // buffer.push_back(13.0);
 
-    dbg!(buffer);
+    profiler::print();
 
+    // thread::park();
     // buffer.push_back(10.0);
     // dbg!(buffer.pop_front());
     // loop {
