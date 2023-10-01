@@ -2,7 +2,7 @@
 //!
 //! Pipewire is currently not implemented because WSL doesn't work well with audio.
 //! AND...I don't have a spare drive to put linux on.
-#![feature(generic_const_exprs)]
+#![feature(lazy_cell)]
 #![allow(
     clippy::not_unsafe_ptr_arg_deref,
     clippy::missing_safety_doc,
@@ -19,8 +19,7 @@ use std::{
 
 pub mod decoder;
 pub mod rb;
-pub mod static_rb;
-mod wasapi;
+pub mod wasapi;
 
 pub use rb::*;
 pub use wasapi::{default_device, devices, imm_device_enumerator, init, Device, Wasapi};
@@ -102,30 +101,33 @@ impl Player {
         let volume = if self.mute { 0.0 } else { self.volume * gain };
 
         //(WASAPI): Can fail when the device sample-rate is changed.
-        if self.backend.fill_buffer(volume, symphonia).is_err() {
-            let now = Instant::now();
-            //TODO: Log what is happening to the user.
-            loop {
-                if now.elapsed() > Duration::from_secs(5) {
-                    panic!("Audio device timeout.");
-                }
 
-                //Find the current device.
-                if let Some(device) = devices()
-                    .into_iter()
-                    .find(|d| self.output_device.name == d.name)
-                {
-                    //Try to update the new device.
-                    if let Ok(wasapi) = Wasapi::new(&device, Some(symphonia.sample_rate())) {
-                        self.backend = wasapi;
-                        self.output_device = device.clone();
-                        break;
-                    }
-                }
+        if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {};
 
-                std::thread::sleep(Duration::from_millis(1));
-            }
-        };
+        // if self.backend.fill_buffer(volume, symphonia).is_err() {
+        //     let now = Instant::now();
+        //     //TODO: Log what is happening to the user.
+        //     loop {
+        //         if now.elapsed() > Duration::from_secs(5) {
+        //             panic!("Audio device timeout.");
+        //         }
+
+        //         //Find the current device.
+        //         if let Some(device) = devices()
+        //             .into_iter()
+        //             .find(|d| self.output_device.name == d.name)
+        //         {
+        //             //Try to update the new device.
+        //             if let Ok(wasapi) = Wasapi::new(&device, Some(symphonia.sample_rate())) {
+        //                 self.backend = wasapi;
+        //                 self.output_device = device.clone();
+        //                 break;
+        //             }
+        //         }
+
+        //         std::thread::sleep(Duration::from_millis(1));
+        //     }
+        // };
 
         if symphonia.is_full() {
             return;

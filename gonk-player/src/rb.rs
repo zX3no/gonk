@@ -1,12 +1,7 @@
-use std::{
-    cmp,
-    sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Condvar, Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Condvar, Mutex,
 };
-
-use log::info;
 
 const MUTEX: Mutex<()> = Mutex::new(());
 
@@ -33,6 +28,13 @@ impl Rb {
             can_write: AtomicBool::new(true),
         }
     }
+
+    pub fn clear(&mut self) {
+        // self.buf.clear();
+        self.buf = vec![0.0; self.buf.len()];
+        self.read.store(0, Ordering::Relaxed);
+        self.write.store(0, Ordering::Relaxed);
+    }
 }
 
 impl Rb {
@@ -40,8 +42,9 @@ impl Rb {
         if slice.is_empty() {
             return;
         }
+
         if slice.len() > self.buf.len() {
-            todo!("Allow growing");
+            todo!("Allow growing.");
         }
 
         let write = self.write.load(Ordering::Relaxed);
@@ -52,11 +55,6 @@ impl Rb {
         } else {
             (self.buf.len()) - write + read
         };
-
-        //Buffer is full.
-        // if (write + 1) % (N + 1) == read {
-        //     drop(self.block.wait(MUTEX.lock().unwrap()).unwrap());
-        // }
 
         //Not enough space free.
         if slice.len() > slots_free {
@@ -113,9 +111,21 @@ impl Rb {
 
         Some(item)
     }
-    pub fn slots_free(&self) -> usize {
-        let write = self.write.load(Ordering::Relaxed);
+
+    pub fn is_full(&self) -> bool {
         let read = self.read.load(Ordering::Relaxed);
+        let write = self.write.load(Ordering::Relaxed);
+        // (write + 1) % (N + 1) == read
+        (write + 1) % self.buf.len() == read
+    }
+
+    pub fn could_fit(&self, query: usize) -> bool {
+        self.slots_free() >= query
+    }
+
+    pub fn slots_free(&self) -> usize {
+        let read = self.read.load(Ordering::Relaxed);
+        let write = self.write.load(Ordering::Relaxed);
 
         if write < read {
             //N = 2
