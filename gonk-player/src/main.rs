@@ -4,6 +4,8 @@ use std::{mem::MaybeUninit, thread, time::Duration};
 
 static mut RB: MaybeUninit<Rb> = MaybeUninit::zeroed();
 
+static mut BUFFER: Vec<f32> = Vec::new();
+
 fn main() {
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {

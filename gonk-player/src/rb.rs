@@ -1,3 +1,4 @@
+pub use log::*;
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
     Condvar, Mutex,
@@ -8,6 +9,7 @@ const MUTEX: Mutex<()> = Mutex::new(());
 #[derive(Debug)]
 pub struct Rb {
     pub buf: Vec<f32>,
+    pub size: usize,
     pub write: AtomicUsize,
     pub read: AtomicUsize,
 
@@ -18,9 +20,21 @@ pub struct Rb {
 }
 
 impl Rb {
-    pub fn new(size: usize) -> Self {
+    // pub fn new(size: usize) -> Self {
+    //     Self {
+    //         buf: vec![0.0; size + 1],
+    //         write: AtomicUsize::new(0),
+    //         read: AtomicUsize::new(0),
+    //         slots_requested: AtomicUsize::new(0),
+    //         block: Condvar::new(),
+    //         can_write: AtomicBool::new(true),
+    //     }
+    // }
+
+    pub const fn new(size: usize) -> Self {
         Self {
-            buf: vec![0.0; size + 1],
+            buf: Vec::new(),
+            size,
             write: AtomicUsize::new(0),
             read: AtomicUsize::new(0),
             slots_requested: AtomicUsize::new(0),
@@ -41,10 +55,28 @@ impl Rb {
     pub fn append(&mut self, slice: &[f32]) {
         if slice.is_empty() {
             return;
-        }
+        };
 
         if slice.len() > self.buf.len() {
-            todo!("Allow growing.");
+            let bonus = if self.buf.len() == 0 && self.size > slice.len() {
+                self.size - slice.len()
+            } else {
+                0
+            };
+
+            info!("Resizing to: {}", slice.len() + bonus);
+
+            self.buf.extend(slice);
+
+            //Add the extra length the user asked for.
+            if bonus > 0 {
+                self.buf.extend(vec![0.0; self.size - slice.len()]);
+            }
+
+            return self.write.store(
+                (self.write() + slice.len()) % self.buf.len(),
+                Ordering::Relaxed,
+            );
         }
 
         let write = self.write.load(Ordering::Relaxed);
