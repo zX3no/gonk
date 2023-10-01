@@ -1,15 +1,8 @@
-use ::log::info;
-use gonk_core::*;
-use gonk_player::{decoder::Symphonia, static_rb::*, *};
-use std::{ptr::addr_of_mut, sync::atomic::Ordering, thread, time::Duration};
+#![feature(const_maybe_uninit_zeroed)]
+use gonk_player::{decoder::Symphonia, *};
+use std::{mem::MaybeUninit, thread, time::Duration};
 
-//I want to rework the player.
-
-//When a file is requested to be played, a thread is opened and the bytes are read in ASAP.
-
-//The Player keeps track of the index and tries to read the next samples.
-
-//I want a ring buffer that allows me to request somes bytes without re-allocating.
+static mut RB: MaybeUninit<Rb> = MaybeUninit::zeroed();
 
 fn main() {
     let orig_hook = std::panic::take_hook();
@@ -18,42 +11,28 @@ fn main() {
         std::process::exit(1);
     }));
 
-    // const N: usize = 1024 * 9 * 2;
-    // let mut rb = Rb::new(N);
+    const N: usize = u16::MAX as usize;
+    unsafe { RB = MaybeUninit::new(Rb::new(N)) }
 
-    const N: usize = 1024 * 9;
-    let mut rb: StaticRb<N> = StaticRb::<N>::new();
-    let ptr = addr_of_mut!(rb) as usize;
+    wasapi::set_volume(0.05);
 
-    thread::spawn(move || {
-        let rb = unsafe { (ptr as *mut StaticRb<N>).as_mut().unwrap() };
-        // let rb = unsafe { (ptr as *mut Rb).as_mut().unwrap() };
-
-        // thread::sleep(Duration::from_millis(2000));
-        let default = default_device();
-        let mut wasapi = Wasapi::new(&default, None).unwrap();
-        loop {
-            // wasapi.fill_heap(0.1, rb).unwrap();
-            wasapi.fill(0.1, rb).unwrap();
-            std::thread::sleep(Duration::from_millis(1));
-        }
-    });
+    wasapi::create(unsafe { RB.assume_init_mut() });
 
     #[rustfmt::skip]
     let mut sym = Symphonia::new(r"D:\Downloads\Variations for Winds_ Strings and Keyboards - San Francisco Symphony.flac").unwrap();
     let mut elapsed = Duration::default();
     let mut state = State::Playing;
 
+    let rb = unsafe { RB.assume_init_mut() };
     while let Some(packet) = sym.next_packet(&mut elapsed, &mut state) {
-        let samples = packet.samples();
+        rb.append(packet.samples());
+        break;
+    }
 
-        // info!("Adding {} samples.", samples.len());
-        rb.append(samples);
+    rb.clear();
 
-        // println!("Pushed samples {}", samples.len());
-        // for sample in samples {
-        //     rb.push_blocking(*sample);
-        // }
+    while let Some(packet) = sym.next_packet(&mut elapsed, &mut state) {
+        rb.append(packet.samples());
     }
 
     thread::park();
