@@ -81,7 +81,7 @@ pub fn set_volume(volume: f32) {
     unsafe { VOLUME = volume };
 }
 
-pub fn create(ptr: *mut Rb) {
+pub fn thread(ptr: *mut Rb) {
     let ptr = ptr as usize;
 
     thread::spawn(move || {

@@ -27,19 +27,19 @@ use symphonia::{
 };
 
 pub struct Symphonia {
-    format_reader: Box<dyn FormatReader>,
-    decoder: Box<dyn codecs::Decoder>,
-    track: Track,
-    elapsed: u64,
-    duration: u64,
-    error_count: u8,
-
-    buffer: VecDeque<f32>,
-    capacity: usize,
+    pub format_reader: Box<dyn FormatReader>,
+    pub decoder: Box<dyn codecs::Decoder>,
+    pub track: Track,
+    pub elapsed: u64,
+    pub duration: u64,
+    pub error_count: u8,
+    pub sample_rate: usize,
+    pub channels: usize,
+    pub done: bool,
 }
 
 impl Symphonia {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let file = File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
         let probed = get_probe().format(
@@ -59,31 +59,22 @@ impl Symphonia {
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &codecs::DecoderOptions::default())?;
 
-        let millis = 20;
         let sample_rate = track.codec_params.sample_rate.ok_or("sample_rate")? as usize;
         let channels = track.codec_params.channels.ok_or("channels")?.count();
-        let capacity = ((millis * sample_rate) / 1000) * channels;
 
         Ok(Self {
             format_reader: probed.format,
+            sample_rate,
+            channels,
             decoder,
             track,
             duration,
             elapsed: 0,
             error_count: 0,
-            buffer: VecDeque::with_capacity(capacity),
-            capacity,
+            done: false,
         })
     }
-    pub fn is_full(&self) -> bool {
-        self.buffer.len() > self.capacity
-    }
-    pub fn pop(&mut self) -> Option<f32> {
-        self.buffer.pop_front()
-    }
-    pub fn push(&mut self, slice: &[f32]) {
-        self.buffer.extend(slice);
-    }
+
     pub fn elapsed(&self) -> Duration {
         let tb = self.track.codec_params.time_base.unwrap();
         let time = tb.calc_time(self.elapsed);
@@ -116,12 +107,8 @@ impl Symphonia {
         );
     }
 
-    pub fn next_packet(
-        &mut self,
-        elapsed: &mut Duration,
-        state: &mut State,
-    ) -> Option<SampleBuffer<f32>> {
-        if self.error_count > 2 || state == &State::Finished {
+    pub fn next_packet(&mut self) -> Option<SampleBuffer<f32>> {
+        if self.error_count > 2 || self.done {
             return None;
         }
 
@@ -134,29 +121,28 @@ impl Symphonia {
                 Error::IoError(e) if e.kind() == ErrorKind::UnexpectedEof => {
                     //Just in case my 250ms addition is not enough.
                     if self.elapsed() + Duration::from_secs(1) > self.duration() {
-                        *state = State::Finished;
+                        self.done = true;
                         return None;
                     } else {
                         self.error_count += 1;
-                        return self.next_packet(elapsed, state);
+                        return self.next_packet();
                     }
                 }
                 _ => {
                     gonk_core::log!("{}", err);
                     self.error_count += 1;
-                    return self.next_packet(elapsed, state);
+                    return self.next_packet();
                 }
             },
         };
 
         self.elapsed = next_packet.ts();
-        *elapsed = self.elapsed();
 
         //HACK: Sometimes the end of file error does not indicate the end of the file?
         //The duration is a little bit longer than the maximum elapsed??
         //The final packet will make the elapsed time move backwards???
         if self.elapsed() + Duration::from_millis(250) > self.duration() {
-            *state = State::Finished;
+            self.done = true;
             return None;
         }
 
@@ -170,7 +156,7 @@ impl Symphonia {
             Err(err) => {
                 gonk_core::log!("{}", err);
                 self.error_count += 1;
-                self.next_packet(elapsed, state)
+                self.next_packet()
             }
         }
     }
