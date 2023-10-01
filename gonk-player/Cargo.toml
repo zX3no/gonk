@@ -14,13 +14,22 @@ strip = ["log/strip"]
 [dependencies]
 crossbeam-channel = "0.5.8"
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
-log = { git = "https://github.com/zX3no/log", version = "0.1.0" }
+log = { path ="../../log", version = "0.1.0" }
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",
     "mp3",
     "ogg",
     "vorbis",
 ] }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "rb"
+harness = false
+
+
 
 [target.'cfg(windows)'.dependencies.makepad-windows]
 git = "https://github.com/makepad/makepad"

@@ -1,4 +1,4 @@
-use crate::{decoder::Symphonia, Rb};
+use crate::{decoder::Symphonia, static_rb::StaticRb, Rb};
 use makepad_windows::{
     core::{Result, PCSTR},
     Win32::{
@@ -205,10 +205,50 @@ impl Wasapi {
         }
     }
 
-    pub fn fill<const N: usize>(&mut self, volume: f32, samples: &mut Rb<f32, N>) -> Result<()>
+    pub fn fill<const N: usize>(&mut self, volume: f32, samples: &mut StaticRb<N>) -> Result<()>
     where
         [(); N + 1]: Sized,
     {
+        unsafe {
+            //Sample-rate probably changed if this fails.
+            let padding = self.audio_client.GetCurrentPadding().unwrap();
+            let buffer_size = self.audio_client.GetBufferSize().unwrap();
+            let block_align = self.format.Format.nBlockAlign as u32;
+
+            let n_frames = buffer_size - 1 - padding;
+            assert!(n_frames < buffer_size - padding);
+
+            let size = (n_frames * block_align) as usize;
+
+            if size == 0 {
+                return Ok(());
+            }
+
+            let buffer = self.render_client.GetBuffer(n_frames).unwrap();
+            let slice = slice::from_raw_parts_mut(buffer, size);
+            let channels = self.format.Format.nChannels as usize;
+
+            for bytes in slice.chunks_mut(mem::size_of::<f32>() * channels) {
+                let sample_bytes = &(samples.pop().unwrap_or(0.0) * volume).to_le_bytes();
+                bytes[0..4].copy_from_slice(sample_bytes);
+
+                let sample_bytes = &(samples.pop().unwrap_or(0.0) * volume).to_le_bytes();
+                if channels > 1 {
+                    bytes[4..8].copy_from_slice(sample_bytes);
+                }
+            }
+
+            self.render_client.ReleaseBuffer(n_frames, 0)?;
+
+            if WaitForSingleObject(self.event, u32::MAX) != WAIT_OBJECT_0 {
+                unreachable!()
+            }
+
+            Ok(())
+        }
+    }
+
+    pub fn fill_heap(&mut self, volume: f32, samples: &mut Rb) -> Result<()> {
         unsafe {
             //Sample-rate probably changed if this fails.
             let padding = self.audio_client.GetCurrentPadding().unwrap();

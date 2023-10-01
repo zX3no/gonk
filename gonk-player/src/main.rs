@@ -1,6 +1,7 @@
+use ::log::info;
 use gonk_core::*;
-use gonk_player::{decoder::Symphonia, *};
-use std::{ptr::addr_of_mut, thread, time::Duration};
+use gonk_player::{decoder::Symphonia, static_rb::*, *};
+use std::{ptr::addr_of_mut, sync::atomic::Ordering, thread, time::Duration};
 
 //I want to rework the player.
 
@@ -17,18 +18,24 @@ fn main() {
         std::process::exit(1);
     }));
 
-    const N: usize = 1024 * 8;
-    let mut rb: Rb<f32, N> = Rb::<f32, N>::new();
+    // const N: usize = 1024 * 9 * 2;
+    // let mut rb = Rb::new(N);
+
+    const N: usize = 1024 * 9;
+    let mut rb: StaticRb<N> = StaticRb::<N>::new();
     let ptr = addr_of_mut!(rb) as usize;
 
     thread::spawn(move || {
-        let rb = unsafe { (ptr as *mut Rb<f32, N>).as_mut().unwrap() };
+        let rb = unsafe { (ptr as *mut StaticRb<N>).as_mut().unwrap() };
+        // let rb = unsafe { (ptr as *mut Rb).as_mut().unwrap() };
 
         // thread::sleep(Duration::from_millis(2000));
         let default = default_device();
         let mut wasapi = Wasapi::new(&default, None).unwrap();
         loop {
+            // wasapi.fill_heap(0.1, rb).unwrap();
             wasapi.fill(0.1, rb).unwrap();
+            std::thread::sleep(Duration::from_millis(1));
         }
     });
 
@@ -40,10 +47,13 @@ fn main() {
     while let Some(packet) = sym.next_packet(&mut elapsed, &mut state) {
         let samples = packet.samples();
 
+        // info!("Adding {} samples.", samples.len());
+        rb.append(samples);
+
         // println!("Pushed samples {}", samples.len());
-        for sample in samples {
-            rb.push_blocking(*sample);
-        }
+        // for sample in samples {
+        //     rb.push_blocking(*sample);
+        // }
     }
 
     thread::park();

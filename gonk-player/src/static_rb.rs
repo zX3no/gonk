@@ -1,18 +1,16 @@
-use std::{
-    cmp,
-    sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Condvar, Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Condvar, Mutex,
 };
-
-use log::info;
 
 const MUTEX: Mutex<()> = Mutex::new(());
 
 #[derive(Debug)]
-pub struct Rb {
-    pub buf: Vec<f32>,
+pub struct StaticRb<const N: usize>
+where
+    [(); N + 1]: Sized,
+{
+    pub buf: [f32; N + 1],
     pub write: AtomicUsize,
     pub read: AtomicUsize,
 
@@ -22,10 +20,13 @@ pub struct Rb {
     pub can_write: AtomicBool,
 }
 
-impl Rb {
-    pub fn new(size: usize) -> Self {
+impl<const N: usize> StaticRb<N>
+where
+    [(); N + 1]: Sized,
+{
+    pub fn new() -> Self {
         Self {
-            buf: vec![0.0; size + 1],
+            buf: [0.0; N + 1],
             write: AtomicUsize::new(0),
             read: AtomicUsize::new(0),
             slots_requested: AtomicUsize::new(0),
@@ -35,13 +36,16 @@ impl Rb {
     }
 }
 
-impl Rb {
+impl<const N: usize> StaticRb<N>
+where
+    [(); N + 1]: Sized,
+{
     pub fn append(&mut self, slice: &[f32]) {
         if slice.is_empty() {
             return;
         }
-        if slice.len() > self.buf.len() {
-            todo!("Allow growing");
+        if slice.len() > N {
+            panic!("Cannot append slice larger than rb size({})", N);
         }
 
         let write = self.write.load(Ordering::Relaxed);
@@ -50,17 +54,11 @@ impl Rb {
         let slots_free = if write < read {
             read - write - 1
         } else {
-            (self.buf.len()) - write + read
+            (N + 1) - write + read
         };
-
-        //Buffer is full.
-        // if (write + 1) % (N + 1) == read {
-        //     drop(self.block.wait(MUTEX.lock().unwrap()).unwrap());
-        // }
 
         //Not enough space free.
         if slice.len() > slots_free {
-            // info!("Blocking until {} are free.", slice.len());
             self.slots_requested.store(slice.len(), Ordering::Relaxed);
             drop(self.block.wait(MUTEX.lock().unwrap()).unwrap());
         }
@@ -70,6 +68,7 @@ impl Rb {
 
         let count = slice.len();
         let buf_len = self.buf.len();
+        assert_eq!(buf_len, N + 1);
 
         if (write + count) < buf_len {
             self.buf[write..write + count].copy_from_slice(&slice[..count]);
@@ -80,7 +79,7 @@ impl Rb {
         }
 
         self.write
-            .store((write + count) % self.buf.len(), Ordering::Relaxed);
+            .store((write + count) % (N + 1), Ordering::Relaxed);
     }
 
     pub fn pop(&mut self) -> Option<f32> {
@@ -90,24 +89,16 @@ impl Rb {
             return None;
         }
         let item = self.buf[read];
-        self.read
-            .store((read + 1) % self.buf.len(), Ordering::Relaxed);
+        self.read.store((read + 1) % (N + 1), Ordering::Relaxed);
 
         let slots_free = if write < read {
             read - write
         } else {
-            self.buf.len() - write + read
+            (N + 1) - write + read
         };
 
         let requested = self.slots_requested.load(Ordering::Relaxed);
         if slots_free >= requested {
-            // info!(
-            //     "Asking for {} slots, {} are free. This is {:.0}% of the buffer({})",
-            //     requested,
-            //     slots_free,
-            //     (requested as f32 / N as f32) * 100.0,
-            //     N,
-            // );
             self.block.notify_one();
         }
 
@@ -118,29 +109,9 @@ impl Rb {
         let read = self.read.load(Ordering::Relaxed);
 
         if write < read {
-            //N = 2
-            //write to 0
-            //write is 1
-
-            //read 0
-            //read is 1
-
-            //write to 1
-            //write is 2
-
-            //write to 2
-            //write is 0
-
-            //read 1, write 0
-            //here only slot 0 is free
-            //1 - 0 = 1
             read - write
         } else {
-            //N = 2
-            //write 1, read 0
-            //(2 + 1) - (1 + 0)
-            //2 slots free(1 & 2)
-            self.buf.len() - write + read
+            (N + 1) - write + read
         }
     }
 
@@ -161,7 +132,7 @@ mod tests {
 
     #[test]
     fn slots_free() {
-        let mut rb = Rb::new(2);
+        let mut rb = StaticRb::<2>::new();
 
         rb.append(&[1.0; 1]);
         assert_eq!(rb.write(), 1);
@@ -176,30 +147,30 @@ mod tests {
         assert_eq!(rb.slots_free(), 1);
     }
     #[test]
-    fn heap_rb() {
-        let mut rb = Rb::new(2);
+    fn static_rb() {
+        let mut rb = StaticRb::<2>::new();
 
         rb.append(&[1.0; 2]);
-        assert_eq!(rb.buf, vec![1.0, 1.0, 0.0]);
+        assert_eq!(rb.buf, [1.0, 1.0, 0.0]);
 
         assert_eq!(rb.pop().unwrap(), 1.0);
         assert_eq!(rb.pop().unwrap(), 1.0);
-        assert_eq!(rb.buf, vec![1.0, 1.0, 0.0]);
+        assert_eq!(rb.buf, [1.0, 1.0, 0.0]);
 
         rb.append(&[2.0; 2]);
-        assert_eq!(rb.buf, vec![2.0, 1.0, 2.0]);
+        assert_eq!(rb.buf, [2.0, 1.0, 2.0]);
 
         assert_eq!(rb.pop().unwrap(), 2.0);
         assert_eq!(rb.pop().unwrap(), 2.0);
-        assert_eq!(rb.buf, vec![2.0, 1.0, 2.0]);
+        assert_eq!(rb.buf, [2.0, 1.0, 2.0]);
 
         rb.append(&[3.0; 2]);
 
         assert_eq!(rb.pop().unwrap(), 3.0);
         assert_eq!(rb.pop().unwrap(), 3.0);
-        assert_eq!(rb.buf, vec![2.0, 3.0, 3.0]);
+        assert_eq!(rb.buf, [2.0, 3.0, 3.0]);
 
         rb.append(&[4.0; 2]);
-        assert_eq!(rb.buf, vec![4.0, 4.0, 3.0]);
+        assert_eq!(rb.buf, [4.0, 4.0, 3.0]);
     }
 }

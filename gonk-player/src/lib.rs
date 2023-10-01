@@ -19,6 +19,7 @@ use std::{
 
 pub mod decoder;
 pub mod rb;
+pub mod static_rb;
 mod wasapi;
 
 pub use rb::*;
