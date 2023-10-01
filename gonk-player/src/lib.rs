@@ -84,25 +84,25 @@ impl Player {
     /// - Filling the output device with samples.
     /// - Triggering the next song
     pub fn update(&mut self) {
-        if self.is_finished() {
-            self.next();
-        }
+        // if self.is_finished() {
+        //     self.next();
+        // }
 
-        if self.state != State::Playing {
-            return;
-        }
+        // if self.state != State::Playing {
+        //     return;
+        // }
 
         //Update the elapsed time and fill the output buffer.
-        let Some(symphonia) = &mut self.symphonia else {
-            return;
-        };
+        // let Some(symphonia) = &mut self.symphonia else {
+        //     return;
+        // };
 
-        let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
-        let volume = if self.mute { 0.0 } else { self.volume * gain };
+        // let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
+        // let volume = if self.mute { 0.0 } else { self.volume * gain };
 
         //(WASAPI): Can fail when the device sample-rate is changed.
 
-        if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {};
+        // if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {};
 
         // if self.backend.fill_buffer(volume, symphonia).is_err() {
         //     let now = Instant::now();
@@ -129,15 +129,15 @@ impl Player {
         //     }
         // };
 
-        if symphonia.is_full() {
-            return;
-        }
+        // if symphonia.is_full() {
+        //     return;
+        // }
 
-        if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
-            symphonia.push(packet.samples());
-        }
+        // if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
+        //     symphonia.push(packet.samples());
+        // }
     }
-    pub fn update_decoder(&mut self, path: impl AsRef<Path>) {
+    pub fn update_decoder<P: AsRef<Path>>(&mut self, path: P) {
         match Symphonia::new(path) {
             Ok(sym) => {
                 self.duration = sym.duration();
@@ -154,7 +154,7 @@ impl Player {
             Err(err) => gonk_core::log!("{}", err),
         }
     }
-    pub fn play_song(&mut self, path: impl AsRef<Path>, gain: f32) {
+    pub fn play_song<P: AsRef<Path>>(&mut self, path: P, gain: f32) {
         self.state = State::Playing;
         self.elapsed = Duration::default();
         if gain != 0.0 {
@@ -162,7 +162,7 @@ impl Player {
         }
         self.update_decoder(path);
     }
-    pub fn restore_song(&mut self, path: impl AsRef<Path>, gain: f32, elapsed: f32) {
+    pub fn restore_song<P: AsRef<Path>>(&mut self, path: P, gain: f32, elapsed: f32) {
         self.state = State::Paused;
         self.elapsed = Duration::from_secs_f32(elapsed);
         if gain != 0.0 {
