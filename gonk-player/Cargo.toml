@@ -9,12 +9,12 @@ license = "CC0-1.0"
 
 [features]
 profile = ["gonk-core/profile"]
-strip = ["log/strip"]
+strip = ["minilog/strip"]
 
 [dependencies]
 crossbeam-channel = "0.5.8"
+minilog = "0.1.0"
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
-log = { path ="../../log", version = "0.1.0" }
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",
     "mp3",
