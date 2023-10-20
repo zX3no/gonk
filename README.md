@@ -6,13 +6,8 @@
       <img src="https://raw.githubusercontent.com/zX3no/gonk/main/media/gonk.gif">
 </div>
 
-## ⚠️ Warning
-
-- Gonk is under heavy development. Expect breaking changes.
-
 ## ✨ Features
 - Easy to use
-- Windows and Linux support (WASAPI, ALSA, Jack)
 - Plays FLAC, MP3 and OGG
 - Fuzzy search
 - Vim-style key bindings
@@ -27,16 +22,6 @@ Download the latest [release](https://github.com/zX3no/gonk/releases/latest) and
 gonk add ~/Music
 ```
 
-### Building from Source
-
-> Current master branch cannot be built on linux. You can still use an older version [0.1.2](https://github.com/zX3no/gonk/releases/tag/0.1.2), see [#19](https://github.com/zX3no/gonk/issues/19).
-
-```
-git clone https://github.com/zX3no/gonk
-cd gonk
-cargo install --path gonk
-gonk
-```
 ## ⌨️ Key Bindings
 
 | Command                     | Key               |

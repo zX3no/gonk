@@ -1,4 +1,4 @@
-pub use log::*;
+pub use minilog::*;
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
     Condvar, Mutex,
