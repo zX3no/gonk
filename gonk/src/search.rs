@@ -88,14 +88,13 @@ pub fn draw(
         })
         .collect();
 
-    let header = header![
-        text!(),
-        text!("Name", italic()),
-        text!("Album", italic()),
-        text!("Artist", italic())
-    ];
     let table = table(
-        Some(header),
+        Some(header![
+            text!(),
+            "Name".italic(),
+            "Album".italic(),
+            "Artist".italic()
+        ]),
         Some(block(None, ALL, Rounded)),
         &[
             Constraint::Length(1),
@@ -131,37 +130,31 @@ pub fn draw(
     }
 }
 
+//Items have a lifetime of 'search because they live in the Search struct.
 fn cell(item: &Item, selected: bool) -> Row<'_> {
     let selected_cell = if selected { ">" } else { "" };
 
     match item {
         Item::Song((artist, album, name, _, _)) => row![
-            text!(selected_cell),
-            text!(name.as_str(), fg(TITLE)),
-            text!(album.as_str(), fg(ALBUM)),
-            text!(artist.as_str(), fg(ARTIST))
+            selected_cell,
+            name.as_str().fg(TITLE),
+            album.as_str().fg(ALBUM),
+            artist.as_str().fg(ARTIST)
         ],
         Item::Album((artist, album)) => row![
-            text!(selected_cell),
-            lines_s!(
-                format!("{album} - "),
-                fg(ALBUM),
-                "Album",
-                fg(ALBUM).italic()
-            ),
-            text!("-"),
-            text!(artist.as_str(), fg(ARTIST))
+            selected_cell,
+            lines!(text!("{album} - ").fg(ALBUM), "Album".fg(ALBUM).italic()),
+            "-",
+            artist.fg(ARTIST)
         ],
         Item::Artist(artist) => row![
-            text!(selected_cell),
-            lines_s!(
-                format!("{artist} - "),
-                fg(ARTIST),
-                "Artist",
-                fg(ARTIST).italic()
+            selected_cell,
+            lines!(
+                text!("{artist} - ").fg(ARTIST),
+                "Artist".fg(ARTIST).italic()
             ),
-            text!("-"),
-            text!("-")
+            "-",
+            "-"
         ],
     }
 }

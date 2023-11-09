@@ -121,7 +121,7 @@ pub fn draw(
     let songs: Vec<_> = browser.songs.iter().map(|(s, _)| lines!(s)).collect();
 
     fn list<'a>(title: &'static str, items: Vec<Lines<'a>>, use_symbol: bool) -> List<'a> {
-        let block = block(Some(text!(title, bold())), Borders::ALL, Rounded).margin(1);
+        let block = block(Some(title.bold()), Borders::ALL, Rounded).margin(1);
         let symbol = if use_symbol { ">" } else { " " };
         winter::list(Some(block), items, Some(symbol), None)
     }
