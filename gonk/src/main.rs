@@ -31,35 +31,35 @@ const SEEKER: Color = Color::White;
 
 static HELP: LazyLock<[Row; 29]> = LazyLock::new(|| {
     [
-        row![text!("Move Up", fg(Cyan)), "K / UP"],
-        row![text!("Move Down", fg(Cyan)), "J / Down"],
-        row![text!("Move Left", fg(Cyan)), "H / Left"],
-        row![text!("Move Right", fg(Cyan)), "L / Right"],
-        row![text!("Volume Up", fg(Green)), "W"],
-        row![text!("Volume Down", fg(Green)), "S"],
-        row![text!("Mute", fg(Green)), "Z"],
-        row![text!("Play/Pause", fg(Magenta)), "Space"],
-        row![text!("Previous", fg(Magenta)), "A"],
-        row![text!("Next", fg(Magenta)), "D"],
-        row![text!("Seek -10s", fg(Magenta)), "Q"],
-        row![text!("Seek 10s", fg(Magenta)), "E"],
-        row![text!("Queue", fg(Blue)), "1"],
-        row![text!("Browser", fg(Blue)), "2"],
-        row![text!("Playlists", fg(Blue)), "3"],
-        row![text!("Settings", fg(Blue)), "4"],
-        row![text!("Search", fg(Blue)), "/"],
-        row![text!("Exit Search", fg(Blue)), "Escape"],
-        row![text!("Add song to queue", fg(Cyan)), "Enter"],
-        row![text!("Add song to playlist", fg(Cyan)), "Shift + Enter"],
-        row![text!("Move song margin", fg(Green)), "F1 / Shift + F1"],
-        row![text!("Move album margin", fg(Green)), "F2 / Shift + F2"],
-        row![text!("Move artist margin", fg(Green)), "F3 / Shift + F3"],
-        row![text!("Update database", fg(Yellow)), "U"],
-        row![text!("Quit player", fg(Yellow)), "Ctrl + C"],
-        row![text!("Clear queue", fg(Red)), "C"],
-        row![text!("Clear except playing", fg(Red)), "Shift + C"],
-        row![text!("Delete song/playlist", fg(Red)), "X"],
-        row![text!("Delete without confirmation", fg(Red)), "Shift + X"],
+        row!["Move Up".fg(Cyan), "K / UP"],
+        row!["Move Down".fg(Cyan), "J / Down"],
+        row!["Move Left".fg(Cyan), "H / Left"],
+        row!["Move Right".fg(Cyan), "L / Right"],
+        row!["Volume Up".fg(Green), "W"],
+        row!["Volume Down".fg(Green), "S"],
+        row!["Mute".fg(Green), "Z"],
+        row!["Play/Pause".fg(Magenta), "Space"],
+        row!["Previous".fg(Magenta), "A"],
+        row!["Next".fg(Magenta), "D"],
+        row!["Seek -10s".fg(Magenta), "Q"],
+        row!["Seek 10s".fg(Magenta), "E"],
+        row!["Queue".fg(Blue), "1"],
+        row!["Browser".fg(Blue), "2"],
+        row!["Playlists".fg(Blue), "3"],
+        row!["Settings".fg(Blue), "4"],
+        row!["Search".fg(Blue), "/"],
+        row!["Exit Search".fg(Blue), "Escape"],
+        row!["Add song to queue".fg(Cyan), "Enter"],
+        row!["Add song to playlist".fg(Cyan), "Shift + Enter"],
+        row!["Move song margin".fg(Green), "F1 / Shift + F1"],
+        row!["Move album margin".fg(Green), "F2 / Shift + F2"],
+        row!["Move artist margin".fg(Green), "F3 / Shift + F3"],
+        row!["Update database".fg(Yellow), "U"],
+        row!["Quit player".fg(Yellow), "Ctrl + C"],
+        row!["Clear queue".fg(Red), "C"],
+        row!["Clear except playing".fg(Red), "Shift + C"],
+        row!["Delete song/playlist".fg(Red), "X"],
+        row!["Delete without confirmation".fg(Red), "Shift + X"],
     ]
 });
 
@@ -80,7 +80,7 @@ fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
             Constraint::Min(2),
             Constraint::Length(3)
         );
-        lines([text![msg]])
+        lines!(msg)
             .block(None, Borders::ALL, Rounded)
             .draw(area[1], buf);
         area[0]
@@ -296,7 +296,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
 
                 //TODO: This is hard to read because the gap between command and key is large.
-                let header = header![text!("Command", bold()), text!("Key", bold())];
+                let header = header!["Command".bold(), "Key".bold()];
                 let table = table(
                     Some(header),
                     Some(block(Some("Help:".into()), ALL, Rounded)),

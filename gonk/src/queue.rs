@@ -96,21 +96,16 @@ pub fn draw(
             let pad_front = " ".repeat(n / 2);
             let pad_back = " ".repeat(n / 2 + rem);
 
-            let top = lines_s![
-                format!("─│ {pad_front}"),
-                style(),
-                artist,
-                fg(ARTIST),
+            let top = lines![
+                text!("─│ {}", pad_front),
+                artist.fg(ARTIST),
                 " ─ ",
-                style(),
-                album,
-                fg(ALBUM),
-                format!("{pad_back} │─"),
-                style()
+                album.fg(ALBUM),
+                text!("{} │─", pad_back)
             ];
             top.align(Center).draw(area[0], buf);
 
-            let bottom = lines_s![title, fg(TITLE)];
+            let bottom = lines!(title.fg(TITLE));
             let mut area = area[0];
             if area.height > 1 {
                 area.y += 1;
@@ -119,10 +114,10 @@ pub fn draw(
         }
     }
 
-    let volume = if player.mute {
-        lines!("Mute─╮")
+    let volume: Lines<'_> = if player.mute {
+        "Mute─╮".into()
     } else {
-        lines!(format!("Vol: {}%─╮", player.volume()))
+        text!("Vol: {}%─╮", player.volume()).into()
     };
     volume.align(Right).draw(area[0], buf);
 
@@ -149,10 +144,10 @@ pub fn draw(
             .map(|song| {
                 row![
                     text!(),
-                    text!(song.track_number.to_string(), fg(NUMBER)),
-                    text!(song.title.as_str(), fg(TITLE)),
-                    text!(song.album.as_str(), fg(ALBUM)),
-                    text!(song.artist.as_str(), fg(ARTIST))
+                    song.track_number.to_string().fg(NUMBER),
+                    song.title.as_str().fg(TITLE),
+                    song.album.as_str().fg(ALBUM),
+                    song.artist.as_str().fg(ARTIST)
                 ]
             })
             .collect();
@@ -163,19 +158,19 @@ pub fn draw(
                     //Currently playing song
                     if ui_index == player_index {
                         rows[player_index] = row![
-                            text!(">>", fg(White).dim().bold()),
-                            text!(song.track_number.to_string(), bg(NUMBER).fg(Black).dim()),
-                            text!(song.title.as_str(), bg(TITLE).fg(Black).dim()),
-                            text!(song.album.as_str(), bg(ALBUM).fg(Black).dim()),
-                            text!(song.artist.as_str(), bg(ARTIST).fg(Black).dim())
+                            ">>".fg(White).dim().bold(),
+                            song.track_number.to_string().bg(NUMBER).fg(Black).dim(),
+                            song.title.as_str().bg(TITLE).fg(Black).dim(),
+                            song.album.as_str().bg(ALBUM).fg(Black).dim(),
+                            song.artist.as_str().bg(ARTIST).fg(Black).dim()
                         ];
                     } else {
                         rows[player_index] = row![
-                            text!(">>", fg(White).dim().bold()),
-                            text!(song.track_number.to_string(), fg(NUMBER)),
-                            text!(song.title.as_str(), fg(TITLE)),
-                            text!(song.album.as_str(), fg(ALBUM)),
-                            text!(song.artist.as_str(), fg(ARTIST))
+                            ">>".fg(White).dim().bold(),
+                            song.track_number.to_string().fg(NUMBER),
+                            song.title.as_str().fg(TITLE),
+                            song.album.as_str().fg(ALBUM),
+                            song.artist.as_str().fg(ARTIST)
                         ]
                     };
 
@@ -185,10 +180,10 @@ pub fn draw(
                             //TODO: Something is not working here.
                             rows[ui_index] = row![
                                 text!(),
-                                text!(song.track_number.to_string(), fg(Black).bg(NUMBER).dim()),
-                                text!(song.title.as_str(), fg(Black).bg(TITLE).dim()),
-                                text!(song.album.as_str(), fg(Black).bg(ALBUM).dim()),
-                                text!(song.artist.as_str(), fg(Black).bg(ARTIST).dim())
+                                song.track_number.to_string().fg(Black).bg(NUMBER).dim(),
+                                song.title.as_str().fg(Black).bg(TITLE).dim(),
+                                song.album.as_str().fg(Black).bg(ALBUM).dim(),
+                                song.artist.as_str().fg(Black).bg(ARTIST).dim()
                             ];
                         }
                     }
@@ -211,10 +206,10 @@ pub fn draw(
         //TODO: Header style.
         let header = header![
             text!(),
-            text!("#", bold()),
-            text!("Title", bold()),
-            text!("Album", bold()),
-            text!("Artist", bold())
+            "#".bold(),
+            "Title".bold(),
+            "Album".bold(),
+            "Artist".bold()
         ];
         let table = table(Some(header), Some(block), &con, rows, None, style()).spacing(1);
         table.draw(area[1], buf, ui_index);

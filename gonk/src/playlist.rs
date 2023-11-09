@@ -127,7 +127,12 @@ pub fn draw(
         }
     }
 
-    let items: Vec<_> = playlist.lists.iter().map(|p| lines!(p.name())).collect();
+    let items: Vec<Lines<'_>> = playlist
+        .lists
+        .iter()
+        //TODO: Not borrowing here.
+        .map(|p| lines!(text!("{}", p.name())))
+        .collect();
     let symbol = if let Mode::Playlist = playlist.mode {
         ">"
     } else {
@@ -148,9 +153,9 @@ pub fn draw(
             .iter()
             .map(|song| {
                 row![
-                    text!(&song.title, fg(TITLE)),
-                    text!(&song.album, fg(ALBUM)),
-                    text!(&song.artist, fg(ARTIST))
+                    song.title.as_str().fg(TITLE),
+                    song.album.as_str().fg(ALBUM),
+                    song.artist.as_str().fg(ARTIST)
                 ]
             })
             .collect();
@@ -207,12 +212,12 @@ pub fn draw(
                 .align(Center)
                 .draw(v[0], buf);
 
-            lines_s!("Yes", yes)
+            lines!("Yes".style(yes))
                 .block(None, Borders::LEFT | Borders::BOTTOM, Rounded)
                 .align(Center)
                 .draw(h[0], buf);
 
-            lines_s!("No", no)
+            lines!("No".style(no))
                 .block(None, Borders::RIGHT | Borders::BOTTOM, Rounded)
                 .align(Center)
                 .draw(h[1], buf);
@@ -248,10 +253,10 @@ pub fn draw(
             let block = block(Some("Add to playlist".into()), ALL, Rounded).margin(1);
             block.draw(area, buf);
 
-            lines!(playlist.search_query.as_str())
-                .block(None, ALL, Rounded)
-                .scroll()
-                .draw(v[0], buf);
+            // lines!(playlist.search_query.as_str())
+            //     .block(None, ALL, Rounded)
+            //     .scroll()
+            //     .draw(v[0], buf);
 
             //TODO: Underline `new` and `existing` to clarify what is happening.
             if playlist.changed {

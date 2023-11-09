@@ -64,9 +64,9 @@ pub fn draw(settings: &Settings, area: winter::Rect, buf: &mut winter::Buffer) {
     let mut items = Vec::new();
     for device in &settings.devices {
         let item = if device.name == settings.current_device {
-            lines([text!(">> ", dim()), text!(&device.name)])
+            lines!(">> ".dim(), &device.name)
         } else {
-            lines([text!("   "), text!(&device.name)])
+            lines!("   ", &device.name)
         };
         items.push(item);
     }
