@@ -72,23 +72,6 @@ pub enum Mode {
     Search,
 }
 
-fn draw_log(area: Rect, buf: &mut Buffer) -> Rect {
-    if let Some(msg) = log::last_message() {
-        let area = layout!(
-            area,
-            Direction::Vertical,
-            Constraint::Min(2),
-            Constraint::Length(3)
-        );
-        lines!(msg)
-            .block(None, Borders::ALL, Rounded)
-            .draw(area[1], buf);
-        area[0]
-    } else {
-        area
-    }
-}
-
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut persist = gonk_core::settings::Settings::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -185,16 +168,104 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
     let mut dots: usize = 1;
+    let mut help = false;
+    let mut prev_mode = Mode::Search; //Used for search.
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !player.songs.is_empty() && scan_handle.is_none() {
         mode = Mode::Queue;
     }
 
-    let mut help = false;
+    macro_rules! up {
+        () => {
+            match mode {
+                Mode::Browser => browser::up(&mut browser, &db),
+                Mode::Queue => queue::up(&mut queue),
+                Mode::Playlist => playlist::up(&mut playlist),
+                Mode::Settings => settings::up(&mut settings),
+                Mode::Search => search::up(&mut search),
+            }
+        };
+    }
 
-    //Stores previous mode for search.
-    let mut prev_mode = Mode::Search;
+    macro_rules! down {
+        () => {
+            match mode {
+                Mode::Browser => browser::down(&mut browser, &db),
+                Mode::Queue => queue::down(&mut queue),
+                Mode::Playlist => playlist::down(&mut playlist),
+                Mode::Settings => settings::down(&mut settings),
+                Mode::Search => search::down(&mut search),
+            }
+        };
+    }
+
+    macro_rules! left {
+        () => {
+            match mode {
+                Mode::Browser => browser::left(&mut browser),
+                Mode::Playlist => playlist::left(&mut playlist),
+                _ => {}
+            }
+        };
+    }
+
+    macro_rules! right {
+        () => {
+            match mode {
+                Mode::Browser => browser::right(&mut browser),
+                Mode::Playlist => playlist::right(&mut playlist),
+                _ => {}
+            }
+        };
+    }
+
+    macro_rules! draw {
+        ($mouse:expr) => {{
+            let buf = &mut buffers[current];
+            let area = if let Some(msg) = log::last_message() {
+                let area = layout!(
+                    viewport,
+                    Direction::Vertical,
+                    Constraint::Min(2),
+                    Constraint::Length(3)
+                );
+                lines!(msg)
+                    .block(None, Borders::ALL, Rounded)
+                    .draw(area[1], buf);
+                area[0]
+            } else {
+                viewport
+            };
+
+            //TOOD: Mouse does not work in settings.
+            match mode {
+                Mode::Browser => browser::draw(&mut browser, area, buf, $mouse),
+                Mode::Settings => settings::draw(&settings, area, buf),
+                Mode::Queue => queue::draw(&mut queue, area, buf, $mouse),
+                Mode::Playlist => playlist::draw(&mut playlist, area, buf, $mouse),
+                Mode::Search => search::draw(&mut search, area, buf, $mouse, &db),
+            }
+
+            if help {
+                let area = area.inner((6, 8));
+                let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
+
+                //TODO: This is hard to read because the gap between command and key is large.
+                let header = header!["Command".bold(), "Key".bold()];
+                let table = table(
+                    Some(header),
+                    Some(block(Some("Help:".into()), ALL, Rounded)),
+                    &widths,
+                    HELP.clone(),
+                    None,
+                    style(),
+                );
+                buf.clear(area);
+                table.draw(area, buf, None);
+            }
+        }};
+    }
 
     'outer: loop {
         if let Some(handle) = &scan_handle {
@@ -278,39 +349,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
 
         //Draw widgets
-        let mut draw = |mouse: Option<(u16, u16)>| {
-            let buf = &mut buffers[current];
-            let area = draw_log(viewport, buf);
-
-            //TOOD: Mouse does not work in settings.
-            match mode {
-                Mode::Browser => browser::draw(&mut browser, area, buf, mouse),
-                Mode::Settings => settings::draw(&settings, area, buf),
-                Mode::Queue => queue::draw(&mut queue, area, buf, mouse),
-                Mode::Playlist => playlist::draw(&mut playlist, area, buf, mouse),
-                Mode::Search => search::draw(&mut search, area, buf, mouse, &db),
-            }
-
-            if help {
-                let area = area.inner((6, 8));
-                let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
-
-                //TODO: This is hard to read because the gap between command and key is large.
-                let header = header!["Command".bold(), "Key".bold()];
-                let table = table(
-                    Some(header),
-                    Some(block(Some("Help:".into()), ALL, Rounded)),
-                    &widths,
-                    HELP.clone(),
-                    None,
-                    style(),
-                );
-                buf.clear(area);
-                table.draw(area, buf, None);
-            }
-        };
-
-        draw(None);
+        draw!(None);
 
         //Handle events
         'events: {
@@ -323,21 +362,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             let control = state.ctrl();
 
             match event {
-                Event::LeftMouse(x, y) if !help => draw(Some((x, y))),
-                Event::ScrollUp => match mode {
-                    Mode::Browser => browser::up(&mut browser, &db),
-                    Mode::Queue => queue::up(&mut queue),
-                    Mode::Playlist => playlist::up(&mut playlist),
-                    Mode::Settings => settings::up(&mut settings),
-                    Mode::Search => search::up(&mut search),
-                },
-                Event::ScrollDown => match mode {
-                    Mode::Browser => browser::down(&mut browser, &db),
-                    Mode::Queue => queue::down(&mut queue),
-                    Mode::Playlist => playlist::down(&mut playlist),
-                    Mode::Settings => settings::down(&mut settings),
-                    Mode::Search => search::down(&mut search),
-                },
+                Event::LeftMouse(x, y) if !help => draw!(Some((x, y))),
+                Event::ScrollUp => up!(),
+                Event::ScrollDown => down!(),
                 Event::Char('c') if control => break 'outer,
                 Event::Char('?') | Event::Char('/') | Event::Escape if help => help = false,
                 Event::Char('?') => help = true,
@@ -544,34 +571,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Function(1) => queue::constraint(&mut queue, 0, shift),
                 Event::Function(2) => queue::constraint(&mut queue, 1, shift),
                 Event::Function(3) => queue::constraint(&mut queue, 2, shift),
-                Event::Up | Event::Char('k') => match mode {
-                    Mode::Browser => browser::up(&mut browser, &db),
-                    Mode::Queue => queue::up(&mut queue),
-                    Mode::Playlist => playlist::up(&mut playlist),
-                    Mode::Settings => settings::up(&mut settings),
-                    Mode::Search => search::up(&mut search),
-                },
-                Event::Down | Event::Char('j') => match mode {
-                    Mode::Browser => browser::down(&mut browser, &db),
-                    Mode::Queue => queue::down(&mut queue),
-                    Mode::Playlist => playlist::down(&mut playlist),
-                    Mode::Settings => settings::down(&mut settings),
-                    Mode::Search => search::down(&mut search),
-                },
-                Event::Left | Event::Char('h') => match mode {
-                    Mode::Browser => browser::left(&mut browser),
-                    Mode::Queue => {}
-                    Mode::Playlist => playlist::left(&mut playlist),
-                    Mode::Settings => {}
-                    Mode::Search => {}
-                },
-                Event::Right | Event::Char('l') => match mode {
-                    Mode::Browser => browser::right(&mut browser),
-                    Mode::Queue => {}
-                    Mode::Playlist => playlist::right(&mut playlist),
-                    Mode::Settings => {}
-                    Mode::Search => {}
-                },
+                Event::Up | Event::Char('k') => up!(),
+                Event::Down | Event::Char('j') => down!(),
+                Event::Left | Event::Char('h') => left!(),
+                Event::Right | Event::Char('l') => right!(),
                 _ => {}
             }
         }
