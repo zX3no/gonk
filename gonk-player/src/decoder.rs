@@ -1,16 +1,7 @@
 //! Decoder for audio files.
-//!
-//! Packets can only be loaded in full not partially.
-//! A `VecDeque` stores the excess.
-//!
-//! Decoding on the audio thread is probably not ideal.
-//! Actually the whole application runs on the same thread, including the audio.
-//!
-//! It's simple and works...surprisingly.
-use crate::State;
 use std::io::ErrorKind;
 use std::time::Duration;
-use std::{collections::VecDeque, fs::File, path::Path};
+use std::{fs::File, path::Path};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatReader, Track};
 use symphonia::{

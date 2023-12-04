@@ -1,27 +1,22 @@
-use crate::Rb;
 use makepad_windows::{
     core::{Result, PCSTR},
     Win32::{
         Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
-        Foundation::{BOOL, HANDLE, WAIT_OBJECT_0},
+        Foundation::{BOOL, HANDLE},
         Media::{Audio::*, KernelStreaming::WAVE_FORMAT_EXTENSIBLE},
         System::{
             Com::{
                 CoCreateInstance, CoInitializeEx, StructuredStorage::PROPVARIANT, CLSCTX_ALL,
                 COINIT_MULTITHREADED, STGM_READ,
             },
-            Threading::{CreateEventA, WaitForSingleObject},
+            Threading::CreateEventA,
             Variant::VT_LPWSTR,
         },
     },
 };
 use std::{
-    mem::{self},
     ops::{Deref, DerefMut},
-    slice,
     sync::Once,
-    thread,
-    time::Duration,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -71,38 +66,10 @@ pub unsafe fn init() {
     });
 }
 
-static mut VOLUME: f32 = 0.1;
-
-pub fn get_volume() {
-    unsafe { VOLUME };
-}
-
-pub fn set_volume(volume: f32) {
-    unsafe { VOLUME = volume };
-}
-
-pub fn thread(ptr: *mut Rb) {
-    let ptr = ptr as usize;
-
-    thread::spawn(move || {
-        let rb = unsafe { (ptr as *mut Rb).as_mut().unwrap() };
-
-        let default = default_device();
-        let mut wasapi = Wasapi::new(&default, None).unwrap();
-
-        loop {
-            let volume = unsafe { VOLUME };
-            wasapi.fill(volume, rb).unwrap();
-            std::thread::sleep(Duration::from_millis(2));
-        }
-    });
-}
-
 pub struct Wasapi {
     pub audio_client: IAudioClient,
     pub render_client: IAudioRenderClient,
     pub format: WAVEFORMATEXTENSIBLE,
-    pub buffer: Vec<f32>,
     pub event: HANDLE,
 }
 
@@ -175,7 +142,6 @@ impl Wasapi {
                 audio_client,
                 render_client,
                 format,
-                buffer: Vec::new(),
                 event,
             })
         }
@@ -195,56 +161,6 @@ impl Wasapi {
         unsafe { self.audio_client.Stop().unwrap() };
 
         Ok(*self = Wasapi::new(device, Some(sample_rate))?)
-    }
-
-    pub fn fill(&mut self, volume: f32, samples: &mut Rb) -> Result<()> {
-        unsafe {
-            //Sample-rate probably changed if this fails.
-            let padding = self.audio_client.GetCurrentPadding().unwrap();
-            let buffer_size = self.audio_client.GetBufferSize().unwrap();
-            let block_align = self.format.Format.nBlockAlign as u32;
-
-            let n_frames = buffer_size - 1 - padding;
-            assert!(n_frames < buffer_size - padding);
-
-            let size = (n_frames * block_align) as usize;
-
-            if size == 0 {
-                return Ok(());
-            }
-
-            let buffer = self.render_client.GetBuffer(n_frames).unwrap();
-            let slice = slice::from_raw_parts_mut(buffer, size);
-            let channels = self.format.Format.nChannels as usize;
-
-            for bytes in slice.chunks_mut(mem::size_of::<f32>() * channels) {
-                let sample_bytes = &(samples.pop().unwrap_or(0.0) * volume).to_le_bytes();
-                bytes[0..4].copy_from_slice(sample_bytes);
-
-                let sample_bytes = &(samples.pop().unwrap_or(0.0) * volume).to_le_bytes();
-                if channels > 1 {
-                    bytes[4..8].copy_from_slice(sample_bytes);
-                }
-            }
-
-            self.render_client.ReleaseBuffer(n_frames, 0)?;
-
-            if WaitForSingleObject(self.event, u32::MAX) != WAIT_OBJECT_0 {
-                unreachable!()
-            }
-
-            Ok(())
-        }
-    }
-
-    pub fn buffer_size(&self) -> Result<u32> {
-        unsafe {
-            let padding = self.audio_client.GetCurrentPadding()?;
-            let buffer_size = self.audio_client.GetBufferSize()?;
-            let block_align = self.format.Format.nBlockAlign as u32;
-            let n_frames = buffer_size - 1 - padding;
-            Ok(n_frames * block_align)
-        }
     }
 }
 
