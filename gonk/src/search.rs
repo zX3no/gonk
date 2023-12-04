@@ -159,7 +159,12 @@ fn cell(item: &Item, selected: bool) -> Row<'_> {
     }
 }
 
-pub fn on_backspace(search: &mut Search, control: bool) {
+pub fn on_backspace(
+    search: &mut Search,
+    control: bool,
+    mode: &mut crate::Mode,
+    prev_mode: &mut crate::Mode,
+) {
     match search.mode {
         Mode::Search if !search.query.is_empty() => {
             if control {
@@ -170,11 +175,14 @@ pub fn on_backspace(search: &mut Search, control: bool) {
 
             search.query_changed = true;
         }
+        Mode::Search => {
+            *mode = prev_mode.clone();
+            *prev_mode = crate::Mode::Search;
+        }
         Mode::Select => {
             search.results.select(None);
             search.mode = Mode::Search;
         }
-        _ => (),
     }
 }
 

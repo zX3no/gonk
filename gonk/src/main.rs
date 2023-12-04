@@ -393,7 +393,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
                     //Handle ^W as control backspace.
                     if control && c == 'w' {
-                        search::on_backspace(&mut search, true);
+                        search::on_backspace(&mut search, control, &mut mode, &mut prev_mode);
                     } else {
                         search.query.push(c);
                         search.query_changed = true;
@@ -539,31 +539,14 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         }
                     }
                 }
-                Event::Backspace => {
-                    if mode == Mode::Playlist {
-                        playlist::on_backspace(&mut playlist, control)
-                    } else if mode == Mode::Search {
-                        match search.mode {
-                            SearchMode::Search if !search.query.is_empty() => {
-                                if control {
-                                    search.query.clear();
-                                } else {
-                                    search.query.pop();
-                                }
-
-                                search.query_changed = true;
-                            }
-                            SearchMode::Search => {
-                                mode = prev_mode.clone();
-                                prev_mode = Mode::Search;
-                            }
-                            SearchMode::Select => {
-                                search.results.select(None);
-                                search.mode = SearchMode::Search;
-                            }
-                        }
-                    }
+                Event::Backspace if mode == Mode::Playlist => {
+                    playlist::on_backspace(&mut playlist, control);
                 }
+
+                Event::Backspace if mode == Mode::Search => {
+                    search::on_backspace(&mut search, control, &mut mode, &mut prev_mode);
+                }
+                Event::Backspace => {}
                 Event::Char('1') => mode = Mode::Queue,
                 Event::Char('2') => mode = Mode::Browser,
                 Event::Char('3') => mode = Mode::Playlist,
