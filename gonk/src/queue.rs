@@ -38,31 +38,30 @@ pub fn draw(
 ) {
     let player = unsafe { queue.player.as_mut().unwrap() };
 
-    let area = layout![
+    let fill = viewport.height.saturating_sub(3 + 3);
+    let area = layout(
         viewport,
         Direction::Vertical,
-        Constraint::Length(3),
-        Constraint::Min(10),
-        Constraint::Length(3)
-    ];
+        &[
+            Constraint::Length(3),
+            Constraint::Length(fill),
+            Constraint::Length(3),
+            // Constraint::Length(3),
+        ],
+    );
 
     //Header
-    block(
-        Some(
-            if player.songs.is_empty() {
-                "Stopped"
-            } else if player.is_playing() {
-                "Playing"
-            } else {
-                "Paused"
-            }
-            .into(),
-        ),
-        Borders::TOP | Borders::LEFT | Borders::RIGHT,
-        Rounded,
-    )
-    .margin(1)
-    .draw(area[0], buf);
+    block()
+        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+        .title(if player.songs.is_empty() {
+            "Stopped"
+        } else if player.is_playing() {
+            "Playing"
+        } else {
+            "Paused"
+        })
+        .margin(1)
+        .draw(area[0], buf);
 
     if !player.songs.is_empty() {
         //Title
@@ -126,13 +125,9 @@ pub fn draw(
     //Body
     if player.songs.is_empty() {
         let block = if log::last_message().is_some() {
-            block(
-                None,
-                Borders::LEFT | Borders::RIGHT | Borders::BOTTOM,
-                Rounded,
-            )
+            block().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
         } else {
-            block(None, Borders::LEFT | Borders::RIGHT, Rounded)
+            block().borders(Borders::LEFT | Borders::RIGHT)
         };
         block.draw(area[1], buf);
     } else {
@@ -198,11 +193,7 @@ pub fn draw(
             Constraint::Percentage(queue.constraint[2]),
             Constraint::Percentage(queue.constraint[3]),
         ];
-        let block = block(
-            None,
-            Borders::LEFT | Borders::RIGHT | Borders::BOTTOM,
-            Rounded,
-        );
+        let block = block().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM);
         //TODO: Header style.
         let header = header![
             text!(),
@@ -211,7 +202,7 @@ pub fn draw(
             "Album".bold(),
             "Artist".bold()
         ];
-        let table = table(Some(header), Some(block), &con, rows, None, style()).spacing(1);
+        let table = table(rows, &con).header(header).block(block).spacing(1);
         table.draw(area[1], buf, ui_index);
         row_bounds = Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])));
     };
@@ -219,16 +210,13 @@ pub fn draw(
     if log::last_message().is_none() {
         //Seeker
         if player.songs.is_empty() {
-            return block(
-                None,
-                Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
-                Rounded,
-            )
-            .draw(area[2], buf);
+            return block()
+                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+                .draw(area[2], buf);
         }
 
-        let elapsed = player.elapsed().as_secs_f64();
-        let duration = player.duration().as_secs_f64();
+        let elapsed = player.elapsed().as_secs_f32();
+        let duration = player.duration().as_secs_f32();
 
         let seeker = format!(
             "{:02}:{:02}/{:02}:{:02}",
@@ -245,7 +233,7 @@ pub fn draw(
             ratio.clamp(0.0, 1.0)
         };
 
-        let block = block(None, Borders::ALL, Rounded);
+        let block = block();
         guage(Some(block), ratio, seeker.into(), bg(SEEKER), style()).draw(area[2], buf);
     }
 
