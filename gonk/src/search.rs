@@ -50,7 +50,8 @@ pub fn draw(
         *search.results = db.search(&search.query);
     }
 
-    let v = layout![area, Vertical, Length(3), Min(40)];
+    // let v = layout(area, Vertical, &[Length(3), Min(40)]);
+    let v = layout(area, Vertical, &[Length(3), Length(40)]);
 
     if let Some((x, y)) = mouse {
         let rect = Rect {
@@ -68,7 +69,7 @@ pub fn draw(
     }
 
     lines!(search.query.as_str())
-        .block(Some("Search:".into()), ALL, Rounded)
+        .block(block().title("Search:"))
         .scroll()
         .draw(v[0], buf);
 
@@ -89,23 +90,21 @@ pub fn draw(
         .collect();
 
     let table = table(
-        Some(header![
-            text!(),
-            "Name".italic(),
-            "Album".italic(),
-            "Artist".italic()
-        ]),
-        Some(block(None, ALL, Rounded)),
+        rows,
         &[
             Constraint::Length(1),
             Constraint::Percentage(50),
             Constraint::Percentage(30),
             Constraint::Percentage(20),
         ],
-        rows,
-        None,
-        style(),
-    );
+    )
+    .header(header![
+        text!(),
+        "Name".italic(),
+        "Album".italic(),
+        "Artist".italic()
+    ])
+    .block(block());
 
     table.draw(v[1], buf, search.results.index());
 

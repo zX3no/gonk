@@ -107,12 +107,11 @@ pub fn draw(
     buf: &mut winter::Buffer,
     mouse: Option<(u16, u16)>,
 ) {
-    let horizontal = layout![
+    let horizontal = layout(
         area,
         Direction::Horizontal,
-        Constraint::Percentage(30),
-        Constraint::Percentage(70)
-    ];
+        &[Constraint::Percentage(30), Constraint::Percentage(70)],
+    );
 
     if let Some((x, y)) = mouse {
         let rect = Rect {
@@ -138,15 +137,13 @@ pub fn draw(
     } else {
         ""
     };
-    list(
-        Some(block(Some("Playlist".into()), Borders::ALL, Rounded).margin(1)),
-        items,
-        Some(symbol),
-        None,
-    )
-    .draw(horizontal[0], buf, playlist.lists.index());
 
-    let song_block = block(Some("Songs".into()), Borders::ALL, Rounded).margin(1);
+    list(&items)
+        .block(block().title("Playlist").margin(1))
+        .symbol(symbol)
+        .draw(horizontal[0], buf, playlist.lists.index());
+
+    let song_block = block().title("Songs").margin(1);
     if let Some(selected) = playlist.lists.selected() {
         let rows: Vec<_> = selected
             .songs
@@ -162,17 +159,15 @@ pub fn draw(
 
         let symbol = if playlist.mode == Mode::Song { ">" } else { "" };
         let table = table(
-            None,
-            Some(song_block),
+            rows,
             &[
                 Constraint::Percentage(42),
                 Constraint::Percentage(30),
                 Constraint::Percentage(28),
             ],
-            rows,
-            Some(symbol),
-            style(),
-        );
+        )
+        .symbol(symbol)
+        .block(song_block);
         table.draw(horizontal[1], buf, selected.songs.index());
     } else {
         song_block.draw(horizontal[1], buf);
@@ -180,18 +175,16 @@ pub fn draw(
 
     if playlist.delete {
         if let Some(area) = centered_rect(20, 5, area) {
-            let v = layout![
+            let v = layout(
                 area,
                 Direction::Vertical,
-                Constraint::Length(3),
-                Constraint::Percentage(90)
-            ];
-            let h = layout![
+                &[Constraint::Length(3), Constraint::Percentage(90)],
+            );
+            let h = layout(
                 v[1],
                 Direction::Horizontal,
-                Constraint::Percentage(50),
-                Constraint::Percentage(50)
-            ];
+                &[Constraint::Percentage(50), Constraint::Percentage(50)],
+            );
 
             let (yes, no) = if playlist.yes {
                 (underlined(), fg(BrightBlack).dim())
@@ -208,17 +201,17 @@ pub fn draw(
             buf.clear(area);
 
             lines!(delete_msg)
-                .block(None, Borders::TOP | Borders::LEFT | Borders::RIGHT, Rounded)
+                .block(block().borders(Borders::TOP | Borders::LEFT | Borders::RIGHT))
                 .align(Center)
                 .draw(v[0], buf);
 
             lines!("Yes".style(yes))
-                .block(None, Borders::LEFT | Borders::BOTTOM, Rounded)
+                .block(block().borders(Borders::LEFT | Borders::BOTTOM))
                 .align(Center)
                 .draw(h[0], buf);
 
             lines!("No".style(no))
-                .block(None, Borders::RIGHT | Borders::BOTTOM, Rounded)
+                .block(block().borders(Borders::RIGHT | Borders::BOTTOM))
                 .align(Center)
                 .draw(h[1], buf);
         }
@@ -240,18 +233,17 @@ pub fn draw(
         //or
         //"25 songs have been added to [playlist name]"
         if let Some(area) = centered_rect(45, 6, area) {
-            let v = layout(
+            let v = layout_margin(
                 area,
-                Direction::Vertical,
                 (1, 1),
-                [Constraint::Length(3), Constraint::Percentage(50)].into(),
+                Direction::Vertical,
+                &[Constraint::Length(3), Constraint::Percentage(50)],
             );
 
             buf.clear(area);
 
             //TODO: This doesn't look right.
-            let block = block(Some("Add to playlist".into()), ALL, Rounded).margin(1);
-            block.draw(area, buf);
+            block().title("Add to playlist").margin(1).draw(area, buf);
 
             // lines!(playlist.search_query.as_str())
             //     .block(None, ALL, Rounded)

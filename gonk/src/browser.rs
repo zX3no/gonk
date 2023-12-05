@@ -93,12 +93,14 @@ pub fn draw(
     let size = area.width / 3;
     let rem = area.width % 3;
 
-    let chunks = layout!(
+    let chunks = layout(
         area,
         Direction::Horizontal,
-        Constraint::Length(size),
-        Constraint::Length(size),
-        Constraint::Length(size + rem)
+        &[
+            Constraint::Length(size),
+            Constraint::Length(size),
+            Constraint::Length(size + rem),
+        ],
     );
 
     if let Some((x, y)) = mouse {
@@ -121,9 +123,9 @@ pub fn draw(
     let songs: Vec<_> = browser.songs.iter().map(|(s, _)| lines!(s)).collect();
 
     fn list<'a>(title: &'static str, items: Vec<Lines<'a>>, use_symbol: bool) -> List<'a> {
-        let block = block(Some(title.bold()), Borders::ALL, Rounded).margin(1);
+        let block = block().title(title.bold()).margin(1);
         let symbol = if use_symbol { ">" } else { " " };
-        winter::list(Some(block), items, Some(symbol), None)
+        winter::list(&items).block(block).symbol(symbol)
     }
 
     let artists = list("Aritst", artists, browser.mode == Mode::Artist);

@@ -224,15 +224,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         ($mouse:expr) => {{
             let buf = &mut buffers[current];
             let area = if let Some(msg) = log::last_message() {
-                let area = layout!(
-                    viewport,
-                    Direction::Vertical,
-                    Constraint::Min(2),
-                    Constraint::Length(3)
-                );
-                lines!(msg)
-                    .block(None, Borders::ALL, Rounded)
-                    .draw(area[1], buf);
+                let length = 3;
+                let fill = viewport.height.saturating_sub(length);
+                let area = layout(viewport, Vertical, &[Length(fill), Length(length)]);
+                lines!(msg).block(block()).draw(area[1], buf);
                 area[0]
             } else {
                 viewport
@@ -253,14 +248,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                 //TODO: This is hard to read because the gap between command and key is large.
                 let header = header!["Command".bold(), "Key".bold()];
-                let table = table(
-                    Some(header),
-                    Some(block(Some("Help:".into()), ALL, Rounded)),
-                    &widths,
-                    HELP.clone(),
-                    None,
-                    style(),
-                );
+                let table = table(HELP.clone(), &widths)
+                    .header(header)
+                    .block(block().title("Help:"));
                 buf.clear(area);
                 table.draw(area, buf, None);
             }
