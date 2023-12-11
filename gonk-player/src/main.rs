@@ -1,15 +1,37 @@
+#![feature(const_float_bits_conv)]
 use gonk_player::{decoder::Symphonia, *};
 use makepad_windows::Win32::{Foundation::WAIT_OBJECT_0, System::Threading::WaitForSingleObject};
 use mini::*;
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicU32, AtomicU8, Ordering},
         Condvar, Mutex,
     },
     thread,
     time::Duration,
 };
+
+pub struct AtomicF32 {
+    storage: AtomicU32,
+}
+
+impl AtomicF32 {
+    pub const fn new(value: f32) -> Self {
+        let as_u64 = value.to_bits();
+        Self {
+            storage: AtomicU32::new(as_u64),
+        }
+    }
+    pub fn store(&self, value: f32, ordering: Ordering) {
+        let as_u32 = value.to_bits();
+        self.storage.store(as_u32, ordering)
+    }
+    pub fn load(&self, ordering: Ordering) -> f32 {
+        let as_u32 = self.storage.load(ordering);
+        f32::from_bits(as_u32)
+    }
+}
 
 //Two threads should always be running
 //The wasapi thread and the decoder thread.
@@ -17,66 +39,96 @@ use std::{
 //The decoder thread needs a way to request a new file to be read.
 //It should read the contents of the audio file into the shared buffer.
 
-use boxcar::Vec;
-
-static mut BUFFER: Option<Vec<f32>> = None;
+static mut BUFFER: Option<boxcar::Vec<f32>> = None;
 
 static mut PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static mut PATH_CONDVAR: Condvar = Condvar::new();
-static mut STOP: AtomicBool = AtomicBool::new(false);
 
 static mut ELAPSED: Duration = Duration::from_secs(0);
-static mut STATE: State = State::Stopped;
-
+static mut DURATION: Duration = Duration::from_secs(0);
 static mut SEEK: Option<f32> = None;
-static mut VOLUME: f32 = 0.1;
+static mut VOLUME: AtomicF32 = AtomicF32::new(0.05);
+
+static mut COMMAND: AtomicU8 = AtomicU8::new(NONE);
+
+const NONE: u8 = 0;
+const STOP: u8 = 1;
+const PAUSE: u8 = 2;
 
 pub unsafe fn decoder_thread() {
+    BUFFER = Some(boxcar::Vec::new());
     thread::spawn(|| {
         info!("Spawned decoder thread!");
-        let lock = PATH.lock().unwrap();
-        let lock = PATH_CONDVAR.wait(lock).unwrap();
-        let path = lock.as_ref().unwrap();
-        info!("Decoder thread unlocked!");
+        // let mut lock = PATH_CONDVAR.wait(PATH.lock().unwrap()).unwrap();
+        // let mut path = lock.as_ref().unwrap();
+        // info!("Decoder thread unlocked!");
 
-        let mut sym = Symphonia::new(path).unwrap();
-        //TODO: We need to cache every packet length and the timestamp.
-        //This way we can calculate the current time but getting the buffer index.
-        //Seeking will need to be compeletely redesigned.
-        //When seeking with symphonia the mediasourcestream will be updated.
-        //This would break my buffer. If the packet is already loaded I want to use it.
-        while let Some(packet) = sym.next_packet() {
-            BUFFER.as_mut().unwrap().extend(packet.samples().to_vec());
-            // HEAD.store(BUFFER.len(), Ordering::Relaxed);
-            if let Some(seek) = SEEK {
-                //Just clear the whole buffer and rebuild for now.
-                // BUFFER.clear();
-                sym.seek(seek);
-            }
+        let mut lock;
+        let mut path: Option<&PathBuf> = None;
 
-            if STOP.load(Ordering::Relaxed) {
-                while !STOP.load(Ordering::Relaxed) {
-                    //TODO: Swap to condvar.
-                    std::hint::spin_loop();
+        loop {
+            if let Some(path) = path {
+                info!("Playing file: {}", path.display());
+                let mut sym = Symphonia::new(path).unwrap();
+                DURATION = sym.duration();
+
+                //TODO: We need to cache every packet length and the timestamp.
+                //This way we can calculate the current time but getting the buffer index.
+                //Seeking will need to be compeletely redesigned.
+                //When seeking with symphonia the mediasourcestream will be updated.
+                //This would break my buffer. If the packet is already loaded I want to use it.
+                while let Some(packet) = sym.next_packet() {
+                    BUFFER.as_mut().unwrap().extend(packet.samples().to_vec());
+
+                    if let Some(seek) = SEEK {
+                        info!(
+                            "Seeking {} / {}",
+                            seek as u32,
+                            DURATION.as_secs_f32() as u32
+                        );
+                        BUFFER = Some(boxcar::Vec::new());
+                        sym.seek(seek);
+                        SEEK = None;
+                    }
+
+                    match COMMAND.load(Ordering::Relaxed) {
+                        NONE => {}
+                        STOP => {
+                            break;
+                        }
+                        PAUSE => {
+                            while COMMAND.load(Ordering::Relaxed) == PAUSE {
+                                std::hint::spin_loop();
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    ELAPSED = sym.elapsed();
                 }
             }
-        }
 
-        //TODO: Add all commands such as new, stop, seek into a command condvar.
-        info!("Finished reading file, waiting for a new one.");
-        let lock = PATH_CONDVAR.wait(PATH.lock().unwrap());
+            lock = PATH.lock().unwrap();
+
+            if let Some(p) = lock.as_ref() {
+                path = Some(p);
+            } else {
+                info!("Waiting for a new file.");
+                lock = PATH_CONDVAR.wait(lock).unwrap();
+                path = Some(lock.as_ref().unwrap());
+            }
+        }
     });
 }
 
 pub unsafe fn wasapi_thread() {
     thread::spawn(|| {
+        info!("Spawned WASAPI thread!");
         let default = default_device();
         let wasapi = Wasapi::new(&default, Some(44100)).unwrap();
+        let block_align = wasapi.format.Format.nBlockAlign as u32;
         let mut i = 0;
 
-        let block_align = wasapi.format.Format.nBlockAlign as u32;
-
-        info!("Starting playback");
         loop {
             std::hint::spin_loop();
             //Sample-rate probably changed if this fails.
@@ -96,10 +148,11 @@ pub unsafe fn wasapi_thread() {
             let output = std::slice::from_raw_parts_mut(b, size);
             let channels = wasapi.format.Format.nChannels as usize;
 
+            let volume = VOLUME.load(Ordering::Relaxed);
             macro_rules! next {
                 () => {
                     if let Some(s) = BUFFER.as_ref().unwrap().get(i) {
-                        let s = (s * VOLUME).to_le_bytes();
+                        let s = (s * volume).to_le_bytes();
                         i += 1;
                         s
                     } else {
@@ -132,16 +185,24 @@ fn main() {
     }));
 
     unsafe {
-        BUFFER = Some(Vec::new());
         decoder_thread();
         wasapi_thread();
-        std::thread::sleep_ms(200);
+        // std::thread::sleep_ms(200);
+
+        SEEK = Some(140.0);
+        VOLUME.store(0.01, Ordering::Relaxed);
+
+        COMMAND.store(PAUSE, Ordering::Relaxed);
 
         PATH = Mutex::new(Some(PathBuf::from(
             // r"D:\OneDrive\Music\Steve Reich\Six Pianos Music For Mallet Instruments, Voices And Organ  Variations For Winds, Strings And Keyboards\03 Variations for Winds, Strings and Keyboards.flac",
             r"D:\OneDrive\Music\Various Artists\Death Note - Original Soundtrack\01 Death Note.flac",
         )));
         PATH_CONDVAR.notify_all();
+
+        std::thread::sleep_ms(2000);
+        info!("PLAY");
+        COMMAND.store(NONE, Ordering::Relaxed);
     }
 
     thread::park();
