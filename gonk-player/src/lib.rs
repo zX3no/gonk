@@ -53,6 +53,8 @@ impl AtomicF32 {
 //The decoder thread needs a way to request a new file to be read.
 //It should read the contents of the audio file into the shared buffer.
 
+//TODO: Need to figure out how the buffer is going to work.
+//This is not working properly.
 pub static mut BUFFER: Option<boxcar::Vec<f32>> = None;
 
 pub static mut PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
@@ -79,73 +81,83 @@ pub const PAUSE: u8 = 2;
 pub unsafe fn start_decoder_thread() {
     thread::spawn(|| {
         info!("Spawned decoder thread!");
-        // let mut lock = PATH_CONDVAR.wait(PATH.lock().unwrap()).unwrap();
-        // let mut path = lock.as_ref().unwrap();
-        // info!("Decoder thread unlocked!");
 
-        let mut lock;
-        let mut path: Option<&PathBuf> = None;
+        let mut path: Option<PathBuf> = None;
 
         loop {
-            if let Some(path) = path {
-                info!("Playing file: {}", path.display());
-                let mut sym = Symphonia::new(path).unwrap();
-                DURATION = sym.duration();
+            match path {
+                Some(ref p) => {
+                    info!("Playing file: {}", p.display());
+                    let mut sym = Symphonia::new(p).unwrap();
+                    DURATION = sym.duration();
 
-                //TODO: We need to cache every packet length and the timestamp.
-                //This way we can calculate the current time but getting the buffer index.
-                //Seeking will need to be compeletely redesigned.
-                //When seeking with symphonia the mediasourcestream will be updated.
-                //This would break my buffer. If the packet is already loaded I want to use it.
-                while let Some(packet) = sym.next_packet() {
-                    match COMMAND.load(Ordering::Relaxed) {
-                        EMPTY => {}
-                        STOP => break,
-                        //TODO: This doesn't work because the decoding could be done.
-                        //Then samples would be loaded from the WASAPI thread.
-                        PAUSE => {
-                            while COMMAND.load(Ordering::Relaxed) == PAUSE {
-                                std::hint::spin_loop();
+                    //TODO: We need to cache every packet length and the timestamp.
+                    //This way we can calculate the current time but getting the buffer index.
+                    //Seeking will need to be compeletely redesigned.
+                    //When seeking with symphonia the mediasourcestream will be updated.
+                    //This would break my buffer. If the packet is already loaded I want to use it.
+                    while let Some(packet) = sym.next_packet() {
+                        match COMMAND.load(Ordering::Relaxed) {
+                            EMPTY => {}
+                            STOP => {
+                                info!("Stoppping playback: {:?}", PATH.lock().unwrap());
+                                COMMAND.store(EMPTY, Ordering::Relaxed);
+                                break;
                             }
+                            //TODO: This doesn't work because the decoding could be done.
+                            //Then samples would be loaded from the WASAPI thread.
+                            PAUSE => {
+                                while COMMAND.load(Ordering::Relaxed) == PAUSE {
+                                    std::hint::spin_loop();
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
+
+                        if let Some(buffer) = &mut BUFFER {
+                            buffer.extend(packet.samples().to_vec());
+                        } else {
+                            BUFFER = Some(boxcar::Vec::new());
+                            BUFFER.as_mut().unwrap().extend(packet.samples().to_vec());
+                        }
+
+                        if let Some(seek) = SEEK {
+                            info!(
+                                "Seeking {} / {}",
+                                seek as u32,
+                                DURATION.as_secs_f32() as u32
+                            );
+                            BUFFER = Some(boxcar::Vec::new());
+                            sym.seek(seek);
+                            SEEK = None;
+                        }
+
+                        if let Some(device) = &OUTPUT_DEVICE {
+                            info!("Changing output device {}", device.name);
+                            OUTPUT_DEVICE = None;
+                        }
+
+                        ELAPSED = sym.elapsed();
                     }
 
-                    if let Some(buffer) = &mut BUFFER {
-                        buffer.extend(packet.samples().to_vec());
-                    } else {
-                        BUFFER = Some(boxcar::Vec::new());
-                        BUFFER.as_mut().unwrap().extend(packet.samples().to_vec());
-                    }
-
-                    if let Some(seek) = SEEK {
-                        info!(
-                            "Seeking {} / {}",
-                            seek as u32,
-                            DURATION.as_secs_f32() as u32
-                        );
-                        BUFFER = Some(boxcar::Vec::new());
-                        sym.seek(seek);
-                        SEEK = None;
-                    }
-
-                    if let Some(device) = &OUTPUT_DEVICE {
-                        info!("Changing output device {}", device.name);
-                        OUTPUT_DEVICE = None;
-                    }
-
-                    ELAPSED = sym.elapsed();
+                    //Finished loading packets.
+                    path = None;
                 }
-            }
+                None => {
+                    let mut lock = PATH.lock().unwrap();
 
-            lock = PATH.lock().unwrap();
-
-            if let Some(p) = lock.as_ref() {
-                path = Some(p);
-            } else {
-                info!("Waiting for a new file.");
-                lock = PATH_CONDVAR.wait(lock).unwrap();
-                path = Some(lock.as_ref().unwrap());
+                    //The user has asked to play this path.
+                    if let Some(p) = lock.take() {
+                        info!("Found song to play.");
+                        path = Some(p);
+                        *lock = None;
+                    } else {
+                        info!("Waiting for a new file.");
+                        lock = PATH_CONDVAR.wait(lock).unwrap();
+                        path = Some(lock.take().unwrap());
+                        *lock = None;
+                    }
+                }
             }
         }
     });
@@ -154,7 +166,7 @@ pub unsafe fn start_decoder_thread() {
 //TODO: Handle seeking. `i` is unchanged. This is wrong because the buffer is cleared.
 pub unsafe fn start_wasapi_thread(device: Device) {
     thread::spawn(move || {
-        info!("Spawned WASAPI thread!");
+        // info!("Spawned WASAPI thread!");
         // let default = default_device();
         let wasapi = Wasapi::new(&device, Some(44100)).unwrap();
         let block_align = wasapi.format.Format.nBlockAlign as u32;
@@ -182,10 +194,14 @@ pub unsafe fn start_wasapi_thread(device: Device) {
 
             macro_rules! next {
                 () => {
-                    if let Some(s) = BUFFER.as_ref().unwrap().get(i) {
-                        let s = (s * volume).to_le_bytes();
-                        i += 1;
-                        s
+                    if let Some(buffer) = &BUFFER {
+                        if let Some(s) = buffer.get(i) {
+                            let s = (s * volume).to_le_bytes();
+                            i += 1;
+                            s
+                        } else {
+                            (0.0f32).to_le_bytes()
+                        }
                     } else {
                         (0.0f32).to_le_bytes()
                     }
@@ -264,10 +280,10 @@ pub fn seek_backward() {
     }
 }
 
+//TODO: I don't know how I'm going to handle playing files.
 pub fn play<P: AsRef<Path>>(path: P) {
     unsafe {
-        // BUFFER = None;
-        // *BUFFER.as_mut().unwrap() = boxcar::Vec::new();
+        // stop();
         PATH = Mutex::new(Some(path.as_ref().to_path_buf()));
         PATH_CONDVAR.notify_all();
     }
@@ -275,7 +291,6 @@ pub fn play<P: AsRef<Path>>(path: P) {
 
 pub fn play_song(song: &Song) {
     unsafe {
-        // BUFFER = Some(boxcar::Vec::new());
         PATH = Mutex::new(Some(PathBuf::from(&song.path)));
         if song.gain != 0.0 {
             VOLUME.store(song.gain / VOLUME_REDUCTION, Ordering::Relaxed);
