@@ -14,7 +14,9 @@ strip = ["mini/strip"]
 [dependencies]
 boxcar = "0.2.4"
 crossbeam-channel = "0.5.8"
+crossbeam-queue = "0.3.8"
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
+jagged = { git = "https://github.com/matthieu-m/jagged", version = "0.1.0" }
 mini = { version = "0.1.0", path = "../../mini" }
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",
