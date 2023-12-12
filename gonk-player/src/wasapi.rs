@@ -25,6 +25,9 @@ pub struct Device {
     pub name: String,
 }
 
+unsafe impl Send for Device {}
+unsafe impl Sync for Device {}
+
 impl Deref for Device {
     type Target = IMMDevice;
 

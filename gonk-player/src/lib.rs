@@ -2,290 +2,364 @@
 //!
 //! Pipewire is currently not implemented because WSL doesn't work well with audio.
 //! AND...I don't have a spare drive to put linux on.
-#![feature(lazy_cell)]
-#![allow(
-    clippy::not_unsafe_ptr_arg_deref,
-    clippy::missing_safety_doc,
-    non_upper_case_globals,
-    non_snake_case
-)]
-
-use decoder::Symphonia;
-use gonk_core::{Index, Song};
-use std::{path::Path, time::Duration};
+#![feature(const_float_bits_conv)]
 
 pub mod decoder;
 pub mod wasapi;
 
+pub use gonk_core::{Index, Song};
 pub use wasapi::{default_device, devices, imm_device_enumerator, init, Device, Wasapi};
 
-const VOLUME_REDUCTION: f32 = 150.0;
+pub const VOLUME_REDUCTION: f32 = 150.0;
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum State {
-    Stopped,
-    Paused,
-    Playing,
-    Finished,
+use makepad_windows::Win32::{Foundation::WAIT_OBJECT_0, System::Threading::WaitForSingleObject};
+use mini::*;
+use std::{
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicU32, AtomicU8, Ordering},
+        Condvar, Mutex,
+    },
+    thread,
+    time::Duration,
+};
+
+use crate::decoder::Symphonia;
+
+pub struct AtomicF32 {
+    storage: AtomicU32,
 }
 
-pub struct Player {
-    //TODO: Should this be Index<'static Song>?
-    pub songs: Index<Song>,
-    pub backend: Wasapi,
-    pub mute: bool,
-    output_device: Device,
-    symphonia: Option<Symphonia>,
-    gain: f32,
-    volume: f32,
-    elapsed: Duration,
-    duration: Duration,
-    state: State,
-}
-
-impl Player {
-    #[allow(clippy::new_without_default)]
-    pub fn new(device: &str, volume: u8, songs: Index<Song>, elapsed: f32) -> Self {
-        let devices = devices();
-        let default = default_device();
-        let device = devices.iter().find(|d| d.name == device);
-        let device = device.unwrap_or(&default);
-
-        let mut player = Self {
-            songs,
-            output_device: device.clone(),
-            backend: Wasapi::new(device, None).unwrap(),
-            symphonia: None,
-            gain: 0.5,
-            volume: volume as f32 / VOLUME_REDUCTION,
-            duration: Duration::default(),
-            elapsed: Duration::default(),
-            state: State::Stopped,
-            mute: false,
-        };
-
-        //Restore previous queue state.
-        if let Some(song) = player.songs.selected().cloned() {
-            player.restore_song(song.path.clone(), song.gain, elapsed);
+impl AtomicF32 {
+    pub const fn new(value: f32) -> Self {
+        let as_u64 = value.to_bits();
+        Self {
+            storage: AtomicU32::new(as_u64),
         }
-
-        player
     }
-
-    //TODO: Devices with 4 channels don't play correctly?
-    /// Handles all of the player related logic such as:
-    ///
-    /// - Updating the elapsed time
-    /// - Filling the output device with samples.
-    /// - Triggering the next song
-    pub fn update(&mut self) {
-        // if self.is_finished() {
-        //     self.next();
-        // }
-
-        // if self.state != State::Playing {
-        //     return;
-        // }
-
-        //Update the elapsed time and fill the output buffer.
-        // let Some(symphonia) = &mut self.symphonia else {
-        //     return;
-        // };
-
-        // let gain = if self.gain == 0.0 { 0.5 } else { self.gain };
-        // let volume = if self.mute { 0.0 } else { self.volume * gain };
-
-        //(WASAPI): Can fail when the device sample-rate is changed.
-
-        // if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {};
-
-        // if self.backend.fill_buffer(volume, symphonia).is_err() {
-        //     let now = Instant::now();
-        //     //TODO: Log what is happening to the user.
-        //     loop {
-        //         if now.elapsed() > Duration::from_secs(5) {
-        //             panic!("Audio device timeout.");
-        //         }
-
-        //         //Find the current device.
-        //         if let Some(device) = devices()
-        //             .into_iter()
-        //             .find(|d| self.output_device.name == d.name)
-        //         {
-        //             //Try to update the new device.
-        //             if let Ok(wasapi) = Wasapi::new(&device, Some(symphonia.sample_rate())) {
-        //                 self.backend = wasapi;
-        //                 self.output_device = device.clone();
-        //                 break;
-        //             }
-        //         }
-
-        //         std::thread::sleep(Duration::from_millis(1));
-        //     }
-        // };
-
-        // if symphonia.is_full() {
-        //     return;
-        // }
-
-        // if let Some(packet) = symphonia.next_packet(&mut self.elapsed, &mut self.state) {
-        //     symphonia.push(packet.samples());
-        // }
+    pub fn store(&self, value: f32, ordering: Ordering) {
+        let as_u32 = value.to_bits();
+        self.storage.store(as_u32, ordering)
     }
-    pub fn update_decoder<P: AsRef<Path>>(&mut self, path: P) {
-        match Symphonia::new(path) {
-            Ok(sym) => {
-                self.duration = sym.duration();
-                let new = sym.sample_rate();
+    pub fn load(&self, ordering: Ordering) -> f32 {
+        let as_u32 = self.storage.load(ordering);
+        f32::from_bits(as_u32)
+    }
+}
 
-                if self.backend.sample_rate() != new {
-                    self.backend
-                        .set_sample_rate(new, &self.output_device)
-                        .unwrap();
+//Two threads should always be running
+//The wasapi thread and the decoder thread.
+//The wasapi thread reads from a buffer, if the buffer is empty, block until it's not.
+//The decoder thread needs a way to request a new file to be read.
+//It should read the contents of the audio file into the shared buffer.
+
+pub static mut BUFFER: Option<boxcar::Vec<f32>> = None;
+
+pub static mut PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+pub static mut PATH_CONDVAR: Condvar = Condvar::new();
+pub static mut ELAPSED: Duration = Duration::from_secs(0);
+pub static mut DURATION: Duration = Duration::from_secs(0);
+pub static mut SEEK: Option<f32> = None;
+pub static mut VOLUME: AtomicF32 = AtomicF32::new(15.0 / VOLUME_REDUCTION);
+
+//TODO: Thread safety?
+pub static mut OUTPUT_DEVICE: Option<Device> = None;
+
+pub static mut COMMAND: AtomicU8 = AtomicU8::new(EMPTY);
+
+pub const EMPTY: u8 = 0;
+pub const STOP: u8 = 1;
+pub const PAUSE: u8 = 2;
+
+//TODO:
+//Song queue
+//Next/Previous
+//Mute
+
+pub unsafe fn start_decoder_thread() {
+    thread::spawn(|| {
+        info!("Spawned decoder thread!");
+        // let mut lock = PATH_CONDVAR.wait(PATH.lock().unwrap()).unwrap();
+        // let mut path = lock.as_ref().unwrap();
+        // info!("Decoder thread unlocked!");
+
+        let mut lock;
+        let mut path: Option<&PathBuf> = None;
+
+        loop {
+            if let Some(path) = path {
+                info!("Playing file: {}", path.display());
+                let mut sym = Symphonia::new(path).unwrap();
+                DURATION = sym.duration();
+
+                //TODO: We need to cache every packet length and the timestamp.
+                //This way we can calculate the current time but getting the buffer index.
+                //Seeking will need to be compeletely redesigned.
+                //When seeking with symphonia the mediasourcestream will be updated.
+                //This would break my buffer. If the packet is already loaded I want to use it.
+                while let Some(packet) = sym.next_packet() {
+                    match COMMAND.load(Ordering::Relaxed) {
+                        EMPTY => {}
+                        STOP => break,
+                        //TODO: This doesn't work because the decoding could be done.
+                        //Then samples would be loaded from the WASAPI thread.
+                        PAUSE => {
+                            while COMMAND.load(Ordering::Relaxed) == PAUSE {
+                                std::hint::spin_loop();
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    if let Some(buffer) = &mut BUFFER {
+                        buffer.extend(packet.samples().to_vec());
+                    } else {
+                        BUFFER = Some(boxcar::Vec::new());
+                        BUFFER.as_mut().unwrap().extend(packet.samples().to_vec());
+                    }
+
+                    if let Some(seek) = SEEK {
+                        info!(
+                            "Seeking {} / {}",
+                            seek as u32,
+                            DURATION.as_secs_f32() as u32
+                        );
+                        BUFFER = Some(boxcar::Vec::new());
+                        sym.seek(seek);
+                        SEEK = None;
+                    }
+
+                    if let Some(device) = &OUTPUT_DEVICE {
+                        info!("Changing output device {}", device.name);
+                        OUTPUT_DEVICE = None;
+                    }
+
+                    ELAPSED = sym.elapsed();
                 }
-
-                self.symphonia = Some(sym);
             }
-            Err(err) => gonk_core::log!("{}", err),
-        }
-    }
-    pub fn play_song<P: AsRef<Path>>(&mut self, path: P, gain: f32) {
-        self.state = State::Playing;
-        self.elapsed = Duration::default();
-        if gain != 0.0 {
-            self.gain = gain;
-        }
-        self.update_decoder(path);
-    }
-    pub fn restore_song<P: AsRef<Path>>(&mut self, path: P, gain: f32, elapsed: f32) {
-        self.state = State::Paused;
-        self.elapsed = Duration::from_secs_f32(elapsed);
-        if gain != 0.0 {
-            self.gain = gain;
-        }
-        self.update_decoder(path);
-        if let Some(decoder) = &mut self.symphonia {
-            decoder.seek(elapsed);
-        }
-    }
-    pub fn play(&mut self) {
-        self.state = State::Playing;
-    }
-    pub fn pause(&mut self) {
-        self.state = State::Paused;
-    }
-    pub fn seek(&mut self, pos: f32) {
-        if let Some(symphonia) = &mut self.symphonia {
-            symphonia.seek(pos);
-        }
-    }
-    pub fn mute(&mut self) {
-        self.mute = !self.mute;
-    }
-    pub fn volume_up(&mut self) {
-        self.volume =
-            ((self.volume * VOLUME_REDUCTION) as u8 + 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
-    }
-    pub fn volume_down(&mut self) {
-        self.volume =
-            ((self.volume * VOLUME_REDUCTION) as i8 - 5).clamp(0, 100) as f32 / VOLUME_REDUCTION;
-    }
-    pub fn elapsed(&self) -> Duration {
-        self.elapsed
-    }
-    pub fn duration(&self) -> Duration {
-        self.duration
-    }
-    pub fn is_playing(&self) -> bool {
-        self.state == State::Playing
-    }
-    pub fn next(&mut self) {
-        self.songs.down();
-        if let Some(song) = self.songs.selected() {
-            self.play_song(song.path.clone(), song.gain);
-        }
-    }
-    pub fn prev(&mut self) {
-        self.songs.up();
-        if let Some(song) = self.songs.selected() {
-            self.play_song(song.path.clone(), song.gain);
-        }
-    }
-    pub fn delete_index(&mut self, index: usize) {
-        if self.songs.is_empty() {
-            return;
-        }
 
-        self.songs.remove(index);
+            lock = PATH.lock().unwrap();
 
-        if let Some(playing) = self.songs.index() {
-            let len = self.songs.len();
-            if len == 0 {
-                self.clear();
-            } else if index == playing && index == 0 {
-                self.songs.select(Some(0));
-                self.play_index(self.songs.index().unwrap());
-            } else if index == playing && index == len {
-                self.songs.select(Some(len - 1));
-                self.play_index(self.songs.index().unwrap());
-            } else if index < playing {
-                self.songs.select(Some(playing - 1));
+            if let Some(p) = lock.as_ref() {
+                path = Some(p);
+            } else {
+                info!("Waiting for a new file.");
+                lock = PATH_CONDVAR.wait(lock).unwrap();
+                path = Some(lock.as_ref().unwrap());
             }
-        };
-    }
-    pub fn clear(&mut self) {
-        self.state = State::Stopped;
-        self.symphonia = None;
-        self.songs = Index::default();
-    }
-    pub fn clear_except_playing(&mut self) {
-        if let Some(index) = self.songs.index() {
-            let playing = self.songs.remove(index);
-            self.songs = Index::new(vec![playing], Some(0));
         }
-    }
-    pub fn add(&mut self, songs: Vec<Song>) {
-        self.songs.extend(songs);
-        if self.songs.selected().is_none() {
-            self.songs.select(Some(0));
-            self.play_index(0);
-        }
-    }
-    pub fn play_index(&mut self, i: usize) {
-        self.songs.select(Some(i));
-        if let Some(song) = self.songs.selected() {
-            self.play_song(song.path.clone(), song.gain);
-        }
-    }
-    pub fn toggle_playback(&mut self) {
-        match self.state {
-            State::Paused => self.play(),
-            State::Playing => self.pause(),
-            _ => (),
-        }
-    }
-    pub fn is_finished(&self) -> bool {
-        self.state == State::Finished
-    }
-    pub fn seek_foward(&mut self) {
-        let pos = (self.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
-        self.seek(pos);
-    }
-    pub fn seek_backward(&mut self) {
-        let pos = (self.elapsed().as_secs_f32() - 10.0).clamp(0.0, f32::MAX);
-        self.seek(pos);
-    }
-    pub fn volume(&self) -> u8 {
-        (self.volume * VOLUME_REDUCTION) as u8
-    }
-    pub fn set_output_device(&mut self, device: &str) {
-        let devices = devices();
-        let device = if let Some(device) = devices.iter().find(|d| d.name == device) {
-            device
-        } else {
-            unreachable!("Requested a device that does not exist.")
-        };
+    });
+}
 
-        self.backend = Wasapi::new(device, Some(self.backend.sample_rate())).unwrap();
+//TODO: Handle seeking. `i` is unchanged. This is wrong because the buffer is cleared.
+pub unsafe fn start_wasapi_thread(device: Device) {
+    thread::spawn(move || {
+        info!("Spawned WASAPI thread!");
+        // let default = default_device();
+        let wasapi = Wasapi::new(&device, Some(44100)).unwrap();
+        let block_align = wasapi.format.Format.nBlockAlign as u32;
+        let mut i = 0;
+
+        loop {
+            std::hint::spin_loop();
+            //Sample-rate probably changed if this fails.
+            let padding = wasapi.audio_client.GetCurrentPadding().unwrap();
+            let buffer_size = wasapi.audio_client.GetBufferSize().unwrap();
+
+            let n_frames = buffer_size - 1 - padding;
+            assert!(n_frames < buffer_size - padding);
+
+            let size = (n_frames * block_align) as usize;
+
+            if size == 0 {
+                continue;
+            }
+
+            let b = wasapi.render_client.GetBuffer(n_frames).unwrap();
+            let output = std::slice::from_raw_parts_mut(b, size);
+            let channels = wasapi.format.Format.nChannels as usize;
+            let volume = VOLUME.load(Ordering::Relaxed);
+
+            macro_rules! next {
+                () => {
+                    if let Some(s) = BUFFER.as_ref().unwrap().get(i) {
+                        let s = (s * volume).to_le_bytes();
+                        i += 1;
+                        s
+                    } else {
+                        (0.0f32).to_le_bytes()
+                    }
+                };
+            }
+
+            for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
+                bytes[0..4].copy_from_slice(&next!());
+                if channels > 1 {
+                    bytes[4..8].copy_from_slice(&next!());
+                }
+            }
+
+            wasapi.render_client.ReleaseBuffer(n_frames, 0).unwrap();
+
+            if WaitForSingleObject(wasapi.event, u32::MAX) != WAIT_OBJECT_0 {
+                unreachable!()
+            }
+        }
+    });
+}
+
+pub fn get_volume() -> u8 {
+    unsafe { (VOLUME.load(Ordering::Relaxed) * VOLUME_REDUCTION) as u8 }
+}
+
+pub fn set_volume(volume: u8) {
+    unsafe {
+        VOLUME.store(volume as f32 / VOLUME_REDUCTION, Ordering::Relaxed);
     }
+}
+
+pub fn volume_up() {
+    unsafe {
+        let volume = (VOLUME.load(Ordering::Relaxed) * VOLUME_REDUCTION + 5.0).clamp(0.0, 100.0)
+            / VOLUME_REDUCTION;
+        VOLUME.store(volume, Ordering::Relaxed);
+    }
+}
+
+pub fn volume_down() {
+    unsafe {
+        let volume = (VOLUME.load(Ordering::Relaxed) * VOLUME_REDUCTION - 5.0).clamp(0.0, 100.0)
+            / VOLUME_REDUCTION;
+        VOLUME.store(volume, Ordering::Relaxed);
+    }
+}
+
+pub fn toggle_playback() {
+    unsafe {
+        match COMMAND.load(Ordering::Relaxed) {
+            EMPTY => COMMAND.store(PAUSE, Ordering::Relaxed),
+            PAUSE => COMMAND.store(EMPTY, Ordering::Relaxed),
+            _ => {}
+        }
+    }
+}
+
+pub fn seek(pos: f32) {
+    unsafe {
+        SEEK = Some(pos);
+    }
+}
+
+pub fn seek_foward() {
+    unsafe {
+        let pos = (ELAPSED.as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
+        SEEK = Some(pos);
+    }
+}
+
+pub fn seek_backward() {
+    unsafe {
+        let pos = (ELAPSED.as_secs_f32() - 10.0).clamp(0.0, f32::MAX);
+        SEEK = Some(pos);
+    }
+}
+
+pub fn play<P: AsRef<Path>>(path: P) {
+    unsafe {
+        // BUFFER = None;
+        // *BUFFER.as_mut().unwrap() = boxcar::Vec::new();
+        PATH = Mutex::new(Some(path.as_ref().to_path_buf()));
+        PATH_CONDVAR.notify_all();
+    }
+}
+
+pub fn play_song(song: &Song) {
+    unsafe {
+        // BUFFER = Some(boxcar::Vec::new());
+        PATH = Mutex::new(Some(PathBuf::from(&song.path)));
+        if song.gain != 0.0 {
+            VOLUME.store(song.gain / VOLUME_REDUCTION, Ordering::Relaxed);
+        }
+        PATH_CONDVAR.notify_all();
+    }
+}
+
+pub fn stop() {
+    unsafe { COMMAND.store(STOP, Ordering::Relaxed) };
+}
+
+pub fn set_output_device(device: &str) {
+    let d = devices();
+    unsafe {
+        match d.into_iter().find(|d| d.name == device) {
+            Some(device) => OUTPUT_DEVICE = Some(device),
+            None => panic!(
+                "Could not find {} in {:?}",
+                device,
+                devices()
+                    .into_iter()
+                    .map(|d| d.name)
+                    .collect::<Vec<String>>()
+            ),
+        }
+    }
+}
+
+pub fn clear_queue(songs: &mut Index<Song>) {
+    songs.clear();
+    unsafe { COMMAND.store(STOP, Ordering::Relaxed) };
+}
+
+pub fn play_index(songs: &mut Index<Song>, i: usize) {
+    songs.select(Some(i));
+    if let Some(song) = songs.selected() {
+        play(&song.path);
+    }
+}
+
+pub fn delete(songs: &mut Index<Song>, index: usize) {
+    if songs.is_empty() {
+        return;
+    }
+
+    songs.remove(index);
+
+    if let Some(playing) = songs.index() {
+        let len = songs.len();
+        if len == 0 {
+            *songs = Index::default();
+            stop();
+        } else if index == playing && index == 0 {
+            songs.select(Some(0));
+            if let Some(song) = songs.selected() {
+                play(&song.path);
+            }
+        } else if index == playing && index == len {
+            songs.select(Some(len - 1));
+            if let Some(song) = songs.selected() {
+                play(&song.path);
+            }
+        } else if index < playing {
+            songs.select(Some(playing - 1));
+        }
+    };
+}
+
+pub fn clear_except_playing(songs: &mut Index<Song>) {
+    if let Some(index) = songs.index() {
+        let playing = songs.remove(index);
+        *songs = Index::new(vec![playing], Some(0));
+    }
+}
+
+pub fn is_playing() -> bool {
+    unsafe { COMMAND.load(Ordering::Relaxed) == EMPTY }
+}
+
+pub fn elapsed() -> Duration {
+    unsafe { ELAPSED }
+}
+
+pub fn duration() -> Duration {
+    unsafe { DURATION }
 }
