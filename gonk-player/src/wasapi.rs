@@ -49,7 +49,7 @@ const COMMON_SAMPLE_RATES: [u32; 13] = [5512, 8000, 11025, 16000, 22050, 32000, 
 
 static mut ENUMERATOR: Option<IMMDeviceEnumerator> = None;
 
-pub unsafe fn init() {
+unsafe fn init() {
     ONCE.call_once(|| {
         CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
         ENUMERATOR = Some(imm_device_enumerator());
