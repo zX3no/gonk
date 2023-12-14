@@ -3,12 +3,15 @@
 //! Pipewire is currently not implemented because WSL doesn't work well with audio.
 //! AND...I don't have a spare drive to put linux on.
 #![feature(const_float_bits_conv, lazy_cell)]
+#![allow(unused)]
 
 pub mod decoder;
 pub mod wasapi;
 
 use gonk_core::{Index, Song};
-pub use wasapi::{default_device, devices, imm_device_enumerator, init, Device, Wasapi};
+use ringbuf::StaticRb;
+use symphonia::core::audio::SampleBuffer;
+pub use wasapi::{default_device, devices, imm_device_enumerator, Device, Wasapi};
 
 pub const VOLUME_REDUCTION: f32 = 150.0;
 
@@ -17,10 +20,7 @@ use makepad_windows::Win32::{Foundation::WAIT_OBJECT_0, System::Threading::WaitF
 use mini::*;
 use std::{
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicU32, AtomicU8, Ordering},
-        Condvar, LazyLock, Mutex,
-    },
+    sync::atomic::{AtomicU32, Ordering},
     thread,
     time::Duration,
 };
@@ -58,18 +58,17 @@ impl AtomicF32 {
 //This is not working properly.
 // pub static mut BUFFER: Option<boxcar::Vec<f32>> = None;
 
-use jagged::vector::Vector;
-
-pub static mut BUFFER: LazyLock<Vector<f32>> = LazyLock::new(|| Vector::new());
+// pub static mut BUFFER: LazyLock<Vector<f32>> = LazyLock::new(|| Vector::new());
 pub static mut ELAPSED: Duration = Duration::from_secs(0);
 pub static mut DURATION: Duration = Duration::from_secs(0);
 pub static mut SEEK: Option<f32> = None;
 pub static mut VOLUME: AtomicF32 = AtomicF32::new(15.0 / VOLUME_REDUCTION);
 
 //TODO: Thread safety?
-pub static mut OUTPUT_DEVICE: Option<Device> = None;
-
+static mut OUTPUT_DEVICE: Option<Device> = None;
 static mut EVENTS: SegQueue<Event> = SegQueue::new();
+
+const RB_SIZE: usize = 4096;
 
 #[derive(Debug, PartialEq)]
 enum Event {
@@ -83,127 +82,128 @@ enum Event {
 //Next/Previous
 //Mute
 
-pub unsafe fn start_decoder_thread() {
-    thread::spawn(|| {
-        info!("Spawned decoder thread!");
+pub fn spawn_audio_threads(device: Device) {
+    unsafe {
+        let rb = StaticRb::<f32, RB_SIZE>::default();
+        let (mut prod, mut cons) = rb.split();
 
-        let mut sym: Option<Symphonia> = None;
-        let mut path: Option<PathBuf> = None;
-        let mut paused = false;
+        thread::spawn(move || {
+            info!("Spawned decoder thread!");
 
-        loop {
-            match EVENTS.pop() {
-                Some(Event::Song(new_path)) => {
-                    info!("{}", new_path.display());
-                    path = Some(new_path);
-                }
-                Some(Event::Stop) => {}
-                //TODO: This doesn't work because the decoding could be done.
-                //Then samples would be loaded from the WASAPI thread.
-                Some(Event::TogglePlayback) => {
-                    paused = !paused;
-                }
-                _ => {}
-            }
+            let mut sym: Option<Symphonia> = None;
+            let mut paused = false;
 
-            let Some(path) = &path else {
-                continue;
-            };
+            let mut packet: Option<SampleBuffer<f32>> = None;
+            let mut i = 0;
 
-            let sym = if let Some(sym) = &mut sym {
-                sym
-            } else {
-                sym = Some(Symphonia::new(path).unwrap());
-                sym.as_mut().unwrap()
-            };
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(1));
 
-            //TODO: We need to cache every packet length and the timestamp.
-            //This way we can calculate the current time but getting the buffer index.
-            //Seeking will need to be compeletely redesigned.
-            //When seeking with symphonia the mediasourcestream will be updated.
-            //This would break my buffer. If the packet is already loaded I want to use it.
-            if let Some(packet) = sym.next_packet() {
-                BUFFER.extend(packet.samples().to_vec());
-
-                if let Some(seek) = SEEK {
-                    info!(
-                        "Seeking {} / {}",
-                        seek as u32,
-                        DURATION.as_secs_f32() as u32
-                    );
-                    todo!();
-                    sym.seek(seek);
-                    SEEK = None;
-                }
-
-                if let Some(device) = &OUTPUT_DEVICE {
-                    info!("Changing output device {}", device.name);
-                    OUTPUT_DEVICE = None;
-                }
-
-                ELAPSED = sym.elapsed();
-            } else {
-                todo!();
-            }
-        }
-    });
-}
-
-//TODO: Handle seeking. `i` is unchanged. This is wrong because the buffer is cleared.
-pub unsafe fn start_wasapi_thread(device: Device) {
-    thread::spawn(move || {
-        // info!("Spawned WASAPI thread!");
-        // let default = default_device();
-        let wasapi = Wasapi::new(&device, Some(44100)).unwrap();
-        let block_align = wasapi.format.Format.nBlockAlign as u32;
-        let mut i = 0;
-
-        loop {
-            std::hint::spin_loop();
-            //Sample-rate probably changed if this fails.
-            let padding = wasapi.audio_client.GetCurrentPadding().unwrap();
-            let buffer_size = wasapi.audio_client.GetBufferSize().unwrap();
-
-            let n_frames = buffer_size - 1 - padding;
-            assert!(n_frames < buffer_size - padding);
-
-            let size = (n_frames * block_align) as usize;
-
-            if size == 0 {
-                continue;
-            }
-
-            let b = wasapi.render_client.GetBuffer(n_frames).unwrap();
-            let output = std::slice::from_raw_parts_mut(b, size);
-            let channels = wasapi.format.Format.nChannels as usize;
-            let volume = VOLUME.load(Ordering::Relaxed);
-
-            macro_rules! next {
-                () => {
-                    if let Some(s) = (*BUFFER).get(i) {
-                        let s = (s * volume).to_le_bytes();
-                        i += 1;
-                        s
-                    } else {
-                        (0.0f32).to_le_bytes()
+                match EVENTS.pop() {
+                    Some(Event::Song(new_path)) => {
+                        info!("{}", new_path.display());
+                        sym = Some(Symphonia::new(&new_path).unwrap());
                     }
-                };
-            }
+                    Some(Event::Stop) => {
+                        sym = None;
+                    }
+                    //TODO: This doesn't work because the decoding could be done.
+                    //Then samples would be loaded from the WASAPI thread.
+                    Some(Event::TogglePlayback) => {
+                        paused = !paused;
+                    }
+                    _ => {}
+                }
 
-            for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
-                bytes[0..4].copy_from_slice(&next!());
-                if channels > 1 {
-                    bytes[4..8].copy_from_slice(&next!());
+                let Some(sym) = &mut sym else {
+                    continue;
+                };
+
+                if let Some(p) = &mut packet {
+                    i += prod.push_slice(&p.samples()[i..]);
+                    if i == p.len() {
+                        i = 0;
+                        packet = None;
+                    }
+
+                    if let Some(seek) = SEEK {
+                        info!(
+                            "Seeking {} / {}",
+                            seek as u32,
+                            DURATION.as_secs_f32() as u32
+                        );
+                        todo!();
+                        sym.seek(seek);
+                        SEEK = None;
+                    }
+
+                    if let Some(device) = &OUTPUT_DEVICE {
+                        info!("Changing output device {}", device.name);
+                        OUTPUT_DEVICE = None;
+                    }
+
+                    ELAPSED = sym.elapsed();
+                } else {
+                    packet = sym.next_packet();
                 }
             }
+        });
 
-            wasapi.render_client.ReleaseBuffer(n_frames, 0).unwrap();
+        thread::spawn(move || {
+            info!("Spawned WASAPI thread!");
+            let wasapi = Wasapi::new(&device, Some(44100)).unwrap();
+            let block_align = wasapi.format.Format.nBlockAlign as u32;
 
-            if WaitForSingleObject(wasapi.event, u32::MAX) != WAIT_OBJECT_0 {
-                unreachable!()
+            //TODO: This thread is spinning too much!
+            loop {
+                if cons.is_empty() {
+                    // std::thread::sleep(std::time::Duration::from_nanos(22));
+                    // std::hint::spin_loop();
+                    continue;
+                }
+
+                //Sample-rate probably changed if this fails.
+                let padding = wasapi.audio_client.GetCurrentPadding().unwrap();
+                let buffer_size = wasapi.audio_client.GetBufferSize().unwrap();
+
+                let n_frames = buffer_size - 1 - padding;
+                assert!(n_frames < buffer_size - padding);
+
+                let size = (n_frames * block_align) as usize;
+
+                if size == 0 {
+                    continue;
+                }
+
+                let b = wasapi.render_client.GetBuffer(n_frames).unwrap();
+                let output = std::slice::from_raw_parts_mut(b, size);
+                let channels = wasapi.format.Format.nChannels as usize;
+                let volume = VOLUME.load(Ordering::Relaxed);
+
+                for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
+                    let Some(sample) = cons.pop() else {
+                        break;
+                    };
+
+                    bytes[0..4].copy_from_slice(&(sample * volume).to_le_bytes());
+
+                    if channels > 1 {
+                        let Some(sample) = cons.pop() else {
+                            break;
+                        };
+
+                        bytes[4..8].copy_from_slice(&(sample * volume).to_le_bytes());
+                    }
+                }
+
+                wasapi.render_client.ReleaseBuffer(n_frames, 0).unwrap();
+
+                if WaitForSingleObject(wasapi.event, u32::MAX) != WAIT_OBJECT_0 {
+                    unreachable!()
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 pub fn get_volume() -> u8 {
