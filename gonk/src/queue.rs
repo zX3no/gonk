@@ -6,7 +6,6 @@ use winter::*;
 pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
-    pub len: usize,
 }
 
 impl Queue {
@@ -14,17 +13,16 @@ impl Queue {
         Self {
             ui: Index::new(Vec::new(), Some(ui_index)),
             constraint: [6, 37, 31, 26],
-            len: 0,
         }
     }
 }
 
-pub fn up(queue: &mut Queue) {
-    queue.ui.up_with_len(queue.len);
+pub fn up(queue: &mut Queue, songs: &Index<Song>) {
+    queue.ui.up_with_len(songs.len());
 }
 
-pub fn down(queue: &mut Queue) {
-    queue.ui.down_with_len(queue.len);
+pub fn down(queue: &mut Queue, songs: &Index<Song>) {
+    queue.ui.down_with_len(songs.len());
 }
 
 pub fn draw(

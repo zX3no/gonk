@@ -132,7 +132,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         let mut stdout = stdout();
         // disable_raw_mode();
         // disable_mouse_caputure();
-        leave_alternate_screen(&mut stdout);
+        hide_alternate_screen(&mut stdout);
         show_cursor(&mut stdout);
         stdout.flush().unwrap();
 
@@ -188,6 +188,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut prev_mode = Mode::Search; //Used for search.
     let mut mute = false;
     let mut old_volume = 0;
+    let mut cursor: Option<(u16, u16)> = None;
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !songs.is_empty() && scan_handle.is_none() {
@@ -198,7 +199,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         () => {
             match mode {
                 Mode::Browser => browser::up(&mut browser, &db),
-                Mode::Queue => queue::up(&mut queue),
+                Mode::Queue => queue::up(&mut queue, &songs),
                 Mode::Playlist => playlist::up(&mut playlist),
                 Mode::Settings => settings::up(&mut settings),
                 Mode::Search => search::up(&mut search),
@@ -210,7 +211,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         () => {
             match mode {
                 Mode::Browser => browser::down(&mut browser, &db),
-                Mode::Queue => queue::down(&mut queue),
+                Mode::Queue => queue::down(&mut queue, &songs),
                 Mode::Playlist => playlist::down(&mut playlist),
                 Mode::Settings => settings::down(&mut settings),
                 Mode::Search => search::down(&mut search),
@@ -251,13 +252,19 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 viewport
             };
 
+            //Hide the cursor when it's not needed.
+            match mode {
+                Mode::Search => {}
+                _ => cursor = None,
+            }
+
             //TOOD: Mouse does not work in settings.
             match mode {
                 Mode::Browser => browser::draw(&mut browser, area, buf, $mouse),
                 Mode::Settings => settings::draw(&settings, area, buf),
                 Mode::Queue => queue::draw(&mut queue, area, buf, $mouse, &mut songs, mute),
                 Mode::Playlist => playlist::draw(&mut playlist, area, buf, $mouse),
-                Mode::Search => search::draw(&mut search, area, buf, $mouse, &db),
+                Mode::Search => cursor = search::draw(&mut search, area, buf, $mouse, &db),
             }
 
             if help {
@@ -347,9 +354,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
             last_tick = Instant::now();
         }
-
-        //Update the UI index.
-        queue.len = songs.len();
 
         //Play the next song if the current is finished.
         if !gonk_player::is_playing() {
@@ -619,6 +623,16 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             buffers[1 - current].reset();
             clear(&mut stdout);
         }
+
+        //Move cursor
+        if let Some((x, y)) = cursor {
+            show_cursor(&mut stdout);
+            move_to(&mut stdout, x, y);
+        } else {
+            hide_cursor(&mut stdout);
+        }
+
+        stdout.flush().unwrap();
     }
 
     persist.queue = songs.to_vec();

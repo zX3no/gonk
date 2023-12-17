@@ -1,3 +1,5 @@
+use std::io::Stdout;
+
 use crate::{ALBUM, ARTIST, TITLE};
 use gonk_core::{
     vdb::{Database, Item},
@@ -44,7 +46,7 @@ pub fn draw(
     buf: &mut winter::Buffer,
     mouse: Option<(u16, u16)>,
     db: &Database,
-) {
+) -> Option<(u16, u16)> {
     if search.query_changed {
         search.query_changed = !search.query_changed;
         *search.results = db.search(&search.query);
@@ -107,24 +109,24 @@ pub fn draw(
 
     table.draw(v[1], buf, search.results.index());
 
-    // let layout_margin = 1;
-    // let x = SEARCH_MARGIN.0 + 1 + layout_margin;
-    // let y = SEARCH_MARGIN.1 + 1 + layout_margin;
+    let layout_margin = 1;
+    let x = 1 + layout_margin;
+    let y = 1 + layout_margin;
 
-    //TODO: Set cursor position.
-    //Move the cursor position when typing
     if let Mode::Search = search.mode {
         if search.results.index().is_none() && search.query.is_empty() {
-            // f.set_cursor(x, y);
+            Some((x, y))
         } else {
             let len = search.query.len() as u16;
             let max_width = area.width.saturating_sub(3);
             if len >= max_width {
-                // f.set_cursor(x - 1 + max_width, y);
+                Some((x - 1 + max_width, y))
             } else {
-                // f.set_cursor(x + len, y);
+                Some((x + len, y))
             }
         }
+    } else {
+        None
     }
 }
 
