@@ -132,7 +132,6 @@ pub fn draw(
     let albums = list("Album", albums, browser.mode == Mode::Album);
     let songs = list("Song", songs, browser.mode == Mode::Song);
 
-    //TODO: Re-work list_state and index.
     artists.draw(chunks[0], buf, browser.artists.index());
     albums.draw(chunks[1], buf, browser.albums.index());
     songs.draw(chunks[2], buf, browser.songs.index());

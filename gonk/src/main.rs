@@ -167,14 +167,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     spawn_audio_threads(device);
 
-    //Play a song if nothing is playing.
-    if songs.selected().is_none() {
-        songs.select(Some(0));
-        if let Some(song) = songs.selected() {
-            play_song(song);
-        }
-    }
-
     let mut db = Database::new();
     let mut queue = Queue::new(ui_index);
     let mut browser = Browser::new(&db);
@@ -344,7 +336,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             persist.save()?;
 
             //Update the list of output devices
-            //TODO: I don't like how this is done.
             settings.devices = devices();
             let mut index = settings.index.unwrap_or(0);
             if index >= settings.devices.len() {
@@ -355,9 +346,16 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             last_tick = Instant::now();
         }
 
+        //Play a song if nothing is playing.
+        // if songs.selected().is_none() {
+        //     songs.select(Some(0));
+        //     if let Some(song) = songs.selected() {
+        //         play_song(song);
+        //     }
+        // }
+
         //Play the next song if the current is finished.
-        if !gonk_player::is_playing() {
-            dbg!(is_playing());
+        if !gonk_player::is_playing() && !songs.is_empty() {
             songs.down();
             if let Some(song) = songs.selected() {
                 play_song(song);
@@ -365,6 +363,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
 
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
+        let empty = songs.is_empty();
 
         //Draw widgets
         draw!(None);
@@ -428,22 +427,21 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char(' ') => toggle_playback(),
                 Event::Char('C') => {
                     clear_except_playing(&mut songs);
-                    queue.ui.select(Some(0));
+                    queue.index = Some(0);
                 }
                 Event::Char('c') => {
                     songs.clear();
                     gonk_player::stop();
-                    queue.ui.select(Some(0));
                 }
                 Event::Char('x') => match mode {
                     Mode::Queue => {
-                        if let Some(i) = queue.ui.index() {
+                        if let Some(i) = queue.index {
                             gonk_player::delete(&mut songs, i);
 
                             //Sync the UI index.
                             let len = songs.len().saturating_sub(1);
                             if i > len {
-                                queue.ui.select(Some(len));
+                                queue.index = Some(len);
                             }
                         }
                     }
@@ -493,12 +491,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char('w') => {
                     volume_up();
                     persist.volume = get_volume();
-                    dbg!(persist.volume);
                 }
                 Event::Char('s') => {
                     volume_down();
                     persist.volume = get_volume();
-                    dbg!(persist.volume);
                 }
                 Event::Escape if mode == Mode::Playlist => {
                     if playlist.delete {
@@ -529,7 +525,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         mode = Mode::Playlist
                     }
                     Mode::Queue => {
-                        if let Some(index) = queue.ui.index() {
+                        if let Some(index) = queue.index {
                             if let Some(song) = songs.get(index) {
                                 playlist::add(&mut playlist, vec![song.clone()]);
                                 mode = Mode::Playlist;
@@ -551,9 +547,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 },
                 Event::Enter => {
                     match mode {
-                        Mode::Browser => songs.extend(browser::get_selected(&browser, &db)),
+                        Mode::Browser => {
+                            songs.extend(browser::get_selected(&browser, &db));
+                        }
                         Mode::Queue => {
-                            if let Some(i) = queue.ui.index() {
+                            if let Some(i) = queue.index {
                                 songs.select(Some(i));
                                 play_song(&songs[i]);
                             }
@@ -579,7 +577,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Backspace if mode == Mode::Playlist => {
                     playlist::on_backspace(&mut playlist, control);
                 }
-
                 Event::Backspace if mode == Mode::Search => {
                     search::on_backspace(&mut search, control, &mut mode, &mut prev_mode);
                 }
@@ -596,6 +593,15 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Left | Event::Char('h') => left!(),
                 Event::Right | Event::Char('l') => right!(),
                 _ => {}
+            }
+        }
+
+        //New songs where added.
+        if empty && !songs.is_empty() {
+            queue.index = Some(0);
+            songs.select(Some(0));
+            if let Some(song) = songs.selected() {
+                play_song(song);
             }
         }
 

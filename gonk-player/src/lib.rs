@@ -38,33 +38,35 @@ use std::{
 };
 use symphonia::core::audio::SampleBuffer;
 
-pub mod decoder;
+mod decoder;
 
-pub const VOLUME_REDUCTION: f32 = 150.0;
-
-static mut ELAPSED: Duration = Duration::from_secs(0);
-static mut DURATION: Duration = Duration::from_secs(0);
-
-//TODO: Safety?
-static mut VOLUME: f32 = 15.0 / VOLUME_REDUCTION;
-static mut GAIN: f32 = 0.5;
-
-//Safety: Only written on decoder thread.
-static mut PLAYING: bool = false;
-
-//Safety: Only written on decoder thread.
-static mut SAMPLE_RATE: Option<u32> = None;
-
-//TODO: Thread safety?
-static mut OUTPUT_DEVICE: Option<Device> = None;
-
-static mut EVENTS: SegQueue<Event> = SegQueue::new();
-
+const VOLUME_REDUCTION: f32 = 150.0;
 const RB_SIZE: usize = 4096;
-
 const COMMON_SAMPLE_RATES: [u32; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
 ];
+
+static mut EVENTS: SegQueue<Event> = SegQueue::new();
+static mut ELAPSED: Duration = Duration::from_secs(0);
+static mut DURATION: Duration = Duration::from_secs(0);
+static mut VOLUME: f32 = 15.0 / VOLUME_REDUCTION;
+static mut GAIN: f32 = 0.5;
+static mut OUTPUT_DEVICE: Option<Device> = None;
+
+//Safety: Only written on decoder thread.
+static mut PLAYING: bool = false;
+static mut SAMPLE_RATE: Option<u32> = None;
+
+static ONCE: Once = Once::new();
+static mut ENUMERATOR: MaybeUninit<IMMDeviceEnumerator> = MaybeUninit::uninit();
+
+pub unsafe fn init_com() {
+    ONCE.call_once(|| {
+        CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
+        ENUMERATOR =
+            MaybeUninit::new(CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).unwrap());
+    });
+}
 
 #[derive(Debug, PartialEq)]
 enum Event {
@@ -81,18 +83,9 @@ pub struct Device {
     pub inner: IMMDevice,
     pub name: String,
 }
+
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
-
-static ONCE: Once = Once::new();
-static mut ENUMERATOR: MaybeUninit<IMMDeviceEnumerator> = MaybeUninit::uninit();
-pub unsafe fn init_com() {
-    ONCE.call_once(|| {
-        CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
-        ENUMERATOR =
-            MaybeUninit::new(CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).unwrap());
-    });
-}
 
 ///Get a list of output devices.
 pub fn devices() -> Vec<Device> {
@@ -215,12 +208,11 @@ pub fn spawn_audio_threads(device: Device) {
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(1));
 
-                //TODO: Mute playback.
                 match EVENTS.pop() {
                     Some(Event::Song(new_path)) => {
                         info!("{}", new_path.display());
                         let s = Symphonia::new(&new_path).unwrap();
-                        PLAYING = true;
+                        //We don't set the playback state here because it might be delayed.
                         SAMPLE_RATE = Some(s.sample_rate());
                         DURATION = s.duration();
                         sym = Some(s);
@@ -228,7 +220,7 @@ pub fn spawn_audio_threads(device: Device) {
                     Some(Event::Stop) => {
                         info!("Stopping playback.");
                         sym = None;
-                        PLAYING = false;
+                        //Don't stop playback here because it might be delayed.
                     }
                     Some(Event::TogglePlayback) => {
                         paused = !paused;
@@ -408,18 +400,23 @@ pub fn seek_backward() {
 pub fn play<P: AsRef<Path>>(path: P) {
     unsafe {
         EVENTS.push(Event::Song(path.as_ref().to_path_buf()));
+        PLAYING = true;
     }
 }
 
 pub fn play_song(song: &Song) {
     unsafe {
         GAIN = if song.gain != 0.0 { 0.5 } else { song.gain };
+        PLAYING = true;
         EVENTS.push(Event::Song(PathBuf::from(&song.path)));
     }
 }
 
 pub fn stop() {
-    unsafe { EVENTS.push(Event::Stop) }
+    unsafe {
+        PLAYING = false;
+        unsafe { EVENTS.push(Event::Stop) }
+    }
 }
 
 pub fn set_output_device(device: &str) {
