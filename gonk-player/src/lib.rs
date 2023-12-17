@@ -1,10 +1,9 @@
 //! TODO: Describe the audio backend
 #![feature(const_float_bits_conv, lazy_cell)]
-#![allow(unused)]
 use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
-use makepad_windows::core::{Result, PCSTR};
+use makepad_windows::core::PCSTR;
 use makepad_windows::Win32::{
     Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
     Foundation::WAIT_OBJECT_0,
@@ -15,7 +14,7 @@ use makepad_windows::Win32::{
         KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
     },
     System::{
-        Com::{CoCreateInstance, StructuredStorage::PROPVARIANT, STGM_READ},
+        Com::{CoCreateInstance, STGM_READ},
         Threading::CreateEventA,
         Variant::VT_LPWSTR,
     },
@@ -29,10 +28,7 @@ use ringbuf::StaticRb;
 use std::mem::MaybeUninit;
 use std::{
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
-        Once,
-    },
+    sync::Once,
     thread,
     time::Duration,
 };
@@ -273,10 +269,9 @@ pub fn spawn_audio_threads(device: Device) {
                         info!("Changing output device {}", device.name);
                         OUTPUT_DEVICE = None;
                     }
-
-                    ELAPSED = sym.elapsed();
                 } else {
                     packet = sym.next_packet();
+                    ELAPSED = sym.elapsed();
 
                     if packet.is_none() && PLAYING {
                         info!("Playback ended.");
@@ -386,7 +381,10 @@ pub fn volume_down() {
 }
 
 pub fn seek(pos: f32) {
-    unsafe { EVENTS.push(Event::Seek(pos)) };
+    unsafe {
+        EVENTS.push(Event::Seek(pos));
+        ELAPSED = Duration::from_secs_f32(pos);
+    }
 }
 
 pub fn seek_foward() {
@@ -415,7 +413,7 @@ pub fn play_song(song: &Song) {
 pub fn stop() {
     unsafe {
         PLAYING = false;
-        unsafe { EVENTS.push(Event::Stop) }
+        EVENTS.push(Event::Stop);
     }
 }
 

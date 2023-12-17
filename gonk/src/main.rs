@@ -143,32 +143,24 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut stdout = stdout();
     winter::init(&mut stdout);
 
-    let index = if persist.queue.is_empty() {
-        None
-    } else {
-        Some(persist.index as usize)
-    };
-
-    let ui_index = index.unwrap_or(0);
-
-    let mut songs = Index::new(persist.queue.clone(), index);
-
-    set_volume(persist.volume);
-    seek(persist.elapsed);
-
-    if let Some(song) = songs.selected() {
-        play_song(song);
-    }
-
+    let index = (!persist.queue.is_empty()).then_some(persist.index as usize);
     let device = devices()
         .into_iter()
         .find(|d| d.name == persist.output_device)
         .unwrap_or(default_device());
 
     spawn_audio_threads(device);
+    set_volume(persist.volume);
+
+    let mut songs = Index::new(persist.queue.clone(), index);
+
+    if let Some(song) = songs.selected() {
+        play_song(song);
+        seek(persist.elapsed);
+    }
 
     let mut db = Database::new();
-    let mut queue = Queue::new(ui_index);
+    let mut queue = Queue::new(index.unwrap_or(0));
     let mut browser = Browser::new(&db);
     let mut playlist = Playlist::new()?;
     let mut settings = Settings::new(&persist.output_device);
@@ -250,7 +242,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 _ => cursor = None,
             }
 
-            //TOOD: Mouse does not work in settings.
             match mode {
                 Mode::Browser => browser::draw(&mut browser, area, buf, $mouse),
                 Mode::Settings => settings::draw(&settings, area, buf),
