@@ -65,7 +65,6 @@ impl Symphonia {
             done: false,
         })
     }
-
     pub fn elapsed(&self) -> Duration {
         let tb = self.track.codec_params.time_base.unwrap();
         let time = tb.calc_time(self.elapsed);
@@ -78,9 +77,6 @@ impl Symphonia {
     }
     pub fn sample_rate(&self) -> u32 {
         self.track.codec_params.sample_rate.unwrap()
-    }
-    pub fn channels(&self) -> usize {
-        self.track.codec_params.channels.unwrap().count()
     }
     //TODO: I would like seeking out of bounds to play the next song.
     //I can't trust symphonia to provide accurate errors so it's not worth the hassle.
