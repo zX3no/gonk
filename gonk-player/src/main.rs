@@ -18,11 +18,15 @@ fn main() {
 
     let path1 =
         r"D:\OneDrive\Music\Various Artists\Death Note - Original Soundtrack\01 Death Note.flac";
-    let path2 =
-        r"\\?\D:\OneDrive\Music\Iglooghost\░░░ Fracture Vault ☼⑇\02 Bruise Swamp『YOLK TWEAK』.mp3";
+    // let path2 =
+    //     r"\\?\D:\OneDrive\Music\Iglooghost\░░░ Fracture Vault ☼⑇\02 Bruise Swamp『YOLK TWEAK』.mp3";
     play(path1);
-    // std::thread::sleep_ms(200);
-    // play(path2);
+    // println!("Pausing");
+    // seek(120.0);
+    // toggle_playback();
+    // std::thread::sleep_ms(2000);
+    // println!("Playing");
+    // toggle_playback();
 
     std::thread::park();
 }

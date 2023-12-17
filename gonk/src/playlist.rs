@@ -1,6 +1,5 @@
 use crate::{ALBUM, ARTIST, TITLE};
 use gonk_core::{Index, Song};
-use gonk_player::Player;
 use std::{error::Error, mem};
 use winter::*;
 
@@ -286,7 +285,7 @@ pub fn draw(
     }
 }
 
-pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
+pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>) {
     //No was selected by the user.
     if playlist.delete && !playlist.yes {
         playlist.yes = true;
@@ -298,13 +297,13 @@ pub fn on_enter(playlist: &mut Playlist, player: &mut Player) {
         Mode::Song if playlist.delete => delete_song(playlist),
         Mode::Playlist => {
             if let Some(selected) = playlist.lists.selected() {
-                player.add(selected.songs.clone());
+                songs.extend(selected.songs.clone());
             }
         }
         Mode::Song => {
             if let Some(selected) = playlist.lists.selected() {
                 if let Some(song) = selected.songs.selected() {
-                    player.add(vec![song.clone()]);
+                    songs.push(song.clone());
                 }
             }
         }
