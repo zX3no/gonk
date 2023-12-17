@@ -1,86 +1,202 @@
 //! TODO: Describe the audio backend
-//!
-//! Pipewire is currently not implemented because WSL doesn't work well with audio.
-//! AND...I don't have a spare drive to put linux on.
 #![feature(const_float_bits_conv, lazy_cell)]
 #![allow(unused)]
-
-pub mod decoder;
-pub mod wasapi;
-
-use gonk_core::{Index, Song};
-use ringbuf::StaticRb;
-use symphonia::core::audio::SampleBuffer;
-pub use wasapi::{default_device, devices, imm_device_enumerator, Device, Wasapi};
-
-pub const VOLUME_REDUCTION: f32 = 150.0;
-
 use crossbeam_queue::SegQueue;
-use makepad_windows::Win32::{Foundation::WAIT_OBJECT_0, System::Threading::WaitForSingleObject};
+use decoder::Symphonia;
+use gonk_core::{Index, Song};
+use makepad_windows::core::{Result, PCSTR};
+use makepad_windows::Win32::{
+    Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
+    Foundation::WAIT_OBJECT_0,
+    Foundation::{BOOL, HANDLE},
+    Media::Audio::*,
+    Media::{
+        Audio::{IAudioClient, IMMDeviceEnumerator, WAVEFORMATEXTENSIBLE},
+        KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
+    },
+    System::{
+        Com::{CoCreateInstance, StructuredStorage::PROPVARIANT, STGM_READ},
+        Threading::CreateEventA,
+        Variant::VT_LPWSTR,
+    },
+    System::{
+        Com::{CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
+        Threading::WaitForSingleObject,
+    },
+};
 use mini::*;
+use ringbuf::StaticRb;
+use std::mem::MaybeUninit;
 use std::{
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU32, Ordering},
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Once,
+    },
     thread,
     time::Duration,
 };
+use symphonia::core::audio::SampleBuffer;
 
-use crate::decoder::Symphonia;
+pub mod decoder;
 
-pub struct AtomicF32 {
-    storage: AtomicU32,
-}
+pub const VOLUME_REDUCTION: f32 = 150.0;
 
-impl AtomicF32 {
-    pub const fn new(value: f32) -> Self {
-        let as_u64 = value.to_bits();
-        Self {
-            storage: AtomicU32::new(as_u64),
-        }
-    }
-    pub fn store(&self, value: f32, ordering: Ordering) {
-        let as_u32 = value.to_bits();
-        self.storage.store(as_u32, ordering)
-    }
-    pub fn load(&self, ordering: Ordering) -> f32 {
-        let as_u32 = self.storage.load(ordering);
-        f32::from_bits(as_u32)
-    }
-}
+static mut ELAPSED: Duration = Duration::from_secs(0);
+static mut DURATION: Duration = Duration::from_secs(0);
 
-//Two threads should always be running
-//The wasapi thread and the decoder thread.
-//The wasapi thread reads from a buffer, if the buffer is empty, block until it's not.
-//The decoder thread needs a way to request a new file to be read.
-//It should read the contents of the audio file into the shared buffer.
+//TODO: Safety?
+static mut VOLUME: f32 = 15.0 / VOLUME_REDUCTION;
+static mut GAIN: f32 = 0.5;
 
-//TODO: Need to figure out how the buffer is going to work.
-//This is not working properly.
-// pub static mut BUFFER: Option<boxcar::Vec<f32>> = None;
+//Safety: Only written on decoder thread.
+static mut PLAYING: bool = false;
 
-// pub static mut BUFFER: LazyLock<Vector<f32>> = LazyLock::new(|| Vector::new());
-pub static mut ELAPSED: Duration = Duration::from_secs(0);
-pub static mut DURATION: Duration = Duration::from_secs(0);
-pub static mut SEEK: Option<f32> = None;
-pub static mut VOLUME: AtomicF32 = AtomicF32::new(15.0 / VOLUME_REDUCTION);
+//Safety: Only written on decoder thread.
+static mut SAMPLE_RATE: Option<u32> = None;
 
 //TODO: Thread safety?
 static mut OUTPUT_DEVICE: Option<Device> = None;
+
 static mut EVENTS: SegQueue<Event> = SegQueue::new();
 
 const RB_SIZE: usize = 4096;
+
+const COMMON_SAMPLE_RATES: [u32; 13] = [
+    5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
+];
 
 #[derive(Debug, PartialEq)]
 enum Event {
     Stop,
     TogglePlayback,
     Song(PathBuf),
+    Seek(f32),
+    SeekBackward,
+    SeekForward,
 }
 
-//TODO:
-//Song queue
-//Next/Previous
-//Mute
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct Device {
+    pub inner: IMMDevice,
+    pub name: String,
+}
+unsafe impl Send for Device {}
+unsafe impl Sync for Device {}
+
+static ONCE: Once = Once::new();
+static mut ENUMERATOR: MaybeUninit<IMMDeviceEnumerator> = MaybeUninit::uninit();
+pub unsafe fn init_com() {
+    ONCE.call_once(|| {
+        CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
+        ENUMERATOR =
+            MaybeUninit::new(CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).unwrap());
+    });
+}
+
+///Get a list of output devices.
+pub fn devices() -> Vec<Device> {
+    unsafe {
+        init_com();
+        let collection = ENUMERATOR
+            .assume_init_mut()
+            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+            .unwrap();
+
+        (0..collection.GetCount().unwrap())
+            .into_iter()
+            .map(|i| {
+                let device = collection.Item(i).unwrap();
+                let name = device_name(&device);
+                Device {
+                    inner: device,
+                    name,
+                }
+            })
+            .collect()
+    }
+}
+
+///Get the default output device.
+pub fn default_device() -> Device {
+    unsafe {
+        init_com();
+        let device = ENUMERATOR
+            .assume_init_mut()
+            .GetDefaultAudioEndpoint(eRender, eConsole)
+            .unwrap();
+        Device {
+            name: device_name(&device),
+            inner: device,
+        }
+    }
+}
+
+pub unsafe fn device_name(device: &IMMDevice) -> String {
+    let store = device.OpenPropertyStore(STGM_READ).unwrap();
+    let prop = store.GetValue(&PKEY_Device_FriendlyName).unwrap();
+    assert!(prop.Anonymous.Anonymous.vt == VT_LPWSTR);
+    let data = prop.Anonymous.Anonymous.Anonymous.pwszVal;
+    data.to_string().unwrap()
+}
+
+pub unsafe fn create_wasapi(
+    device: &Device,
+    sample_rate: Option<u32>,
+) -> (
+    IAudioClient,
+    IAudioRenderClient,
+    WAVEFORMATEXTENSIBLE,
+    HANDLE,
+) {
+    let audio_client: IAudioClient = device.inner.Activate(CLSCTX_ALL, None).unwrap();
+    let fmt_ptr = audio_client.GetMixFormat().unwrap();
+    let fmt = *fmt_ptr;
+    let mut format = if fmt.cbSize == 22 && fmt.wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE {
+        (fmt_ptr as *const _ as *const WAVEFORMATEXTENSIBLE).read()
+    } else {
+        todo!("Unsupported format?");
+    };
+
+    if format.Format.nChannels < 2 {
+        todo!("Support mono devices.");
+    }
+
+    //Update format to desired sample rate.
+    if let Some(sample_rate) = sample_rate {
+        assert!(COMMON_SAMPLE_RATES.contains(&sample_rate));
+        format.Format.nSamplesPerSec = sample_rate;
+        format.Format.nAvgBytesPerSec = sample_rate * format.Format.nBlockAlign as u32;
+    }
+
+    let mut default_period = 0;
+    audio_client
+        .GetDevicePeriod(Some(&mut default_period), None)
+        .unwrap();
+
+    audio_client
+        .Initialize(
+            AUDCLNT_SHAREMODE_SHARED,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+                | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+            // | AUDCLNT_STREAMFLAGS_RATEADJUST,
+            default_period,
+            default_period,
+            &format as *const _ as *const WAVEFORMATEX,
+            None,
+        )
+        .unwrap();
+
+    //This must be set for some reason.
+    let event = CreateEventA(None, BOOL(0), BOOL(0), PCSTR::null()).unwrap();
+    audio_client.SetEventHandle(event).unwrap();
+
+    let render_client: IAudioRenderClient = audio_client.GetService().unwrap();
+    audio_client.Start().unwrap();
+
+    (audio_client, render_client, format, event)
+}
 
 pub fn spawn_audio_threads(device: Device) {
     unsafe {
@@ -99,20 +215,55 @@ pub fn spawn_audio_threads(device: Device) {
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(1));
 
+                //TODO: Mute playback.
                 match EVENTS.pop() {
                     Some(Event::Song(new_path)) => {
                         info!("{}", new_path.display());
-                        sym = Some(Symphonia::new(&new_path).unwrap());
+                        let s = Symphonia::new(&new_path).unwrap();
+                        PLAYING = true;
+                        SAMPLE_RATE = Some(s.sample_rate());
+                        DURATION = s.duration();
+                        sym = Some(s);
                     }
                     Some(Event::Stop) => {
+                        info!("Stopping playback.");
                         sym = None;
+                        PLAYING = false;
                     }
-                    //TODO: This doesn't work because the decoding could be done.
-                    //Then samples would be loaded from the WASAPI thread.
                     Some(Event::TogglePlayback) => {
                         paused = !paused;
                     }
-                    _ => {}
+                    Some(Event::Seek(pos)) => {
+                        if let Some(sym) = &mut sym {
+                            info!("Seeking {} / {}", pos as u32, DURATION.as_secs_f32() as u32);
+                            sym.seek(pos);
+                        }
+                    }
+                    Some(Event::SeekForward) => {
+                        if let Some(sym) = &mut sym {
+                            info!(
+                                "Seeking {} / {}",
+                                sym.elapsed().as_secs_f32() + 10.0,
+                                sym.duration().as_secs_f32()
+                            );
+                            sym.seek((sym.elapsed().as_secs_f32() + 10.0).clamp(0.0, f32::MAX))
+                        }
+                    }
+                    Some(Event::SeekBackward) => {
+                        if let Some(sym) = &mut sym {
+                            info!(
+                                "Seeking {} / {}",
+                                sym.elapsed().as_secs_f32() - 10.0,
+                                sym.duration().as_secs_f32()
+                            );
+                            sym.seek((sym.elapsed().as_secs_f32() - 10.0).clamp(0.0, f32::MAX))
+                        }
+                    }
+                    None => {}
+                }
+
+                if paused {
+                    continue;
                 }
 
                 let Some(sym) = &mut sym else {
@@ -126,17 +277,6 @@ pub fn spawn_audio_threads(device: Device) {
                         packet = None;
                     }
 
-                    if let Some(seek) = SEEK {
-                        info!(
-                            "Seeking {} / {}",
-                            seek as u32,
-                            DURATION.as_secs_f32() as u32
-                        );
-                        todo!();
-                        sym.seek(seek);
-                        SEEK = None;
-                    }
-
                     if let Some(device) = &OUTPUT_DEVICE {
                         info!("Changing output device {}", device.name);
                         OUTPUT_DEVICE = None;
@@ -145,26 +285,43 @@ pub fn spawn_audio_threads(device: Device) {
                     ELAPSED = sym.elapsed();
                 } else {
                     packet = sym.next_packet();
+
+                    if packet.is_none() && PLAYING {
+                        info!("Playback ended.");
+                        PLAYING = false;
+                    }
                 }
             }
         });
 
         thread::spawn(move || {
             info!("Spawned WASAPI thread!");
-            let wasapi = Wasapi::new(&device, Some(44100)).unwrap();
-            let block_align = wasapi.format.Format.nBlockAlign as u32;
+            init_com();
+
+            let (mut audio, mut render, mut format, mut event) = create_wasapi(&device, None);
+            let block_align = format.Format.nBlockAlign as u32;
+            let mut sample_rate = format.Format.nSamplesPerSec;
 
             //TODO: This thread is spinning too much!
             loop {
                 if cons.is_empty() {
-                    // std::thread::sleep(std::time::Duration::from_nanos(22));
                     // std::hint::spin_loop();
                     continue;
                 }
 
+                if let Some(sr) = SAMPLE_RATE {
+                    if sr != sample_rate {
+                        info!("Changing sample rate to {}", sr);
+                        let device = OUTPUT_DEVICE.as_ref().unwrap_or(&device);
+                        audio.Stop().unwrap();
+                        (audio, render, format, event) = create_wasapi(&device, Some(sr));
+                        sample_rate = sr;
+                    }
+                }
+
                 //Sample-rate probably changed if this fails.
-                let padding = wasapi.audio_client.GetCurrentPadding().unwrap();
-                let buffer_size = wasapi.audio_client.GetBufferSize().unwrap();
+                let padding = audio.GetCurrentPadding().unwrap();
+                let buffer_size = audio.GetBufferSize().unwrap();
 
                 let n_frames = buffer_size - 1 - padding;
                 assert!(n_frames < buffer_size - padding);
@@ -175,10 +332,10 @@ pub fn spawn_audio_threads(device: Device) {
                     continue;
                 }
 
-                let b = wasapi.render_client.GetBuffer(n_frames).unwrap();
+                let b = render.GetBuffer(n_frames).unwrap();
                 let output = std::slice::from_raw_parts_mut(b, size);
-                let channels = wasapi.format.Format.nChannels as usize;
-                let volume = VOLUME.load(Ordering::Relaxed);
+                let channels = format.Format.nChannels as usize;
+                let volume = VOLUME * GAIN;
 
                 for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
                     let Some(sample) = cons.pop() else {
@@ -196,9 +353,9 @@ pub fn spawn_audio_threads(device: Device) {
                     }
                 }
 
-                wasapi.render_client.ReleaseBuffer(n_frames, 0).unwrap();
+                render.ReleaseBuffer(n_frames, 0).unwrap();
 
-                if WaitForSingleObject(wasapi.event, u32::MAX) != WAIT_OBJECT_0 {
+                if WaitForSingleObject(event, u32::MAX) != WAIT_OBJECT_0 {
                     unreachable!()
                 }
             }
@@ -206,57 +363,48 @@ pub fn spawn_audio_threads(device: Device) {
     }
 }
 
+pub fn toggle_playback() {
+    unsafe { EVENTS.push(Event::TogglePlayback) }
+}
+
+pub fn toggle_mute() {
+    todo!();
+}
+
 pub fn get_volume() -> u8 {
-    unsafe { (VOLUME.load(Ordering::Relaxed) * VOLUME_REDUCTION) as u8 }
+    unsafe { (VOLUME * VOLUME_REDUCTION) as u8 }
 }
 
 pub fn set_volume(volume: u8) {
     unsafe {
-        VOLUME.store(volume as f32 / VOLUME_REDUCTION, Ordering::Relaxed);
+        VOLUME = volume as f32 / VOLUME_REDUCTION;
     }
 }
 
 pub fn volume_up() {
     unsafe {
-        let volume = (VOLUME.load(Ordering::Relaxed) * VOLUME_REDUCTION + 5.0).clamp(0.0, 100.0)
-            / VOLUME_REDUCTION;
-        VOLUME.store(volume, Ordering::Relaxed);
+        VOLUME = (VOLUME * VOLUME_REDUCTION + 5.0).clamp(0.0, 100.0) / VOLUME_REDUCTION;
     }
 }
 
 pub fn volume_down() {
     unsafe {
-        let volume = (VOLUME.load(Ordering::Relaxed) * VOLUME_REDUCTION - 5.0).clamp(0.0, 100.0)
-            / VOLUME_REDUCTION;
-        VOLUME.store(volume, Ordering::Relaxed);
+        VOLUME = (VOLUME * VOLUME_REDUCTION - 5.0).clamp(0.0, 100.0) / VOLUME_REDUCTION;
     }
-}
-
-pub fn toggle_playback() {
-    unsafe { EVENTS.push(Event::TogglePlayback) }
 }
 
 pub fn seek(pos: f32) {
-    unsafe {
-        SEEK = Some(pos);
-    }
+    unsafe { EVENTS.push(Event::Seek(pos)) };
 }
 
 pub fn seek_foward() {
-    unsafe {
-        let pos = (ELAPSED.as_secs_f32() + 10.0).clamp(0.0, f32::MAX);
-        SEEK = Some(pos);
-    }
+    unsafe { EVENTS.push(Event::SeekForward) };
 }
 
 pub fn seek_backward() {
-    unsafe {
-        let pos = (ELAPSED.as_secs_f32() - 10.0).clamp(0.0, f32::MAX);
-        SEEK = Some(pos);
-    }
+    unsafe { EVENTS.push(Event::SeekBackward) };
 }
 
-//TODO: I don't know how I'm going to handle playing files.
 pub fn play<P: AsRef<Path>>(path: P) {
     unsafe {
         EVENTS.push(Event::Song(path.as_ref().to_path_buf()));
@@ -265,16 +413,13 @@ pub fn play<P: AsRef<Path>>(path: P) {
 
 pub fn play_song(song: &Song) {
     unsafe {
-        // PATH = Mutex::new(Some(PathBuf::from(&song.path)));
-        // if song.gain != 0.0 {
-        //     VOLUME.store(song.gain / VOLUME_REDUCTION, Ordering::Relaxed);
-        // }
-        // PATH_CONDVAR.notify_all();
+        GAIN = if song.gain != 0.0 { 0.5 } else { song.gain };
+        EVENTS.push(Event::Song(PathBuf::from(&song.path)));
     }
 }
 
 pub fn stop() {
-    // unsafe { COMMAND.store(STOP, Ordering::Relaxed) };
+    unsafe { EVENTS.push(Event::Stop) }
 }
 
 pub fn set_output_device(device: &str) {
@@ -292,11 +437,6 @@ pub fn set_output_device(device: &str) {
             ),
         }
     }
-}
-
-pub fn clear_queue(songs: &mut Index<Song>) {
-    songs.clear();
-    // unsafe { COMMAND.store(STOP, Ordering::Relaxed) };
 }
 
 pub fn play_index(songs: &mut Index<Song>, i: usize) {
@@ -342,8 +482,7 @@ pub fn clear_except_playing(songs: &mut Index<Song>) {
 }
 
 pub fn is_playing() -> bool {
-    todo!()
-    // unsafe { COMMAND.load(Ordering::Relaxed) == EMPTY }
+    unsafe { PLAYING }
 }
 
 pub fn elapsed() -> Duration {

@@ -7,7 +7,7 @@ pub struct Index<T> {
 }
 
 impl<T> Index<T> {
-    pub fn new(data: Vec<T>, index: Option<usize>) -> Self {
+    pub const fn new(data: Vec<T>, index: Option<usize>) -> Self {
         Self { data, index }
     }
     pub fn up(&mut self) {

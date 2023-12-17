@@ -1,6 +1,5 @@
 use crate::{ALBUM, ARTIST, NUMBER, SEEKER, TITLE};
-use gonk_core::{log, Index};
-use gonk_player::Player;
+use gonk_core::{log, Index, Song};
 use unicode_width::UnicodeWidthStr;
 use winter::*;
 
@@ -8,16 +7,14 @@ pub struct Queue {
     pub ui: Index<()>,
     pub constraint: [u16; 4],
     pub len: usize,
-    pub player: *mut Player,
 }
 
 impl Queue {
-    pub fn new(ui_index: usize, player: *mut Player) -> Self {
+    pub fn new(ui_index: usize) -> Self {
         Self {
             ui: Index::new(Vec::new(), Some(ui_index)),
             constraint: [6, 37, 31, 26],
             len: 0,
-            player,
         }
     }
 }
@@ -35,9 +32,9 @@ pub fn draw(
     viewport: winter::Rect,
     buf: &mut winter::Buffer,
     mouse: Option<(u16, u16)>,
+    songs: &mut Index<Song>,
+    mute: bool,
 ) {
-    let player = unsafe { queue.player.as_mut().unwrap() };
-
     let fill = viewport.height.saturating_sub(3 + 3);
     let area = layout(
         viewport,
@@ -53,9 +50,9 @@ pub fn draw(
     //Header
     block()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-        .title(if player.songs.is_empty() {
+        .title(if songs.is_empty() {
             "Stopped"
-        } else if player.is_playing() {
+        } else if gonk_player::is_playing() {
             "Playing"
         } else {
             "Paused"
@@ -63,9 +60,9 @@ pub fn draw(
         .margin(1)
         .draw(area[0], buf);
 
-    if !player.songs.is_empty() {
+    if !songs.is_empty() {
         //Title
-        if let Some(song) = player.songs.selected() {
+        if let Some(song) = songs.selected() {
             let mut artist = song.artist.trim_end().to_string();
             let mut album = song.album.trim_end().to_string();
             let mut title = song.title.trim_end().to_string();
@@ -113,17 +110,17 @@ pub fn draw(
         }
     }
 
-    let volume: Lines<'_> = if player.mute {
+    let volume: Lines<'_> = if mute {
         "Mute─╮".into()
     } else {
-        text!("Vol: {}%─╮", player.volume()).into()
+        text!("Vol: {}%─╮", gonk_player::get_volume()).into()
     };
     volume.align(Right).draw(area[0], buf);
 
     let mut row_bounds = None;
 
     //Body
-    if player.songs.is_empty() {
+    if songs.is_empty() {
         let block = if log::last_message().is_some() {
             block().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
         } else {
@@ -131,8 +128,7 @@ pub fn draw(
         };
         block.draw(area[1], buf);
     } else {
-        let (songs, player_index, ui_index) =
-            (&player.songs, player.songs.index(), queue.ui.index());
+        let (songs, player_index, ui_index) = (&songs, songs.index(), queue.ui.index());
 
         let mut rows: Vec<Row> = songs
             .iter()
@@ -209,14 +205,14 @@ pub fn draw(
 
     if log::last_message().is_none() {
         //Seeker
-        if player.songs.is_empty() {
+        if songs.is_empty() {
             return block()
                 .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
                 .draw(area[2], buf);
         }
 
-        let elapsed = player.elapsed().as_secs_f32();
-        let duration = player.duration().as_secs_f32();
+        let elapsed = gonk_player::elapsed().as_secs_f32();
+        let duration = gonk_player::duration().as_secs_f32();
 
         let seeker = format!(
             "{:02}:{:02}/{:02}:{:02}",
@@ -238,7 +234,7 @@ pub fn draw(
     }
 
     //Don't handle mouse input when the queue is empty.
-    if player.songs.is_empty() {
+    if songs.is_empty() {
         return;
     }
 
@@ -252,8 +248,8 @@ pub fn draw(
             && size.height > 15
         {
             let ratio = x as f32 / size.width as f32;
-            let duration = player.duration().as_secs_f32();
-            player.seek(duration * ratio);
+            let duration = gonk_player::duration().as_secs_f32();
+            gonk_player::seek(duration * ratio);
         }
 
         //Mouse support for the queue.
@@ -264,7 +260,7 @@ pub fn draw(
 
                 //Make sure you didn't click on the seek bar
                 //and that the song index exists.
-                if index < player.songs.len()
+                if index < songs.len()
                     && ((size.height < 15 && y < size.height.saturating_sub(1))
                         || y < size.height.saturating_sub(3))
                 {

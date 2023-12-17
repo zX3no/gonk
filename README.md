@@ -6,6 +6,10 @@
       <img src="https://raw.githubusercontent.com/zX3no/gonk/main/media/gonk.gif">
 </div>
 
+## ⚠️ Warning
+
+- This is a place where I test new ideas. I would not recommend  using this as your music player. However, you are free to use any of the code to create your own.
+
 ## ✨ Features
 - Easy to use
 - Plays FLAC, MP3 and OGG
@@ -25,7 +29,7 @@ gonk add ~/Music
 ## ⌨️ Key Bindings
 
 | Command                     | Key               |
-|-----------------------------|-------------------|
+| --------------------------- | ----------------- |
 | Move Up                     | `K / Up`          |
 | Move Down                   | `J / Down`        |
 | Move Left                   | `H / Left`        |
