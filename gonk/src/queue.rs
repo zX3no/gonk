@@ -4,25 +4,39 @@ use unicode_width::UnicodeWidthStr;
 use winter::*;
 
 pub struct Queue {
-    pub ui: Index<()>,
     pub constraint: [u16; 4],
+    pub index: Option<usize>,
 }
 
 impl Queue {
-    pub fn new(ui_index: usize) -> Self {
+    pub fn new(index: usize) -> Self {
         Self {
-            ui: Index::new(Vec::new(), Some(ui_index)),
             constraint: [6, 37, 31, 26],
+            index: Some(index),
         }
     }
 }
 
 pub fn up(queue: &mut Queue, songs: &Index<Song>) {
-    queue.ui.up_with_len(songs.len());
+    let len = songs.len();
+    if let Some(index) = &mut queue.index {
+        if *index > 0 {
+            *index -= 1;
+        } else {
+            *index = len - 1;
+        }
+    }
 }
 
 pub fn down(queue: &mut Queue, songs: &Index<Song>) {
-    queue.ui.down_with_len(songs.len());
+    let len = songs.len();
+    if let Some(index) = &mut queue.index {
+        if *index + 1 < len {
+            *index += 1;
+        } else {
+            *index = 0;
+        }
+    }
 }
 
 pub fn draw(
@@ -126,7 +140,7 @@ pub fn draw(
         };
         block.draw(area[1], buf);
     } else {
-        let (songs, player_index, ui_index) = (&songs, songs.index(), queue.ui.index());
+        let (songs, player_index, ui_index) = (&songs, songs.index(), queue.index);
 
         let mut rows: Vec<Row> = songs
             .iter()
@@ -262,7 +276,7 @@ pub fn draw(
                     && ((size.height < 15 && y < size.height.saturating_sub(1))
                         || y < size.height.saturating_sub(3))
                 {
-                    queue.ui.select(Some(index));
+                    queue.index = Some(index);
                 }
             }
         }

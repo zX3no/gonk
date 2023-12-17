@@ -1,5 +1,3 @@
-use std::io::Stdout;
-
 use crate::{ALBUM, ARTIST, TITLE};
 use gonk_core::{
     vdb::{Database, Item},

@@ -32,24 +32,6 @@ impl<T> Index<T> {
             None => (),
         }
     }
-    pub fn up_with_len(&mut self, len: usize) {
-        if let Some(index) = &mut self.index {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = len - 1;
-            }
-        }
-    }
-    pub fn down_with_len(&mut self, len: usize) {
-        if let Some(index) = &mut self.index {
-            if *index + 1 < len {
-                *index += 1;
-            } else {
-                *index = 0;
-            }
-        }
-    }
     pub fn selected(&self) -> Option<&T> {
         let Some(index) = self.index else {
             return None;
@@ -68,10 +50,9 @@ impl<T> Index<T> {
     pub fn select(&mut self, i: Option<usize>) {
         self.index = i;
     }
-    //TODO: This is only used once maybe remove
     pub fn remove_and_move(&mut self, index: usize) {
         self.data.remove(index);
-        let len = self.len();
+        let len = self.data.len();
         if let Some(selected) = self.index {
             if index == len && selected == len {
                 self.index = Some(len.saturating_sub(1));
@@ -81,13 +62,6 @@ impl<T> Index<T> {
                 self.index = None;
             }
         }
-        // let _ = self.remove(index);
-        // let len = self.len();
-        // match self.index {
-        //     Some(selected) if selected == 0 && index == 0 => self.index = Some(0),
-        //     Some(_) if len == 0 => self.index = None,
-        //     _ => self.index = Some(len.saturating_sub(1)),
-        // }
     }
 }
 
