@@ -297,7 +297,7 @@ pub fn reset() -> Result<(), Box<dyn Error>> {
 pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
     let path = path.to_string();
     thread::spawn(move || {
-        let mut db_path = database_path();
+        let mut db_path = database_path().to_path_buf();
         db_path.pop();
         db_path.push("temp.db");
 
@@ -306,7 +306,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
                 let paths: Vec<winwalk::DirEntry> = winwalk::walkdir(path, 0)
                     .into_iter()
                     .flatten()
-                    .filter(|entry| match entry.path.extension() {
+                    .filter(|entry| match entry.extension() {
                         Some(ex) => {
                             matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
                         }
@@ -316,7 +316,7 @@ pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
 
                 let songs: Vec<_> = paths
                     .into_par_iter()
-                    .map(|entry| Song::try_from(entry.path.as_path()))
+                    .map(|entry| Song::try_from(Path::new(&entry.path)))
                     .collect();
 
                 let errors: Vec<String> = songs

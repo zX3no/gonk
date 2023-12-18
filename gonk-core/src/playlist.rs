@@ -2,7 +2,7 @@
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{database_path, escape, Deserialize, Index, Serialize, Song};
+use crate::{escape, gonk_path, Deserialize, Index, Serialize, Song};
 use std::{
     fs::{self},
     path::PathBuf,
@@ -20,13 +20,8 @@ pub struct Playlist {
 impl Playlist {
     pub fn new(name: &str, songs: Vec<Song>) -> Self {
         let name = escape(name);
-
-        let mut path = database_path();
-        path.pop();
-        path.push(format!("{name}.playlist"));
-
         Self {
-            path,
+            path: gonk_path().join(format!("{name}.playlist")),
             name: String::from(name),
             songs: Index::from(songs),
         }
@@ -70,13 +65,10 @@ impl Deserialize for Playlist {
 }
 
 pub fn playlists() -> Vec<Playlist> {
-    let mut path = database_path();
-    path.pop();
-
-    winwalk::walkdir(path, 0)
+    winwalk::walkdir(gonk_path().to_str().unwrap(), 0)
         .into_iter()
         .flatten()
-        .filter(|entry| match entry.path.extension() {
+        .filter(|entry| match entry.extension() {
             Some(ex) => {
                 matches!(ex.to_str(), Some("playlist"))
             }

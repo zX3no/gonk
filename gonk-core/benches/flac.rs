@@ -51,15 +51,11 @@ fn custom(files: &[DirEntry]) -> Vec<Result<Song, String>> {
                     artist: artist.to_string(),
                     disc_number,
                     track_number,
-                    path: file
-                        .path
-                        .to_str()
-                        .ok_or("Invalid UTF-8 in path.")?
-                        .to_string(),
+                    path: file.path.clone(),
                     gain,
                 })
             }
-            Err(err) => Err(format!("Error: ({err}) @ {}", file.path.to_string_lossy())),
+            Err(err) => Err(format!("Error: ({err}) @ {}", file.path)),
         })
         .collect()
 }
@@ -75,9 +71,7 @@ fn symphonia(files: &[DirEntry]) -> Vec<Result<Song, String>> {
         .map(|entry| {
             let file = match File::open(&entry.path) {
                 Ok(file) => file,
-                Err(err) => {
-                    return Err(format!("Error: ({err}) @ {}", entry.path.to_string_lossy()))
-                }
+                Err(err) => return Err(format!("Error: ({err}) @ {}", entry.path)),
             };
 
             let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
@@ -92,9 +86,7 @@ fn symphonia(files: &[DirEntry]) -> Vec<Result<Song, String>> {
                 },
             ) {
                 Ok(probe) => probe,
-                Err(err) => {
-                    return Err(format!("Error: ({err}) @ {}", entry.path.to_string_lossy()))?
-                }
+                Err(err) => return Err(format!("Error: ({err}) @ {}", entry.path))?,
             };
 
             let mut title = String::from("Unknown Title");
@@ -163,11 +155,7 @@ fn symphonia(files: &[DirEntry]) -> Vec<Result<Song, String>> {
                 artist,
                 disc_number,
                 track_number,
-                path: entry
-                    .path
-                    .to_str()
-                    .ok_or("Invalid UTF-8 in path.")?
-                    .to_string(),
+                path: entry.path.clone(),
                 gain,
             })
         })
@@ -183,7 +171,7 @@ fn flac(c: &mut Criterion) {
     let paths: Vec<winwalk::DirEntry> = winwalk::walkdir(PATH, 0)
         .into_iter()
         .flatten()
-        .filter(|entry| match entry.path.extension() {
+        .filter(|entry| match entry.extension() {
             Some(ex) => {
                 matches!(ex.to_str(), Some("flac"))
             }

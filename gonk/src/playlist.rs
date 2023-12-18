@@ -105,7 +105,7 @@ pub fn draw(
     area: winter::Rect,
     buf: &mut winter::Buffer,
     mouse: Option<(u16, u16)>,
-) {
+) -> Option<(u16, u16)> {
     let horizontal = layout(
         area,
         Direction::Horizontal,
@@ -226,58 +226,59 @@ pub fn draw(
         //"[name] has been has been added to [playlist name]"
         //or
         //"25 songs have been added to [playlist name]"
-        if let Some(area) = centered_rect(45, 6, area) {
-            let v = layout_margin(
-                area,
-                (1, 1),
-                Direction::Vertical,
-                &[Constraint::Length(3), Constraint::Percentage(50)],
-            );
 
-            buf.clear(area);
+        let area = area.centered(45, 6).unwrap();
+        buf.clear(area);
+        block().draw(area, buf);
+        // let v = layout_margin(
+        //     area,
+        //     Direction::Vertical,
+        //     &[Constraint::Length(3), Percentage(50)],
+        //     // (1, 1),
+        //     (0, 0),
+        // );
 
-            //TODO: This doesn't look right.
-            block().title("Add to playlist").margin(1).draw(area, buf);
+        //TODO: This doesn't look right.
+        // block().title("Add to playlist").margin(1).draw(area, buf);
 
-            // lines!(playlist.search_query.as_str())
-            //     .block(None, ALL, Rounded)
-            //     .scroll()
-            //     .draw(v[0], buf);
+        // lines!(playlist.search_query.as_str())
+        //     .block(block())
+        //     .scroll()
+        //     .draw(v[0], buf);
 
-            //TODO: Underline `new` and `existing` to clarify what is happening.
-            if playlist.changed {
-                playlist.changed = false;
-                let eq = playlist
-                    .lists
-                    .iter()
-                    .any(|p| p.name() == playlist.search_query);
-                playlist.search_result = if eq {
-                    format!("Add to existing playlist: {}", playlist.search_query)
-                } else if playlist.search_query.is_empty() {
-                    String::from("Enter a playlist name...")
-                } else {
-                    format!("Add to new playlist: {}", playlist.search_query)
-                }
-            }
+        //TODO: Underline `new` and `existing` to clarify what is happening.
+        // if playlist.changed {
+        //     playlist.changed = false;
+        //     let eq = playlist
+        //         .lists
+        //         .iter()
+        //         .any(|p| p.name() == playlist.search_query);
+        //     playlist.search_result = if eq {
+        //         format!("Add to existing playlist: {}", playlist.search_query)
+        //     } else if playlist.search_query.is_empty() {
+        //         String::from("Enter a playlist name...")
+        //     } else {
+        //         format!("Add to new playlist: {}", playlist.search_query)
+        //     }
+        // }
 
-            lines!(playlist.search_result.as_str()).draw(v[1].inner((1, 0)), buf);
+        // lines!(playlist.search_result.as_str()).draw(v[1].inner((1, 0)), buf);
+        // block().draw(v[1], buf);
 
-            //Draw the cursor.
-            //TODO: Is move_to the same as set_cursor?
-            //TODO: Need to deal with hiding and unhiding the curosr.
-            // let (x, y) = (v[0].x + 1, v[0].y + 1);
-            if playlist.search_query.is_empty() {
-                // f.set_cursor(x, y);
-            } else {
-                let width = v[0].width.saturating_sub(3);
-                if playlist.search_query.len() < width as usize {
-                    // f.set_cursor(x + len, y);
-                } else {
-                    // f.set_cursor(x + width, y);
-                }
-            }
-        }
+        //Draw the cursor.
+        // let (x, y) = (v[0].x + 1, v[0].y + 1);
+        // if playlist.search_query.is_empty() {
+        //     return Some((x, y));
+        // } else {
+        //     let width = v[0].width.saturating_sub(3);
+        //     if playlist.search_query.len() < width as usize {
+        //         return Some((x + (playlist.search_query.len() as u16), y));
+        //     } else {
+        //         return Some((x + width, y));
+        //     }
+        // }
     }
+    None
 }
 
 pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>) {

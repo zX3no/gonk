@@ -12,7 +12,6 @@ profile = ["gonk-core/profile"]
 strip = ["mini/strip"]
 
 [dependencies]
-crossbeam-channel = "0.5.8"
 crossbeam-queue = "0.3.8"
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
 mini = { version = "0.1.0", path = "../../mini" }

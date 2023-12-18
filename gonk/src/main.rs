@@ -155,6 +155,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut songs = Index::new(persist.queue.clone(), index);
 
     if let Some(song) = songs.selected() {
+        toggle_playback();
         play_song(song);
         seek(persist.elapsed);
     }
@@ -238,7 +239,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
             //Hide the cursor when it's not needed.
             match mode {
-                Mode::Search => {}
+                Mode::Search | Mode::Playlist => {}
                 _ => cursor = None,
             }
 
@@ -246,7 +247,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Mode::Browser => browser::draw(&mut browser, area, buf, $mouse),
                 Mode::Settings => settings::draw(&settings, area, buf),
                 Mode::Queue => queue::draw(&mut queue, area, buf, $mouse, &mut songs, mute),
-                Mode::Playlist => playlist::draw(&mut playlist, area, buf, $mouse),
+                Mode::Playlist => cursor = playlist::draw(&mut playlist, area, buf, $mouse),
                 Mode::Search => cursor = search::draw(&mut search, area, buf, $mouse, &db),
             }
 
