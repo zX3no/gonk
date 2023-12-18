@@ -118,14 +118,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
     }
 
-    //TODO: Cleanup input handle usage.
-    let (output_handle, _input_handle) = handles();
-    let (width, height) = info(output_handle).window_size;
-
-    let mut viewport = Rect::new(0, 0, width, height);
-    let mut buffers: [Buffer; 2] = [Buffer::empty(viewport), Buffer::empty(viewport)];
-    let mut current = 0;
-
     //Prevents panic messages from being hidden.
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -140,9 +132,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }));
 
-    let mut stdout = stdout();
-    winter::init(&mut stdout);
-
+    let mut winter = Winter::new();
     let index = (!persist.queue.is_empty()).then_some(persist.index as usize);
     let device = devices()
         .into_iter()
@@ -155,7 +145,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut songs = Index::new(persist.queue.clone(), index);
 
     if let Some(song) = songs.selected() {
-        toggle_playback();
+        pause();
         play_song(song);
         seek(persist.elapsed);
     }
@@ -226,7 +216,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     macro_rules! draw {
         ($mouse:expr) => {{
-            let buf = &mut buffers[current];
+            let viewport = winter.viewport;
+            let buf = winter.buffer();
             let area = if let Some(msg) = log::last_message() {
                 let length = 3;
                 let fill = viewport.height.saturating_sub(length);
@@ -338,16 +329,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             last_tick = Instant::now();
         }
 
-        //Play a song if nothing is playing.
-        // if songs.selected().is_none() {
-        //     songs.select(Some(0));
-        //     if let Some(song) = songs.selected() {
-        //         play_song(song);
-        //     }
-        // }
-
         //Play the next song if the current is finished.
-        if !gonk_player::is_playing() && !songs.is_empty() {
+        if gonk_player::play_next() && !songs.is_empty() {
             songs.down();
             if let Some(song) = songs.selected() {
                 play_song(song);
@@ -424,6 +407,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char('c') => {
                     songs.clear();
                     gonk_player::stop();
+
+                    //If the queue was cleared while paused.
+                    //Make sure new songs play when added.
+                    play();
                 }
                 Event::Char('x') => match mode {
                     Mode::Queue => {
@@ -597,48 +584,23 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             }
         }
 
-        //Calculate difference and draw to the terminal.
-        let previous_buffer = &buffers[1 - current];
-        let current_buffer = &buffers[current];
-        let diff = previous_buffer.diff(current_buffer);
-        buffer::draw(&mut stdout, diff);
-
-        //Swap buffers
-        buffers[1 - current].reset();
-        current = 1 - current;
-
-        //Update the viewport area.
-        //TODO: I think there is a resize event that might be better.
-        let (width, height) = info(output_handle).window_size;
-        viewport = Rect::new(0, 0, width, height);
-
-        //Resize
-        if buffers[current].area != viewport {
-            buffers[current].resize(viewport);
-            buffers[1 - current].resize(viewport);
-
-            // Reset the back buffer to make sure the next update will redraw everything.
-            buffers[1 - current].reset();
-            clear(&mut stdout);
-        }
+        winter.draw();
 
         //Move cursor
         if let Some((x, y)) = cursor {
-            show_cursor(&mut stdout);
-            move_to(&mut stdout, x, y);
+            show_cursor(&mut winter.stdout);
+            move_to(&mut winter.stdout, x, y);
         } else {
-            hide_cursor(&mut stdout);
+            hide_cursor(&mut winter.stdout);
         }
 
-        stdout.flush().unwrap();
+        winter.flush().unwrap();
     }
 
     persist.queue = songs.to_vec();
     persist.index = songs.index().unwrap_or(0) as u16;
     persist.elapsed = elapsed().as_secs_f32();
     persist.save()?;
-
-    uninit(&mut stdout);
 
     gonk_core::profiler::print();
 

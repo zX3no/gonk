@@ -64,7 +64,7 @@ pub fn draw(
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .title(if songs.is_empty() {
             "Stopped"
-        } else if gonk_player::is_playing() {
+        } else if gonk_player::is_paused() {
             "Playing"
         } else {
             "Paused"
