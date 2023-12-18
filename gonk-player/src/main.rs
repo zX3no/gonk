@@ -20,7 +20,7 @@ fn main() {
         r"D:\OneDrive\Music\Various Artists\Death Note - Original Soundtrack\01 Death Note.flac";
     // let path2 =
     //     r"\\?\D:\OneDrive\Music\Iglooghost\░░░ Fracture Vault ☼⑇\02 Bruise Swamp『YOLK TWEAK』.mp3";
-    play(path1);
+    play_path(path1);
     // println!("Pausing");
     // seek(120.0);
     // toggle_playback();

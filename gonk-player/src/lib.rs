@@ -48,9 +48,10 @@ static mut DURATION: Duration = Duration::from_secs(0);
 static mut VOLUME: f32 = 15.0 / VOLUME_REDUCTION;
 static mut GAIN: f32 = 0.5;
 static mut OUTPUT_DEVICE: Option<Device> = None;
+static mut PAUSED: bool = false;
 
 //Safety: Only written on decoder thread.
-static mut PLAYING: bool = false;
+static mut NEXT: bool = false;
 static mut SAMPLE_RATE: Option<u32> = None;
 
 static ONCE: Once = Once::new();
@@ -67,7 +68,6 @@ pub unsafe fn init_com() {
 #[derive(Debug, PartialEq)]
 enum Event {
     Stop,
-    TogglePlayback,
     Song(PathBuf),
     Seek(f32),
     SeekBackward,
@@ -196,8 +196,6 @@ pub fn spawn_audio_threads(device: Device) {
             info!("Spawned decoder thread!");
 
             let mut sym: Option<Symphonia> = None;
-            let mut paused = false;
-
             let mut packet: Option<SampleBuffer<f32>> = None;
             let mut i = 0;
 
@@ -217,10 +215,6 @@ pub fn spawn_audio_threads(device: Device) {
                         info!("Stopping playback.");
                         sym = None;
                         //Don't stop playback here because it might be delayed.
-                    }
-                    Some(Event::TogglePlayback) => {
-                        info!("Pausing playback. {:?} {:?}", ELAPSED, DURATION);
-                        paused = !paused;
                     }
                     Some(Event::Seek(pos)) => {
                         if let Some(sym) = &mut sym {
@@ -251,7 +245,7 @@ pub fn spawn_audio_threads(device: Device) {
                     None => {}
                 }
 
-                if paused {
+                if !PAUSED {
                     continue;
                 }
 
@@ -274,9 +268,9 @@ pub fn spawn_audio_threads(device: Device) {
                     packet = sym.next_packet();
                     ELAPSED = sym.elapsed();
 
-                    if packet.is_none() && PLAYING {
+                    if packet.is_none() && !PAUSED {
                         info!("Playback ended.");
-                        PLAYING = false;
+                        NEXT = true;
                     }
                 }
             }
@@ -352,7 +346,15 @@ pub fn spawn_audio_threads(device: Device) {
 }
 
 pub fn toggle_playback() {
-    unsafe { EVENTS.push(Event::TogglePlayback) }
+    unsafe { PAUSED = !PAUSED };
+}
+
+pub fn play() {
+    unsafe { PAUSED = false };
+}
+
+pub fn pause() {
+    unsafe { PAUSED = true };
 }
 
 pub fn toggle_mute() {
@@ -396,26 +398,23 @@ pub fn seek_backward() {
     unsafe { EVENTS.push(Event::SeekBackward) };
 }
 
-pub fn play<P: AsRef<Path>>(path: P) {
+pub fn play_path<P: AsRef<Path>>(path: P) {
     unsafe {
         EVENTS.push(Event::Song(path.as_ref().to_path_buf()));
-        PLAYING = true;
+        PAUSED = false;
     }
 }
 
 pub fn play_song(song: &Song) {
     unsafe {
         GAIN = if song.gain != 0.0 { 0.5 } else { song.gain };
-        PLAYING = true;
+        PAUSED = false;
         EVENTS.push(Event::Song(PathBuf::from(&song.path)));
     }
 }
 
 pub fn stop() {
-    unsafe {
-        PLAYING = false;
-        EVENTS.push(Event::Stop);
-    }
+    unsafe { EVENTS.push(Event::Stop) };
 }
 
 pub fn set_output_device(device: &str) {
@@ -438,7 +437,7 @@ pub fn set_output_device(device: &str) {
 pub fn play_index(songs: &mut Index<Song>, i: usize) {
     songs.select(Some(i));
     if let Some(song) = songs.selected() {
-        play(&song.path);
+        play_song(song);
     }
 }
 
@@ -457,12 +456,12 @@ pub fn delete(songs: &mut Index<Song>, index: usize) {
         } else if index == playing && index == 0 {
             songs.select(Some(0));
             if let Some(song) = songs.selected() {
-                play(&song.path);
+                play_song(&song);
             }
         } else if index == playing && index == len {
             songs.select(Some(len - 1));
             if let Some(song) = songs.selected() {
-                play(&song.path);
+                play_song(&song);
             }
         } else if index < playing {
             songs.select(Some(playing - 1));
@@ -477,8 +476,12 @@ pub fn clear_except_playing(songs: &mut Index<Song>) {
     }
 }
 
-pub fn is_playing() -> bool {
-    unsafe { PLAYING }
+pub fn is_paused() -> bool {
+    unsafe { PAUSED }
+}
+
+pub fn play_next() -> bool {
+    unsafe { NEXT }
 }
 
 pub fn elapsed() -> Duration {
