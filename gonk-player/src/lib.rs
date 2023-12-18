@@ -219,6 +219,7 @@ pub fn spawn_audio_threads(device: Device) {
                         //Don't stop playback here because it might be delayed.
                     }
                     Some(Event::TogglePlayback) => {
+                        info!("Pausing playback. {:?} {:?}", ELAPSED, DURATION);
                         paused = !paused;
                     }
                     Some(Event::Seek(pos)) => {

@@ -11,7 +11,7 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "ogg",
     "vorbis",
 ] }
-winwalk = "0.1.0"
+winwalk = "0.2.1"
 
 [dev-dependencies]
 criterion = "0.5.1"

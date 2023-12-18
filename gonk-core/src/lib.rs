@@ -11,7 +11,9 @@ use std::{
     env,
     error::Error,
     fs::{self},
+    mem::MaybeUninit,
     path::{Path, PathBuf},
+    sync::Once,
 };
 
 pub use crate::{
@@ -33,46 +35,63 @@ pub mod vdb;
 
 ///Escape potentially problematic strings.
 pub fn escape(input: &str) -> Cow<str> {
-    if input.contains('\n') || input.contains('\t') {
+    if input.contains(&['\n', '\t']) {
         Cow::Owned(input.replace('\n', "").replace('\t', "    "))
     } else {
         Cow::Borrowed(input)
     }
 }
 
-pub fn gonk_path() -> PathBuf {
-    let gonk = if cfg!(windows) {
-        PathBuf::from(&env::var("APPDATA").unwrap())
-    } else {
-        PathBuf::from(&env::var("HOME").unwrap()).join(".config")
-    }
-    .join("gonk");
+static mut GONK: MaybeUninit<PathBuf> = MaybeUninit::uninit();
+static mut SETTINGS: MaybeUninit<PathBuf> = MaybeUninit::uninit();
+static mut DATABASE: MaybeUninit<PathBuf> = MaybeUninit::uninit();
+static mut ONCE: Once = Once::new();
 
-    if !gonk.exists() {
-        fs::create_dir_all(&gonk).unwrap();
-    }
+#[inline(always)]
+fn once() {
+    unsafe {
+        ONCE.call_once(|| {
+            let gonk = if cfg!(windows) {
+                PathBuf::from(&env::var("APPDATA").unwrap())
+            } else {
+                PathBuf::from(&env::var("HOME").unwrap()).join(".config")
+            }
+            .join("gonk");
 
-    gonk
+            if !gonk.exists() {
+                fs::create_dir_all(&gonk).unwrap();
+            }
+
+            let settings = gonk.join("settings.db");
+
+            //Backwards compatibility for older versions of gonk
+            let old_db = gonk.join("gonk_new.db");
+            let db = gonk.join("gonk.db");
+
+            if old_db.exists() {
+                fs::rename(old_db, &db).unwrap();
+            }
+
+            GONK = MaybeUninit::new(gonk);
+            SETTINGS = MaybeUninit::new(settings);
+            DATABASE = MaybeUninit::new(db);
+        });
+    }
 }
 
-pub fn settings_path() -> PathBuf {
-    let mut path = gonk_path();
-    path.push("settings.db");
-    path
+pub fn gonk_path() -> &'static Path {
+    once();
+    unsafe { GONK.assume_init_ref() }
 }
 
-pub fn database_path() -> PathBuf {
-    let gonk = gonk_path();
+pub fn settings_path() -> &'static Path {
+    once();
+    unsafe { SETTINGS.assume_init_ref() }
+}
 
-    //Backwards compatibility for older versions of gonk
-    let old_db = gonk.join("gonk_new.db");
-    let db = gonk.join("gonk.db");
-
-    if old_db.exists() {
-        fs::rename(old_db, &db).unwrap();
-    }
-
-    db
+pub fn database_path() -> &'static Path {
+    once();
+    unsafe { DATABASE.assume_init_ref() }
 }
 
 trait Serialize {
