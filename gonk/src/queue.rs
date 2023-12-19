@@ -69,7 +69,7 @@ pub fn draw(
         } else {
             "Paused"
         })
-        .margin(1)
+        .title_margin(1)
         .draw(area[0], buf);
 
     if !songs.is_empty() {
