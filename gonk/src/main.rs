@@ -9,7 +9,7 @@ use settings::Settings;
 use std::{
     error::Error,
     fs,
-    io::{stdout, Write},
+    io::Write,
     path::Path,
     sync::LazyLock,
     time::{Duration, Instant},
@@ -121,13 +121,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     //Prevents panic messages from being hidden.
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let mut stdout = stdout();
-        // disable_raw_mode();
-        // disable_mouse_caputure();
-        hide_alternate_screen(&mut stdout);
-        show_cursor(&mut stdout);
+        let mut stdout = std::io::stdout();
+        let mut stdin = std::io::stdin();
+        uninit(&mut stdout, &mut stdin);
         stdout.flush().unwrap();
-
         orig_hook(panic_info);
         std::process::exit(1);
     }));
@@ -243,16 +240,17 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             }
 
             if help {
-                let area = area.inner((6, 8));
-                let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
+                if let Ok(area) = area.inner(8, 6) {
+                    let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
 
-                //TODO: This is hard to read because the gap between command and key is large.
-                let header = header!["Command".bold(), "Key".bold()];
-                let table = table(HELP.clone(), &widths)
-                    .header(header)
-                    .block(block().title("Help:"));
-                buf.clear(area);
-                table.draw(area, buf, None);
+                    //TODO: This is hard to read because the gap between command and key is large.
+                    let header = header!["Command".bold(), "Key".bold()];
+                    let table = table(HELP.clone(), &widths)
+                        .header(header)
+                        .block(block().title("Help:"));
+                    buf.clear(area);
+                    table.draw(area, buf, None);
+                }
             }
         }};
     }

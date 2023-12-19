@@ -87,19 +87,7 @@ pub fn right(playlist: &mut Playlist) {
     }
 }
 
-pub const fn centered_rect(width: u16, height: u16, area: Rect) -> Option<Rect> {
-    let v = area.height / 2;
-    let h = area.width / 2;
-    let mut rect = area.inner((v.saturating_sub(height / 2), h.saturating_sub(width / 2)));
-    rect.width = width;
-    rect.height = height;
-    if area.height < rect.height || area.width < rect.width {
-        None
-    } else {
-        Some(rect)
-    }
-}
-
+//FIXME: There is a bug where clicking hides the add to playlist prompt.
 pub fn draw(
     playlist: &mut Playlist,
     area: winter::Rect,
@@ -133,11 +121,11 @@ pub fn draw(
     };
 
     list(&items)
-        .block(block().title("Playlist").margin(1))
+        .block(block().title("Playlist").title_margin(1))
         .symbol(symbol)
         .draw(horizontal[0], buf, playlist.lists.index());
 
-    let song_block = block().title("Songs").margin(1);
+    let song_block = block().title("Songs").title_margin(1);
     if let Some(selected) = playlist.lists.selected() {
         let rows: Vec<_> = selected
             .songs
@@ -168,7 +156,7 @@ pub fn draw(
     }
 
     if playlist.delete {
-        if let Some(area) = centered_rect(20, 5, area) {
+        if let Ok(area) = area.centered(20, 5) {
             let v = layout(
                 area,
                 Direction::Vertical,
@@ -227,57 +215,58 @@ pub fn draw(
         //or
         //"25 songs have been added to [playlist name]"
 
-        let area = area.centered(45, 6).unwrap();
+        let Ok(area) = area.centered(45, 6) else {
+            return None;
+        };
+
         buf.clear(area);
-        block().draw(area, buf);
-        // let v = layout_margin(
-        //     area,
-        //     Direction::Vertical,
-        //     &[Constraint::Length(3), Percentage(50)],
-        //     // (1, 1),
-        //     (0, 0),
-        // );
 
-        //TODO: This doesn't look right.
-        // block().title("Add to playlist").margin(1).draw(area, buf);
+        block()
+            .title("Add to playlist")
+            .title_margin(1)
+            .draw(area, buf);
 
-        // lines!(playlist.search_query.as_str())
-        //     .block(block())
-        //     .scroll()
-        //     .draw(v[0], buf);
+        let v = layout_margin(area, Direction::Vertical, &[Length(3), Length(1)], (1, 1)).unwrap();
+
+        lines!(playlist.search_query.as_str())
+            .block(block())
+            .scroll()
+            .draw(v[0], buf);
 
         //TODO: Underline `new` and `existing` to clarify what is happening.
-        // if playlist.changed {
-        //     playlist.changed = false;
-        //     let eq = playlist
-        //         .lists
-        //         .iter()
-        //         .any(|p| p.name() == playlist.search_query);
-        //     playlist.search_result = if eq {
-        //         format!("Add to existing playlist: {}", playlist.search_query)
-        //     } else if playlist.search_query.is_empty() {
-        //         String::from("Enter a playlist name...")
-        //     } else {
-        //         format!("Add to new playlist: {}", playlist.search_query)
-        //     }
-        // }
+        if playlist.changed {
+            playlist.changed = false;
+            let eq = playlist
+                .lists
+                .iter()
+                .any(|p| p.name() == playlist.search_query);
+            playlist.search_result = if eq {
+                format!("Add to existing playlist: {}", playlist.search_query)
+            } else if playlist.search_query.is_empty() {
+                String::from("Enter a playlist name...")
+            } else {
+                format!("Add to new playlist: {}", playlist.search_query)
+            }
+        }
 
-        // lines!(playlist.search_result.as_str()).draw(v[1].inner((1, 0)), buf);
-        // block().draw(v[1], buf);
+        if let Ok(area) = v[1].inner(1, 0) {
+            lines!(playlist.search_result.as_str()).draw(area, buf);
+        }
 
         //Draw the cursor.
-        // let (x, y) = (v[0].x + 1, v[0].y + 1);
-        // if playlist.search_query.is_empty() {
-        //     return Some((x, y));
-        // } else {
-        //     let width = v[0].width.saturating_sub(3);
-        //     if playlist.search_query.len() < width as usize {
-        //         return Some((x + (playlist.search_query.len() as u16), y));
-        //     } else {
-        //         return Some((x + width, y));
-        //     }
-        // }
+        let (x, y) = (v[0].x + 2, v[0].y + 2);
+        if playlist.search_query.is_empty() {
+            return Some((x, y));
+        } else {
+            let width = v[0].width.saturating_sub(3);
+            if playlist.search_query.len() < width as usize {
+                return Some((x + (playlist.search_query.len() as u16), y));
+            } else {
+                return Some((x + width, y));
+            }
+        }
     }
+
     None
 }
 

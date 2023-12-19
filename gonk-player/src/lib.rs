@@ -286,6 +286,8 @@ pub fn spawn_audio_threads(device: Device) {
 
             //TODO: This thread is spinning too much!
             loop {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+
                 if cons.is_empty() {
                     // std::hint::spin_loop();
                     continue;

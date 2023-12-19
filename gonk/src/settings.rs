@@ -75,6 +75,6 @@ pub fn draw(settings: &Settings, area: winter::Rect, buf: &mut winter::Buffer) {
         items[index].style = Some(fg(Black).bg(White));
     }
 
-    let list = list(&items).block(block().title("Output Device").margin(1));
+    let list = list(&items).block(block().title("Output Device").title_margin(1));
     list.draw(area, buf, settings.index);
 }
