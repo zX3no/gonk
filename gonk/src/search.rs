@@ -166,7 +166,13 @@ pub fn on_backspace(
     match search.mode {
         Mode::Search if !search.query.is_empty() => {
             if control {
-                search.query.clear();
+                let trim = search.query.trim_end();
+                let end = trim.chars().rev().position(|c| c == ' ');
+                if let Some(end) = end {
+                    search.query = trim[..trim.len() - end].to_string();
+                } else {
+                    search.query.clear();
+                }
             } else {
                 search.query.pop();
             }

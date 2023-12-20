@@ -8,17 +8,15 @@ use std::{
     io::{BufWriter, Read, Seek, Write},
 };
 
-pub static mut FILE: Option<File> = None;
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Settings {
     pub volume: u8,
     pub index: u16,
     pub elapsed: f32,
     pub output_device: String,
     pub music_folder: String,
-    //TODO: Make this static so that the player can take Vec<&'static Song>?
     pub queue: Vec<Song>,
+    pub file: Option<File>,
 }
 
 impl Serialize for Settings {
@@ -64,6 +62,7 @@ impl Deserialize for Settings {
             output_device: split[3].to_string(),
             music_folder,
             queue,
+            file: None,
         })
     }
 }
@@ -77,46 +76,33 @@ impl Default for Settings {
             output_device: Default::default(),
             music_folder: Default::default(),
             queue: Default::default(),
+            file: None,
         }
     }
 }
 
 impl Settings {
-    pub fn new() -> Settings {
-        unsafe {
-            FILE = Some(
-                File::options()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(settings_path())
-                    .unwrap(),
-            );
-        }
-        match Settings::read() {
-            Ok(settings) => settings,
-            Err(_) => Settings::default(),
-        }
+    pub fn new() -> Result<Settings, std::io::Error> {
+        let mut file = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(settings_path())
+            .unwrap();
+        let mut string = String::new();
+        file.read_to_string(&mut string)?;
+        let mut settings = Settings::deserialize(&string).unwrap_or_default();
+        settings.file = Some(file);
+        Ok(settings)
     }
 
-    pub fn read() -> Result<Settings, Box<dyn Error>> {
-        unsafe {
-            let mut string = String::new();
-            FILE.as_ref().unwrap().read_to_string(&mut string)?;
-            Settings::deserialize(&string)
-        }
-    }
-
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        unsafe {
-            FILE.as_ref().unwrap().set_len(0)?;
-            FILE.as_ref().unwrap().rewind()?;
-            let mut writer = BufWriter::new(FILE.as_ref().unwrap());
-            writer.write_all(self.serialize().as_bytes())?;
-            writer.flush()?;
-        };
-
-        Ok(())
+    pub fn save(&self) -> std::io::Result<()> {
+        let mut file = self.file.as_ref().unwrap();
+        file.set_len(0)?;
+        file.rewind()?;
+        let mut writer = BufWriter::new(file);
+        writer.write_all(self.serialize().as_bytes())?;
+        writer.flush()
     }
 }
 
@@ -126,9 +112,6 @@ mod tests {
 
     #[test]
     fn settings() {
-        let settings = Settings::new();
-        let string = settings.serialize();
-        let s = Settings::deserialize(&string).unwrap();
-        assert_eq!(settings, s);
+        Settings::new().unwrap();
     }
 }

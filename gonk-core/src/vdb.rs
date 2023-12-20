@@ -4,11 +4,8 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
+use crate::db::{Album, Song};
 use crate::{database_path, strsim, Deserialize};
-use crate::{
-    db::{Album, Song},
-    profile,
-};
 use std::collections::BTreeMap;
 use std::{cmp::Ordering, fs, str::from_utf8_unchecked};
 
@@ -151,7 +148,6 @@ impl Database {
 
     ///Search the database and return the 25 most accurate matches.
     pub fn search(&self, query: &str) -> Vec<Item> {
-        profile!();
         const MAX: usize = 40;
 
         let query = query.to_lowercase();

@@ -204,11 +204,12 @@ pub fn spawn_audio_threads(device: Device) {
 
                 match EVENTS.pop() {
                     Some(Event::Song(new_path)) => {
-                        info!("{}", new_path.display());
+                        info!("{} paused: {}", new_path.display(), PAUSED);
                         let s = Symphonia::new(&new_path).unwrap();
                         //We don't set the playback state here because it might be delayed.
                         SAMPLE_RATE = Some(s.sample_rate());
                         DURATION = s.duration();
+                        NEXT = false;
                         sym = Some(s);
                     }
                     Some(Event::Stop) => {
@@ -218,7 +219,12 @@ pub fn spawn_audio_threads(device: Device) {
                     }
                     Some(Event::Seek(pos)) => {
                         if let Some(sym) = &mut sym {
-                            info!("Seeking {} / {}", pos as u32, DURATION.as_secs_f32() as u32);
+                            info!(
+                                "Seeking {} / {} paused: {}",
+                                pos as u32,
+                                DURATION.as_secs_f32() as u32,
+                                PAUSED
+                            );
                             sym.seek(pos);
                         }
                     }
@@ -245,7 +251,7 @@ pub fn spawn_audio_threads(device: Device) {
                     None => {}
                 }
 
-                if !PAUSED {
+                if PAUSED {
                     continue;
                 }
 
@@ -284,12 +290,10 @@ pub fn spawn_audio_threads(device: Device) {
             let block_align = format.Format.nBlockAlign as u32;
             let mut sample_rate = format.Format.nSamplesPerSec;
 
-            //TODO: This thread is spinning too much!
             loop {
-                std::thread::sleep(std::time::Duration::from_millis(1));
-
+                //I wish there was a better fix for this.
                 if cons.is_empty() {
-                    // std::hint::spin_loop();
+                    std::thread::sleep(std::time::Duration::from_millis(1));
                     continue;
                 }
 
@@ -402,8 +406,8 @@ pub fn seek_backward() {
 
 pub fn play_path<P: AsRef<Path>>(path: P) {
     unsafe {
+        ELAPSED = Duration::from_secs(0);
         EVENTS.push(Event::Song(path.as_ref().to_path_buf()));
-        PAUSED = false;
     }
 }
 
@@ -411,6 +415,7 @@ pub fn play_song(song: &Song) {
     unsafe {
         GAIN = if song.gain != 0.0 { 0.5 } else { song.gain };
         PAUSED = false;
+        ELAPSED = Duration::from_secs(0);
         EVENTS.push(Event::Song(PathBuf::from(&song.path)));
     }
 }

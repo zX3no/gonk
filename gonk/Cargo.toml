@@ -20,3 +20,4 @@ gonk-player = { version = "0.2.0", path = "../gonk-player" }
 gonk-core = { version = "0.2.0", path = "../gonk-core" }
 winter = { version = "0.1.0", path = "../../winter" }
 # winter = { version = "0.1.0", git = "https://github.com/zX3no/winter" }
+mini = { version = "0.1.0", path = "../../mini" }

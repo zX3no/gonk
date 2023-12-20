@@ -22,6 +22,8 @@ mod queue;
 mod search;
 mod settings;
 
+const FRAME_TIME: f32 = 1000.0 / 300.0;
+
 const NUMBER: Color = Color::Green;
 const TITLE: Color = Color::Cyan;
 const ALBUM: Color = Color::Magenta;
@@ -72,7 +74,7 @@ pub enum Mode {
 }
 
 fn main() -> std::result::Result<(), Box<dyn Error>> {
-    let mut persist = gonk_core::settings::Settings::new();
+    let mut persist = gonk_core::settings::Settings::new()?;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_timer = Instant::now();
     let mut scan_handle = None;
@@ -142,8 +144,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut songs = Index::new(persist.queue.clone(), index);
 
     if let Some(song) = songs.selected() {
-        pause();
         play_song(song);
+        pause();
         seek(persist.elapsed);
     }
 
@@ -161,6 +163,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let mut mute = false;
     let mut old_volume = 0;
     let mut cursor: Option<(u16, u16)> = None;
+    let mut ft = Instant::now();
+    let mut shift;
+    let mut control;
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !songs.is_empty() && scan_handle.is_none() {
@@ -171,7 +176,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         () => {
             match mode {
                 Mode::Browser => browser::up(&mut browser, &db),
-                Mode::Queue => queue::up(&mut queue, &songs),
+                Mode::Queue => queue::up(&mut queue, &mut songs, shift),
                 Mode::Playlist => playlist::up(&mut playlist),
                 Mode::Settings => settings::up(&mut settings),
                 Mode::Search => search::up(&mut search),
@@ -183,7 +188,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         () => {
             match mode {
                 Mode::Browser => browser::down(&mut browser, &db),
-                Mode::Queue => queue::down(&mut queue, &songs),
+                Mode::Queue => queue::down(&mut queue, &mut songs, shift),
                 Mode::Playlist => playlist::down(&mut playlist),
                 Mode::Settings => settings::down(&mut settings),
                 Mode::Search => search::down(&mut search),
@@ -262,7 +267,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 let result = handle.join().unwrap();
 
                 db = Database::new();
-
                 log::clear();
 
                 match result {
@@ -341,15 +345,13 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         //Draw widgets
         draw!(None);
 
-        //Handle events
         'events: {
-            //TODO: I feel like event handling and audio playback should be on different thread.
-            let Some((event, state)) = poll(Duration::from_millis(2)) else {
+            let Some((event, state)) = winter.poll() else {
                 break 'events;
             };
 
-            let shift = state.shift();
-            let control = state.ctrl();
+            shift = state.shift();
+            control = state.ctrl();
 
             match event {
                 Event::LeftMouse(x, y) if !help => draw!(Some((x, y))),
@@ -405,10 +407,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char('c') => {
                     songs.clear();
                     gonk_player::stop();
-
-                    //If the queue was cleared while paused.
-                    //Make sure new songs play when added.
-                    play();
                 }
                 Event::Char('x') => match mode {
                     Mode::Queue => {
@@ -531,6 +529,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             if let Some(i) = queue.index {
                                 songs.select(Some(i));
                                 play_song(&songs[i]);
+                                //Make sure PAUSED is set to false.
+                                //This was included with play_song, but I want the player to pause when started.
+                                //I was having problems with the elapsed and duration not updating.
+                                //This may be a legacy fix.
+                                // play();
                             }
                         }
                         Mode::Settings => {
@@ -565,10 +568,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Function(1) => queue::constraint(&mut queue, 0, shift),
                 Event::Function(2) => queue::constraint(&mut queue, 1, shift),
                 Event::Function(3) => queue::constraint(&mut queue, 2, shift),
-                Event::Up | Event::Char('k') => up!(),
-                Event::Down | Event::Char('j') => down!(),
-                Event::Left | Event::Char('h') => left!(),
-                Event::Right | Event::Char('l') => right!(),
+                Event::Up | Event::Char('k') | Event::Char('K') => up!(),
+                Event::Down | Event::Char('j') | Event::Char('J') => down!(),
+                Event::Left | Event::Char('h') | Event::Char('H') => left!(),
+                Event::Right | Event::Char('l') | Event::Char('L') => right!(),
                 _ => {}
             }
         }
@@ -593,14 +596,21 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
 
         winter.flush().unwrap();
+
+        let frame = ft.elapsed().as_secs_f32() * 1000.0;
+        if frame < FRAME_TIME {
+            std::thread::sleep(Duration::from_secs_f32((FRAME_TIME - frame) / 1000.0));
+            ft = Instant::now();
+        } else {
+            ft = Instant::now();
+        }
     }
 
     persist.queue = songs.to_vec();
+    dbg!(&persist.queue);
     persist.index = songs.index().unwrap_or(0) as u16;
     persist.elapsed = elapsed().as_secs_f32();
     persist.save()?;
-
-    gonk_core::profiler::print();
 
     Ok(())
 }

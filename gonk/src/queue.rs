@@ -17,25 +17,53 @@ impl Queue {
     }
 }
 
-pub fn up(queue: &mut Queue, songs: &Index<Song>) {
-    let len = songs.len();
-    if let Some(index) = &mut queue.index {
-        if *index > 0 {
-            *index -= 1;
-        } else {
-            *index = len - 1;
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        //index is zero indexed, length is not.
+        assert_eq!(u(10, 1, 1), 0);
+        assert_eq!(u(8, 7, 5), 2);
+
+        assert_eq!(u(8, 0, 5), 4);
+
+        assert_eq!(d(8, 7, 5), 4);
+
+        assert_eq!(d(8, 1, 5), 6);
     }
 }
 
-pub fn down(queue: &mut Queue, songs: &Index<Song>) {
-    let len = songs.len();
+fn u(len: usize, index: usize, amt: usize) -> usize {
+    if amt > index {
+        len - (amt - index)
+    } else {
+        index - amt
+    }
+}
+
+fn d(len: usize, mut index: usize, amt: usize) -> usize {
+    index += amt;
+    if index > len - 1 {
+        index -= len;
+    }
+    index
+}
+
+const JUMP_AMOUNT: usize = 3;
+
+pub fn up(queue: &mut Queue, songs: &mut Index<Song>, shift: bool) {
     if let Some(index) = &mut queue.index {
-        if *index + 1 < len {
-            *index += 1;
-        } else {
-            *index = 0;
-        }
+        let amt = if shift { JUMP_AMOUNT } else { 1 };
+        *index = u(songs.len(), *index, amt);
+    }
+}
+
+pub fn down(queue: &mut Queue, songs: &Index<Song>, shift: bool) {
+    if let Some(index) = &mut queue.index {
+        let amt = if shift { JUMP_AMOUNT } else { 1 };
+        *index = d(songs.len(), *index, amt);
     }
 }
 
@@ -65,9 +93,9 @@ pub fn draw(
         .title(if songs.is_empty() {
             "Stopped"
         } else if gonk_player::is_paused() {
-            "Playing"
-        } else {
             "Paused"
+        } else {
+            "Playing"
         })
         .title_margin(1)
         .draw(area[0], buf);
