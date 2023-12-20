@@ -607,7 +607,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     }
 
     persist.queue = songs.to_vec();
-    dbg!(&persist.queue);
     persist.index = songs.index().unwrap_or(0) as u16;
     persist.elapsed = elapsed().as_secs_f32();
     persist.save()?;
