@@ -316,6 +316,7 @@ pub fn spawn_audio_threads(device: Device) {
                 let size = (n_frames * block_align) as usize;
 
                 if size == 0 {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
                     continue;
                 }
 
