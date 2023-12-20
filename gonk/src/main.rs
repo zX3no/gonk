@@ -549,7 +549,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             if let Some(s) = search::on_enter(&mut search, &db) {
                                 //Swap to the queue so people can see what they added.
                                 mode = Mode::Queue;
-                                songs.extend(s.iter().map(|song| song.clone()));
+                                songs.extend(s.iter().cloned());
                             }
                         }
                     }

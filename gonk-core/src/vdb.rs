@@ -77,7 +77,7 @@ impl Database {
         for song in songs.into_iter() {
             albums
                 .entry((song.artist.clone(), song.album.clone()))
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(song);
         }
 
@@ -96,7 +96,7 @@ impl Database {
         for ((artist, title), songs) in albums {
             btree
                 .entry(artist)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(Album { title, songs });
         }
 

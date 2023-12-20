@@ -34,7 +34,7 @@ pub mod vdb;
 
 ///Escape potentially problematic strings.
 pub fn escape(input: &str) -> Cow<str> {
-    if input.contains(&['\n', '\t']) {
+    if input.contains(['\n', '\t']) {
         Cow::Owned(input.replace('\n', "").replace('\t', "    "))
     } else {
         Cow::Borrowed(input)
