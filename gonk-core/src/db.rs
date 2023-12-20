@@ -52,7 +52,6 @@ impl Deserialize for Song {
     type Error = Box<dyn std::error::Error>;
 
     fn deserialize(s: &str) -> Result<Self, Self::Error> {
-        profile!();
         if s.is_empty() {
             return Err("Empty song")?;
         }

@@ -28,7 +28,6 @@ pub mod flac_decoder;
 pub mod index;
 pub mod log;
 pub mod playlist;
-pub mod profiler;
 pub mod settings;
 pub mod strsim;
 pub mod vdb;

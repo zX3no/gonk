@@ -87,6 +87,79 @@ pub fn right(playlist: &mut Playlist) {
     }
 }
 
+pub fn on_backspace(playlist: &mut Playlist, control: bool) {
+    match playlist.mode {
+        Mode::Popup => {
+            playlist.changed = true;
+            if control {
+                playlist.search_query.clear();
+                let trim = playlist.search_query.trim_end();
+                let end = trim.chars().rev().position(|c| c == ' ');
+                if let Some(end) = end {
+                    playlist.search_query = trim[..trim.len() - end].to_string();
+                } else {
+                    playlist.search_query.clear();
+                }
+            } else {
+                playlist.search_query.pop();
+            }
+        }
+        _ => left(playlist),
+    }
+}
+
+pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>) {
+    //No was selected by the user.
+    if playlist.delete && !playlist.yes {
+        playlist.yes = true;
+        return playlist.delete = false;
+    }
+
+    match playlist.mode {
+        Mode::Playlist if playlist.delete => delete_playlist(playlist),
+        Mode::Song if playlist.delete => delete_song(playlist),
+        Mode::Playlist => {
+            if let Some(selected) = playlist.lists.selected() {
+                songs.extend(selected.songs.clone());
+            }
+        }
+        Mode::Song => {
+            if let Some(selected) = playlist.lists.selected() {
+                if let Some(song) = selected.songs.selected() {
+                    songs.push(song.clone());
+                }
+            }
+        }
+        Mode::Popup if !playlist.song_buffer.is_empty() => {
+            //Find the index of the playlist
+            let name = playlist.search_query.trim().to_string();
+            let pos = playlist.lists.iter().position(|p| p.name() == name);
+
+            let songs = mem::take(&mut playlist.song_buffer);
+
+            //If the playlist exists
+            if let Some(pos) = pos {
+                let pl = &mut playlist.lists[pos];
+                pl.songs.extend(songs);
+                pl.songs.select(Some(0));
+                pl.save().unwrap();
+                playlist.lists.select(Some(pos));
+            } else {
+                //If the playlist does not exist create it.
+                let len = playlist.lists.len();
+                playlist.lists.push(gonk_core::Playlist::new(&name, songs));
+                playlist.lists[len].save().unwrap();
+                playlist.lists.select(Some(len));
+            }
+
+            //Reset everything.
+            playlist.search_query = String::new();
+            playlist.mode = Mode::Playlist;
+        }
+        Mode::Popup => (),
+    }
+}
+
 //FIXME: There is a bug where clicking hides the add to playlist prompt.
 pub fn draw(
     playlist: &mut Playlist,
@@ -268,72 +341,6 @@ pub fn draw(
     }
 
     None
-}
-
-pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>) {
-    //No was selected by the user.
-    if playlist.delete && !playlist.yes {
-        playlist.yes = true;
-        return playlist.delete = false;
-    }
-
-    match playlist.mode {
-        Mode::Playlist if playlist.delete => delete_playlist(playlist),
-        Mode::Song if playlist.delete => delete_song(playlist),
-        Mode::Playlist => {
-            if let Some(selected) = playlist.lists.selected() {
-                songs.extend(selected.songs.clone());
-            }
-        }
-        Mode::Song => {
-            if let Some(selected) = playlist.lists.selected() {
-                if let Some(song) = selected.songs.selected() {
-                    songs.push(song.clone());
-                }
-            }
-        }
-        Mode::Popup if !playlist.song_buffer.is_empty() => {
-            //Find the index of the playlist
-            let name = playlist.search_query.trim().to_string();
-            let pos = playlist.lists.iter().position(|p| p.name() == name);
-
-            let songs = mem::take(&mut playlist.song_buffer);
-
-            //If the playlist exists
-            if let Some(pos) = pos {
-                let pl = &mut playlist.lists[pos];
-                pl.songs.extend(songs);
-                pl.songs.select(Some(0));
-                pl.save().unwrap();
-                playlist.lists.select(Some(pos));
-            } else {
-                //If the playlist does not exist create it.
-                let len = playlist.lists.len();
-                playlist.lists.push(gonk_core::Playlist::new(&name, songs));
-                playlist.lists[len].save().unwrap();
-                playlist.lists.select(Some(len));
-            }
-
-            //Reset everything.
-            playlist.search_query = String::new();
-            playlist.mode = Mode::Playlist;
-        }
-        Mode::Popup => (),
-    }
-}
-
-pub fn on_backspace(playlist: &mut Playlist, control: bool) {
-    match playlist.mode {
-        Mode::Popup => {
-            playlist.changed = true;
-            if control {
-                playlist.search_query.clear();
-            } else {
-                playlist.search_query.pop();
-            }
-        }
-        _ => left(playlist),
-    }
 }
 
 pub fn add(playlist: &mut Playlist, songs: Vec<Song>) {
