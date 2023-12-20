@@ -31,7 +31,7 @@ pub fn read_metadata<P: AsRef<Path>>(path: P) -> Result<HashMap<String, String>,
     reader.read_exact(&mut flac)?;
     let flac = unsafe { from_utf8_unchecked(&flac) };
     if flac != "fLaC" {
-        return Err("File is not FLAC.")?;
+        Err("File is not FLAC.")?;
     }
 
     let mut tags = HashMap::new();

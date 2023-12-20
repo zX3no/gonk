@@ -93,7 +93,6 @@ pub fn devices() -> Vec<Device> {
             .unwrap();
 
         (0..collection.GetCount().unwrap())
-            .into_iter()
             .map(|i| {
                 let device = collection.Item(i).unwrap();
                 let name = device_name(&device);
@@ -302,7 +301,7 @@ pub fn spawn_audio_threads(device: Device) {
                         info!("Changing sample rate to {}", sr);
                         let device = OUTPUT_DEVICE.as_ref().unwrap_or(&device);
                         audio.Stop().unwrap();
-                        (audio, render, format, event) = create_wasapi(&device, Some(sr));
+                        (audio, render, format, event) = create_wasapi(device, Some(sr));
                         sample_rate = sr;
                     }
                 }
@@ -463,12 +462,12 @@ pub fn delete(songs: &mut Index<Song>, index: usize) {
         } else if index == playing && index == 0 {
             songs.select(Some(0));
             if let Some(song) = songs.selected() {
-                play_song(&song);
+                play_song(song);
             }
         } else if index == playing && index == len {
             songs.select(Some(len - 1));
             if let Some(song) = songs.selected() {
-                play_song(&song);
+                play_song(song);
             }
         } else if index < playing {
             songs.select(Some(playing - 1));
