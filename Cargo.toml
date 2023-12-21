@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["gonk", "gonk-core", "gonk-player"]
+members = ["gonk", "gonk_core", "gonk_player"]
 
 [profile.release]
 strip = true
