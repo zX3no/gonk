@@ -9,7 +9,6 @@ use settings::Settings;
 use std::{
     error::Error,
     fs,
-    io::Write,
     path::Path,
     sync::LazyLock,
     time::{Duration, Instant},
@@ -126,7 +125,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         let mut stdout = std::io::stdout();
         let mut stdin = std::io::stdin();
         uninit(&mut stdout, &mut stdin);
-        stdout.flush().unwrap();
         orig_hook(panic_info);
         std::process::exit(1);
     }));
@@ -405,8 +403,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     queue.index = Some(0);
                 }
                 Event::Char('c') => {
-                    songs.clear();
-                    gonk_player::stop();
+                    gonk_player::clear(&mut songs);
                 }
                 Event::Char('x') => match mode {
                     Mode::Queue => {

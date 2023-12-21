@@ -1,6 +1,5 @@
 use crate::{ALBUM, ARTIST, NUMBER, SEEKER, TITLE};
 use gonk_core::{log, Index, Song};
-use unicode_width::UnicodeWidthStr;
 use winter::*;
 
 pub struct Queue {

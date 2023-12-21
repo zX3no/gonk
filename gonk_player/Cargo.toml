@@ -1,5 +1,5 @@
 [package]
-name = "gonk-player"
+name = "gonk_player"
 version = "0.2.0"
 edition = "2021"
 description = "Music playback library for gonk"
@@ -7,14 +7,18 @@ repository = "https://github.com/zX3no/gonk"
 readme = "../README.md"
 license = "CC0-1.0"
 
+[lib]
+name = "gonk_player"
+path = "src/lib.rs"
+
 [features]
-profile = ["gonk-core/profile"]
+profile = ["gonk_core/profile"]
 strip = ["mini/strip"]
 
 [dependencies]
 crossbeam-queue = "0.3.8"
-gonk-core = { version = "0.2.0", path = "../gonk-core" }
-mini = { version = "0.1.0", path = "../../mini" }
+gonk_core = { version = "0.2.0", path = "../gonk_core" }
+mini = { git = "https://github.com/zX3no/mini", version = "0.1.0" }
 ringbuf = "0.3.3"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",

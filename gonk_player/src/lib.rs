@@ -36,7 +36,7 @@ use symphonia::core::audio::SampleBuffer;
 
 mod decoder;
 
-const VOLUME_REDUCTION: f32 = 150.0;
+const VOLUME_REDUCTION: f32 = 450.0;
 const RB_SIZE: usize = 4096;
 const COMMON_SAMPLE_RATES: [u32; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
@@ -214,7 +214,7 @@ pub fn spawn_audio_threads(device: Device) {
                     Some(Event::Stop) => {
                         info!("Stopping playback.");
                         sym = None;
-                        //Don't stop playback here because it might be delayed.
+                        packet = None;
                     }
                     Some(Event::Seek(pos)) => {
                         if let Some(sym) = &mut sym {
@@ -474,6 +474,11 @@ pub fn delete(songs: &mut Index<Song>, index: usize) {
             songs.select(Some(playing - 1));
         }
     };
+}
+
+pub fn clear(songs: &mut Index<Song>) {
+    songs.clear();
+    stop();
 }
 
 pub fn clear_except_playing(songs: &mut Index<Song>) {
