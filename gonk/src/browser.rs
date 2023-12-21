@@ -50,20 +50,20 @@ impl Browser {
     }
 }
 
-pub fn up(browser: &mut Browser, db: &Database) {
+pub fn up(browser: &mut Browser, db: &Database, amount: usize) {
     match browser.mode {
-        Mode::Artist => browser.artists.up(),
-        Mode::Album => browser.albums.up(),
-        Mode::Song => browser.songs.up(),
+        Mode::Artist => browser.artists.up_n(amount),
+        Mode::Album => browser.albums.up_n(amount),
+        Mode::Song => browser.songs.up_n(amount),
     }
     update(browser, db);
 }
 
-pub fn down(browser: &mut Browser, db: &Database) {
+pub fn down(browser: &mut Browser, db: &Database, amount: usize) {
     match browser.mode {
-        Mode::Artist => browser.artists.down(),
-        Mode::Album => browser.albums.down(),
-        Mode::Song => browser.songs.down(),
+        Mode::Artist => browser.artists.down_n(amount),
+        Mode::Album => browser.albums.down_n(amount),
+        Mode::Song => browser.songs.down_n(amount),
     }
     update(browser, db);
 }

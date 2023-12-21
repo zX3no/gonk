@@ -21,6 +21,8 @@ mod queue;
 mod search;
 mod settings;
 
+const JUMP_AMOUNT: usize = 3;
+
 const FRAME_TIME: f32 = 1000.0 / 300.0;
 
 const NUMBER: Color = Color::Green;
@@ -29,12 +31,18 @@ const ALBUM: Color = Color::Magenta;
 const ARTIST: Color = Color::Blue;
 const SEEKER: Color = Color::White;
 
-static HELP: LazyLock<[Row; 29]> = LazyLock::new(|| {
+//TODO: Add scrolling to the help menu.
+static HELP: LazyLock<[Row; 31]> = LazyLock::new(|| {
     [
         row!["Move Up".fg(Cyan), "K / UP"],
         row!["Move Down".fg(Cyan), "J / Down"],
         row!["Move Left".fg(Cyan), "H / Left"],
         row!["Move Right".fg(Cyan), "L / Right"],
+        row![text!("Move Up {}", JUMP_AMOUNT).fg(Cyan), "Shift + K / UP"],
+        row![
+            text!("Move Down {}", JUMP_AMOUNT).fg(Cyan),
+            "Shift + J / Down"
+        ],
         row!["Volume Up".fg(Green), "W"],
         row!["Volume Down".fg(Green), "S"],
         row!["Mute".fg(Green), "Z"],
@@ -171,27 +179,29 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     }
 
     macro_rules! up {
-        () => {
+        () => {{
+            let amount = if shift { JUMP_AMOUNT } else { 1 };
             match mode {
-                Mode::Browser => browser::up(&mut browser, &db),
-                Mode::Queue => queue::up(&mut queue, &mut songs, shift),
-                Mode::Playlist => playlist::up(&mut playlist),
-                Mode::Settings => settings::up(&mut settings),
-                Mode::Search => search::up(&mut search),
+                Mode::Browser => browser::up(&mut browser, &db, amount),
+                Mode::Queue => queue::up(&mut queue, &mut songs, amount),
+                Mode::Playlist => playlist::up(&mut playlist, amount),
+                Mode::Settings => settings::up(&mut settings, amount),
+                Mode::Search => search.results.up_n(amount),
             }
-        };
+        }};
     }
 
     macro_rules! down {
-        () => {
+        () => {{
+            let amount = if shift { JUMP_AMOUNT } else { 1 };
             match mode {
-                Mode::Browser => browser::down(&mut browser, &db),
-                Mode::Queue => queue::down(&mut queue, &mut songs, shift),
-                Mode::Playlist => playlist::down(&mut playlist),
-                Mode::Settings => settings::down(&mut settings),
-                Mode::Search => search::down(&mut search),
+                Mode::Browser => browser::down(&mut browser, &db, amount),
+                Mode::Queue => queue::down(&mut queue, &mut songs, amount),
+                Mode::Playlist => playlist::down(&mut playlist, amount),
+                Mode::Settings => settings::down(&mut settings, amount),
+                Mode::Search => search.results.down_n(amount),
             }
-        };
+        }};
     }
 
     macro_rules! left {
@@ -351,6 +361,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             shift = state.shift();
             control = state.ctrl();
 
+            //TODO: There is some weird behaviour with the search.
+            //Pressing 1 while in the song selector will swap to the queue.
+            //But pressing escape will swap back to the text input.
+            //This seems a little unintuitive.
             match event {
                 Event::LeftMouse(x, y) if !help => draw!(Some((x, y))),
                 Event::ScrollUp => up!(),

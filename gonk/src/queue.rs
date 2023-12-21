@@ -1,4 +1,4 @@
-use crate::{ALBUM, ARTIST, NUMBER, SEEKER, TITLE};
+use crate::{ALBUM, ARTIST,  NUMBER, SEEKER, TITLE};
 use gonk_core::{log, Index, Song};
 use winter::*;
 
@@ -18,51 +18,31 @@ impl Queue {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use gonk_core::*;
 
     #[test]
     fn test() {
         //index is zero indexed, length is not.
-        assert_eq!(u(10, 1, 1), 0);
-        assert_eq!(u(8, 7, 5), 2);
+        assert_eq!(up(10, 1, 1), 0);
+        assert_eq!(up(8, 7, 5), 2);
 
-        assert_eq!(u(8, 0, 5), 4);
+        assert_eq!(up(8, 0, 5), 4);
 
-        assert_eq!(d(8, 7, 5), 4);
+        assert_eq!(down(8, 7, 5), 4);
 
-        assert_eq!(d(8, 1, 5), 6);
+        assert_eq!(down(8, 1, 5), 6);
     }
 }
 
-fn u(len: usize, index: usize, amt: usize) -> usize {
-    if amt > index {
-        len - (amt - index)
-    } else {
-        index - amt
-    }
-}
-
-fn d(len: usize, mut index: usize, amt: usize) -> usize {
-    index += amt;
-    if index > len - 1 {
-        index -= len;
-    }
-    index
-}
-
-const JUMP_AMOUNT: usize = 3;
-
-pub fn up(queue: &mut Queue, songs: &mut Index<Song>, shift: bool) {
+pub fn up(queue: &mut Queue, songs: &mut Index<Song>, amount: usize) {
     if let Some(index) = &mut queue.index {
-        let amt = if shift { JUMP_AMOUNT } else { 1 };
-        *index = u(songs.len(), *index, amt);
+        *index = gonk_core::up(songs.len(), *index, amount);
     }
 }
 
-pub fn down(queue: &mut Queue, songs: &Index<Song>, shift: bool) {
+pub fn down(queue: &mut Queue, songs: &Index<Song>, amount: usize) {
     if let Some(index) = &mut queue.index {
-        let amt = if shift { JUMP_AMOUNT } else { 1 };
-        *index = d(songs.len(), *index, amt);
+        *index = gonk_core::down(songs.len(), *index, amount);
     }
 }
 
