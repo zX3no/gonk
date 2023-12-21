@@ -26,6 +26,17 @@ Download the latest [release](https://github.com/zX3no/gonk/releases/latest) and
 gonk add ~/Music
 ```
 
+### Building from Source
+
+> Linux is currently unsupported.
+
+```
+git clone https://github.com/zX3no/gonk
+cd gonk
+cargo install --path gonk --features "strip"
+gonk
+```
+
 ## ⌨️ Key Bindings
 
 | Command                     | Key               |
