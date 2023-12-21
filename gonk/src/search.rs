@@ -29,14 +29,6 @@ impl Search {
     }
 }
 
-pub fn up(search: &mut Search) {
-    search.results.up();
-}
-
-pub fn down(search: &mut Search) {
-    search.results.down();
-}
-
 //TODO: Artist and albums colors aren't quite right.
 pub fn draw(
     search: &mut Search,

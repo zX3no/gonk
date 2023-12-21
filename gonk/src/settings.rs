@@ -34,28 +34,20 @@ pub fn selected(settings: &Settings) -> Option<&str> {
     None
 }
 
-pub fn up(settings: &mut Settings) {
+pub fn up(settings: &mut Settings, amount: usize) {
     if settings.devices.is_empty() {
         return;
     }
-
-    match settings.index {
-        Some(0) => settings.index = Some(settings.devices.len() - 1),
-        Some(n) => settings.index = Some(n - 1),
-        None => (),
-    }
+    let Some(index) = settings.index else { return };
+    gonk_core::up(settings.devices.len(), index, amount);
 }
 
-pub fn down(settings: &mut Settings) {
+pub fn down(settings: &mut Settings, amount: usize) {
     if settings.devices.is_empty() {
         return;
     }
-
-    match settings.index {
-        Some(n) if n + 1 < settings.devices.len() => settings.index = Some(n + 1),
-        Some(_) => settings.index = Some(0),
-        None => (),
-    }
+    let Some(index) = settings.index else { return };
+    gonk_core::down(settings.devices.len(), index, amount);
 }
 
 //TODO: I liked the old item menu bold selections instead of white background.

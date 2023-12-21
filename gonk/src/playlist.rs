@@ -36,15 +36,15 @@ impl Playlist {
     }
 }
 
-pub fn up(playlist: &mut Playlist) {
+pub fn up(playlist: &mut Playlist, amount: usize) {
     if !playlist.delete {
         match playlist.mode {
             Mode::Playlist => {
-                playlist.lists.up();
+                playlist.lists.up_n(amount);
             }
             Mode::Song => {
                 if let Some(selected) = playlist.lists.selected_mut() {
-                    selected.songs.up();
+                    selected.songs.up_n(amount);
                 }
             }
             Mode::Popup => (),
@@ -52,15 +52,15 @@ pub fn up(playlist: &mut Playlist) {
     }
 }
 
-pub fn down(playlist: &mut Playlist) {
+pub fn down(playlist: &mut Playlist, amount: usize) {
     if !playlist.delete {
         match playlist.mode {
             Mode::Playlist => {
-                playlist.lists.down();
+                playlist.lists.down_n(amount);
             }
             Mode::Song => {
                 if let Some(selected) = playlist.lists.selected_mut() {
-                    selected.songs.down();
+                    selected.songs.down_n(amount);
                 }
             }
             Mode::Popup => (),

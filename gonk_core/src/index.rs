@@ -1,5 +1,21 @@
 use std::ops::{Deref, DerefMut};
 
+pub fn up(len: usize, index: usize, amt: usize) -> usize {
+    if amt > index {
+        len - (amt - index)
+    } else {
+        index - amt
+    }
+}
+
+pub fn down(len: usize, mut index: usize, amt: usize) -> usize {
+    index += amt;
+    if index > len - 1 {
+        index -= len;
+    }
+    index
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Index<T> {
     data: Vec<T>,
@@ -31,6 +47,20 @@ impl<T> Index<T> {
             Some(_) => self.index = Some(0),
             None => (),
         }
+    }
+    pub fn up_n(&mut self, n: usize) {
+        if self.data.is_empty() {
+            return;
+        }
+        let Some(index) = self.index else { return };
+        self.index = Some(up(self.data.len(), index, n));
+    }
+    pub fn down_n(&mut self, n: usize) {
+        if self.data.is_empty() {
+            return;
+        }
+        let Some(index) = self.index else { return };
+        self.index = Some(down(self.data.len(), index, n));
     }
     pub fn selected(&self) -> Option<&T> {
         let Some(index) = self.index else {
