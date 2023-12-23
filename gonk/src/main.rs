@@ -359,7 +359,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             };
 
             shift = state.shift();
-            control = state.ctrl();
+            control = state.control();
 
             //TODO: There is some weird behaviour with the search.
             //Pressing 1 while in the song selector will swap to the queue.
