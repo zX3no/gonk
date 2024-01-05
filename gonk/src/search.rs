@@ -152,12 +152,15 @@ fn cell(item: &Item, selected: bool) -> Row<'_> {
 pub fn on_backspace(
     search: &mut Search,
     control: bool,
+    shift: bool,
     mode: &mut crate::Mode,
     prev_mode: &mut crate::Mode,
 ) {
     match search.mode {
         Mode::Search if !search.query.is_empty() => {
-            if control {
+            if shift && control {
+                search.query.clear();
+            } else if control {
                 let trim = search.query.trim_end();
                 let end = trim.chars().rev().position(|c| c == ' ');
                 if let Some(end) = end {

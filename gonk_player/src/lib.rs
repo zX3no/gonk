@@ -36,7 +36,8 @@ use symphonia::core::audio::SampleBuffer;
 
 mod decoder;
 
-const VOLUME_REDUCTION: f32 = 450.0;
+//TODO: This should be configurable if the user want's more volume.
+const VOLUME_REDUCTION: f32 = 75.0;
 const RB_SIZE: usize = 4096;
 const COMMON_SAMPLE_RATES: [u32; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
@@ -361,10 +362,6 @@ pub fn play() {
 
 pub fn pause() {
     unsafe { PAUSED = true };
-}
-
-pub fn toggle_mute() {
-    todo!();
 }
 
 pub fn get_volume() -> u8 {

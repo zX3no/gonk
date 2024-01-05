@@ -22,7 +22,6 @@ mod search;
 mod settings;
 
 const JUMP_AMOUNT: usize = 3;
-
 const FRAME_TIME: f32 = 1000.0 / 300.0;
 
 const NUMBER: Color = Color::Green;
@@ -397,7 +396,13 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
                     //Handle ^W as control backspace.
                     if control && c == 'w' {
-                        search::on_backspace(&mut search, control, &mut mode, &mut prev_mode);
+                        search::on_backspace(
+                            &mut search,
+                            control,
+                            shift,
+                            &mut mode,
+                            &mut prev_mode,
+                        );
                     } else {
                         search.query.push(c);
                         search.query_changed = true;
@@ -540,11 +545,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             if let Some(i) = queue.index {
                                 songs.select(Some(i));
                                 play_song(&songs[i]);
-                                //Make sure PAUSED is set to false.
-                                //This was included with play_song, but I want the player to pause when started.
-                                //I was having problems with the elapsed and duration not updating.
-                                //This may be a legacy fix.
-                                // play();
                             }
                         }
                         Mode::Settings => {
@@ -569,7 +569,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     playlist::on_backspace(&mut playlist, control);
                 }
                 Event::Backspace if mode == Mode::Search => {
-                    search::on_backspace(&mut search, control, &mut mode, &mut prev_mode);
+                    search::on_backspace(&mut search, control, shift, &mut mode, &mut prev_mode);
                 }
                 Event::Backspace => {}
                 Event::Char('1') => mode = Mode::Queue,
