@@ -2,6 +2,7 @@
 //!
 //! Stores the volume, state of the queue and output device
 //!
+//! TODO: Rework to a modified toml format and add volume reduction and audio packet size.
 use crate::*;
 use std::{
     fs::File,

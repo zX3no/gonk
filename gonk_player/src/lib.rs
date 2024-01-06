@@ -1,5 +1,5 @@
 //! TODO: Describe the audio backend
-#![feature(const_float_bits_conv, lazy_cell)]
+//!
 use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
@@ -36,9 +36,10 @@ use symphonia::core::audio::SampleBuffer;
 
 mod decoder;
 
-//TODO: This should be configurable if the user want's more volume.
+//TODO: These should be configurable.
 const VOLUME_REDUCTION: f32 = 75.0;
 const RB_SIZE: usize = 4096;
+
 const COMMON_SAMPLE_RATES: [u32; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
 ];
@@ -260,15 +261,13 @@ pub fn spawn_audio_threads(device: Device) {
                 };
 
                 if let Some(p) = &mut packet {
+                    //Push as many samples as will fit.
                     i += prod.push_slice(&p.samples()[i..]);
+
+                    //Did we push all the samples?
                     if i == p.len() {
                         i = 0;
                         packet = None;
-                    }
-
-                    if let Some(device) = &OUTPUT_DEVICE {
-                        info!("Changing output device {}", device.name);
-                        OUTPUT_DEVICE = None;
                     }
                 } else {
                     packet = sym.next_packet();
@@ -287,7 +286,7 @@ pub fn spawn_audio_threads(device: Device) {
             init_com();
 
             let (mut audio, mut render, mut format, mut event) = create_wasapi(&device, None);
-            let block_align = format.Format.nBlockAlign as u32;
+            let mut block_align = format.Format.nBlockAlign as u32;
             let mut sample_rate = format.Format.nSamplesPerSec;
 
             loop {
@@ -297,13 +296,28 @@ pub fn spawn_audio_threads(device: Device) {
                     continue;
                 }
 
+                if let Some(device) = &OUTPUT_DEVICE {
+                    info!("Changing output device to: {}", device.name);
+                    //Set the new audio device.
+                    audio.Stop().unwrap();
+                    (audio, render, format, event) = create_wasapi(device, Some(sample_rate));
+                    //Different devices have different block alignments.
+                    block_align = format.Format.nBlockAlign as u32;
+                    OUTPUT_DEVICE = None;
+                }
+
                 if let Some(sr) = SAMPLE_RATE {
                     if sr != sample_rate {
                         info!("Changing sample rate to {}", sr);
                         let device = OUTPUT_DEVICE.as_ref().unwrap_or(&device);
-                        audio.Stop().unwrap();
-                        (audio, render, format, event) = create_wasapi(device, Some(sr));
                         sample_rate = sr;
+
+                        //Set the new sample rate.
+                        audio.Stop().unwrap();
+                        (audio, render, format, event) = create_wasapi(device, Some(sample_rate));
+                        //Doesn't need to be set since it's the same device.
+                        //I just did this to avoid any issues.
+                        block_align = format.Format.nBlockAlign as u32;
                     }
                 }
 

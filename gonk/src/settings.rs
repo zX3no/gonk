@@ -39,7 +39,7 @@ pub fn up(settings: &mut Settings, amount: usize) {
         return;
     }
     let Some(index) = settings.index else { return };
-    gonk_core::up(settings.devices.len(), index, amount);
+    settings.index = Some(gonk_core::up(settings.devices.len(), index, amount));
 }
 
 pub fn down(settings: &mut Settings, amount: usize) {
@@ -47,7 +47,7 @@ pub fn down(settings: &mut Settings, amount: usize) {
         return;
     }
     let Some(index) = settings.index else { return };
-    gonk_core::down(settings.devices.len(), index, amount);
+    settings.index = Some(gonk_core::down(settings.devices.len(), index, amount));
 }
 
 //TODO: I liked the old item menu bold selections instead of white background.
