@@ -25,6 +25,7 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "mp3",
     "ogg",
     "vorbis",
+    "opt-simd"
 ] }
 
 [target.'cfg(windows)'.dependencies.makepad-windows]

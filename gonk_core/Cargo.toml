@@ -10,6 +10,7 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "mp3",
     "ogg",
     "vorbis",
+    "opt-simd"
 ] }
 winwalk = "0.2.2"
 
