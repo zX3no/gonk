@@ -122,7 +122,7 @@ pub fn draw(
     let albums: Vec<_> = browser.albums.iter().map(|a| lines!(&a.title)).collect();
     let songs: Vec<_> = browser.songs.iter().map(|(s, _)| lines!(s)).collect();
 
-    fn list<'a>(title: &'static str, items: Vec<Lines<'a>>, use_symbol: bool) -> List<'a> {
+    fn list<'a>(title: &'static str, items: Vec<Line<'a>>, use_symbol: bool) -> List<'a> {
         let block = block().title(title.bold()).title_margin(1);
         let symbol = if use_symbol { ">" } else { " " };
         winter::list(&items).block(block).symbol(symbol)

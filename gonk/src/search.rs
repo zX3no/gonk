@@ -42,7 +42,7 @@ pub fn draw(
         *search.results = db.search(&search.query);
     }
 
-    let v = layout(area, Vertical, &[Length(3), Remainder]);
+    let v = layout(area, Vertical, &[Length(3), Fill]);
 
     if let Some((x, y)) = mouse {
         let rect = Rect {

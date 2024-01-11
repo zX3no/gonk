@@ -186,7 +186,7 @@ pub fn draw(
         }
     }
 
-    let items: Vec<Lines<'_>> = playlist.lists.iter().map(|p| lines!(p.name())).collect();
+    let items: Vec<Line<'_>> = playlist.lists.iter().map(|p| lines!(p.name())).collect();
     let symbol = if let Mode::Playlist = playlist.mode {
         ">"
     } else {

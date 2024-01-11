@@ -129,7 +129,7 @@ pub fn draw(
         }
     }
 
-    let volume: Lines<'_> = if mute {
+    let volume: Line<'_> = if mute {
         "Mute─╮".into()
     } else {
         text!("Vol: {}%─╮", gonk_player::get_volume()).into()

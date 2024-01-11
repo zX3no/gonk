@@ -100,18 +100,18 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.13"
+version = "4.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52bdc885e4cacc7f7c9eedc1ef6da641603180c783c41a15c264944deeaab642"
+checksum = "33e92c5c1a78c62968ec57dbc2440366a2d6e5a23faf829970ff1585dc6b18e2"
 dependencies = [
  "clap_builder",
 ]
 
 [[package]]
 name = "clap_builder"
-version = "4.4.12"
+version = "4.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb7fb5e4e979aec3be7791562fcba452f94ad85e954da024396433e0e25a79e9"
+checksum = "f4323769dc8a61e2c39ad7dc26f6f2800524691a44d74fe3d1071a5c24db6370"
 dependencies = [
  "anstyle",
  "clap_lex",
@@ -161,44 +161,37 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-deque"
-version = "0.8.4"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fca89a0e215bab21874660c67903c5f143333cab1da83d041c7ded6053774751"
+checksum = "613f8cc01fe9cf1a3eb3d7f488fd2fa8388403e97039e2f73692932e291a770d"
 dependencies = [
- "cfg-if",
  "crossbeam-epoch",
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.9.17"
+version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e3681d554572a651dda4186cd47240627c3d0114d45a95f6ad27f2f22e7548d"
+checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
 dependencies = [
- "autocfg",
- "cfg-if",
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.10"
+version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc6598521bb5a83d491e8c1fe51db7296019d2ca3cb93cc6c2a20369a4d78a2"
+checksum = "df0346b5d5e76ac2fe4e327c5fd1118d6be7c51dfb18f9b7922923f287471e35"
 dependencies = [
- "cfg-if",
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.18"
+version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3a430a770ebd84726f584a90ee7f020d28db52c6d02138900f22341f866d39c"
-dependencies = [
- "cfg-if",
-]
+checksum = "248e3bacc7dc6baa3b21e405ee045c3047101a49145e7e9eca583ab4c2ca5345"
 
 [[package]]
 name = "either"
@@ -313,9 +306,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.151"
+version = "0.2.152"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "302d7ab3130588088d277783b1e2d2e10c9e9e4a16dd9050e6ec93fb3e7048f4"
+checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 
 [[package]]
 name = "linux-raw-sys"
@@ -348,25 +341,6 @@ checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 name = "mini"
 version = "0.1.0"
 source = "git+https://github.com/zX3no/mini#094a714a9eb15c8930c02fe71080353cde23c809"
-
-[[package]]
-name = "num-complex"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba157ca0885411de85d6ca030ba7e2a83a28636056c7c699b07c8b6f7383214"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "num-integer"
-version = "0.1.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
-dependencies = [
- "autocfg",
- "num-traits",
-]
 
 [[package]]
 name = "num-traits"
@@ -418,19 +392,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "primal-check"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9df7f93fd637f083201473dab4fee2db4c429d32e55e3299980ab3957ab916a0"
-dependencies = [
- "num-integer",
-]
-
-[[package]]
 name = "proc-macro2"
-version = "1.0.75"
+version = "1.0.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "907a61bd0f64c2f29cd1cf1dc34d05176426a3f504a78010f08416ddb7b13708"
+checksum = "95fc56cda0b5c3325f5fbbd7ff9fda9e02bb00bb3dac51252d2f1bfa1cb8cc8c"
 dependencies = [
  "unicode-ident",
 ]
@@ -503,21 +468,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustfft"
-version = "6.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e17d4f6cbdb180c9f4b2a26bbf01c4e647f1e1dea22fe8eb9db54198b32f9434"
-dependencies = [
- "num-complex",
- "num-integer",
- "num-traits",
- "primal-check",
- "strength_reduce",
- "transpose",
- "version_check",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -547,18 +497,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.194"
+version = "1.0.195"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b114498256798c94a0689e1a15fec6005dee8ac1f41de56404b67afc2a4b773"
+checksum = "63261df402c67811e9ac6def069e4786148c4563f4b50fd4bf30aa370d626b02"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.194"
+version = "1.0.195"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3385e45322e8f9931410f01b3031ec534c3947d0e94c18049af4d9f9907d4e0"
+checksum = "46fe8f8603d81ba86327b23a2e9cdf49e1255fb94a4c5f297f6ee0547178ea2c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -577,15 +527,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "strength_reduce"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
-
-[[package]]
 name = "symphonia"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "lazy_static",
  "symphonia-bundle-flac",
@@ -599,7 +543,7 @@ dependencies = [
 [[package]]
 name = "symphonia-bundle-flac"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "log",
  "symphonia-core",
@@ -610,9 +554,8 @@ dependencies = [
 [[package]]
 name = "symphonia-bundle-mp3"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
- "bitflags 1.3.2",
  "lazy_static",
  "log",
  "symphonia-core",
@@ -622,7 +565,7 @@ dependencies = [
 [[package]]
 name = "symphonia-codec-vorbis"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "log",
  "symphonia-core",
@@ -632,20 +575,19 @@ dependencies = [
 [[package]]
 name = "symphonia-core"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "arrayvec",
  "bitflags 1.3.2",
  "bytemuck",
  "lazy_static",
  "log",
- "rustfft",
 ]
 
 [[package]]
 name = "symphonia-format-ogg"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "log",
  "symphonia-core",
@@ -656,7 +598,7 @@ dependencies = [
 [[package]]
 name = "symphonia-metadata"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "encoding_rs",
  "lazy_static",
@@ -667,7 +609,7 @@ dependencies = [
 [[package]]
 name = "symphonia-utils-xiph"
 version = "0.5.2"
-source = "git+https://github.com/pdeljanov/Symphonia#b157bb58826a2035405702f481b6fdcbd922cbf3"
+source = "git+https://github.com/pdeljanov/Symphonia#cc7fe3ad2aabbacd8e63d1ae107daa1e877a9c3b"
 dependencies = [
  "symphonia-core",
  "symphonia-metadata",
@@ -695,16 +637,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "transpose"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6522d49d03727ffb138ae4cbc1283d3774f0d10aa7f9bf52e6784c45daf9b23"
-dependencies = [
- "num-integer",
- "strength_reduce",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -715,12 +647,6 @@ name = "unicode-width"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51733f11c9c4f72aa0c160008246859e340b00807569a0da0e7a1079b27ba85"
-
-[[package]]
-name = "version_check"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "walkdir"
@@ -961,7 +887,7 @@ checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
 [[package]]
 name = "winter"
 version = "0.1.0"
-source = "git+https://github.com/zX3no/winter#b79c4718d16540ccfd82099920940c841b75f354"
+source = "git+https://github.com/zX3no/winter#201ed516ba14d72e296d7f99cf4fd5a2d29dc7c4"
 dependencies = [
  "bitflags 2.4.1",
  "unicode-width",
