@@ -3,6 +3,10 @@ name = "gonk_core"
 version = "0.2.0"
 edition = "2021"
 
+[features]
+profile = []
+simd = ["symphonia/opt-simd"]
+
 [dependencies]
 rayon = "1.7.0"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
@@ -10,7 +14,6 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "mp3",
     "ogg",
     "vorbis",
-    "opt-simd"
 ] }
 winwalk = "0.2.2"
 
@@ -20,6 +23,3 @@ criterion = "0.5.1"
 [[bench]]
 name = "flac"
 harness = false
-
-[features]
-profile = []
