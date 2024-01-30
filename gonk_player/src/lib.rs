@@ -424,7 +424,7 @@ pub fn play_path<P: AsRef<Path>>(path: P) {
 
 pub fn play_song(song: &Song) {
     unsafe {
-        GAIN = if song.gain != 0.0 { 0.5 } else { song.gain };
+        GAIN = if song.gain == 0.0 { 0.5 } else { song.gain };
         PAUSED = false;
         ELAPSED = Duration::from_secs(0);
         EVENTS.push(Event::Song(PathBuf::from(&song.path)));
