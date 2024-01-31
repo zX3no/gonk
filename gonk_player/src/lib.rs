@@ -296,14 +296,13 @@ pub fn spawn_audio_threads(device: Device) {
                     continue;
                 }
 
-                if let Some(device) = &OUTPUT_DEVICE {
+                if let Some(device) = OUTPUT_DEVICE.take() {
                     info!("Changing output device to: {}", device.name);
                     //Set the new audio device.
                     audio.Stop().unwrap();
-                    (audio, render, format, event) = create_wasapi(device, Some(sample_rate));
+                    (audio, render, format, event) = create_wasapi(&device, Some(sample_rate));
                     //Different devices have different block alignments.
                     block_align = format.Format.nBlockAlign as u32;
-                    OUTPUT_DEVICE = None;
                 }
 
                 if let Some(sr) = SAMPLE_RATE {
