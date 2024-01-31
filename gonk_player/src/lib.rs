@@ -199,6 +199,7 @@ pub fn spawn_audio_threads(device: Device) {
             let mut sym: Option<Symphonia> = None;
             let mut packet: Option<SampleBuffer<f32>> = None;
             let mut i = 0;
+            let mut finished = true;
 
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(1));
@@ -210,8 +211,8 @@ pub fn spawn_audio_threads(device: Device) {
                         //We don't set the playback state here because it might be delayed.
                         SAMPLE_RATE = Some(s.sample_rate());
                         DURATION = s.duration();
-                        NEXT = false;
                         sym = Some(s);
+                        finished = false;
                     }
                     Some(Event::Stop) => {
                         info!("Stopping playback.");
@@ -273,9 +274,13 @@ pub fn spawn_audio_threads(device: Device) {
                     packet = sym.next_packet();
                     ELAPSED = sym.elapsed();
 
-                    if packet.is_none() && !PAUSED {
-                        info!("Playback ended.");
+                    //It's important that finished is used as a guard.
+                    //If next is used it can be changed by a different thread.
+                    //This may be an excessive amount of conditions :/
+                    if packet.is_none() && !PAUSED && !finished && !NEXT {
+                        finished = true;
                         NEXT = true;
+                        info!("Playback ended.");
                     }
                 }
             }
@@ -414,8 +419,11 @@ pub fn seek_backward() {
     unsafe { EVENTS.push(Event::SeekBackward) };
 }
 
+//This is mainly for testing.
 pub fn play_path<P: AsRef<Path>>(path: P) {
     unsafe {
+        GAIN = 0.5;
+        PAUSED = false;
         ELAPSED = Duration::from_secs(0);
         EVENTS.push(Event::Song(path.as_ref().to_path_buf()));
     }
@@ -502,8 +510,16 @@ pub fn is_paused() -> bool {
     unsafe { PAUSED }
 }
 
+//This function should only return `true` after every song has finshed.
 pub fn play_next() -> bool {
-    unsafe { NEXT }
+    unsafe {
+        if NEXT {
+            NEXT = false;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 pub fn elapsed() -> Duration {
