@@ -8,7 +8,7 @@
 
 ## ⚠️ Warning
 
-- This is a place where I test new ideas. I would not recommend  using this as your music player. However, you are free to use any of the code to create your own.
+- This is a place where I test new ideas. I would not recommend using this as your music player.
 
 ## ✨ Features
 - Easy to use
