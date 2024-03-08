@@ -16,7 +16,7 @@ profile = ["gonk_core/profile"]
 strip = ["mini/strip"]
 
 [dependencies]
-crossbeam-queue = "0.3.8"
+crossbeam-queue = "0.3.1"
 gonk_core = { version = "0.2.0", path = "../gonk_core" }
 mini = { git = "https://github.com/zX3no/mini", version = "0.1.0" }
 ringbuf = "0.3.3"

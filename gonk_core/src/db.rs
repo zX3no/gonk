@@ -1,8 +1,7 @@
-use crate::database_path;
 use crate::*;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{BufWriter, Write},
     thread::{self, JoinHandle},
 };

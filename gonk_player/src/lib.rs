@@ -9,10 +9,7 @@ use makepad_windows::Win32::{
     Foundation::WAIT_OBJECT_0,
     Foundation::{BOOL, HANDLE},
     Media::Audio::*,
-    Media::{
-        Audio::{IAudioClient, IMMDeviceEnumerator, WAVEFORMATEXTENSIBLE},
-        KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
-    },
+    Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
     System::{
         Com::{CoCreateInstance, STGM_READ},
         Threading::CreateEventA,
@@ -38,6 +35,8 @@ mod decoder;
 
 //TODO: These should be configurable.
 const VOLUME_REDUCTION: f32 = 75.0;
+
+//Foobar uses a buffer size of 1000ms by default.
 const RB_SIZE: usize = 4096;
 
 const COMMON_SAMPLE_RATES: [u32; 13] = [
@@ -84,6 +83,8 @@ pub struct Device {
 
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
+
+//https://www.youtube.com/watch?v=zrWYJ6FdOFQ
 
 ///Get a list of output devices.
 pub fn devices() -> Vec<Device> {
@@ -186,6 +187,94 @@ pub unsafe fn create_wasapi(
     audio_client.Start().unwrap();
 
     (audio_client, render_client, format, event)
+}
+
+//FIXME: This will spin like crazy when playback is paused.
+#[cfg(target_arch = "arm")]
+#[inline(always)]
+unsafe fn lock(
+    cons: &ringbuf::Consumer<f32, std::sync::Arc<ringbuf::SharedRb<f32, [MaybeUninit<f32>; 4096]>>>,
+) {
+    const ITERATIONS: [usize; 2] = [2, 750];
+    for _ in 0..ITERATIONS[0] {
+        if !cons.is_empty() {
+            return;
+        }
+    }
+
+    loop {
+        for _ in 0..ITERATIONS[1] {
+            if !cons.is_empty() {
+                return;
+            }
+            core::arch::arm::__wfe();
+        }
+
+        std::thread::yield_now();
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+unsafe fn spin_lock(
+    cons: &ringbuf::Consumer<f32, std::sync::Arc<ringbuf::SharedRb<f32, [MaybeUninit<f32>; 4096]>>>,
+) {
+    const ITERATIONS: [usize; 4] = [5, 10, 3000, 30000];
+
+    //Stage 1: ~200ns
+    {
+        profile!("stage 1");
+        for _ in 0..ITERATIONS[0] {
+            if !cons.is_empty() {
+                return;
+            }
+        }
+    }
+
+    //Stage 2: ~400ns
+    {
+        profile!("stage 2");
+
+        for _ in 0..ITERATIONS[1] {
+            if !cons.is_empty() {
+                return;
+            }
+            std::arch::x86_64::_mm_pause();
+        }
+    }
+
+    //Stage 3: ~32µs
+    {
+        profile!("stage 3");
+        for _ in 0..ITERATIONS[2] {
+            if !cons.is_empty() {
+                return;
+            }
+
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+            std::arch::x86_64::_mm_pause();
+        }
+
+        std::thread::yield_now();
+    }
+
+    //Stage 4: ~1ms
+    loop {
+        profile!("stage 4");
+        std::arch::x86_64::_mm_pause();
+        std::thread::sleep(std::time::Duration::from_micros(1000));
+        if !cons.is_empty() {
+            return;
+        }
+    }
 }
 
 pub fn spawn_audio_threads(device: Device) {
@@ -295,11 +384,9 @@ pub fn spawn_audio_threads(device: Device) {
             let mut sample_rate = format.Format.nSamplesPerSec;
 
             loop {
-                //I wish there was a better fix for this.
-                if cons.is_empty() {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                    continue;
-                }
+                //Spin lock until there are samples available.
+                //https://www.youtube.com/watch?v=zrWYJ6FdOFQ
+                spin_lock(&cons);
 
                 if let Some(device) = OUTPUT_DEVICE.take() {
                     info!("Changing output device to: {}", device.name);

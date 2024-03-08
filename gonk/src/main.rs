@@ -2,6 +2,7 @@
 use browser::Browser;
 use gonk_core::{vdb::*, *};
 use gonk_player::*;
+use mini::defer_results;
 use playlist::{Mode as PlaylistMode, Playlist};
 use queue::Queue;
 use search::{Mode as SearchMode, Search};
@@ -80,6 +81,7 @@ pub enum Mode {
 }
 
 fn main() -> std::result::Result<(), Box<dyn Error>> {
+    defer_results!();
     let mut persist = gonk_core::settings::Settings::new()?;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_timer = Instant::now();
