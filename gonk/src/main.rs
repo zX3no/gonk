@@ -443,9 +443,8 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                     }
                     _ => (),
                 },
-                Event::Char('X') if mode == Mode::Playlist => {
-                    playlist::delete(&mut playlist, false)
-                }
+                //Force delete -> Shift + X.
+                Event::Char('X') if mode == Mode::Playlist => playlist::delete(&mut playlist, true),
                 Event::Char('u') if mode == Mode::Browser || mode == Mode::Playlist => {
                     if scan_handle.is_none() {
                         if persist.music_folder.is_empty() {
