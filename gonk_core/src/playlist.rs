@@ -7,7 +7,6 @@ use std::{
     fs::{self},
     path::PathBuf,
 };
-// use walkdir::WalkDir;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Playlist {
@@ -33,6 +32,8 @@ impl Playlist {
         fs::write(&self.path, self.serialize())
     }
     pub fn delete(&self) -> std::io::Result<()> {
+        //TODO: This should have gone into the recycle bin
+        //in case a user(or me) want's to recover it.
         fs::remove_file(&self.path)
     }
 }

@@ -24,8 +24,6 @@ pub struct Symphonia {
     pub elapsed: u64,
     pub duration: u64,
     pub error_count: u8,
-    pub sample_rate: usize,
-    pub channels: usize,
     pub done: bool,
 }
 
@@ -50,13 +48,8 @@ impl Symphonia {
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &codecs::DecoderOptions::default())?;
 
-        let sample_rate = track.codec_params.sample_rate.ok_or("sample_rate")? as usize;
-        let channels = track.codec_params.channels.ok_or("channels")?.count();
-
         Ok(Self {
             format_reader: probed.format,
-            sample_rate,
-            channels,
             decoder,
             track,
             duration,

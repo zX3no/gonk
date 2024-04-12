@@ -47,7 +47,7 @@ static mut EVENTS: SegQueue<Event> = SegQueue::new();
 static mut ELAPSED: Duration = Duration::from_secs(0);
 static mut DURATION: Duration = Duration::from_secs(0);
 static mut VOLUME: f32 = 15.0 / VOLUME_REDUCTION;
-static mut GAIN: f32 = 0.5;
+static mut GAIN: Option<f32> = None;
 static mut OUTPUT_DEVICE: Option<Device> = None;
 static mut PAUSED: bool = false;
 
@@ -69,7 +69,8 @@ pub unsafe fn init_com() {
 #[derive(Debug, PartialEq)]
 enum Event {
     Stop,
-    Song(PathBuf),
+    //Path, Gain
+    Song(PathBuf, f32),
     Seek(f32),
     SeekBackward,
     SeekForward,
@@ -294,14 +295,19 @@ pub fn spawn_audio_threads(device: Device) {
                 std::thread::sleep(std::time::Duration::from_millis(1));
 
                 match EVENTS.pop() {
-                    Some(Event::Song(new_path)) => {
+                    Some(Event::Song(new_path, gain)) => {
                         info!("{} paused: {}", new_path.display(), PAUSED);
+                        info!("Gain: {} prod capacity: {}", gain, prod.capacity());
                         let s = Symphonia::new(&new_path).unwrap();
                         //We don't set the playback state here because it might be delayed.
                         SAMPLE_RATE = Some(s.sample_rate());
                         DURATION = s.duration();
                         sym = Some(s);
                         finished = false;
+
+                        //Skip the old samples, then increase the gain.
+                        prod.advance(prod.len());
+                        GAIN = Some(gain);
                     }
                     Some(Event::Stop) => {
                         info!("Stopping playback.");
@@ -382,6 +388,7 @@ pub fn spawn_audio_threads(device: Device) {
             let (mut audio, mut render, mut format, mut event) = create_wasapi(&device, None);
             let mut block_align = format.Format.nBlockAlign as u32;
             let mut sample_rate = format.Format.nSamplesPerSec;
+            let mut gain = 0.5;
 
             loop {
                 //Spin lock until there are samples available.
@@ -412,6 +419,15 @@ pub fn spawn_audio_threads(device: Device) {
                     }
                 }
 
+                if let Some(g) = GAIN.take() {
+                    if gain != g {
+                        gain = g;
+                    }
+                    //Make sure there are no old samples before dramatically increasing the volume.
+                    //Without this there were some serious jumps in volume when skipping songs.
+                    cons.clear();
+                }
+
                 //Sample-rate probably changed if this fails.
                 let padding = audio.GetCurrentPadding().unwrap();
                 let buffer_size = audio.GetBufferSize().unwrap();
@@ -429,7 +445,7 @@ pub fn spawn_audio_threads(device: Device) {
                 let b = render.GetBuffer(n_frames).unwrap();
                 let output = std::slice::from_raw_parts_mut(b, size);
                 let channels = format.Format.nChannels as usize;
-                let volume = VOLUME * GAIN;
+                let volume = VOLUME * gain;
 
                 for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
                     let Some(sample) = cons.pop() else {
@@ -509,19 +525,20 @@ pub fn seek_backward() {
 //This is mainly for testing.
 pub fn play_path<P: AsRef<Path>>(path: P) {
     unsafe {
-        GAIN = 0.5;
         PAUSED = false;
         ELAPSED = Duration::from_secs(0);
-        EVENTS.push(Event::Song(path.as_ref().to_path_buf()));
+        EVENTS.push(Event::Song(path.as_ref().to_path_buf(), 0.5));
     }
 }
 
 pub fn play_song(song: &Song) {
     unsafe {
-        GAIN = if song.gain == 0.0 { 0.5 } else { song.gain };
         PAUSED = false;
         ELAPSED = Duration::from_secs(0);
-        EVENTS.push(Event::Song(PathBuf::from(&song.path)));
+        EVENTS.push(Event::Song(
+            PathBuf::from(&song.path),
+            if song.gain == 0.0 { 0.5 } else { song.gain },
+        ));
     }
 }
 
