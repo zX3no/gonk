@@ -172,7 +172,6 @@ pub unsafe fn create_wasapi(
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK
                 | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
                 | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
-            // | AUDCLNT_STREAMFLAGS_RATEADJUST,
             default_period,
             default_period,
             &format as *const _ as *const WAVEFORMATEX,
@@ -193,7 +192,7 @@ pub unsafe fn create_wasapi(
 //FIXME: This will spin like crazy when playback is paused.
 #[cfg(target_arch = "arm")]
 #[inline(always)]
-unsafe fn lock(
+pub unsafe fn lock(
     cons: &ringbuf::Consumer<f32, std::sync::Arc<ringbuf::SharedRb<f32, [MaybeUninit<f32>; 4096]>>>,
 ) {
     const ITERATIONS: [usize; 2] = [2, 750];
@@ -217,7 +216,9 @@ unsafe fn lock(
 
 #[cfg(target_arch = "x86_64")]
 #[inline(always)]
-unsafe fn spin_lock(
+//Spin lock until there are samples available.
+//https://www.youtube.com/watch?v=zrWYJ6FdOFQ
+pub unsafe fn spin_lock(
     cons: &ringbuf::Consumer<f32, std::sync::Arc<ringbuf::SharedRb<f32, [MaybeUninit<f32>; 4096]>>>,
 ) {
     const ITERATIONS: [usize; 4] = [5, 10, 3000, 30000];
@@ -292,7 +293,7 @@ pub fn spawn_audio_threads(device: Device) {
             let mut finished = true;
 
             loop {
-                std::thread::sleep(std::time::Duration::from_millis(1));
+                std::thread::sleep(std::time::Duration::from_millis(8));
 
                 match EVENTS.pop() {
                     Some(Event::Song(new_path, gain)) => {
@@ -391,9 +392,10 @@ pub fn spawn_audio_threads(device: Device) {
             let mut gain = 0.5;
 
             loop {
-                //Spin lock until there are samples available.
-                //https://www.youtube.com/watch?v=zrWYJ6FdOFQ
-                spin_lock(&cons);
+                //Block until the output device is ready for new samples.
+                if WaitForSingleObject(event, u32::MAX) != WAIT_OBJECT_0 {
+                    unreachable!()
+                }
 
                 if let Some(device) = OUTPUT_DEVICE.take() {
                     info!("Changing output device to: {}", device.name);
@@ -438,7 +440,6 @@ pub fn spawn_audio_threads(device: Device) {
                 let size = (n_frames * block_align) as usize;
 
                 if size == 0 {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
                     continue;
                 }
 
@@ -464,10 +465,6 @@ pub fn spawn_audio_threads(device: Device) {
                 }
 
                 render.ReleaseBuffer(n_frames, 0).unwrap();
-
-                if WaitForSingleObject(event, u32::MAX) != WAIT_OBJECT_0 {
-                    unreachable!()
-                }
             }
         });
     }

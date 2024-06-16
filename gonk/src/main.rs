@@ -1,4 +1,3 @@
-#![feature(lazy_cell)]
 use browser::Browser;
 use gonk_core::{vdb::*, *};
 use gonk_player::*;

@@ -25,18 +25,18 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "mp3",
     "ogg",
     "vorbis",
-    "opt-simd"
+    "opt-simd",
 ] }
 
 [target.'cfg(windows)'.dependencies.makepad-windows]
 git = "https://github.com/makepad/makepad"
 version = "0.51.1"
 features = [
-    "Win32_Foundation", 
+    "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_LibraryLoader",
     "Win32_System_Performance",
-    "Win32_Graphics_Gdi", 
+    "Win32_Graphics_Gdi",
     "Win32_Graphics_Dwm",
     "Win32_UI_HiDpi",
     "Win32_System_Memory",
@@ -63,10 +63,10 @@ features = [
     "Win32_Media_MediaFoundation",
     "Win32_System_Variant",
     "Win32_System_SystemServices",
-    "Devices_Enumeration", 
+    "Devices_Enumeration",
     "Devices_Midi",
     "Foundation_Collections",
     "Storage",
     "Storage_Streams",
-    "implement"
-] 
+    "implement",
+]
