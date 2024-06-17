@@ -4,11 +4,16 @@ use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
 use makepad_windows::core::PCSTR;
+use makepad_windows::Win32::Media::Audio::{
+    eConsole, eRender, IAudioClient, IAudioRenderClient, IMMDevice, IMMDeviceEnumerator,
+    MMDeviceEnumerator, AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+    AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+    DEVICE_STATE_ACTIVE, WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
+};
 use makepad_windows::Win32::{
     Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
     Foundation::WAIT_OBJECT_0,
     Foundation::{BOOL, HANDLE},
-    Media::Audio::*,
     Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
     System::{
         Com::{CoCreateInstance, STGM_READ},
@@ -395,6 +400,10 @@ pub fn spawn_audio_threads(device: Device) {
                 //Block until the output device is ready for new samples.
                 if WaitForSingleObject(event, u32::MAX) != WAIT_OBJECT_0 {
                     unreachable!()
+                }
+
+                if cons.is_empty() {
+                    continue;
                 }
 
                 if let Some(device) = OUTPUT_DEVICE.take() {
