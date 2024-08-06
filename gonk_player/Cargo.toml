@@ -19,8 +19,7 @@ strip = ["mini/strip"]
 crossbeam-queue = "0.3.1"
 gonk_core = { version = "0.2.0", path = "../gonk_core" }
 mini = { git = "https://github.com/zX3no/mini", version = "0.1.0" }
-# This is broken right now.
-ringbuf = "0.3.3"
+ringbuf = "0.4.1"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [
     "flac",
     "mp3",

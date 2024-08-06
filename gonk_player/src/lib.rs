@@ -51,6 +51,7 @@ use makepad_windows::Win32::{
 };
 
 use mini::*;
+use ringbuf::traits::{Consumer, Observer, Producer, Split};
 use ringbuf::StaticRb;
 use std::mem::MaybeUninit;
 use std::{
@@ -257,7 +258,7 @@ pub fn spawn_audio_threads(device: Device) {
             info!("Spawned decoder thread!");
 
             let mut sym: Option<Symphonia> = None;
-            let mut packet: Option<SampleBuffer<f32>> = None;
+            let mut leftover_packet: Option<SampleBuffer<f32>> = None;
             let mut i = 0;
             let mut finished = true;
 
@@ -273,17 +274,23 @@ pub fn spawn_audio_threads(device: Device) {
                         //We don't set the playback state here because it might be delayed.
                         SAMPLE_RATE = Some(s.sample_rate());
                         DURATION = s.duration();
+
+                        //Set the decoder for the new song.
                         sym = Some(s);
+
+                        //Remove the leftovers.
+                        leftover_packet = None;
+                        //Start the playback
                         finished = false;
 
-                        //Skip the old samples, then increase the gain.
-                        prod.advance(prod.len());
+                        //Set the gain
                         GAIN = Some(gain);
                     }
                     Some(Event::Stop) => {
                         info!("Stopping playback.");
+                        //Stop the decoder and remove the extra packet.
                         sym = None;
-                        packet = None;
+                        leftover_packet = None;
                     }
                     Some(Event::Seek(pos)) => {
                         if let Some(sym) = &mut sym {
@@ -327,23 +334,23 @@ pub fn spawn_audio_threads(device: Device) {
                     continue;
                 };
 
-                if let Some(p) = &mut packet {
+                if let Some(p) = &mut leftover_packet {
                     //Push as many samples as will fit.
                     i += prod.push_slice(&p.samples()[i..]);
 
                     //Did we push all the samples?
                     if i == p.len() {
                         i = 0;
-                        packet = None;
+                        leftover_packet = None;
                     }
                 } else {
-                    packet = sym.next_packet();
+                    leftover_packet = sym.next_packet();
                     ELAPSED = sym.elapsed();
 
                     //It's important that finished is used as a guard.
                     //If next is used it can be changed by a different thread.
                     //This may be an excessive amount of conditions :/
-                    if packet.is_none() && !PAUSED && !finished && !NEXT {
+                    if leftover_packet.is_none() && !PAUSED && !finished && !NEXT {
                         finished = true;
                         NEXT = true;
                         info!("Playback ended.");
@@ -398,6 +405,7 @@ pub fn spawn_audio_threads(device: Device) {
                     //Make sure there are no old samples before dramatically increasing the volume.
                     //Without this there were some serious jumps in volume when skipping songs.
                     cons.clear();
+                    assert!(cons.is_empty())
                 }
 
                 //Sample-rate probably changed if this fails.
@@ -418,12 +426,14 @@ pub fn spawn_audio_threads(device: Device) {
                 let channels = format.Format.nChannels as usize;
                 let volume = VOLUME * gain;
 
+                let mut iter = cons.pop_iter();
+
                 for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
-                    let sample = cons.pop().unwrap_or_default();
+                    let sample = iter.next().unwrap_or_default();
                     bytes[0..4].copy_from_slice(&(sample * volume).to_le_bytes());
 
                     if channels > 1 {
-                        let sample = cons.pop().unwrap_or_default();
+                        let sample = iter.next().unwrap_or_default();
                         bytes[4..8].copy_from_slice(&(sample * volume).to_le_bytes());
                     }
                 }
