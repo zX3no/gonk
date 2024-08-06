@@ -3,6 +3,30 @@
 use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
+
+// use windows::core::PCSTR;
+// use windows::Win32::Media::Audio::{
+//     eConsole, eRender, IAudioClient, IAudioRenderClient, IMMDevice, IMMDeviceEnumerator,
+//     MMDeviceEnumerator, AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+//     AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+//     DEVICE_STATE_ACTIVE, WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
+// };
+// use windows::Win32::{
+//     Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
+//     Foundation::WAIT_OBJECT_0,
+//     Foundation::{BOOL, HANDLE},
+//     Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
+//     System::{
+//         Com::{CoCreateInstance, STGM_READ},
+//         Threading::CreateEventA,
+//         Variant::VT_LPWSTR,
+//     },
+//     System::{
+//         Com::{CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
+//         Threading::WaitForSingleObject,
+//     },
+// };
+
 use makepad_windows::core::PCSTR;
 use makepad_windows::Win32::Media::Audio::{
     eConsole, eRender, IAudioClient, IAudioRenderClient, IMMDevice, IMMDeviceEnumerator,
@@ -25,6 +49,7 @@ use makepad_windows::Win32::{
         Threading::WaitForSingleObject,
     },
 };
+
 use mini::*;
 use ringbuf::StaticRb;
 use std::mem::MaybeUninit;
@@ -129,9 +154,33 @@ pub fn default_device() -> Device {
     }
 }
 
+// unsafe fn wcslen(ptr: *mut u16) -> usize {
+//     if ptr.is_null() {
+//         return 0;
+//     }
+
+//     let mut len = 0;
+//     let mut current = ptr;
+
+//     while *current != 0 {
+//         len += 1;
+//         current = current.add(1);
+//     }
+
+//     len
+// }
+
 pub unsafe fn device_name(device: &IMMDevice) -> String {
     let store = device.OpenPropertyStore(STGM_READ).unwrap();
     let prop = store.GetValue(&PKEY_Device_FriendlyName).unwrap();
+
+    //Maybe keep this, in case I swap to Windows crate...
+    // assert!(prop.as_raw().Anonymous.Anonymous.vt == 31);
+    // let data = prop.as_raw().Anonymous.Anonymous.Anonymous.pwszVal;
+    // let len = wcslen(data);
+    // let slice = std::slice::from_raw_parts(data, len);
+    // String::from_utf16(slice).unwrap()
+
     assert!(prop.Anonymous.Anonymous.vt == VT_LPWSTR);
     let data = prop.Anonymous.Anonymous.Anonymous.pwszVal;
     data.to_string().unwrap()
