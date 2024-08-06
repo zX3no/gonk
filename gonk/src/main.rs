@@ -83,6 +83,7 @@ pub enum Mode {
     Search,
 }
 
+//TODO: Why Box<dyn Error>? change this.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     defer_results!();
     let mut persist = gonk_core::settings::Settings::new()?;
@@ -96,13 +97,23 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 if args.len() == 1 {
                     return Ok(println!("Usage: gonk add <path>"));
                 }
-                let path = args[1..].join(" ");
+
+                let mut path = args[1..].join(" ");
+
+                if path.contains("~") {
+                    path = path.replace("~", &user_profile_directory().unwrap());
+                }
+
                 let Ok(path) = fs::canonicalize(path) else {
-                    return Ok(println!("Invalid path."));
+                    println!("Invalid path.");
+                    return Ok(());
                 };
+
                 let Some(path) = path.to_str() else {
-                    return Ok(println!("Invalid path."));
+                    println!("Invalid path.");
+                    return Ok(());
                 };
+
                 if Path::new(&path).exists() {
                     persist.music_folder = path.to_string();
                     scan_handle = Some(db::create(path));
@@ -634,6 +645,10 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     persist.index = songs.index().unwrap_or(0) as u16;
     persist.elapsed = elapsed().as_secs_f32();
     persist.save()?;
+
+    //TODO: Add this to when dropping Winter.
+
+    reset(&mut winter.stdout);
 
     Ok(())
 }
