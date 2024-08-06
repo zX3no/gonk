@@ -1,17 +1,31 @@
-use crate::{ALBUM, ARTIST,  NUMBER, SEEKER, TITLE};
+use crate::{ALBUM, ARTIST, NUMBER, SEEKER, TITLE};
+use core::ops::Range;
 use gonk_core::{log, Index, Song};
 use winter::*;
 
 pub struct Queue {
     pub constraint: [u16; 4],
-    pub index: Option<usize>,
+    //TODO: This doesn't remember the previous index after a selection.
+    //So if you had song 5 selected, pressed selected all, then pressed down.
+    //It would selected song 2, not song 6 like it should.
+    //Select all should be a temporay operation.
+    pub range: Option<Range<usize>>,
 }
 
 impl Queue {
+    pub fn set_index(&mut self, index: usize) {
+        self.range = Some(index..index);
+    }
+    pub fn index(&self) -> Option<usize> {
+        match &self.range {
+            Some(range) => Some(range.start),
+            None => None,
+        }
+    }
     pub fn new(index: usize) -> Self {
         Self {
             constraint: [6, 37, 31, 26],
-            index: Some(index),
+            range: Some(index..index),
         }
     }
 }
@@ -26,7 +40,8 @@ mod tests {
         assert_eq!(up(10, 1, 1), 0);
         assert_eq!(up(8, 7, 5), 2);
 
-        assert_eq!(up(8, 0, 5), 4);
+        //7, 6, 5, 4, 3
+        assert_eq!(up(8, 0, 5), 3);
 
         assert_eq!(down(8, 7, 5), 4);
 
@@ -35,14 +50,24 @@ mod tests {
 }
 
 pub fn up(queue: &mut Queue, songs: &mut Index<Song>, amount: usize) {
-    if let Some(index) = &mut queue.index {
-        *index = gonk_core::up(songs.len(), *index, amount);
+    if let Some(range) = &mut queue.range {
+        let index = range.start;
+        let new_index = gonk_core::up(songs.len(), index, amount);
+
+        //This will override and ranges and just set the position
+        //to a single index.
+        *range = new_index..new_index;
     }
 }
 
 pub fn down(queue: &mut Queue, songs: &Index<Song>, amount: usize) {
-    if let Some(index) = &mut queue.index {
-        *index = gonk_core::down(songs.len(), *index, amount);
+    if let Some(range) = &mut queue.range {
+        let index = range.start;
+        let new_index = gonk_core::down(songs.len(), index, amount);
+
+        //This will override and ranges and just set the position
+        //to a single index.
+        *range = new_index..new_index;
     }
 }
 
@@ -147,8 +172,6 @@ pub fn draw(
         };
         block.draw(area[1], buf);
     } else {
-        let (songs, player_index, ui_index) = (&songs, songs.index(), queue.index);
-
         let mut rows: Vec<Row> = songs
             .iter()
             .map(|song| {
@@ -162,42 +185,53 @@ pub fn draw(
             })
             .collect();
 
-        if let Some(player_index) = player_index {
-            if let Some(song) = songs.get(player_index) {
-                if let Some(ui_index) = ui_index {
-                    //Currently playing song
-                    if ui_index == player_index {
-                        rows[player_index] = row![
-                            ">>".fg(White).dim().bold(),
-                            song.track_number.to_string().bg(NUMBER).fg(Black).dim(),
-                            song.title.as_str().bg(TITLE).fg(Black).dim(),
-                            song.album.as_str().bg(ALBUM).fg(Black).dim(),
-                            song.artist.as_str().bg(ARTIST).fg(Black).dim()
-                        ];
-                    } else {
-                        rows[player_index] = row![
-                            ">>".fg(White).dim().bold(),
-                            song.track_number.to_string().fg(NUMBER),
-                            song.title.as_str().fg(TITLE),
-                            song.album.as_str().fg(ALBUM),
-                            song.artist.as_str().fg(ARTIST)
-                        ]
-                    };
+        'selection: {
+            let Some(user_range) = &queue.range else {
+                break 'selection;
+            };
 
-                    //Current selection
-                    if ui_index != player_index {
-                        if let Some(song) = songs.get(ui_index) {
-                            //TODO: Something is not working here.
-                            rows[ui_index] = row![
-                                text!(),
-                                song.track_number.to_string().fg(Black).bg(NUMBER).dim(),
-                                song.title.as_str().fg(Black).bg(TITLE).dim(),
-                                song.album.as_str().fg(Black).bg(ALBUM).dim(),
-                                song.artist.as_str().fg(Black).bg(ARTIST).dim()
-                            ];
-                        }
-                    }
-                }
+            for index in user_range.start..=user_range.end {
+                let Some(song) = songs.get(index) else {
+                    continue;
+                };
+
+                rows[index] = row![
+                    text!(),
+                    song.track_number.to_string().fg(Black).bg(NUMBER).dim(),
+                    song.title.as_str().fg(Black).bg(TITLE).dim(),
+                    song.album.as_str().fg(Black).bg(ALBUM).dim(),
+                    song.artist.as_str().fg(Black).bg(ARTIST).dim()
+                ];
+            }
+
+            let Some(playing_index) = songs.index() else {
+                break 'selection;
+            };
+
+            let Some(song) = songs.get(playing_index) else {
+                break 'selection;
+            };
+
+            if playing_index == user_range.start {
+                //Currently playing and currently selected.
+                //Has arrow and inverted colors.
+                rows[playing_index] = row![
+                    ">>".fg(White).dim().bold(),
+                    song.track_number.to_string().bg(NUMBER).fg(Black).dim(),
+                    song.title.as_str().bg(TITLE).fg(Black).dim(),
+                    song.album.as_str().bg(ALBUM).fg(Black).dim(),
+                    song.artist.as_str().bg(ARTIST).fg(Black).dim()
+                ];
+            } else {
+                //Currently playing song and not selected.
+                //Has arrow and standard colors.
+                rows[playing_index] = row![
+                    ">>".fg(White).dim().bold(),
+                    song.track_number.to_string().fg(NUMBER),
+                    song.title.as_str().fg(TITLE),
+                    song.album.as_str().fg(ALBUM),
+                    song.artist.as_str().fg(ARTIST)
+                ];
             }
         }
 
@@ -218,8 +252,8 @@ pub fn draw(
             "Artist".bold()
         ];
         let table = table(rows, &con).header(header).block(block).spacing(1);
-        table.draw(area[1], buf, ui_index);
-        row_bounds = Some(table.get_row_bounds(ui_index, table.get_row_height(area[1])));
+        table.draw(area[1], buf, queue.index());
+        row_bounds = Some(table.get_row_bounds(queue.index(), table.get_row_height(area[1])));
     };
 
     if log::last_message().is_none() {
@@ -283,7 +317,7 @@ pub fn draw(
                     && ((size.height < 15 && y < size.height.saturating_sub(1))
                         || y < size.height.saturating_sub(3))
                 {
-                    queue.index = Some(index);
+                    queue.range = Some(index..index);
                 }
             }
         }

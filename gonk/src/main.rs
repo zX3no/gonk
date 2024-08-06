@@ -394,6 +394,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         }
                     }
                 }
+                Event::Char('a') if control => {
+                    queue.range = Some(0..songs.len());
+                }
                 Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
                     //Handle ^W as control backspace.
                     if control && c == 'w' {
@@ -420,20 +423,20 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::Char(' ') => toggle_playback(),
                 Event::Char('C') => {
                     clear_except_playing(&mut songs);
-                    queue.index = Some(0);
+                    queue.set_index(0);
                 }
                 Event::Char('c') => {
                     gonk_player::clear(&mut songs);
                 }
                 Event::Char('x') => match mode {
                     Mode::Queue => {
-                        if let Some(i) = queue.index {
+                        if let Some(i) = queue.index() {
                             gonk_player::delete(&mut songs, i);
 
                             //Sync the UI index.
                             let len = songs.len().saturating_sub(1);
                             if i > len {
-                                queue.index = Some(len);
+                                queue.set_index(len);
                             }
                         }
                     }
@@ -516,11 +519,17 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         mode = Mode::Playlist
                     }
                     Mode::Queue => {
-                        if let Some(index) = queue.index {
-                            if let Some(song) = songs.get(index) {
-                                playlist::add(&mut playlist, vec![song.clone()]);
-                                mode = Mode::Playlist;
+                        if let Some(range) = &queue.range {
+                            let mut playlist_songs = Vec::new();
+
+                            for index in range.start..=range.end {
+                                if let Some(song) = songs.get(index) {
+                                    playlist_songs.push(song.clone());
+                                }
                             }
+
+                            playlist::add(&mut playlist, playlist_songs);
+                            mode = Mode::Playlist;
                         }
                     }
                     Mode::Search => {
@@ -542,7 +551,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                             songs.extend(browser::get_selected(&browser, &db));
                         }
                         Mode::Queue => {
-                            if let Some(i) = queue.index {
+                            if let Some(i) = queue.index() {
                                 songs.select(Some(i));
                                 play_song(&songs[i]);
                             }
@@ -589,7 +598,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         //New songs where added.
         if empty && !songs.is_empty() {
-            queue.index = Some(0);
+            queue.set_index(0);
             songs.select(Some(0));
             if let Some(song) = songs.selected() {
                 play_song(song);

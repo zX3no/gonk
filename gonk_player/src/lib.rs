@@ -335,8 +335,15 @@ pub fn spawn_audio_threads(device: Device) {
                 };
 
                 if let Some(p) = &mut leftover_packet {
+                    //Note: this has caused a crash before.
+                    //This may not work as intended.
+                    //Really need to write some unit tests for song playback.
+                    //Stability has taken a huge hit since I stopped using it as my primary music player.
+
                     //Push as many samples as will fit.
-                    i += prod.push_slice(&p.samples()[i..]);
+                    if let Some(samples) = p.samples().get(i..) {
+                        i += prod.push_slice(&samples);
+                    }
 
                     //Did we push all the samples?
                     if i == p.len() {
