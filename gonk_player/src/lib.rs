@@ -343,6 +343,8 @@ pub fn spawn_audio_threads(device: Device) {
                     //Push as many samples as will fit.
                     if let Some(samples) = p.samples().get(i..) {
                         i += prod.push_slice(&samples);
+                    } else {
+                        i = 0;
                     }
 
                     //Did we push all the samples?

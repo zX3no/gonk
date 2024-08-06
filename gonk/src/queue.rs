@@ -51,6 +51,15 @@ mod tests {
 
 pub fn up(queue: &mut Queue, songs: &mut Index<Song>, amount: usize) {
     if let Some(range) = &mut queue.range {
+        if range.start != range.end && range.start == 0 {
+            //If the user selectes every song.
+            //The range.start will be 0 so moving up once will go to the end.
+            //This is not really the desired behaviour.
+            //Just set the index to 0 when finished with selection.
+            *range = 0..0;
+            return;
+        };
+
         let index = range.start;
         let new_index = gonk_core::up(songs.len(), index, amount);
 
@@ -186,24 +195,6 @@ pub fn draw(
             .collect();
 
         'selection: {
-            let Some(user_range) = &queue.range else {
-                break 'selection;
-            };
-
-            for index in user_range.start..=user_range.end {
-                let Some(song) = songs.get(index) else {
-                    continue;
-                };
-
-                rows[index] = row![
-                    text!(),
-                    song.track_number.to_string().fg(Black).bg(NUMBER).dim(),
-                    song.title.as_str().fg(Black).bg(TITLE).dim(),
-                    song.album.as_str().fg(Black).bg(ALBUM).dim(),
-                    song.artist.as_str().fg(Black).bg(ARTIST).dim()
-                ];
-            }
-
             let Some(playing_index) = songs.index() else {
                 break 'selection;
             };
@@ -212,17 +203,11 @@ pub fn draw(
                 break 'selection;
             };
 
-            if playing_index == user_range.start {
-                //Currently playing and currently selected.
-                //Has arrow and inverted colors.
-                rows[playing_index] = row![
-                    ">>".fg(White).dim().bold(),
-                    song.track_number.to_string().bg(NUMBER).fg(Black).dim(),
-                    song.title.as_str().bg(TITLE).fg(Black).dim(),
-                    song.album.as_str().bg(ALBUM).fg(Black).dim(),
-                    song.artist.as_str().bg(ARTIST).fg(Black).dim()
-                ];
-            } else {
+            let Some(user_range) = &queue.range else {
+                break 'selection;
+            };
+
+            if playing_index != user_range.start {
                 //Currently playing song and not selected.
                 //Has arrow and standard colors.
                 rows[playing_index] = row![
@@ -232,6 +217,31 @@ pub fn draw(
                     song.album.as_str().fg(ALBUM),
                     song.artist.as_str().fg(ARTIST)
                 ];
+            }
+
+            for index in user_range.start..=user_range.end {
+                let Some(song) = songs.get(index) else {
+                    continue;
+                };
+                if index == playing_index {
+                    //Currently playing and currently selected.
+                    //Has arrow and inverted colors.
+                    rows[index] = row![
+                        ">>".fg(White).dim().bold(),
+                        song.track_number.to_string().bg(NUMBER).fg(Black).dim(),
+                        song.title.as_str().bg(TITLE).fg(Black).dim(),
+                        song.album.as_str().bg(ALBUM).fg(Black).dim(),
+                        song.artist.as_str().bg(ARTIST).fg(Black).dim()
+                    ];
+                } else {
+                    rows[index] = row![
+                        text!(),
+                        song.track_number.to_string().fg(Black).bg(NUMBER).dim(),
+                        song.title.as_str().fg(Black).bg(TITLE).dim(),
+                        song.album.as_str().fg(Black).bg(ALBUM).dim(),
+                        song.artist.as_str().fg(Black).bg(ARTIST).dim()
+                    ];
+                }
             }
         }
 
