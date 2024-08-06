@@ -31,7 +31,9 @@ const ARTIST: Color = Color::Blue;
 const SEEKER: Color = Color::White;
 
 //TODO: Add scrolling to the help menu.
-static HELP: LazyLock<[Row; 31]> = LazyLock::new(|| {
+//TODO: Improve visability, it's hard to tell which option matches which command.
+//TODO: Do I have a widget for adding lines?
+static HELP: LazyLock<[Row; 33]> = LazyLock::new(|| {
     [
         row!["Move Up".fg(Cyan), "K / UP"],
         row!["Move Down".fg(Cyan), "J / Down"],
@@ -50,14 +52,16 @@ static HELP: LazyLock<[Row; 31]> = LazyLock::new(|| {
         row!["Next".fg(Magenta), "D"],
         row!["Seek -10s".fg(Magenta), "Q"],
         row!["Seek 10s".fg(Magenta), "E"],
+        row!["".underlined(), "".underlined()],
         row!["Queue".fg(Blue), "1"],
         row!["Browser".fg(Blue), "2"],
         row!["Playlists".fg(Blue), "3"],
         row!["Settings".fg(Blue), "4"],
         row!["Search".fg(Blue), "/"],
         row!["Exit Search".fg(Blue), "Escape"],
+        row!["Select all".fg(Cyan), "Control + A"],
         row!["Add song to queue".fg(Cyan), "Enter"],
-        row!["Add song to playlist".fg(Cyan), "Shift + Enter"],
+        row!["Add selection to playlist".fg(Cyan), "Shift + Enter"],
         row!["Move song margin".fg(Green), "F1 / Shift + F1"],
         row!["Move album margin".fg(Green), "F2 / Shift + F2"],
         row!["Move artist margin".fg(Green), "F3 / Shift + F3"],
