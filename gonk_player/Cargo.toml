@@ -27,21 +27,22 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "vorbis",
     "opt-simd",
 ] }
+wasapi = { version = "0.1.0", path = "../../wasapi" }
 
-[target.'cfg(windows)'.dependencies.makepad-windows]
-git = "https://github.com/makepad/makepad"
-version = "0.51.1"
-features = [
-    "Win32_Foundation",
-    "Win32_Graphics_Gdi",
-    "Win32_System_SystemServices",
-    "Win32_Graphics_Direct3D",
-    "Win32_Graphics_Dxgi_Common",
-    "Win32_System_Com_StructuredStorage",
-    "Win32_UI_Shell_PropertiesSystem",
-    "Win32_System_Ole",
-    "Win32_System_Variant",
-    "Foundation_Collections",
-    "Storage_Streams",
-    "implement",
-]
+# [target.'cfg(windows)'.dependencies.makepad-windows]
+# git = "https://github.com/makepad/makepad"
+# version = "0.51.1"
+# features = [
+#     "Win32_Foundation",
+#     "Win32_Graphics_Gdi",
+#     "Win32_System_SystemServices",
+#     "Win32_Graphics_Direct3D",
+#     "Win32_Graphics_Dxgi_Common",
+#     "Win32_System_Com_StructuredStorage",
+#     "Win32_UI_Shell_PropertiesSystem",
+#     "Win32_System_Ole",
+#     "Win32_System_Variant",
+#     "Foundation_Collections",
+#     "Storage_Streams",
+#     "implement",
+# ]

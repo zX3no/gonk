@@ -3,53 +3,6 @@
 use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
-
-// use windows::core::PCSTR;
-// use windows::Win32::Media::Audio::{
-//     eConsole, eRender, IAudioClient, IAudioRenderClient, IMMDevice, IMMDeviceEnumerator,
-//     MMDeviceEnumerator, AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
-//     AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
-//     DEVICE_STATE_ACTIVE, WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
-// };
-// use windows::Win32::{
-//     Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
-//     Foundation::WAIT_OBJECT_0,
-//     Foundation::{BOOL, HANDLE},
-//     Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
-//     System::{
-//         Com::{CoCreateInstance, STGM_READ},
-//         Threading::CreateEventA,
-//         Variant::VT_LPWSTR,
-//     },
-//     System::{
-//         Com::{CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
-//         Threading::WaitForSingleObject,
-//     },
-// };
-
-use makepad_windows::core::PCSTR;
-use makepad_windows::Win32::Media::Audio::{
-    eConsole, eRender, IAudioClient, IAudioRenderClient, IMMDevice, IMMDeviceEnumerator,
-    MMDeviceEnumerator, AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
-    AUDCLNT_STREAMFLAGS_EVENTCALLBACK, AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
-    DEVICE_STATE_ACTIVE, WAVEFORMATEX, WAVEFORMATEXTENSIBLE,
-};
-use makepad_windows::Win32::{
-    Devices::FunctionDiscovery::PKEY_Device_FriendlyName,
-    Foundation::WAIT_OBJECT_0,
-    Foundation::{BOOL, HANDLE},
-    Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE,
-    System::{
-        Com::{CoCreateInstance, STGM_READ},
-        Threading::CreateEventA,
-        Variant::VT_LPWSTR,
-    },
-    System::{
-        Com::{CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
-        Threading::WaitForSingleObject,
-    },
-};
-
 use mini::*;
 use ringbuf::traits::{Consumer, Observer, Producer, Split};
 use ringbuf::StaticRb;
@@ -61,6 +14,7 @@ use std::{
     time::Duration,
 };
 use symphonia::core::audio::SampleBuffer;
+use wasapi::*;
 
 mod decoder;
 
@@ -91,9 +45,8 @@ static mut ENUMERATOR: MaybeUninit<IMMDeviceEnumerator> = MaybeUninit::uninit();
 
 pub unsafe fn init_com() {
     ONCE.call_once(|| {
-        CoInitializeEx(None, COINIT_MULTITHREADED).unwrap();
-        ENUMERATOR =
-            MaybeUninit::new(CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).unwrap());
+        CoInitializeEx(ConcurrencyModel::MultiThreaded).unwrap();
+        ENUMERATOR = MaybeUninit::new(IMMDeviceEnumerator::new().unwrap());
     });
 }
 
@@ -124,16 +77,15 @@ pub fn devices() -> Vec<Device> {
         init_com();
         let collection = ENUMERATOR
             .assume_init_mut()
-            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+            .EnumAudioEndpoints(DataFlow::Render, DeviceState::Active)
             .unwrap();
 
         (0..collection.GetCount().unwrap())
             .map(|i| {
                 let device = collection.Item(i).unwrap();
-                let name = device_name(&device);
                 Device {
+                    name: device.name(),
                     inner: device,
-                    name,
                 }
             })
             .collect()
@@ -146,10 +98,10 @@ pub fn default_device() -> Device {
         init_com();
         let device = ENUMERATOR
             .assume_init_mut()
-            .GetDefaultAudioEndpoint(eRender, eConsole)
+            .GetDefaultAudioEndpoint(DataFlow::Render, Role::Console)
             .unwrap();
         Device {
-            name: device_name(&device),
+            name: device.name(),
             inner: device,
         }
     }
@@ -171,22 +123,6 @@ pub fn default_device() -> Device {
 //     len
 // }
 
-pub unsafe fn device_name(device: &IMMDevice) -> String {
-    let store = device.OpenPropertyStore(STGM_READ).unwrap();
-    let prop = store.GetValue(&PKEY_Device_FriendlyName).unwrap();
-
-    //Maybe keep this, in case I swap to Windows crate...
-    // assert!(prop.as_raw().Anonymous.Anonymous.vt == 31);
-    // let data = prop.as_raw().Anonymous.Anonymous.Anonymous.pwszVal;
-    // let len = wcslen(data);
-    // let slice = std::slice::from_raw_parts(data, len);
-    // String::from_utf16(slice).unwrap()
-
-    assert!(prop.Anonymous.Anonymous.vt == VT_LPWSTR);
-    let data = prop.Anonymous.Anonymous.Anonymous.pwszVal;
-    data.to_string().unwrap()
-}
-
 pub unsafe fn create_wasapi(
     device: &Device,
     sample_rate: Option<u32>,
@@ -194,15 +130,19 @@ pub unsafe fn create_wasapi(
     IAudioClient,
     IAudioRenderClient,
     WAVEFORMATEXTENSIBLE,
-    HANDLE,
+    *mut c_void,
 ) {
-    let audio_client: IAudioClient = device.inner.Activate(CLSCTX_ALL, None).unwrap();
-    let fmt = audio_client.GetMixFormat().unwrap();
-    let mut format = if (*fmt).cbSize == 22 && (*fmt).wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE {
-        (fmt as *const _ as *const WAVEFORMATEXTENSIBLE).read()
-    } else {
-        todo!("Unsupported format?");
-    };
+    let client: IAudioClient = device.inner.Activate(ExecutionContext::All).unwrap();
+    let mut format =
+        (client.GetMixFormat().unwrap() as *const _ as *const WAVEFORMATEXTENSIBLE).read();
+
+    //TODO: How did the old format even work?
+    // let fmt = audio_client.GetMixFormat().unwrap();
+    // let mut format = if (*fmt).cbSize == 22 && (*fmt).wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE {
+    //     (fmt as *const _ as *const WAVEFORMATEXTENSIBLE).read()
+    // } else {
+    //     todo!("Unsupported format?");
+    // };
 
     if format.Format.nChannels < 2 {
         todo!("Support mono devices.");
@@ -215,32 +155,30 @@ pub unsafe fn create_wasapi(
         format.Format.nAvgBytesPerSec = sample_rate * format.Format.nBlockAlign as u32;
     }
 
-    let mut default_period = 0;
-    audio_client
-        .GetDevicePeriod(Some(&mut default_period), None)
-        .unwrap();
+    let (default, _min) = client.GetDevicePeriod().unwrap();
 
-    audio_client
+    client
         .Initialize(
-            AUDCLNT_SHAREMODE_SHARED,
+            ShareMode::Shared,
             AUDCLNT_STREAMFLAGS_EVENTCALLBACK
                 | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
                 | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
-            default_period,
-            default_period,
+            default,
+            default,
             &format as *const _ as *const WAVEFORMATEX,
             None,
         )
         .unwrap();
 
     //This must be set for some reason.
-    let event = CreateEventA(None, BOOL(0), BOOL(0), PCSTR::null()).unwrap();
-    audio_client.SetEventHandle(event).unwrap();
+    let event = CreateEventA(core::ptr::null_mut(), 0, 0, core::ptr::null_mut());
+    assert!(!event.is_null());
+    client.SetEventHandle(event as isize).unwrap();
 
-    let render_client: IAudioRenderClient = audio_client.GetService().unwrap();
-    audio_client.Start().unwrap();
+    let render_client: IAudioRenderClient = client.GetService().unwrap();
+    client.Start().unwrap();
 
-    (audio_client, render_client, format, event)
+    (client, render_client, format, event)
 }
 
 //0.016384MB, no stack overflow here.
