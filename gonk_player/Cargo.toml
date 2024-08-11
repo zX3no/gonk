@@ -28,19 +28,6 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "opt-simd",
 ] }
 
-# windows = { version = "0.58.0", features = [
-#     "Win32_Devices",
-#     "Win32_Devices_FunctionDiscovery",
-#     "Win32_Media_Audio",
-#     "Win32_Media_KernelStreaming",
-#     "Win32_Security",
-#     "Win32_System",
-#     "Win32_System_Com",
-#     "Win32_System_Threading",
-#     "Win32_System_Variant",
-#     "Win32_UI_Shell_PropertiesSystem",
-# ] }
-
 [target.'cfg(windows)'.dependencies.makepad-windows]
 git = "https://github.com/makepad/makepad"
 version = "0.51.1"

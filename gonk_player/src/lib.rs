@@ -197,10 +197,9 @@ pub unsafe fn create_wasapi(
     HANDLE,
 ) {
     let audio_client: IAudioClient = device.inner.Activate(CLSCTX_ALL, None).unwrap();
-    let fmt_ptr = audio_client.GetMixFormat().unwrap();
-    let fmt = *fmt_ptr;
-    let mut format = if fmt.cbSize == 22 && fmt.wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE {
-        (fmt_ptr as *const _ as *const WAVEFORMATEXTENSIBLE).read()
+    let fmt = audio_client.GetMixFormat().unwrap();
+    let mut format = if (*fmt).cbSize == 22 && (*fmt).wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE {
+        (fmt as *const _ as *const WAVEFORMATEXTENSIBLE).read()
     } else {
         todo!("Unsupported format?");
     };
