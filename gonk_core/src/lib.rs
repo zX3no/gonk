@@ -46,6 +46,10 @@ static mut SETTINGS: MaybeUninit<PathBuf> = MaybeUninit::uninit();
 static mut DATABASE: MaybeUninit<PathBuf> = MaybeUninit::uninit();
 static mut ONCE: Once = Once::new();
 
+pub fn user_profile_directory() -> Option<String> {
+    env::var("USERPROFILE").ok()
+}
+
 #[inline(always)]
 fn once() {
     unsafe {
