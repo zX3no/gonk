@@ -57,6 +57,7 @@ pub struct Database {
 impl Database {
     ///Read the database from disk and load it into memory.
     pub fn new() -> Self {
+        mini::profile!();
         let bytes = match fs::read(database_path()) {
             Ok(bytes) => bytes,
             Err(error) => match error.kind() {

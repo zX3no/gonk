@@ -82,6 +82,62 @@ pub enum Mode {
     Search,
 }
 
+fn draw(
+    winter: &mut Winter,
+    mode: &Mode,
+    browser: &mut Browser,
+    settings: &Settings,
+    queue: &mut Queue,
+    playlist: &mut Playlist,
+    search: &mut Search,
+    cursor: &mut Option<(u16, u16)>,
+    songs: &mut Index<Song>,
+    db: &Database,
+    mouse: Option<(u16, u16)>,
+    help: bool,
+    mute: bool,
+) {
+    let viewport = winter.viewport;
+    let buf = winter.buffer();
+    let area = if let Some(msg) = log::last_message() {
+        let length = 3;
+        let fill = viewport.height.saturating_sub(length);
+        let area = layout(viewport, Vertical, &[Length(fill), Length(length)]);
+        lines!(msg).block(block()).draw(area[1], buf);
+        area[0]
+    } else {
+        viewport
+    };
+
+    //Hide the cursor when it's not needed.
+    match mode {
+        Mode::Search | Mode::Playlist => {}
+        _ => *cursor = None,
+    }
+
+    match mode {
+        Mode::Browser => browser::draw(browser, area, buf, mouse),
+        Mode::Settings => settings::draw(settings, area, buf),
+        Mode::Queue => queue::draw(queue, area, buf, mouse, songs, mute),
+        Mode::Playlist => *cursor = playlist::draw(playlist, area, buf, mouse),
+        Mode::Search => *cursor = search::draw(search, area, buf, mouse, db),
+    }
+
+    if help {
+        if let Ok(area) = area.inner(8, 6) {
+            let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
+
+            //TODO: This is hard to read because the gap between command and key is large.
+            let header = header!["Command".bold(), "Key".bold()];
+            let table = table(HELP.clone(), &widths)
+                .header(header)
+                .block(block().title("Help:"));
+            buf.clear(area);
+            table.draw(area, buf, None);
+        }
+    }
+}
+
 //TODO: Why Box<dyn Error>? change this.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     defer_results!();
@@ -151,18 +207,26 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }));
 
+    let po = persist.output_device.clone();
+    let thread = std::thread::spawn(move || {
+        let device_list = devices();
+        let default_device = default_device();
+        let device = device_list
+            .iter()
+            .find(|d| d.name == po)
+            .unwrap_or(&default_device)
+            .clone();
+        spawn_audio_threads(device.clone());
+
+        Settings::new(device_list.clone(), device.name.clone())
+    });
+
     let mut winter = Winter::new();
     let index = (!persist.queue.is_empty()).then_some(persist.index as usize);
-    let device = devices()
-        .into_iter()
-        .find(|d| d.name == persist.output_device)
-        .unwrap_or(default_device());
 
-    spawn_audio_threads(device);
     set_volume(persist.volume);
 
     let mut songs = Index::new(persist.queue.clone(), index);
-
     if let Some(song) = songs.selected() {
         play_song(song);
         pause();
@@ -170,22 +234,25 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     }
 
     let mut db = Database::new();
-    let mut queue = Queue::new(index.unwrap_or(0));
     let mut browser = Browser::new(&db);
+
+    //Everything here initialises quickly.
+    let mut queue = Queue::new(index.unwrap_or(0));
     let mut playlist = Playlist::new()?;
-    let mut settings = Settings::new(&persist.output_device);
     let mut search = Search::new();
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
+    let mut ft = Instant::now();
     let mut dots: usize = 1;
     let mut help = false;
     let mut prev_mode = Mode::Search; //Used for search.
     let mut mute = false;
     let mut old_volume = 0;
     let mut cursor: Option<(u16, u16)> = None;
-    let mut ft = Instant::now();
     let mut shift;
     let mut control;
+
+    let mut settings = thread.join().unwrap();
 
     //If there are songs in the queue and the database isn't scanning, display the queue.
     if !songs.is_empty() && scan_handle.is_none() {
@@ -236,50 +303,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 _ => {}
             }
         };
-    }
-
-    macro_rules! draw {
-        ($mouse:expr) => {{
-            let viewport = winter.viewport;
-            let buf = winter.buffer();
-            let area = if let Some(msg) = log::last_message() {
-                let length = 3;
-                let fill = viewport.height.saturating_sub(length);
-                let area = layout(viewport, Vertical, &[Length(fill), Length(length)]);
-                lines!(msg).block(block()).draw(area[1], buf);
-                area[0]
-            } else {
-                viewport
-            };
-
-            //Hide the cursor when it's not needed.
-            match mode {
-                Mode::Search | Mode::Playlist => {}
-                _ => cursor = None,
-            }
-
-            match mode {
-                Mode::Browser => browser::draw(&mut browser, area, buf, $mouse),
-                Mode::Settings => settings::draw(&settings, area, buf),
-                Mode::Queue => queue::draw(&mut queue, area, buf, $mouse, &mut songs, mute),
-                Mode::Playlist => cursor = playlist::draw(&mut playlist, area, buf, $mouse),
-                Mode::Search => cursor = search::draw(&mut search, area, buf, $mouse, &db),
-            }
-
-            if help {
-                if let Ok(area) = area.inner(8, 6) {
-                    let widths = [Constraint::Percentage(50), Constraint::Percentage(50)];
-
-                    //TODO: This is hard to read because the gap between command and key is large.
-                    let header = header!["Command".bold(), "Key".bold()];
-                    let table = table(HELP.clone(), &widths)
-                        .header(header)
-                        .block(block().title("Help:"));
-                    buf.clear(area);
-                    table.draw(area, buf, None);
-                }
-            }
-        }};
     }
 
     'outer: loop {
@@ -365,7 +388,21 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         let empty = songs.is_empty();
 
         //Draw widgets
-        draw!(None);
+        draw(
+            &mut winter,
+            &mode,
+            &mut browser,
+            &settings,
+            &mut queue,
+            &mut playlist,
+            &mut search,
+            &mut cursor,
+            &mut songs,
+            &db,
+            None,
+            help,
+            mute,
+        );
 
         'events: {
             let Some((event, state)) = winter.poll() else {
@@ -380,7 +417,23 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             //But pressing escape will swap back to the text input.
             //This seems a little unintuitive.
             match event {
-                Event::LeftMouse(x, y) if !help => draw!(Some((x, y))),
+                Event::LeftMouse(x, y) if !help => {
+                    draw(
+                        &mut winter,
+                        &mode,
+                        &mut browser,
+                        &settings,
+                        &mut queue,
+                        &mut playlist,
+                        &mut search,
+                        &mut cursor,
+                        &mut songs,
+                        &db,
+                        Some((x, y)),
+                        help,
+                        mute,
+                    );
+                }
                 Event::ScrollUp => up!(),
                 Event::ScrollDown => down!(),
                 Event::Char('c') if control => break 'outer,

@@ -84,6 +84,7 @@ impl Default for Settings {
 
 impl Settings {
     pub fn new() -> Result<Settings, std::io::Error> {
+        mini::profile!();
         let mut file = File::options()
             .read(true)
             .write(true)

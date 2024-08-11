@@ -73,6 +73,7 @@ unsafe impl Sync for Device {}
 
 ///Get a list of output devices.
 pub fn devices() -> Vec<Device> {
+    profile!();
     unsafe {
         init_com();
         let collection = ENUMERATOR
@@ -94,6 +95,7 @@ pub fn devices() -> Vec<Device> {
 
 ///Get the default output device.
 pub fn default_device() -> Device {
+    profile!();
     unsafe {
         init_com();
         let device = ENUMERATOR
@@ -462,15 +464,12 @@ pub fn play_song(song: &Song) {
 pub fn set_output_device(device: &str) {
     let d = devices();
     unsafe {
-        match d.into_iter().find(|d| d.name == device) {
-            Some(device) => OUTPUT_DEVICE = Some(device),
+        match d.iter().find(|d| d.name == device) {
+            Some(device) => OUTPUT_DEVICE = Some(device.clone()),
             None => panic!(
                 "Could not find {} in {:?}",
                 device,
-                devices()
-                    .into_iter()
-                    .map(|d| d.name)
-                    .collect::<Vec<String>>()
+                d.into_iter().map(|d| d.name).collect::<Vec<String>>()
             ),
         }
     }

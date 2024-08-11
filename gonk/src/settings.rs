@@ -8,14 +8,8 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn new(wanted_device: &str) -> Self {
-        let default = default_device();
-        let devices = devices();
-        let current_device = if devices.iter().any(|device| device.name == wanted_device) {
-            wanted_device.to_string()
-        } else {
-            default.name.to_string()
-        };
+    pub fn new(devices: Vec<Device>, current_device: String) -> Self {
+        mini::profile!();
 
         Self {
             index: if devices.is_empty() { None } else { Some(0) },

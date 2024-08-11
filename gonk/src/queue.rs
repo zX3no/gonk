@@ -277,23 +277,33 @@ pub fn draw(
         let elapsed = gonk_player::elapsed().as_secs_f32();
         let duration = gonk_player::duration().as_secs_f32();
 
-        let seeker = format!(
-            "{:02}:{:02}/{:02}:{:02}",
-            (elapsed / 60.0).floor(),
-            (elapsed % 60.0) as u64,
-            (duration / 60.0).floor(),
-            (duration % 60.0) as u64,
-        );
+        if duration != 0.0 {
+            let seeker = format!(
+                "{:02}:{:02}/{:02}:{:02}",
+                (elapsed / 60.0).floor(),
+                (elapsed % 60.0) as u64,
+                (duration / 60.0).floor(),
+                (duration % 60.0) as u64,
+            );
 
-        let ratio = elapsed.floor() / duration;
-        let ratio = if ratio.is_nan() {
-            0.0
+            let ratio = elapsed.floor() / duration;
+            let ratio = if ratio.is_nan() {
+                0.0
+            } else {
+                ratio.clamp(0.0, 1.0)
+            };
+
+            guage(Some(block()), ratio, seeker.into(), bg(SEEKER), style()).draw(area[2], buf);
         } else {
-            ratio.clamp(0.0, 1.0)
-        };
-
-        let block = block();
-        guage(Some(block), ratio, seeker.into(), bg(SEEKER), style()).draw(area[2], buf);
+            guage(
+                Some(block()),
+                0.0,
+                "00:00/00:00".into(),
+                bg(SEEKER),
+                style(),
+            )
+            .draw(area[2], buf);
+        }
     }
 
     //Don't handle mouse input when the queue is empty.
