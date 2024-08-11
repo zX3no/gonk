@@ -64,7 +64,7 @@ gonk
 | Playlists                   | `3`               |
 | Settings                    | `4`               |
 | Search                      | `/`               |
-| Exit Search                 | `Escape`          |
+| Exit Search                 | `Escape | Tab`    |
 | -                           |                   |
 | Delete song/playlist        | `X`               |
 | Delete without confirmation | `Shift + X`       |

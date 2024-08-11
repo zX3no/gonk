@@ -386,7 +386,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 Event::ScrollDown => down!(),
                 Event::Char('c') if control => break 'outer,
                 Event::Char('?') | Event::Char('/') | Event::Escape if help => help = false,
-                Event::Char('?') => help = true,
+                Event::Char('?') if mode != Mode::Search => help = true,
                 //TODO: Fix search cursor.
                 Event::Char('/') => {
                     if mode != Mode::Search {
@@ -515,7 +515,11 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         playlist.changed = true;
                     }
                 }
-                Event::Escape if mode == Mode::Search => match search.mode {
+                Event::Tab if mode != Mode::Search => {
+                    prev_mode = mode.clone();
+                    mode = Mode::Search;
+                }
+                Event::Escape | Event::Tab if mode == Mode::Search => match search.mode {
                     SearchMode::Search => {
                         search.query = String::new();
                         search.query_changed = true;
