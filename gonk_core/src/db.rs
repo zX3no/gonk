@@ -292,7 +292,7 @@ pub fn reset() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn create(path: impl ToString) -> JoinHandle<ScanResult> {
+pub fn create(path: &str) -> JoinHandle<ScanResult> {
     let path = path.to_string();
     thread::spawn(move || {
         let mut db_path = database_path().to_path_buf();

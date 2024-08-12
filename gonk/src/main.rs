@@ -7,15 +7,13 @@ use queue::Queue;
 use search::{Mode as SearchMode, Search};
 use settings::Settings;
 use std::{
-    error::Error,
     fs,
-    path::Path,
-    sync::LazyLock,
     time::{Duration, Instant},
 };
 use winter::*;
 
 mod browser;
+mod help;
 mod playlist;
 mod queue;
 mod search;
@@ -29,49 +27,6 @@ const TITLE: Color = Color::Cyan;
 const ALBUM: Color = Color::Magenta;
 const ARTIST: Color = Color::Blue;
 const SEEKER: Color = Color::White;
-
-//TODO: Add scrolling to the help menu.
-//TODO: Improve visability, it's hard to tell which option matches which command.
-//TODO: Do I have a widget for adding lines?
-static HELP: LazyLock<[Row; 32]> = LazyLock::new(|| {
-    [
-        row!["Move Up".fg(Cyan), "K / UP"],
-        row!["Move Down".fg(Cyan), "J / Down"],
-        row!["Move Left".fg(Cyan), "H / Left"],
-        row!["Move Right".fg(Cyan), "L / Right"],
-        row![text!("Move Up {}", JUMP_AMOUNT).fg(Cyan), "Shift + K / UP"],
-        row![
-            text!("Move Down {}", JUMP_AMOUNT).fg(Cyan),
-            "Shift + J / Down"
-        ],
-        row!["Volume Up".fg(Green), "W"],
-        row!["Volume Down".fg(Green), "S"],
-        row!["Mute".fg(Green), "Z"],
-        row!["Play/Pause".fg(Magenta), "Space"],
-        row!["Previous".fg(Magenta), "A"],
-        row!["Next".fg(Magenta), "D"],
-        row!["Seek -10s".fg(Magenta), "Q"],
-        row!["Seek 10s".fg(Magenta), "E"],
-        row!["Queue".fg(Blue), "1"],
-        row!["Browser".fg(Blue), "2"],
-        row!["Playlists".fg(Blue), "3"],
-        row!["Settings".fg(Blue), "4"],
-        row!["Search".fg(Blue), "/"],
-        row!["Exit Search".fg(Blue), "Escape | Tab"],
-        row!["Select all".fg(Cyan), "Control + A"],
-        row!["Add song to queue".fg(Cyan), "Enter"],
-        row!["Add selection to playlist".fg(Cyan), "Shift + Enter"],
-        row!["Move song margin".fg(Green), "F1 / Shift + F1"],
-        row!["Move album margin".fg(Green), "F2 / Shift + F2"],
-        row!["Move artist margin".fg(Green), "F3 / Shift + F3"],
-        row!["Update database".fg(Yellow), "U"],
-        row!["Quit player".fg(Yellow), "Ctrl + C"],
-        row!["Clear queue".fg(Red), "C"],
-        row!["Clear except playing".fg(Red), "Shift + C"],
-        row!["Delete song/playlist".fg(Red), "X"],
-        row!["Delete without confirmation".fg(Red), "Shift + X"],
-    ]
-});
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum Mode {
@@ -129,7 +84,7 @@ fn draw(
 
             //TODO: This is hard to read because the gap between command and key is large.
             let header = header!["Command".bold(), "Key".bold()];
-            let table = table(HELP.clone(), &widths)
+            let table = table(help::HELP.clone(), &widths)
                 .header(header)
                 .block(block().title("Help:"));
             buf.clear(area);
@@ -138,10 +93,16 @@ fn draw(
     }
 }
 
-//TODO: Why Box<dyn Error>? change this.
-fn main() -> std::result::Result<(), Box<dyn Error>> {
+fn path(mut path: String) -> Option<std::path::PathBuf> {
+    if path.contains("~") {
+        path = path.replace("~", &user_profile_directory().unwrap());
+    }
+    fs::canonicalize(path).ok()
+}
+
+fn main() {
     defer_results!();
-    let mut persist = gonk_core::settings::Settings::new()?;
+    let mut persist = gonk_core::settings::Settings::new().unwrap();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut scan_timer = Instant::now();
     let mut scan_handle = None;
@@ -150,37 +111,22 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         match args[0].as_str() {
             "add" => {
                 if args.len() == 1 {
-                    return Ok(println!("Usage: gonk add <path>"));
+                    return println!("Usage: gonk add <path>");
                 }
 
-                let mut path = args[1..].join(" ");
-
-                if path.contains("~") {
-                    path = path.replace("~", &user_profile_directory().unwrap());
-                }
-
-                let Ok(path) = fs::canonicalize(path) else {
-                    println!("Invalid path.");
-                    return Ok(());
-                };
-
-                let Some(path) = path.to_str() else {
-                    println!("Invalid path.");
-                    return Ok(());
-                };
-
-                if Path::new(&path).exists() {
-                    persist.music_folder = path.to_string();
-                    scan_handle = Some(db::create(path));
-                    scan_timer = Instant::now();
-                } else {
-                    return Ok(println!("Invalid path."));
+                match path(args[1].clone()) {
+                    Some(path) if path.exists() => {
+                        persist.music_folder = path.to_string_lossy().to_string();
+                        scan_handle = Some(db::create(&persist.music_folder));
+                        scan_timer = Instant::now();
+                    }
+                    _ => return println!("Invalid path."),
                 }
             }
             "reset" => {
                 return match gonk_core::db::reset() {
-                    Ok(_) => Ok(println!("Database reset!")),
-                    Err(e) => Ok(println!("Failed to reset database! {e}")),
+                    Ok(_) => println!("Database reset!"),
+                    Err(e) => println!("Failed to reset database! {e}"),
                 };
             }
             "help" | "--help" => {
@@ -190,9 +136,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 println!("Options");
                 println!("   add   <path>  Add music to the library");
                 println!("   reset         Reset the database");
-                return Ok(());
+                return;
             }
-            _ if !args.is_empty() => return Ok(println!("Invalid command.")),
+            _ if !args.is_empty() => return println!("Invalid command."),
             _ => (),
         }
     }
@@ -238,7 +184,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     //Everything here initialises quickly.
     let mut queue = Queue::new(index.unwrap_or(0));
-    let mut playlist = Playlist::new()?;
+    let mut playlist = Playlist::new().unwrap();
     let mut search = Search::new();
     let mut mode = Mode::Browser;
     let mut last_tick = Instant::now();
@@ -334,7 +280,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
                         let path = gonk_path().join("gonk.log");
                         let errors = errors.join("\n");
-                        fs::write(path, errors)?;
+                        fs::write(path, errors).unwrap();
                     }
                     db::ScanResult::FileInUse => {
                         log!("Could not update database, file in use.")
@@ -356,14 +302,19 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                 } else {
                     dots = 1;
                 }
-                log!("Scanning for files{}", ".".repeat(dots));
+                log!(
+                    "Scanning {} for files{}",
+                    //Remove the UNC \\?\ from the path.
+                    &persist.music_folder.replace("\\\\?\\", ""),
+                    ".".repeat(dots)
+                );
             }
 
             //Update the time elapsed.
             persist.index = songs.index().unwrap_or(0) as u16;
             persist.elapsed = elapsed().as_secs_f32();
             persist.queue = songs.to_vec();
-            persist.save()?;
+            persist.save().unwrap();
 
             //Update the list of output devices
             settings.devices = devices();
@@ -519,7 +470,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
                         if persist.music_folder.is_empty() {
                             gonk_core::log!("Nothing to scan! Add a folder with 'gonk add /path/'");
                         } else {
-                            scan_handle = Some(db::create(persist.music_folder.clone()));
+                            scan_handle = Some(db::create(&persist.music_folder));
                             scan_timer = Instant::now();
                             playlist.lists = Index::from(gonk_core::playlist::playlists());
                         }
@@ -700,11 +651,5 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     persist.queue = songs.to_vec();
     persist.index = songs.index().unwrap_or(0) as u16;
     persist.elapsed = elapsed().as_secs_f32();
-    persist.save()?;
-
-    //TODO: Add this to when dropping Winter.
-
-    reset(&mut winter.stdout);
-
-    Ok(())
+    persist.save().unwrap();
 }
