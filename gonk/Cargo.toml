@@ -18,6 +18,6 @@ strip = ["gonk_player/strip", "mini/strip"]
 rayon = "1.7.0"
 gonk_player = { version = "0.2.0", path = "../gonk_player" }
 gonk_core = { version = "0.2.0", path = "../gonk_core" }
-winter = { version = "0.1.0", git = "https://github.com/zX3no/winter" }
 mini = { git = "https://github.com/zX3no/mini", version = "0.1.0"}
+winter = { version = "0.1.0", git = "https://github.com/zX3no/winter" }
 # winter = { version = "0.1.0", path = "../../winter" }
