@@ -209,10 +209,17 @@ pub fn spawn_audio_threads(device: Device) {
                         // info!("{} paused: {}", new_path.display(), PAUSED);
                         // info!("Gain: {} prod capacity: {}", gain, prod.capacity());
                         // let s = Symphonia::new(&new_path).unwrap();
-                        let Ok(s) = Symphonia::new(&new_path) else {
-                            gonk_core::log!("Failed to play: {}", new_path.to_string_lossy());
-                            NEXT = true;
-                            continue;
+                        let s = match Symphonia::new(&new_path) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                gonk_core::log!(
+                                    "Failed to play: {}, Error: {e}",
+                                    new_path.to_string_lossy()
+                                );
+                                warn!("Failed to play: {}, Error: {e}", new_path.to_string_lossy(),);
+                                NEXT = true;
+                                continue;
+                            }
                         };
 
                         //We don't set the playback state here because it might be delayed.
