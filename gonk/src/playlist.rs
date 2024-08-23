@@ -397,7 +397,7 @@ fn delete_song(playlist: &mut Playlist) {
 
             //If there are no songs left delete the playlist.
             if selected.songs.is_empty() {
-                selected.delete().unwrap();
+                selected.delete();
                 playlist.lists.remove_and_move(i);
                 playlist.mode = Mode::Playlist;
             }
@@ -408,7 +408,7 @@ fn delete_song(playlist: &mut Playlist) {
 
 fn delete_playlist(playlist: &mut Playlist) {
     if let Some(index) = playlist.lists.index() {
-        playlist.lists[index].delete().unwrap();
+        playlist.lists[index].delete();
         playlist.lists.remove_and_move(index);
         playlist.delete = false;
     }

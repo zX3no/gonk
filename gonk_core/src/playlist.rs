@@ -31,10 +31,9 @@ impl Playlist {
     pub fn save(&self) -> std::io::Result<()> {
         fs::write(&self.path, self.serialize())
     }
-    pub fn delete(&self) -> std::io::Result<()> {
-        //TODO: This should have gone into the recycle bin
-        //in case a user(or me) want's to recover it.
-        fs::remove_file(&self.path)
+    //TODO: This is super slow.
+    pub fn delete(&self) {
+        mini::trash(&self.path).unwrap();
     }
 }
 
@@ -112,6 +111,6 @@ mod tests {
         playlist.save().unwrap();
         let playlists = playlists();
         assert!(!playlists.is_empty());
-        playlist.delete().unwrap();
+        playlist.delete();
     }
 }
