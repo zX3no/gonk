@@ -338,7 +338,6 @@ fn main() {
         let input_playlist = playlist.mode == PlaylistMode::Popup && mode == Mode::Playlist;
         let empty = songs.is_empty();
 
-        //Draw widgets
         draw(
             &mut winter,
             &mode,
@@ -363,10 +362,6 @@ fn main() {
             shift = state.shift();
             control = state.control();
 
-            //TODO: There is some weird behaviour with the search.
-            //Pressing 1 while in the song selector will swap to the queue.
-            //But pressing escape will swap back to the text input.
-            //This seems a little unintuitive.
             match event {
                 Event::LeftMouse(x, y) if !help => {
                     draw(
@@ -387,10 +382,12 @@ fn main() {
                 }
                 Event::ScrollUp => up!(),
                 Event::ScrollDown => down!(),
+                Event::Backspace if mode == Mode::Playlist => {
+                    playlist::on_backspace(&mut playlist, control);
+                }
                 Event::Char('c') if control => break 'outer,
                 Event::Char('?') | Event::Char('/') | Event::Escape if help => help = false,
                 Event::Char('?') if mode != Mode::Search => help = true,
-                //TODO: Fix search cursor.
                 Event::Char('/') => {
                     if mode != Mode::Search {
                         prev_mode = mode;
@@ -415,20 +412,26 @@ fn main() {
                 Event::Char('a') if control => {
                     queue.range = Some(0..songs.len());
                 }
+                Event::Backspace if mode == Mode::Search => {
+                    search::on_backspace(&mut search, control, shift);
+                }
+                //Handle ^W as control backspace.
+                Event::Char('w') if control && mode == Mode::Search => {
+                    search::on_backspace(&mut search, control, shift);
+                }
                 Event::Char(c) if search.mode == SearchMode::Search && mode == Mode::Search => {
-                    //Handle ^W as control backspace.
-                    if control && c == 'w' {
-                        search::on_backspace(
-                            &mut search,
-                            control,
-                            shift,
-                            &mut mode,
-                            &mut prev_mode,
-                        );
-                    } else {
-                        search.query.push(c);
-                        search.query_changed = true;
-                    }
+                    search.query.push(c);
+                    search.query_changed = true;
+                }
+                Event::Escape if mode == Mode::Search => {
+                    search.query = String::new();
+                    search.query_changed = true;
+                    search.mode = SearchMode::Search;
+                    mode = prev_mode.clone();
+                    search.results.select(None);
+                }
+                Event::Tab if mode == Mode::Search => {
+                    mode = prev_mode.clone();
                 }
                 Event::Char(c) if input_playlist => {
                     if control && c == 'w' {
@@ -522,87 +525,60 @@ fn main() {
                     prev_mode = mode.clone();
                     mode = Mode::Search;
                 }
-                Event::Escape | Event::Tab if mode == Mode::Search => match search.mode {
-                    SearchMode::Search => {
-                        search.query = String::new();
-                        search.query_changed = true;
-                        mode = prev_mode.clone();
-                    }
-                    SearchMode::Select => {
-                        search.mode = SearchMode::Search;
-                        search.results.select(None);
-                        search.query = String::new();
-                        search.query_changed = true;
-                    }
-                },
-                Event::Enter if shift => match mode {
-                    Mode::Browser => {
-                        playlist::add(&mut playlist, browser::get_selected(&browser, &db));
-                        mode = Mode::Playlist
-                    }
-                    Mode::Queue => {
-                        if let Some(range) = &queue.range {
-                            let mut playlist_songs = Vec::new();
+                Event::Enter if mode == Mode::Browser && shift => {
+                    playlist::add(&mut playlist, browser::get_selected(&browser, &db));
+                    mode = Mode::Playlist
+                }
+                Event::Enter if mode == Mode::Browser => {
+                    songs.extend(browser::get_selected(&browser, &db));
+                }
+                Event::Enter if mode == Mode::Queue && shift => {
+                    if let Some(range) = &queue.range {
+                        let mut playlist_songs = Vec::new();
 
-                            for index in range.start..=range.end {
-                                if let Some(song) = songs.get(index) {
-                                    playlist_songs.push(song.clone());
-                                }
+                        for index in range.start..=range.end {
+                            if let Some(song) = songs.get(index) {
+                                playlist_songs.push(song.clone());
                             }
+                        }
 
-                            playlist::add(&mut playlist, playlist_songs);
-                            mode = Mode::Playlist;
-                        }
-                    }
-                    Mode::Search => {
-                        if let Some(songs) = search::on_enter(&mut search, &db) {
-                            playlist::add(
-                                &mut playlist,
-                                songs.iter().map(|song| song.clone().clone()).collect(),
-                            );
-                            mode = Mode::Playlist;
-                        }
-                    }
-                    //TODO: Add playlist items to another playlist
-                    Mode::Playlist => {}
-                    Mode::Settings => {}
-                },
-                Event::Enter => {
-                    match mode {
-                        Mode::Browser => {
-                            songs.extend(browser::get_selected(&browser, &db));
-                        }
-                        Mode::Queue => {
-                            if let Some(i) = queue.index() {
-                                songs.select(Some(i));
-                                play_song(&songs[i]);
-                            }
-                        }
-                        Mode::Settings => {
-                            if let Some(device) = settings::selected(&settings) {
-                                let device = device.to_string();
-                                set_output_device(&device);
-                                settings.current_device = device.clone();
-                                persist.output_device = device.clone();
-                            }
-                        }
-                        Mode::Playlist => playlist::on_enter(&mut playlist, &mut songs),
-                        Mode::Search => {
-                            if let Some(s) = search::on_enter(&mut search, &db) {
-                                //Swap to the queue so people can see what they added.
-                                mode = Mode::Queue;
-                                songs.extend(s.iter().cloned());
-                            }
-                        }
+                        playlist::add(&mut playlist, playlist_songs);
+                        mode = Mode::Playlist;
                     }
                 }
-                Event::Backspace if mode == Mode::Playlist => {
-                    playlist::on_backspace(&mut playlist, control);
+                Event::Enter if mode == Mode::Queue => {
+                    if let Some(i) = queue.index() {
+                        songs.select(Some(i));
+                        play_song(&songs[i]);
+                    }
                 }
-                Event::Backspace if mode == Mode::Search => {
-                    search::on_backspace(&mut search, control, shift, &mut mode, &mut prev_mode);
+                Event::Enter if mode == Mode::Settings => {
+                    if let Some(device) = settings::selected(&settings) {
+                        let device = device.to_string();
+                        set_output_device(&device);
+                        settings.current_device = device.clone();
+                        persist.output_device = device.clone();
+                    }
                 }
-                Event::Backspace => {}
+                Event::Enter if mode == Mode::Playlist => {
+                    playlist::on_enter(&mut playlist, &mut songs, shift);
+                }
+                Event::Enter if mode == Mode::Search && shift => {
+                    if let Some(songs) = search::on_enter(&mut search, &db) {
+                        playlist::add(
+                            &mut playlist,
+                            songs.iter().map(|song| song.clone().clone()).collect(),
+                        );
+                        mode = Mode::Playlist;
+                    }
+                }
+                Event::Enter if mode == Mode::Search => {
+                    if let Some(s) = search::on_enter(&mut search, &db) {
+                        //Swap to the queue so people can see what they added.
+                        mode = Mode::Queue;
+                        songs.extend(s.iter().cloned());
+                    }
+                }
                 Event::Char('1') => mode = Mode::Queue,
                 Event::Char('2') => mode = Mode::Browser,
                 Event::Char('3') => mode = Mode::Playlist,
@@ -618,7 +594,7 @@ fn main() {
             }
         }
 
-        //New songs where added.
+        //New songs were added.
         if empty && !songs.is_empty() {
             queue.set_index(0);
             songs.select(Some(0));

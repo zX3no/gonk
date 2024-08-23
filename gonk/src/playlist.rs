@@ -108,7 +108,30 @@ pub fn on_backspace(playlist: &mut Playlist, control: bool) {
     }
 }
 
-pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>) {
+pub fn on_enter_shift(playlist: &mut Playlist) {
+    match playlist.mode {
+        Mode::Playlist => {
+            if let Some(selected) = playlist.lists.selected() {
+                add(playlist, selected.songs.clone());
+            }
+        }
+        Mode::Song => {
+            if let Some(selected) = playlist.lists.selected() {
+                if let Some(song) = selected.songs.selected() {
+                    add(playlist, vec![song.clone()]);
+                }
+            }
+        }
+        //Do nothing
+        Mode::Popup => {}
+    }
+}
+
+pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>, shift: bool) {
+    if shift {
+        return on_enter_shift(playlist);
+    }
+
     //No was selected by the user.
     if playlist.delete && !playlist.yes {
         playlist.yes = true;
@@ -160,7 +183,6 @@ pub fn on_enter(playlist: &mut Playlist, songs: &mut Index<Song>) {
     }
 }
 
-//FIXME: There is a bug where clicking hides the add to playlist prompt.
 pub fn draw(
     playlist: &mut Playlist,
     area: winter::Rect,
@@ -179,10 +201,14 @@ pub fn draw(
             y,
             ..Default::default()
         };
-        if rect.intersects(horizontal[1]) {
-            playlist.mode = Mode::Song;
-        } else if rect.intersects(horizontal[0]) {
-            playlist.mode = Mode::Playlist;
+
+        //Don't let the user change modes while adding songs.
+        if playlist.mode != Mode::Popup {
+            if rect.intersects(horizontal[1]) {
+                playlist.mode = Mode::Song;
+            } else if rect.intersects(horizontal[0]) {
+                playlist.mode = Mode::Playlist;
+            }
         }
     }
 
