@@ -12,12 +12,15 @@ default-run = "gonk"
 [features]
 profile = ["gonk_core/profile"]
 simd = ["gonk_core/simd"]
-strip = ["gonk_player/strip", "mini/strip"]
+info = ["gonk_player/info", "mini/info"]
+warn = ["gonk_player/warn", "mini/warn"]
+error = ["gonk_player/error", "mini/error"]
+
 
 [dependencies]
 rayon = "1.7.0"
 gonk_player = { version = "0.2.0", path = "../gonk_player" }
 gonk_core = { version = "0.2.0", path = "../gonk_core" }
-mini = { git = "https://github.com/zX3no/mini", version = "0.1.0"}
+mini = { git = "https://github.com/zX3no/mini", version = "0.1.0" }
 winter = { version = "0.1.0", git = "https://github.com/zX3no/winter" }
 # winter = { version = "0.1.0", path = "../../winter" }

@@ -12,8 +12,10 @@ name = "gonk_player"
 path = "src/lib.rs"
 
 [features]
-profile = ["gonk_core/profile"]
-strip = ["mini/strip"]
+profile = ["gonk_core/profile", "mini/profile"]
+info = ["mini/info"]
+warn = ["mini/warn"]
+error = ["mini/error"]
 
 [dependencies]
 crossbeam-queue = "0.3.1"

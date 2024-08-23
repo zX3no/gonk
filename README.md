@@ -33,7 +33,7 @@ gonk add ~/Music
 ```
 git clone https://github.com/zX3no/gonk
 cd gonk
-cargo install --path gonk --features "strip"
+cargo install --path gonk
 gonk
 ```
 
