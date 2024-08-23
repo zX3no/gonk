@@ -15,7 +15,7 @@ pub struct Playlist {
     pub lists: Index<gonk_core::Playlist>,
     pub song_buffer: Vec<Song>,
     pub search_query: String,
-    pub search_result: String,
+    pub search_result: Box<Line<'static>>,
     pub changed: bool,
     pub delete: bool,
     pub yes: bool,
@@ -29,7 +29,7 @@ impl Playlist {
             song_buffer: Vec::new(),
             changed: false,
             search_query: String::new(),
-            search_result: String::from("Enter a playlist name..."),
+            search_result: Box::new("Enter a playlist name...".into()),
             delete: false,
             yes: true,
         })
@@ -332,24 +332,37 @@ pub fn draw(
             .scroll()
             .draw(v[0], buf);
 
-        //TODO: Underline `new` and `existing` to clarify what is happening.
         if playlist.changed {
             playlist.changed = false;
-            let eq = playlist
-                .lists
-                .iter()
-                .any(|p| p.name() == playlist.search_query);
-            playlist.search_result = if eq {
-                format!("Add to existing playlist: {}", playlist.search_query)
+            let target_playlist = playlist.lists.iter().find_map(|p| {
+                if p.name().to_ascii_lowercase() == playlist.search_query.to_ascii_lowercase() {
+                    Some(p.name())
+                } else {
+                    None
+                }
+            });
+
+            let add_line = if let Some(target_playlist) = target_playlist {
+                lines!(
+                    "Add to ",
+                    "existing".underlined(),
+                    format!(" playlist: {}", target_playlist)
+                )
             } else if playlist.search_query.is_empty() {
-                String::from("Enter a playlist name...")
+                "Enter a playlist name...".into()
             } else {
-                format!("Add to new playlist: {}", playlist.search_query)
-            }
+                lines!(
+                    "Add to ",
+                    "new".underlined(),
+                    format!(" playlist: {}", playlist.search_query)
+                )
+            };
+
+            playlist.search_result = Box::new(add_line);
         }
 
         if let Ok(area) = v[1].inner(1, 0) {
-            lines!(playlist.search_result.as_str()).draw(area, buf);
+            playlist.search_result.draw(area, buf);
         }
 
         //Draw the cursor.

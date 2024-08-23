@@ -253,7 +253,6 @@ pub fn draw(
             Constraint::Percentage(queue.constraint[3]),
         ];
         let block = block().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM);
-        //TODO: Header style.
         let header = header![
             text!(),
             "#".bold(),
