@@ -94,12 +94,16 @@ impl Deserialize for Vec<Song> {
     }
 }
 
+pub const UNKNOWN_TITLE: &str = "Unknown Title";
+pub const UNKNOWN_ALBUM: &str = "Unknown Album";
+pub const UNKNOWN_ARTIST: &str = "Unknown Artist";
+
 impl Song {
     pub fn default() -> Self {
         Self {
-            title: "Unknown Title".to_string(),
-            album: "Unknown Album".to_string(),
-            artist: "Unknown Artist".to_string(),
+            title: UNKNOWN_TITLE.to_string(),
+            album: UNKNOWN_ALBUM.to_string(),
+            artist: UNKNOWN_ARTIST.to_string(),
             disc_number: 1,
             track_number: 1,
             path: String::new(),

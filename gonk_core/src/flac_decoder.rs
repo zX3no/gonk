@@ -1,4 +1,4 @@
-use crate::Song;
+use crate::{db::UNKNOWN_ARTIST, Song};
 use std::{
     collections::HashMap,
     error::Error,
@@ -96,8 +96,9 @@ pub fn read_metadata<P: AsRef<Path>>(path: P) -> Result<Song, Box<dyn Error>> {
     let mut song: Song = Song::default();
     song.path = path.as_ref().to_string_lossy().to_string();
 
+    let mut flag = [0; 1];
+
     loop {
-        let mut flag = [0; 1];
         reader.read_exact(&mut flag)?;
 
         // First bit of the header indicates if this is the last metadata block.
@@ -124,16 +125,14 @@ pub fn read_metadata<P: AsRef<Path>>(path: P) -> Result<Song, Box<dyn Error>> {
                     None => (tag, ""),
                 };
 
-                //This was previously k.to_ascii_uppercase(), might want to add this back.
-                //There might be something stupid like, AlbumArtist etc.
-                match k {
-                    "ALBUMARTIST" | "albumartist" => song.artist = v.to_string(),
-                    "ARTIST" | "artist" if song.artist.is_empty() => song.artist = v.to_string(),
-                    "TITLE" | "title" => song.title = v.to_string(),
-                    "ALBUM" | "album" => song.album = v.to_string(),
-                    "TRACKNUMBER" | "tracknumber" => song.track_number = v.parse().unwrap_or(1),
-                    "DISCNUMBER" | "discnumber" => song.disc_number = v.parse().unwrap_or(1),
-                    "REPLAYGAIN_TRACK_GAIN" | "replaygain_track_gain" => {
+                match k.to_ascii_lowercase().as_str() {
+                    "albumartist" => song.artist = v.to_string(),
+                    "artist" if song.artist == UNKNOWN_ARTIST => song.artist = v.to_string(),
+                    "title" => song.title = v.to_string(),
+                    "album" => song.album = v.to_string(),
+                    "tracknumber" => song.track_number = v.parse().unwrap_or(1),
+                    "discnumber" => song.disc_number = v.parse().unwrap_or(1),
+                    "replaygain_track_gain" => {
                         //Remove the trailing " dB" from "-5.39 dB".
                         if let Some(slice) = v.get(..v.len() - 3) {
                             if let Ok(db) = slice.parse::<f32>() {
