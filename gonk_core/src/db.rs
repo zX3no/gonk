@@ -6,7 +6,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Song {
     pub title: String,
     pub album: String,
@@ -95,6 +95,17 @@ impl Deserialize for Vec<Song> {
 }
 
 impl Song {
+    pub fn default() -> Self {
+        Self {
+            title: "Unknown Title".to_string(),
+            album: "Unknown Album".to_string(),
+            artist: "Unknown Artist".to_string(),
+            disc_number: 1,
+            track_number: 1,
+            path: String::new(),
+            gain: 0.0,
+        }
+    }
     pub fn example() -> Self {
         Self {
             title: "title".to_string(),
@@ -221,58 +232,8 @@ impl TryFrom<&Path> for Song {
                 gain,
             })
         } else {
-            match read_metadata(path) {
-                Ok(metadata) => {
-                    let track_number = metadata
-                        .get("TRACKNUMBER")
-                        .unwrap_or(&String::from("1"))
-                        .parse()
-                        .unwrap_or(1);
-
-                    let disc_number = metadata
-                        .get("DISCNUMBER")
-                        .unwrap_or(&String::from("1"))
-                        .parse()
-                        .unwrap_or(1);
-
-                    let mut gain = 0.0;
-                    if let Some(db) = metadata.get("REPLAYGAIN_TRACK_GAIN") {
-                        let g = db.replace(" dB", "");
-                        if let Ok(db) = g.parse::<f32>() {
-                            gain = 10.0f32.powf(db / 20.0);
-                        }
-                    }
-
-                    let artist = match metadata.get("ALBUMARTIST") {
-                        Some(artist) => artist.as_str(),
-                        None => match metadata.get("ARTIST") {
-                            Some(artist) => artist.as_str(),
-                            None => "Unknown Artist",
-                        },
-                    };
-
-                    let album = match metadata.get("ALBUM") {
-                        Some(album) => album.as_str(),
-                        None => "Unknown Album",
-                    };
-
-                    let title = match metadata.get("TITLE") {
-                        Some(title) => title.as_str(),
-                        None => "Unknown Title",
-                    };
-
-                    Ok(Song {
-                        title: title.to_string(),
-                        album: album.to_string(),
-                        artist: artist.to_string(),
-                        disc_number,
-                        track_number,
-                        path: path.to_str().ok_or("Invalid UTF-8 in path.")?.to_string(),
-                        gain,
-                    })
-                }
-                Err(err) => Err(format!("Error: ({err}) @ {}", path.to_string_lossy())),
-            }
+            read_metadata(path)
+                .map_err(|err| format!("Error: ({err}) @ {}", path.to_string_lossy()))
         }
     }
 }

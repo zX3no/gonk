@@ -1,11 +1,21 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use gonk_core::{read_metadata, Song};
+use gonk_core::{read_metadata, read_metadata_old, Song};
 use winwalk::DirEntry;
 
 fn custom(files: &[DirEntry]) -> Vec<Result<Song, String>> {
     files
         .iter()
         .map(|file| match read_metadata(&file.path) {
+            Ok(song) => Ok(song),
+            Err(err) => Err(format!("Error: ({err}) @ {}", file.path)),
+        })
+        .collect()
+}
+
+fn custom_old(files: &[DirEntry]) -> Vec<Result<Song, String>> {
+    files
+        .iter()
+        .map(|file| match read_metadata_old(&file.path) {
             Ok(metadata) => {
                 let track_number = metadata
                     .get("TRACKNUMBER")
@@ -179,9 +189,15 @@ fn flac(c: &mut Criterion) {
         })
         .collect();
 
-    group.bench_function("custom", |b| {
+    group.bench_function("custom new", |b| {
         b.iter(|| {
             custom(black_box(&paths));
+        });
+    });
+
+    group.bench_function("custom old", |b| {
+        b.iter(|| {
+            custom_old(black_box(&paths));
         });
     });
 
