@@ -334,6 +334,10 @@ pub fn spawn_audio_threads(device: Device) {
                     unreachable!()
                 }
 
+                if PAUSED {
+                    continue;
+                }
+
                 if let Some(device) = OUTPUT_DEVICE.take() {
                     info!("Changing output device to: {}", device.name);
                     //Set the new audio device.
