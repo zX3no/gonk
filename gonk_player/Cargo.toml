@@ -29,4 +29,5 @@ symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features =
     "vorbis",
     "opt-simd",
 ] }
-wasapi = { version = "0.1.0", path = "../../wasapi" }
+wasapi = { git = "https://github.com/zx3no/wasapi", version = "0.1.0" }
+# wasapi = { version = "0.1.0", path = "../../wasapi" }

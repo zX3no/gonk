@@ -700,6 +700,7 @@ dependencies = [
 [[package]]
 name = "wasapi"
 version = "0.1.0"
+source = "git+https://github.com/zx3no/wasapi#5c4acd77899f6b215d11b8729b59746c23fc969c"
 
 [[package]]
 name = "wasm-bindgen"
