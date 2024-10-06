@@ -1,5 +1,5 @@
+#![allow(static_mut_refs)]
 //! TODO: Describe the audio backend
-//!
 use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};

@@ -1,3 +1,4 @@
+#![allow(static_mut_refs)]
 //! The physical database is a file on disk that stores song information.
 //! This information includes the artist, album, title, disc number, track number, path and replay gain.
 //!
