@@ -5,7 +5,7 @@ use decoder::Symphonia;
 use gonk_core::{Index, Song};
 use mini::*;
 use ringbuf::traits::{Consumer, Observer, Producer, Split};
-use ringbuf::StaticRb;
+use ringbuf::HeapRb;
 use std::mem::MaybeUninit;
 use std::{
     path::{Path, PathBuf},
@@ -22,7 +22,8 @@ mod decoder;
 const VOLUME_REDUCTION: f32 = 75.0;
 
 //Foobar uses a buffer size of 1000ms by default.
-const RB_SIZE: usize = 4096;
+pub static mut RB_SIZE: usize = 4096 * 4;
+// const RB_SIZE: usize = 4096 * 4;
 
 const COMMON_SAMPLE_RATES: [u32; 13] = [
     5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
@@ -166,7 +167,8 @@ pub unsafe fn create_wasapi(
 
 pub fn spawn_audio_threads(device: Device) {
     unsafe {
-        let rb = StaticRb::<f32, RB_SIZE>::default();
+        let rb: HeapRb<f32> = HeapRb::new(RB_SIZE);
+        // let rb = StaticRb::<f32, RB_SIZE>::default();
         let (mut prod, mut cons) = rb.split();
 
         thread::spawn(move || {

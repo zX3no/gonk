@@ -134,10 +134,20 @@ fn main() {
                 println!("   gonk [<command> <args>]");
                 println!();
                 println!("Options");
-                println!("   add   <path>  Add music to the library");
+                println!("   add    <path> Add music to the library");
                 println!("   reset         Reset the database");
+                println!("   buffer <size> Set a custom ring buffer size");
                 return;
             }
+            "b" | "buffer" | "--buffer" | "--b" => match args.get(1) {
+                Some(rb_size) => unsafe {
+                    gonk_player::RB_SIZE = rb_size.parse::<usize>().unwrap()
+                },
+                None => {
+                    println!("Please enter a valid ring buffer size `buffer <size>`.");
+                    return;
+                }
+            },
             _ if !args.is_empty() => return println!("Invalid command."),
             _ => (),
         }
