@@ -109,22 +109,6 @@ pub fn default_device() -> Device {
     }
 }
 
-// unsafe fn wcslen(ptr: *mut u16) -> usize {
-//     if ptr.is_null() {
-//         return 0;
-//     }
-
-//     let mut len = 0;
-//     let mut current = ptr;
-
-//     while *current != 0 {
-//         len += 1;
-//         current = current.add(1);
-//     }
-
-//     len
-// }
-
 pub unsafe fn create_wasapi(
     device: &Device,
     sample_rate: Option<u32>,
@@ -137,14 +121,6 @@ pub unsafe fn create_wasapi(
     let client: IAudioClient = device.inner.Activate(ExecutionContext::All).unwrap();
     let mut format =
         (client.GetMixFormat().unwrap() as *const _ as *const WAVEFORMATEXTENSIBLE).read();
-
-    //TODO: How did the old format even work?
-    // let fmt = audio_client.GetMixFormat().unwrap();
-    // let mut format = if (*fmt).cbSize == 22 && (*fmt).wFormatTag as u32 == WAVE_FORMAT_EXTENSIBLE {
-    //     (fmt as *const _ as *const WAVEFORMATEXTENSIBLE).read()
-    // } else {
-    //     todo!("Unsupported format?");
-    // };
 
     if format.Format.nChannels < 2 {
         todo!("Support mono devices.");
@@ -208,7 +184,6 @@ pub fn spawn_audio_threads(device: Device) {
                     Some(Event::Song(new_path, gain)) => {
                         // info!("{} paused: {}", new_path.display(), PAUSED);
                         // info!("Gain: {} prod capacity: {}", gain, prod.capacity());
-                        // let s = Symphonia::new(&new_path).unwrap();
                         let s = match Symphonia::new(&new_path) {
                             Ok(s) => s,
                             Err(e) => {
@@ -242,6 +217,11 @@ pub fn spawn_audio_threads(device: Device) {
                         //Stop the decoder and remove the extra packet.
                         sym = None;
                         leftover_packet = None;
+
+                        //Remove any excess packets from the queue.
+                        //If this isn't done, the user can clear the queue
+                        //and resume and they will hear the remaining few packets.
+                        prod.advance_write_index(prod.occupied_len());
                     }
                     Some(Event::Seek(pos)) => {
                         if let Some(sym) = &mut sym {
