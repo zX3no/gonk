@@ -351,7 +351,7 @@ pub fn spawn_audio_threads(device: Device) {
                     //Make sure there are no old samples before dramatically increasing the volume.
                     //Without this there were some serious jumps in volume when skipping songs.
                     cons.clear();
-                    assert!(cons.is_empty())
+                    debug_assert!(cons.is_empty())
                 }
 
                 //Sample-rate probably changed if this fails.
@@ -359,7 +359,7 @@ pub fn spawn_audio_threads(device: Device) {
                 let buffer_size = audio.GetBufferSize().unwrap();
 
                 let n_frames = buffer_size - 1 - padding;
-                assert!(n_frames < buffer_size - padding);
+                debug_assert!(n_frames < buffer_size - padding);
 
                 let size = (n_frames * block_align) as usize;
 
