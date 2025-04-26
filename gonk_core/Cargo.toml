@@ -8,6 +8,7 @@ profile = ["mini/profile"]
 simd = ["symphonia/opt-simd"]
 
 [dependencies]
+minbin = { git = "https://github.com/zX3no/minbin.git", version = "0.1.0" }
 mini = { git = "https://github.com/zX3no/mini", version = "0.1.0" }
 rayon = "1.7.0"
 symphonia = { git = "https://github.com/pdeljanov/Symphonia", default-features = false, features = [

@@ -1,19 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
 pub fn up(len: usize, index: usize, amt: usize) -> usize {
-    if amt > index {
-        len - (amt - index)
-    } else {
-        index - amt
-    }
+    (index + len - amt % len) % len
 }
 
-pub fn down(len: usize, mut index: usize, amt: usize) -> usize {
-    index += amt;
-    if index > len - 1 {
-        index -= len;
-    }
-    index
+pub fn down(len: usize, index: usize, amt: usize) -> usize {
+    (index + amt) % len
 }
 
 #[derive(Debug, PartialEq)]

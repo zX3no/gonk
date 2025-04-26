@@ -31,9 +31,8 @@ impl Playlist {
     pub fn save(&self) -> std::io::Result<()> {
         fs::write(&self.path, self.serialize())
     }
-    //TODO: This is super slow.
     pub fn delete(&self) {
-        mini::trash(&self.path).unwrap();
+        minbin::trash(&self.path).unwrap();
     }
 }
 
