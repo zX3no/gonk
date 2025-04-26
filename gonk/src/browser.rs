@@ -19,7 +19,6 @@ pub struct Browser {
 
 impl Browser {
     pub fn new(db: &Database) -> Self {
-        mini::profile!();
         let artists = Index::new(db.artists().into_iter().cloned().collect(), Some(0));
         let mut albums: Index<Album> = Index::default();
         let mut songs = Index::default();

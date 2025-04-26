@@ -4,8 +4,10 @@ use crossbeam_queue::SegQueue;
 use decoder::Symphonia;
 use gonk_core::{Index, Song};
 use mini::*;
-use ringbuf::traits::{Consumer, Observer, Producer, Split};
-use ringbuf::HeapRb;
+use ringbuf::{
+    traits::{Consumer, Observer, Producer, Split},
+    HeapRb,
+};
 use std::mem::MaybeUninit;
 use std::{
     path::{Path, PathBuf},
@@ -74,7 +76,6 @@ unsafe impl Sync for Device {}
 
 ///Get a list of output devices.
 pub fn devices() -> Vec<Device> {
-    profile!();
     unsafe {
         init_com();
         let collection = ENUMERATOR
@@ -96,7 +97,6 @@ pub fn devices() -> Vec<Device> {
 
 ///Get the default output device.
 pub fn default_device() -> Device {
-    profile!();
     unsafe {
         init_com();
         let device = ENUMERATOR
@@ -168,7 +168,6 @@ pub unsafe fn create_wasapi(
 pub fn spawn_audio_threads(device: Device) {
     unsafe {
         let rb: HeapRb<f32> = HeapRb::new(RB_SIZE);
-        // let rb = StaticRb::<f32, RB_SIZE>::default();
         let (mut prod, mut cons) = rb.split();
 
         thread::spawn(move || {
@@ -180,8 +179,7 @@ pub fn spawn_audio_threads(device: Device) {
             let mut finished = true;
 
             loop {
-                std::thread::sleep(std::time::Duration::from_millis(8));
-
+                //TODO: This thread spinlocks. The whole player should be re-written honestly.
                 match EVENTS.pop() {
                     Some(Event::Song(new_path, gain)) => {
                         // info!("{} paused: {}", new_path.display(), PAUSED);
@@ -313,7 +311,7 @@ pub fn spawn_audio_threads(device: Device) {
             loop {
                 //Block until the output device is ready for new samples.
                 if WaitForSingleObject(event, u32::MAX) != WAIT_OBJECT_0 {
-                    unreachable!()
+                    unreachable!();
                 }
 
                 if PAUSED {
@@ -373,7 +371,6 @@ pub fn spawn_audio_threads(device: Device) {
                 let volume = VOLUME * gain;
 
                 let mut iter = cons.pop_iter();
-
                 for bytes in output.chunks_mut(std::mem::size_of::<f32>() * channels) {
                     let sample = iter.next().unwrap_or_default();
                     bytes[0..4].copy_from_slice(&(sample * volume).to_le_bytes());

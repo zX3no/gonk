@@ -9,8 +9,6 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(devices: Vec<Device>, current_device: String) -> Self {
-        mini::profile!();
-
         Self {
             index: if devices.is_empty() { None } else { Some(0) },
             devices,
