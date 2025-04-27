@@ -180,6 +180,8 @@ pub fn spawn_audio_threads(device: Device) {
 
             loop {
                 //TODO: This thread spinlocks. The whole player should be re-written honestly.
+                std::thread::sleep(std::time::Duration::from_millis(1));
+
                 match EVENTS.pop() {
                     Some(Event::Song(new_path, gain)) => {
                         // info!("{} paused: {}", new_path.display(), PAUSED);
@@ -302,6 +304,7 @@ pub fn spawn_audio_threads(device: Device) {
         thread::spawn(move || {
             info!("Spawned WASAPI thread!");
             init_com();
+            set_pro_audio_thread();
 
             let (mut audio, mut render, mut format, mut event) = create_wasapi(&device, None);
             let mut block_align = format.Format.nBlockAlign as u32;
