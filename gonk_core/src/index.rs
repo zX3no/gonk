@@ -1,10 +1,16 @@
 use std::ops::{Deref, DerefMut};
 
 pub fn up(len: usize, index: usize, amt: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
     (index + len - amt % len) % len
 }
 
 pub fn down(len: usize, index: usize, amt: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
     (index + amt) % len
 }
 
