@@ -102,7 +102,7 @@ version = "0.4.0"
 dependencies = [
  "minbin",
  "mini",
- "onmi 0.1.0 (git+https://github.com/zfphex/onmi)",
+ "onmi 0.1.0",
  "rayon",
  "winwalk 0.2.2 (git+https://github.com/zfphex/winwalk)",
 ]
@@ -111,6 +111,7 @@ dependencies = [
 name = "mu_gui"
 version = "0.1.0"
 dependencies = [
+ "fontdue",
  "mini",
  "mu_core",
  "neoui",
@@ -210,9 +211,9 @@ checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
 
 [[package]]
 name = "rustc-hash"
-version = "2.1.2"
+version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe"
+checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 
 [[package]]
 name = "rustfft"

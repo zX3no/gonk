@@ -6,30 +6,43 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Menu {
-    File,
-    Edit,
-    View,
-    Playback,
-    Library,
-    Help,
+mod artist;
+mod home;
+mod player_bar;
+mod playlist;
+mod queue;
+mod search;
+mod settings;
+mod sidebar;
+mod theme;
+
+use search::Search;
+use theme::colors;
+
+const PLAYER_H: i32 = player_bar::PLAYER_H;
+const SIDEBAR_W: i32 = sidebar::SIDEBAR_W;
+
+#[derive(PartialEq, Eq, Clone)]
+pub enum Mode {
+    Home,
+    Search,
+    Playlist,
+    PlaylistDetail { name: String },
+    Artist { name: String },
+    Queue,
+    Settings,
 }
 
-const fn dropdown_items(menu: Menu) -> &'static [&'static str] {
-    match menu {
-        Menu::File => &["New Project", "Open File...", "Save"],
-        Menu::Edit => &["Undo", "Redo", "Cut"],
-        Menu::View => &["Toggle Sidebar", "Zoom In"],
-        Menu::Playback => &["Play / Pause", "Stop"],
-        Menu::Library => &["Scan Folders..."],
-        Menu::Help => &["Documentation", "About"],
-    }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum RepeatMode {
+    Off,
+    All,
+    One,
 }
 
 fn path(mut path: String) -> Option<std::path::PathBuf> {
-    if path.contains("~") {
-        path = path.replace("~", &user_profile_directory().unwrap());
+    if path.contains('~') {
+        path = path.replace('~', &user_profile_directory().unwrap());
     }
     fs::canonicalize(path).ok()
 }
@@ -48,6 +61,36 @@ fn play(player: &mut Player, song: &Song, start: bool) {
     }
 }
 
+fn replace_and_play(player: &mut Player, songs: &mut Index<Song>, list: Vec<Song>, index: usize) {
+    if list.is_empty() {
+        return;
+    }
+    let idx = index.min(list.len() - 1);
+    *songs = Index::new(list, Some(idx));
+    if let Some(song) = songs.selected().cloned() {
+        play(player, &song, true);
+    }
+}
+
+fn append(player: &mut Player, songs: &mut Index<Song>, list: Vec<Song>) {
+    if list.is_empty() {
+        return;
+    }
+    let was_empty = songs.is_empty();
+    let start = songs.len();
+    songs.extend(list);
+    if was_empty {
+        songs.select(Some(start));
+        if let Some(song) = songs.selected().cloned() {
+            play(player, &song, true);
+        }
+    }
+}
+
+fn refresh_artists(db: &Database) -> Vec<String> {
+    db.artists().into_iter().cloned().collect()
+}
+
 fn main() {
     mini::defer_results!();
     mini::profile!();
@@ -55,24 +98,28 @@ fn main() {
     let config = config_paths();
     let mut persist = mu_core::settings::Settings::new(&config.settings).unwrap();
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut scan_timer = Instant::now();
     let mut scan_handle = None;
+    let mut scan_timer = Instant::now();
 
     if !args.is_empty() {
         match args[0].as_str() {
             "add" => {
                 if args.len() == 1 {
-                    return println!("Usage: mu add <path>");
+                    println!("Usage: mu_gui add <path>");
+                    return;
                 }
-
                 match path(args[1].clone()) {
-                    Some(path) if path.exists() => {
-                        persist.music_folder = path.to_string_lossy().to_string();
+                    Some(p) if p.exists() => {
+                        persist.music_folder = p.to_string_lossy().to_string();
+                        let _ = persist.save();
                         scan_handle =
                             Some(db::create(&persist.music_folder, config.database.clone()));
                         scan_timer = Instant::now();
                     }
-                    _ => return println!("Invalid path."),
+                    _ => {
+                        println!("Invalid path.");
+                        return;
+                    }
                 }
             }
             "reset" => {
@@ -83,23 +130,22 @@ fn main() {
             }
             "help" | "--help" => {
                 println!("Usage");
-                println!("   mu [<command> <args>]");
+                println!("   mu_gui [<command> <args>]");
                 println!();
                 println!("Options");
                 println!("   add    <path> Add music to the library");
                 println!("   reset         Reset the database");
                 return;
             }
-            _ if !args.is_empty() => return println!("Invalid command."),
-            _ => (),
+            _ => {
+                println!("Invalid command.");
+                return;
+            }
         }
     }
 
-    //Prevents panic messages from being hidden.
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let mut stdout = std::io::stdout();
-        let mut stdin = std::io::stdin();
         orig_hook(panic_info);
         std::process::exit(1);
     }));
@@ -107,308 +153,487 @@ fn main() {
     let index = (!persist.queue.is_empty()).then_some(persist.index as usize);
     let elapsed = persist.elapsed;
     let volume = persist.volume;
-    let queue = persist.queue.clone();
-    let mut songs = Index::new(queue, index);
+    let mut songs = Index::new(persist.queue.clone(), index);
 
     let outputs = OutputDevices::new();
-    let devices = outputs.devices();
+    let mut devices = outputs.devices();
     let device = outputs
         .find(&persist.output_device)
         .unwrap_or(outputs.default_device());
-    let mut player = Player::new(device.clone());
+    let mut current_device = device.name.clone();
+    let mut player = Player::new(device);
 
-    // let mut settings = Settings::new(devices, device.name);
-
-    //Takes ~5ms
     let db_path = config.database.clone();
-    let db = std::thread::spawn(move || Database::new(&db_path));
+    let mut db = std::thread::spawn(move || Database::new(&db_path))
+        .join()
+        .unwrap();
+    let mut artists = refresh_artists(&db);
+    let mut playlists = Index::from(mu_core::playlist::playlists(&config.mu));
 
-    let mut last_tick = Instant::now();
-    let mut ft = Instant::now();
-    let mut dots: usize = 1;
-    let mut help = false;
-    let mut mute = false;
-    let mut old_volume = 0;
-
-    // player.set_volume(volume);
-    // if let Some(song) = songs.selected() {
-    //     play(&mut player, song, false);
-    //     player.seek_to(Duration::from_secs_f32(elapsed));
-    // }
-
-    let mut db = db.join().unwrap();
-
-    let mut ui = ui("mu", 1000, 700);
+    let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 13;
+    ui.clear_color = colors::BG;
 
-    let mut current_menu: Option<(Menu, Rect)> = None;
-    let mut selected_song = 0;
-    let mut volume = 0.5;
-    let mut track_scroll = 0;
-    let mut browser_scroll = 0;
-    let mut seekbar_ratio = 0.0;
+    let icon_font = ui.add_font(theme::load_icon_font());
 
-    let panel_bg = rgb(10, 10, 10);
-    let border_color = rgb(45, 45, 45);
-    let bar_color = rgb(66, 66, 66);
-    let accent_blue = rgb(0, 102, 204);
-    let text_dim = rgb(170, 170, 170);
-    let menu_bg = rgb(25, 25, 25);
-    let menu_hover = rgb(45, 45, 45);
-    let items = [
-        ("File", Menu::File),
-        ("Edit", Menu::Edit),
-        ("View", Menu::View),
-        ("Playback", Menu::Playback),
-        ("Library", Menu::Library),
-        ("Help", Menu::Help),
-    ];
+    player.set_volume(volume);
+    if let Some(song) = songs.selected() {
+        play(&mut player, song, false);
+        if elapsed > 0.0 {
+            player.seek_to(Duration::from_secs_f32(elapsed));
+        }
+    }
 
-    let artists = db.artists();
-
-    let mut selected_artist = &String::new();
-
-    let mut playlist: Index<Song> = Index::new(Vec::new(), None);
+    let mut mode = Mode::Home;
+    let mut prev_mode = Mode::Home;
+    let mut search = Search::new();
+    let mut selected_artist: Option<String> = None;
+    let mut list_selected_path: Option<String> = None;
+    let mut artist_scroll: usize = 0;
+    let mut main_scroll: usize = 0;
+    let mut seek_drag: Option<f32> = None;
+    let mut shuffle = false;
+    let mut repeat = RepeatMode::Off;
+    let mut mute = false;
+    let mut old_volume: u8 = 15;
+    let mut last_tick = Instant::now();
+    let mut dots: usize = 1;
 
     while ui.window.open() {
-        // if player.is_finished() && !songs.is_empty() {
-        //     songs.down();
-        //     if let Some(song) = songs.selected() {
-        //         play(&mut player, &song, true)
-        //     }
-        // }
-        if player.is_finished() && !playlist.is_empty() {
-            playlist.down();
-            if let Some(song) = playlist.selected() {
-                play(&mut player, &song, true)
+        if let Some(handle) = &scan_handle {
+            if handle.is_finished() {
+                let handle = scan_handle.take().unwrap();
+                let result = handle.join().unwrap();
+                db = Database::new(&config.database);
+                artists = refresh_artists(&db);
+                playlists = Index::from(mu_core::playlist::playlists(&config.mu));
+                search.dirty = true;
+
+                if let Some(name) = &selected_artist {
+                    if !artists.iter().any(|a| a == name) {
+                        selected_artist = None;
+                        mode = Mode::Home;
+                    }
+                }
+                if let Mode::Artist { name } = &mode {
+                    if !artists.iter().any(|a| a == name) {
+                        mode = Mode::Home;
+                    }
+                }
+
+                match result {
+                    db::ScanResult::Completed => {
+                        log!(
+                            "Finished scanning in {:.2}s ({} tracks).",
+                            scan_timer.elapsed().as_secs_f32(),
+                            db.len
+                        );
+                    }
+                    db::ScanResult::CompletedWithErrors(errors) => {
+                        log!("Scan finished with {} errors.", errors.len());
+                    }
+                    db::ScanResult::FileInUse => {
+                        log!("Could not update database, file in use.");
+                    }
+                }
+            }
+        }
+
+        if last_tick.elapsed() >= Duration::from_millis(150) {
+            if scan_handle.is_some() {
+                dots = if dots < 3 { dots + 1 } else { 1 };
+                log!(
+                    "Scanning {}{}",
+                    persist.music_folder.replace("\\\\?\\", ""),
+                    ".".repeat(dots)
+                );
+            }
+
+            persist.volume = player.volume();
+            persist.index = songs.index().unwrap_or(0) as u16;
+            persist.elapsed = player.elapsed().as_secs_f32();
+            persist.queue = songs.iter().cloned().collect();
+            let _ = persist.save();
+
+            devices = outputs.devices();
+            last_tick = Instant::now();
+        }
+
+        if player.is_finished() && !songs.is_empty() {
+            match repeat {
+                RepeatMode::One => {
+                    if let Some(song) = songs.selected().cloned() {
+                        play(&mut player, &song, true);
+                    }
+                }
+                RepeatMode::Off | RepeatMode::All => {
+                    songs.down();
+                    if let Some(song) = songs.selected().cloned() {
+                        play(&mut player, &song, true);
+                    }
+                }
+            }
+        }
+
+        {
+            let window = &ui.window;
+            let shift = window.modifiers().shift;
+            let search_focus = search.focused && matches!(mode, Mode::Search);
+
+            if search_focus {
+                for c in window.text_input() {
+                    if !c.is_control() {
+                        search.query.push(*c);
+                        search.dirty = true;
+                    }
+                }
+                search::on_backspace(&mut search, window, shift);
+                if window.pressed(Key::Escape) {
+                    search.focused = false;
+                    search.backspace_held_since = None;
+                    search.backspace_last_tick = None;
+                    if search.query.is_empty() {
+                        mode = prev_mode.clone();
+                    }
+                }
+            } else {
+                search.backspace_held_since = None;
+                search.backspace_last_tick = None;
+
+                if window.pressed(Key::Char('1')) {
+                    mode = Mode::Home;
+                    selected_artist = None;
+                    list_selected_path = None;
+                    main_scroll = 0;
+                }
+                if window.pressed(Key::Char('2')) {
+                    prev_mode = mode.clone();
+                    mode = Mode::Search;
+                    selected_artist = None;
+                    list_selected_path = None;
+                    search.focused = true;
+                    main_scroll = 0;
+                }
+                if window.pressed(Key::Char('3')) {
+                    mode = Mode::Playlist;
+                    selected_artist = None;
+                    list_selected_path = None;
+                    main_scroll = 0;
+                }
+                if window.pressed(Key::Char('4')) {
+                    mode = Mode::Queue;
+                    selected_artist = None;
+                    list_selected_path = None;
+                    main_scroll = 0;
+                }
+                if window.pressed(Key::Char('5')) {
+                    mode = Mode::Settings;
+                    selected_artist = None;
+                    list_selected_path = None;
+                    main_scroll = 0;
+                }
+                if window.pressed(Key::Char('/')) {
+                    prev_mode = mode.clone();
+                    mode = Mode::Search;
+                    selected_artist = None;
+                    list_selected_path = None;
+                    search.focused = true;
+                    main_scroll = 0;
+                }
+
+                if window.pressed(Key::Space) {
+                    player.toggle_playback();
+                }
+                if window.pressed(Key::Char('A')) || window.pressed(Key::Char('a')) {
+                    if !songs.is_empty() {
+                        songs.up();
+                        if let Some(song) = songs.selected().cloned() {
+                            play(&mut player, &song, true);
+                        }
+                    }
+                }
+                if window.pressed(Key::Char('D')) || window.pressed(Key::Char('d')) {
+                    if !songs.is_empty() {
+                        songs.down();
+                        if let Some(song) = songs.selected().cloned() {
+                            play(&mut player, &song, true);
+                        }
+                    }
+                }
+                if window.pressed(Key::Char('Q')) || window.pressed(Key::Char('q')) {
+                    player.seek_backward(10.0);
+                }
+                if window.pressed(Key::Char('E')) || window.pressed(Key::Char('e')) {
+                    player.seek_forward(10.0);
+                }
+                if window.pressed(Key::Char('W')) || window.pressed(Key::Char('w')) {
+                    player.volume_up();
+                    mute = false;
+                }
+                if window.pressed(Key::Char('S')) || window.pressed(Key::Char('s')) {
+                    player.volume_down();
+                }
+                if window.pressed(Key::Char('Z')) || window.pressed(Key::Char('z')) {
+                    if mute {
+                        player.set_volume(old_volume);
+                        mute = false;
+                    } else {
+                        old_volume = player.volume();
+                        player.set_volume(0);
+                        mute = true;
+                    }
+                }
+                if window.pressed(Key::Char('C')) || window.pressed(Key::Char('c')) {
+                    if shift {
+                        if let Some(idx) = songs.index() {
+                            let keep = songs.get(idx).cloned();
+                            songs.clear();
+                            if let Some(song) = keep {
+                                songs.push(song);
+                                songs.select(Some(0));
+                            }
+                        }
+                    } else {
+                        songs.clear();
+                        songs.select(None);
+                        player.stop();
+                    }
+                }
+                if window.pressed(Key::Char('X')) || window.pressed(Key::Char('x')) {
+                    if let Some(idx) = songs.index() {
+                        songs.remove_and_move(idx);
+                        if let Some(song) = songs.selected().cloned() {
+                            play(&mut player, &song, true);
+                        } else {
+                            player.stop();
+                        }
+                    }
+                }
+                if window.pressed(Key::Char('U')) || window.pressed(Key::Char('u')) {
+                    if scan_handle.is_none() && !persist.music_folder.is_empty() {
+                        scan_timer = Instant::now();
+                        dots = 1;
+                        scan_handle = Some(db::create(
+                            &persist.music_folder,
+                            config.database.clone(),
+                        ));
+                        log!("Scanning {}…", persist.music_folder);
+                    } else if persist.music_folder.is_empty() {
+                        log!("No music folder set. Use: mu_gui add <path>");
+                    }
+                }
             }
         }
 
         ui.frame(|ui| {
-            let (top_nav_rect, body) = ui.split_v(30);
-            let (seekbar, body) = ui.split_rect_v(body, 24);
-            let (sidebar_rect, track_rect) = ui.split_rect_h(body, 260);
+            ui.clear_color = colors::BG;
 
-            if let Some((menu, rect)) = current_menu {
-                let item_style = style()
-                    .width(180)
-                    .padlr(12)
-                    .padtb(8)
-                    .bg(rgb(35, 35, 35))
-                    .hover(rgb(60, 60, 60))
-                    .align(Alignment::Left)
-                    .depth(1);
+            let (body, bar_rect) = ui.split_v(Size::FillMinus(PLAYER_H));
+            let (sidebar_rect, main_rect) = ui.split_rect_h(body, SIDEBAR_W);
 
-                ui.flow_skip(style().x(rect.x).y(top_nav_rect.height), Flow::Down, |ui| {
-                    for &item in dropdown_items(menu) {
-                        if ui.item(item, false, item_style).clicked {
-                            println!("{}", item);
-                            current_menu = None;
+            if let Some(action) = sidebar::draw(
+                ui,
+                sidebar_rect,
+                &mode,
+                &artists,
+                selected_artist.as_deref(),
+                &mut artist_scroll,
+                icon_font,
+            ) {
+                match action {
+                    sidebar::Action::Mode(m) => {
+                        mode = m;
+                        selected_artist = None;
+                        list_selected_path = None;
+                        main_scroll = 0;
+                        if matches!(mode, Mode::Search) {
+                            search.focused = true;
                         }
                     }
-                });
-
-                //TODO: This could maybe be part of the response.
-                if ui.lost_focus(rect) {
-                    current_menu = None;
-                }
-            }
-
-            ui.flow_right(bounds(top_nav_rect).bg(menu_bg), |ui| {
-                for (label, menu) in items {
-                    let state = ui.text(
-                        label,
-                        style()
-                            .height(top_nav_rect.height)
-                            .padl(14)
-                            .padr(14)
-                            .bg(menu_bg)
-                            .hover(menu_hover),
-                    );
-
-                    if state.clicked {
-                        if current_menu.is_some_and(|(cm, _)| cm == menu) {
-                            current_menu = None;
-                        } else {
-                            current_menu = Some((menu, state.rect));
+                    sidebar::Action::Artist(name) => {
+                        if artists.iter().any(|a| a == &name) {
+                            selected_artist = Some(name.clone());
+                            mode = Mode::Artist { name };
+                            list_selected_path = None;
+                            main_scroll = 0;
                         }
                     }
                 }
-
-                let bar = style().width(1).height(top_nav_rect.height).bg(bar_color);
-                ui.rect(bar);
-                ui.gap(120);
-                ui.rect(bar);
-                ui.gap(120);
-                ui.rect(bar);
-                ui.gap(120);
-                ui.gap(-214);
-
-                //Volume slider.
-                {
-                    let width = 200;
-                    let height = top_nav_rect.height;
-                    let rect = ui.walk_layout(width, height, 0).size;
-
-                    ui.paint_rect(rect, bg(rgb(25, 25, 25)));
-
-                    if let Some(percent) = ui.drag_percentage_x(rect) {
-                        volume = percent;
-                        //Don't go above 20% volume while testing :).
-                        let volume = (volume * 20.0) as u8;
-                        // eprintln!("Setting volume to {}", volume);
-                        player.set_volume(volume);
-                    }
-
-                    let track_height = 6;
-                    let cy = rect.y + height / 2;
-
-                    ui.paint_triangle(
-                        (rect.x, cy + track_height),
-                        (rect.x + width, cy + track_height),
-                        (rect.x + width, cy.saturating_sub(track_height)),
-                        bg(black()),
-                    );
-
-                    let thumb_w = 12;
-                    let thumb_h = 18;
-                    let available_width = width.saturating_sub(thumb_w);
-                    let thumb_x = rect.x + (volume * available_width as f32).round() as i32;
-                    let thumb_y = rect.y + (height.saturating_sub(thumb_h)) / 2;
-                    let thumb_color = rgb(0, 102, 204);
-
-                    ui.paint_rect(
-                        Rect::new(thumb_x, thumb_y, thumb_w, thumb_h),
-                        bg(thumb_color),
-                    );
-                }
-            });
-
-            //Seekbar
-            {
-                ui.paint_rect(seekbar, bg(menu_bg));
-                let inner = seekbar.inner(4, 6);
-                ui.paint_rect(inner, bg(menu_bg).border(border_color));
-
-                //Update during playback.
-                let duration = player.duration().as_secs_f32();
-                let elapsed = player.elapsed().as_secs_f32();
-                let ratio = (elapsed.floor() / duration).clamp(0.0, 1.0);
-                //TODO: This causes flicker since the player doesn't seek instantly :(
-                seekbar_ratio = if ratio.is_nan() { 0.0 } else { ratio };
-
-                //Only seek on release
-                if ui.clicked(seekbar) {
-                    if let Some((x, _)) = ui.window.mouse_pos() {
-                        let x = (x as i32).saturating_sub(inner.x);
-                        let ratio = (x as f32 / inner.width as f32).clamp(0.0, 1.0);
-                        let pos = duration * ratio;
-                        player.seek_to(Duration::from_secs_f32(pos));
-                    }
-                }
-
-                //Update the scrollbar visually but don't update the player.
-                if let Some(ratio) = ui.drag_percentage_x(inner) {
-                    seekbar_ratio = ratio;
-                }
-
-                let x = inner.width as f32 * seekbar_ratio;
-                let (w, h) = (11, 4);
-                ui.paint_rect(
-                    Rect::new(
-                        x as i32,
-                        seekbar.y + h / 2,
-                        w,
-                        seekbar.height.saturating_sub(h),
-                    ),
-                    bg(accent_blue),
-                );
             }
 
-            let row_style = style()
-                .pad(8)
-                .padl(12)
-                .hover(rgb(35, 35, 35))
-                .fill_width()
-                .hover_border(rgb(90, 90, 90))
-                .selected(rgb(82, 82, 82))
-                .padl(12)
-                .align(Alignment::Left)
-                .selected_border(rgb(170, 170, 170));
+            ui.paint_rect(main_rect, style().bg(colors::BG));
+            let playing_path = songs.selected().map(|s| s.path.clone());
 
-            ui.scroll_view(
-                bounds(sidebar_rect).bg(panel_bg),
-                &mut browser_scroll,
-                |ui| {
-                    ui.text("All Music", style().fg(text_dim).pad(6));
-
-                    for artist in &artists {
-                        if ui.item(*artist, false, row_style).clicked {
-                            selected_artist = artist;
-                            playlist.clear();
-
-                            let albums = db.albums_by_artist(artist);
-
-                            for album in albums {
-                                playlist.extend(album.songs.clone());
+            match &mode.clone() {
+                Mode::Home => {
+                    let _ = home::draw(
+                        ui,
+                        main_rect,
+                        &artists,
+                        songs.selected().map(|s| s.title.as_str()),
+                        &mut main_scroll,
+                    );
+                }
+                Mode::Search => {
+                    if let Some(action) =
+                        search::draw(ui, main_rect, &mut search, &db, &artists, &mut main_scroll)
+                    {
+                        match action {
+                            search::Action::OpenArtist(name) => {
+                                search.focused = false;
+                                selected_artist = Some(name.clone());
+                                mode = Mode::Artist { name };
+                                list_selected_path = None;
+                                main_scroll = 0;
                             }
-
-                            if !playlist.is_empty() {
-                                playlist.select(Some(1));
+                            search::Action::Play(song) => {
+                                search.focused = false;
+                                replace_and_play(&mut player, &mut songs, vec![song], 0);
+                            }
+                            search::Action::Append(song) => {
+                                search.focused = false;
+                                append(&mut player, &mut songs, vec![song]);
                             }
                         }
                     }
-
-                    ui.paint_rect(
-                        sidebar_rect,
-                        style().border(border_color).border_side(RIGHT),
-                    );
-                },
-            );
-
-            //This is kinda cursed.
-            let (track_rect, scrollbar) = ui.split_rect_h(track_rect, Size::FillMinus(20));
-
-            let state = ui.scroll_view(track_rect, &mut track_scroll, |ui| {
-                ui.text(
-                    selected_artist,
-                    style()
-                        .fg(accent_blue)
-                        .font_size(14)
-                        .padl(8)
-                        .padb(4)
-                        .height(24),
-                );
-
-                for (idx, track) in playlist.iter().enumerate() {
-                    let label = format!("{}. {}", track.track_number, track.title);
-                    if ui.item(label, idx == selected_song, row_style).clicked {
-                        selected_song = idx;
-                        play(&mut player, track, true);
-                        // player.play_song(track.path, track.gain, true);
+                }
+                Mode::Playlist => {
+                    if let Some(action) =
+                        playlist::draw_list(ui, main_rect, &playlists, &mut main_scroll)
+                    {
+                        if let playlist::Action::OpenDetail(name) = action {
+                            mode = Mode::PlaylistDetail { name };
+                            list_selected_path = None;
+                            main_scroll = 0;
+                        }
                     }
                 }
-            });
-
-            {
-                let s = scrollbar.inner(4, 0);
-                let (y, h) = (s.y as f32, s.height as f32);
-                let thumb_h = 80.0;
-                // Calculate the exact space the bar can move within.
-                let available_height = (h - thumb_h).max(0.0);
-                let mut ratio = (track_scroll as f32 / state.max_scroll as f32).clamp(0.0, 1.0);
-
-                if ui.dragged(scrollbar) {
-                    // Offset the mouse position by half the bar height so the drag centers on the thumb.
-                    let mousey = ui.mouse_position().y as f32 - y - (thumb_h / 2.0);
-                    ratio = (mousey / available_height).clamp(0.0, 1.0);
-                    track_scroll = (ratio * state.max_scroll as f32).round() as usize;
+                Mode::PlaylistDetail { name } => {
+                    if let Some(action) = playlist::draw_detail(
+                        ui,
+                        main_rect,
+                        name,
+                        &playlists,
+                        playing_path.as_deref(),
+                        &mut list_selected_path,
+                        &mut main_scroll,
+                    ) {
+                        match action {
+                            playlist::Action::Back => {
+                                mode = Mode::Playlist;
+                                list_selected_path = None;
+                                main_scroll = 0;
+                            }
+                            playlist::Action::Play { songs: list, index } => {
+                                replace_and_play(&mut player, &mut songs, list, index);
+                            }
+                            playlist::Action::Append(song) => {
+                                append(&mut player, &mut songs, vec![song]);
+                            }
+                            playlist::Action::OpenDetail(_) => {}
+                        }
+                    }
                 }
-
-                let y = s.y + (ratio * available_height).round() as i32;
-                let thumb = Rect::new(s.x, y, s.width, thumb_h as i32);
-                ui.paint_rect(thumb, bg(rgb(80, 80, 80)));
+                Mode::Artist { name } => {
+                    if let Some(action) = artist::draw(
+                        ui,
+                        main_rect,
+                        &db,
+                        &artists,
+                        name,
+                        playing_path.as_deref(),
+                        &mut list_selected_path,
+                        &mut main_scroll,
+                    ) {
+                        match action {
+                            artist::Action::MissingArtist => {
+                                selected_artist = None;
+                                list_selected_path = None;
+                                mode = Mode::Home;
+                                log!("Artist not found: {name}");
+                            }
+                            artist::Action::PlayAlbum { songs: list, index } => {
+                                replace_and_play(&mut player, &mut songs, list, index);
+                            }
+                            artist::Action::Append(song) => {
+                                append(&mut player, &mut songs, vec![song]);
+                            }
+                        }
+                    }
+                }
+                Mode::Queue => {
+                    if let Some(queue::Action::PlayIndex(i)) =
+                        queue::draw(ui, main_rect, &songs, &mut list_selected_path, &mut main_scroll)
+                    {
+                        songs.select(Some(i));
+                        if let Some(song) = songs.selected().cloned() {
+                            play(&mut player, &song, true);
+                        }
+                    }
+                }
+                Mode::Settings => {
+                    if let Some(settings::Action::SelectDevice(i)) = settings::draw(
+                        ui,
+                        main_rect,
+                        &devices,
+                        &current_device,
+                        &persist.music_folder,
+                        &mut main_scroll,
+                    ) {
+                        if let Some(dev) = devices.get(i).cloned() {
+                            player.set_output_device(dev.clone());
+                            persist.output_device = dev.name.clone();
+                            current_device = dev.name;
+                        }
+                    }
+                }
             }
+
+            if let Some(action) = player_bar::draw(
+                ui,
+                bar_rect,
+                &mut player,
+                &mut songs,
+                &mut seek_drag,
+                &mut shuffle,
+                &mut repeat,
+                &mut mute,
+                icon_font,
+            ) {
+                match action {
+                    player_bar::Action::OpenQueue => {
+                        mode = Mode::Queue;
+                        selected_artist = None;
+                        list_selected_path = None;
+                        main_scroll = 0;
+                    }
+                    player_bar::Action::TogglePlay => player.toggle_playback(),
+                    player_bar::Action::Prev => {
+                        if !songs.is_empty() {
+                            songs.up();
+                            if let Some(song) = songs.selected().cloned() {
+                                play(&mut player, &song, true);
+                            }
+                        }
+                    }
+                    player_bar::Action::Next => {
+                        if !songs.is_empty() {
+                            songs.down();
+                            if let Some(song) = songs.selected().cloned() {
+                                play(&mut player, &song, true);
+                            }
+                        }
+                    }
+                    player_bar::Action::ToggleShuffle | player_bar::Action::CycleRepeat => {}
+                }
+            }
+
         });
     }
+
+    persist.volume = player.volume();
+    persist.index = songs.index().unwrap_or(0) as u16;
+    persist.elapsed = player.elapsed().as_secs_f32();
+    persist.queue = songs.iter().cloned().collect();
+    let _ = persist.save();
 }

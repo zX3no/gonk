@@ -15,6 +15,7 @@ pub struct Song {
     pub track_number: u8,
     pub path: String,
     pub gain: f32,
+    pub year: u16,
 }
 
 impl Serialize for Song {
@@ -30,7 +31,7 @@ impl Serialize for Song {
 
         let result = writeln!(
             &mut buffer,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             escape(&self.title),
             escape(&self.album),
             escape(&self.artist),
@@ -38,6 +39,7 @@ impl Serialize for Song {
             self.track_number,
             escape(&self.path),
             gain,
+            self.year,
         );
 
         match result {
@@ -72,6 +74,10 @@ impl Deserialize for Song {
             track_number: parts.next().ok_or("Missing track_number")?.parse::<u8>()?,
             path: parts.next().ok_or("Missing path")?.to_string(),
             gain: parts.next().ok_or("Missing gain")?.parse::<f32>()?,
+            year: parts
+                .next()
+                .and_then(|y| y.parse::<u16>().ok())
+                .unwrap_or(0),
         })
     }
 }
@@ -104,6 +110,7 @@ impl Song {
             track_number: 1,
             path: String::new(),
             gain: 0.0,
+            year: 0,
         }
     }
     pub fn example() -> Self {
@@ -115,6 +122,7 @@ impl Song {
             track_number: 1,
             path: "path".to_string(),
             gain: 1.0,
+            year: 0,
         }
     }
 }
@@ -123,6 +131,16 @@ impl Song {
 pub struct Album {
     pub title: String,
     pub songs: Vec<Song>,
+}
+
+impl Album {
+    pub fn year(&self) -> u16 {
+        self.songs
+            .iter()
+            .map(|s| s.year)
+            .find(|&y| y != 0)
+            .unwrap_or(0)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -146,6 +164,7 @@ impl TryFrom<&Path> for Song {
             track_number: osong.track_number,
             path: osong.path,
             gain: osong.gain,
+            year: osong.year,
         })
     }
 }
