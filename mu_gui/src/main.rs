@@ -170,7 +170,7 @@ fn main() {
 
     let mut playlist: Index<Song> = Index::new(Vec::new(), None);
 
-    loop {
+    while ui.window.open() {
         // if player.is_finished() && !songs.is_empty() {
         //     songs.down();
         //     if let Some(song) = songs.selected() {
@@ -273,7 +273,7 @@ fn main() {
                     let thumb_w = 12;
                     let thumb_h = 18;
                     let available_width = width.saturating_sub(thumb_w);
-                    let thumb_x = rect.x + (volume * available_width as f32).round() as usize;
+                    let thumb_x = rect.x + (volume * available_width as f32).round() as i32;
                     let thumb_y = rect.y + (height.saturating_sub(thumb_h)) / 2;
                     let thumb_color = rgb(0, 102, 204);
 
@@ -300,7 +300,7 @@ fn main() {
                 //Only seek on release
                 if ui.clicked(seekbar) {
                     if let Some((x, _)) = ui.window.mouse_pos() {
-                        let x = (x as usize).saturating_sub(inner.x);
+                        let x = (x as i32).saturating_sub(inner.x);
                         let ratio = (x as f32 / inner.width as f32).clamp(0.0, 1.0);
                         let pos = duration * ratio;
                         player.seek_to(Duration::from_secs_f32(pos));
@@ -315,7 +315,12 @@ fn main() {
                 let x = inner.width as f32 * seekbar_ratio;
                 let (w, h) = (11, 4);
                 ui.paint_rect(
-                    Rect::new(x as usize, seekbar.y + h / 2, w, seekbar.height.saturating_sub(h)),
+                    Rect::new(
+                        x as i32,
+                        seekbar.y + h / 2,
+                        w,
+                        seekbar.height.saturating_sub(h),
+                    ),
                     bg(accent_blue),
                 );
             }
@@ -400,11 +405,10 @@ fn main() {
                     track_scroll = (ratio * state.max_scroll as f32).round() as usize;
                 }
 
-                let y = s.y + (ratio * available_height).round() as usize;
-                let thumb = Rect::new(s.x, y, s.width, thumb_h as usize);
+                let y = s.y + (ratio * available_height).round() as i32;
+                let thumb = Rect::new(s.x, y, s.width, thumb_h as i32);
                 ui.paint_rect(thumb, bg(rgb(80, 80, 80)));
             }
         });
-
     }
 }
