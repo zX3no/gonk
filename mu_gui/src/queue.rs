@@ -24,7 +24,7 @@ pub fn draw(
     let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
 
-    ui.scroll_view(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
         ui.text(
             "Queue",
             style()

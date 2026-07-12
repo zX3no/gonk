@@ -7,6 +7,8 @@ use neoui::*;
 const MENU_W: i32 = 220;
 const ROW_H: i32 = 32;
 const PAD: i32 = 4;
+/// Above normal content so hover/input under the menu is occluded.
+const DEPTH: usize = 4;
 
 #[derive(Clone)]
 pub enum MenuCommand {
@@ -92,6 +94,37 @@ impl ContextMenu {
             e.separator_before = true;
         }
     }
+
+    fn content_height(&self) -> i32 {
+        let mut content_h = PAD * 2;
+        for (i, e) in self.entries.iter().enumerate() {
+            if e.separator_before && i > 0 {
+                content_h += 9;
+            }
+            content_h += ROW_H;
+        }
+        content_h
+    }
+
+    /// On-screen panel rect after clamping to the window.
+    fn panel_rect(&self, win_w: i32, win_h: i32) -> Rect {
+        let content_h = self.content_height();
+        let x = self.x.clamp(8, (win_w - MENU_W - 8).max(8));
+        let y = self.y.clamp(8, (win_h - content_h - 8).max(8));
+        Rect::new(x, y, MENU_W, content_h)
+    }
+}
+
+/// Register the open menu as the top hover target so widgets drawn later at lower
+/// depth do not light up under the panel. Call once at the start of the frame,
+/// before content that uses `.hover()` / `hovered_depth`.
+pub fn claim_hover(ui: &mut FrameContext<'_, '_>, menu: &ContextMenu) {
+    if !menu.open {
+        return;
+    }
+    let (win_w, win_h) = ui.window.content_size();
+    let panel = menu.panel_rect(win_w as i32, win_h as i32);
+    let _ = ui.hovered_depth(panel, DEPTH);
 }
 
 /// Draw the menu on top of the UI. Returns a chosen command (and closes the menu).
@@ -104,18 +137,11 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
     let win_w = win_w as i32;
     let win_h = win_h as i32;
 
-    let mut content_h = PAD * 2;
-    for (i, e) in menu.entries.iter().enumerate() {
-        if e.separator_before && i > 0 {
-            content_h += 9;
-        }
-        content_h += ROW_H;
-    }
-
-    let x = menu.x.clamp(8, (win_w - MENU_W - 8).max(8));
-    let y = menu.y.clamp(8, (win_h - content_h - 8).max(8));
-    let panel = Rect::new(x, y, MENU_W, content_h);
-    let depth = 4;
+    let panel = menu.panel_rect(win_w, win_h);
+    let x = panel.x;
+    let y = panel.y;
+    // Re-claim in case anything else raised hover depth this frame.
+    let _ = ui.hovered_depth(panel, DEPTH);
 
     ui.paint_rect(
         panel,
@@ -123,7 +149,7 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
             .radius(8)
-            .depth(depth),
+            .depth(DEPTH),
     );
 
     let mut cy = y + PAD;
@@ -133,15 +159,16 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
         if entry.separator_before && i > 0 {
             ui.paint_rect(
                 Rect::new(x + 10, cy + 3, MENU_W - 20, 1),
-                style().bg(colors::LINE).depth(depth),
+                style().bg(colors::LINE).depth(DEPTH),
             );
             cy += 9;
         }
 
         let row = Rect::new(x + PAD, cy, MENU_W - PAD * 2, ROW_H - 2);
-        let hovered = ui.hovered(row);
+        // Same depth as the panel claim — equal depth still counts as hovered.
+        let hovered = ui.hovered_depth(row, DEPTH);
         if hovered {
-            ui.paint_rect(row, style().bg(colors::HOVER).radius(5).depth(depth));
+            ui.paint_rect(row, style().bg(colors::HOVER).radius(5).depth(DEPTH));
         }
 
         ui.paint_text(
@@ -155,10 +182,10 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
             13,
             Alignment::Left,
             Padding::default(),
-            depth,
+            DEPTH,
         );
 
-        if ui.clicked(row) {
+        if hovered && ui.clicked(row) {
             chosen = Some(entry.command.clone());
         }
         cy += ROW_H;

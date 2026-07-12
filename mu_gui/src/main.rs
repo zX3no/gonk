@@ -915,6 +915,9 @@ fn main() {
             let palette_open = palette.open;
             let block_nav = palette_open || context_menu.is_open();
 
+            // Occlude hover under the open menu before content paints at depth 0.
+            context_menu::claim_hover(ui, &context_menu);
+
             let (body, bar_rect) = ui.split_v(Size::FillMinus(PLAYER_H));
             let (sidebar_rect, main_rect) = ui.split_rect_h(body, SIDEBAR_W);
 

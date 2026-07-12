@@ -35,7 +35,7 @@ pub fn draw_list(
         .collect();
     let mut action = None;
 
-    ui.scroll_view(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
         ui.text(
             "Playlists",
             style()
@@ -138,7 +138,7 @@ pub fn draw_detail(
     let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
 
-    ui.scroll_view(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
         if ui
             .item(
                 "← Back",

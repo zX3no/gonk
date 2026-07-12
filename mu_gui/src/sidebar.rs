@@ -165,7 +165,7 @@ pub fn draw(
     let selected = selected_artist.map(|s| s.to_string());
     let mut artist_click = None;
 
-    ui.scroll_view(bounds(list_rect).bg(colors::PANEL), artist_scroll, |ui| {
+    ui.scroll(bounds(list_rect).bg(colors::PANEL), artist_scroll, |ui| {
         let mut last_letter: Option<char> = None;
         for name in artists {
             let letter = name

@@ -93,7 +93,7 @@ pub fn draw(
         style().bg(colors::LINE),
     );
 
-    ui.scroll_view(bounds(list_rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(bounds(list_rect).bg(colors::BG), scroll, |ui| {
         ui.gap(16);
 
         for (i, (album_title, year, songs)) in album_data.iter().enumerate() {

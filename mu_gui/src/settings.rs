@@ -19,7 +19,7 @@ pub fn draw(
     let folder = music_folder.to_string();
     let mut action = None;
 
-    ui.scroll_view(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
         ui.text(
             "Settings",
             style()
