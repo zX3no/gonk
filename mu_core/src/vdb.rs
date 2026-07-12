@@ -23,7 +23,7 @@ pub enum Item {
 }
 
 fn normalize_for_search(s: &str) -> String {
-      s.nfd()
+    s.nfd()
         .filter(|c| !is_combining_mark(*c))
         .flat_map(char::to_lowercase)
         .collect()
@@ -38,13 +38,11 @@ fn score_match(query: &str, text: &str) -> f64 {
         return 1.0;
     }
 
-    // Whole-string prefix: "neo" → "neo wax bloom"
     if text.starts_with(query) {
         let coverage = query.len() as f64 / text.len() as f64;
         return 0.95 + 0.05 * coverage;
     }
 
-    // Word-level exact / prefix, and best fuzzy among words + full string.
     let mut best_fuzzy = strsim::jaro_winkler(query, &text);
     for word in text
         .split(|c: char| !c.is_alphanumeric())
@@ -60,7 +58,6 @@ fn score_match(query: &str, text: &str) -> f64 {
         best_fuzzy = best_fuzzy.max(strsim::jaro_winkler(query, word));
     }
 
-    // Substring somewhere in the middle.
     if text.contains(query) {
         return 0.88;
     }

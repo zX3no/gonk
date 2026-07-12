@@ -60,16 +60,16 @@ pub fn draw(
                 None
             },
         ),
-        (Mode::Search, icons::SEARCH, "Search", None),
         (Mode::Playlist, icons::PLAYLISTS, "Playlists", None),
+        (Mode::Settings, icons::SETTINGS, "Settings", None),
     ];
 
     for (item, icon, label, badge) in nav_items {
         let active = matches!(
             (mode, &item),
             (Mode::Queue, Mode::Queue)
-                | (Mode::Search, Mode::Search)
                 | (Mode::Playlist | Mode::PlaylistDetail { .. }, Mode::Playlist)
+                | (Mode::Settings, Mode::Settings)
         );
 
         let r = Rect::new(nav_rect.x + pad_x, y, nav_rect.width - pad_x * 2, row_h);

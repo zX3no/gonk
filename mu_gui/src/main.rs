@@ -22,7 +22,6 @@ mod toast;
 
 use command_palette::CommandPalette;
 use context_menu::{ContextMenu, MenuCommand};
-use search::Search;
 use selection::PathSelection;
 use theme::colors;
 use toast::Toast;
@@ -33,7 +32,6 @@ const SIDEBAR_W: i32 = sidebar::SIDEBAR_W;
 #[derive(PartialEq, Eq, Clone)]
 pub enum Mode {
     Queue,
-    Search,
     Playlist,
     PlaylistDetail { name: String },
     Artist { name: String },
@@ -170,7 +168,7 @@ fn origin_from_mode(mode: &Mode) -> PlaybackOrigin {
         Mode::Queue => PlaybackOrigin::Queue,
         Mode::Artist { name } => PlaybackOrigin::Artist(name.clone()),
         Mode::PlaylistDetail { name } => PlaybackOrigin::Playlist(name.clone()),
-        Mode::Playlist | Mode::Search | Mode::Settings => PlaybackOrigin::None,
+        Mode::Playlist | Mode::Settings => PlaybackOrigin::None,
     }
 }
 
@@ -529,8 +527,6 @@ fn main() {
     }
 
     let mut mode = Mode::Queue;
-    let mut prev_mode = Mode::Queue;
-    let mut search = Search::new();
     let mut palette = CommandPalette::new();
     let mut context_menu = ContextMenu::new();
     let mut toast: Option<Toast> = None;
@@ -558,7 +554,6 @@ fn main() {
                 db = Database::new(&config.database);
                 artists = refresh_artists(&db);
                 playlists = Index::from(mu_core::playlist::playlists(&config.mu));
-                search.dirty = true;
 
                 if let Some(name) = &selected_artist {
                     if !artists.iter().any(|a| a == name) {
@@ -667,14 +662,11 @@ fn main() {
             let window = &ui.window;
             let shift = window.modifiers().shift;
             let ctrl = window.modifiers().ctrl;
-            let search_focus = search.focused && matches!(mode, Mode::Search);
 
-            // Global shortcuts — available even while search/page focus is active.
+            // Global shortcuts — available even while page focus is active.
             if ctrl && (window.pressed(Key::Char('P')) || window.pressed(Key::Char('p'))) {
-                search.focused = false;
                 palette.open_commands();
             } else if ctrl && (window.pressed(Key::Char('F')) || window.pressed(Key::Char('f'))) {
-                search.focused = false;
                 palette.open_search();
             } else if palette.open {
                 command_palette::on_text_input(&mut palette, window.text_input());
@@ -715,26 +707,7 @@ fn main() {
                         );
                     }
                 }
-            } else if search_focus {
-                for c in window.text_input() {
-                    if !c.is_control() {
-                        search.query.push(*c);
-                        search.dirty = true;
-                    }
-                }
-                search::on_backspace(&mut search, window, shift);
-                if window.pressed(Key::Escape) {
-                    search.focused = false;
-                    search.backspace_held_since = None;
-                    search.backspace_last_tick = None;
-                    if search.query.is_empty() {
-                        mode = prev_mode.clone();
-                    }
-                }
             } else {
-                search.backspace_held_since = None;
-                search.backspace_last_tick = None;
-
                 // Artist list typeahead: with an artist selected, typed letters jump
                 // to the first name matching the growing prefix (resets after idle).
                 let artist_list_focus = selected_artist.is_some();
@@ -773,22 +746,13 @@ fn main() {
                     artist_jump.clear();
                 }
                 if window.pressed(Key::Char('2')) {
-                    prev_mode = mode.clone();
-                    mode = Mode::Search;
-                    selected_artist = None;
-                    selection.clear();
-                    search.focused = true;
-                    main_scroll = 0;
-                    artist_jump.clear();
-                }
-                if window.pressed(Key::Char('3')) {
                     mode = Mode::Playlist;
                     selected_artist = None;
                     selection.clear();
                     main_scroll = 0;
                     artist_jump.clear();
                 }
-                if window.pressed(Key::Char('4')) {
+                if window.pressed(Key::Char('3')) {
                     mode = Mode::Settings;
                     selected_artist = None;
                     selection.clear();
@@ -796,13 +760,7 @@ fn main() {
                     artist_jump.clear();
                 }
                 if window.pressed(Key::Char('/')) {
-                    prev_mode = mode.clone();
-                    mode = Mode::Search;
-                    selected_artist = None;
-                    selection.clear();
-                    search.focused = true;
-                    main_scroll = 0;
-                    artist_jump.clear();
+                    palette.open_search();
                 }
 
                 // Enter → append selection to queue (library) or play selection (queue).
@@ -979,9 +937,6 @@ fn main() {
                             context_menu.close();
                             main_scroll = 0;
                             artist_jump.clear();
-                            if matches!(mode, Mode::Search) {
-                                search.focused = true;
-                            }
                         }
                         sidebar::Action::Artist(name) => {
                             if artists.iter().any(|a| a == &name) {
@@ -1001,106 +956,6 @@ fn main() {
             let playing_path = playback.selected().map(|s| s.path.clone());
 
             match &mode.clone() {
-                Mode::Search => {
-                    if let Some(action) =
-                        search::draw(ui, main_rect, &mut search, &db, &artists, &mut main_scroll)
-                    {
-                        if !block_nav {
-                            match action {
-                                search::Action::OpenArtist(name) => {
-                                    search.focused = false;
-                                    selected_artist = Some(name.clone());
-                                    mode = Mode::Artist { name };
-                                    selection.clear();
-                                    context_menu.close();
-                                    main_scroll = 0;
-                                }
-                                search::Action::Play(song) => {
-                                    search.focused = false;
-                                    let artist = song.artist.clone();
-                                    let origin = PlaybackOrigin::Artist(artist.clone());
-                                    if artists.iter().any(|a| a == &artist) {
-                                        let disco = artist_discography(&db, &artist);
-                                        if let Some(index) =
-                                            disco.iter().position(|s| s.path == song.path)
-                                        {
-                                            start_playback(
-                                                &mut player,
-                                                &mut playback,
-                                                &mut playback_origin,
-                                                disco,
-                                                index,
-                                                origin,
-                                            );
-                                        } else {
-                                            start_playback(
-                                                &mut player,
-                                                &mut playback,
-                                                &mut playback_origin,
-                                                vec![song],
-                                                0,
-                                                origin,
-                                            );
-                                        }
-                                    } else {
-                                        start_playback(
-                                            &mut player,
-                                            &mut playback,
-                                            &mut playback_origin,
-                                            vec![song],
-                                            0,
-                                            origin,
-                                        );
-                                    }
-                                }
-                                search::Action::Append(song) => {
-                                    search.focused = false;
-                                    let n = append_queue(&mut queue, vec![song]);
-                                    append_toast(&mut toast, n);
-                                }
-                                search::Action::AppendAlbum { artist, album } => {
-                                    search.focused = false;
-                                    let list = search::album_songs(&db, &artists, &artist, &album);
-                                    let n = append_queue(&mut queue, list);
-                                    append_toast(&mut toast, n);
-                                }
-                                search::Action::PlayAlbum { artist, album } => {
-                                    search.focused = false;
-                                    // Play artist discography starting at this album.
-                                    let disco = artist_discography(&db, &artist);
-                                    let album_songs =
-                                        search::album_songs(&db, &artists, &artist, &album);
-                                    let index = album_songs
-                                        .first()
-                                        .and_then(|first| {
-                                            disco.iter().position(|s| s.path == first.path)
-                                        })
-                                        .unwrap_or(0);
-                                    let origin = PlaybackOrigin::Artist(artist.clone());
-                                    if disco.is_empty() {
-                                        start_playback(
-                                            &mut player,
-                                            &mut playback,
-                                            &mut playback_origin,
-                                            album_songs,
-                                            0,
-                                            origin,
-                                        );
-                                    } else {
-                                        start_playback(
-                                            &mut player,
-                                            &mut playback,
-                                            &mut playback_origin,
-                                            disco,
-                                            index,
-                                            origin,
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
                 Mode::Playlist => {
                     if let Some(action) = playlist::draw_list(
                         ui,
