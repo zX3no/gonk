@@ -8,6 +8,7 @@ use crate::db::{Album, Song};
 use crate::{Deserialize, strsim};
 use std::{cmp::Ordering, collections::BTreeMap, fs, path::Path, str::from_utf8_unchecked};
 use unicode_normalization::UnicodeNormalization;
+use unicode_normalization::char::is_combining_mark;
 
 const MIN_ACCURACY: f64 = 0.70;
 
@@ -22,10 +23,10 @@ pub enum Item {
 }
 
 fn normalize_for_search(s: &str) -> String {
-    s.nfd()
-        .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
-        .collect::<String>()
-        .to_lowercase()
+      s.nfd()
+        .filter(|c| !is_combining_mark(*c))
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn score_match(query: &str, text: &str) -> f64 {
