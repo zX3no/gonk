@@ -31,7 +31,8 @@ impl Playlist {
         fs::write(&self.path, self.serialize())
     }
     pub fn delete(&self) {
-        minbin::trash(&self.path).unwrap();
+        // minbin::trash(&self.path).unwrap();
+        todo!();
     }
 }
 
@@ -63,7 +64,7 @@ impl Deserialize for Playlist {
 }
 
 pub fn playlists(config_path: &Path) -> Vec<Playlist> {
-    winwalk::walkdir(config_path.to_str().unwrap(), 0)
+    miniwalk::walkdir(config_path.to_str().unwrap(), 0)
         .into_iter()
         .flatten()
         .filter(|entry| match entry.extension() {

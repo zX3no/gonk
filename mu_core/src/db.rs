@@ -202,7 +202,7 @@ pub fn create(music_dir: &str, config_database_path: PathBuf) -> JoinHandle<Scan
 
         match File::create(&db_path) {
             Ok(file) => {
-                let paths: Vec<winwalk::DirEntry> = winwalk::walkdir(path, 0)
+                let paths: Vec<miniwalk::DirEntry> = miniwalk::walkdir(path, 0)
                     .into_iter()
                     .flatten()
                     .filter(|entry| match entry.extension() {
