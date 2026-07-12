@@ -1,7 +1,7 @@
 use crate::{ALBUM, ARTIST, TITLE};
 use mu_core::{
-    vdb::{Database, Item},
     Index, Song,
+    vdb::{Database, Item},
 };
 use winter::*;
 

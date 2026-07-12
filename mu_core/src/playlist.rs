@@ -2,7 +2,7 @@
 //!
 //! Each playlist has it's own file.
 //!
-use crate::{escape, Deserialize, Index, Serialize, Song};
+use crate::{Deserialize, Index, Serialize, Song, escape};
 use std::{
     fs::{self},
     path::{Path, PathBuf},

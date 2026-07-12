@@ -1,5 +1,5 @@
-use crate::theme::{colors, icons};
 use crate::Mode;
+use crate::theme::{colors, icons};
 use neoui::*;
 
 pub const SIDEBAR_W: i32 = 232;

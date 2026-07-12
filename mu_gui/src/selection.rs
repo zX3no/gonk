@@ -21,10 +21,6 @@ impl PathSelection {
         self.paths.is_empty()
     }
 
-    pub fn len(&self) -> usize {
-        self.paths.len()
-    }
-
     pub fn paths(&self) -> &[String] {
         &self.paths
     }

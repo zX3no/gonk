@@ -1,3 +1,4 @@
+// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use mu_core::{vdb::*, *};
 use neoui::*;
 use onmi::{OutputDevices, Player};
@@ -141,9 +142,7 @@ fn go_to_now_playing(
         }
         PlaybackOrigin::Playlist(name) => {
             if playlists.iter().any(|p| p.name() == name) {
-                *mode = Mode::PlaylistDetail {
-                    name: name.clone(),
-                };
+                *mode = Mode::PlaylistDetail { name: name.clone() };
                 *selected_artist = None;
             } else {
                 *mode = Mode::Playlist;
@@ -315,18 +314,19 @@ fn apply_menu_command(
             }
             selection.clear();
         }
-        MenuCommand::SaveQueueAsPlaylist => match save_queue_as_playlist(queue, playlists, config_path)
-        {
-            Some(name) => {
-                *toast = Some(Toast::new("Playlist saved", format!("Saved as “{name}”")));
+        MenuCommand::SaveQueueAsPlaylist => {
+            match save_queue_as_playlist(queue, playlists, config_path) {
+                Some(name) => {
+                    *toast = Some(Toast::new("Playlist saved", format!("Saved as “{name}”")));
+                }
+                None => {
+                    *toast = Some(Toast::new(
+                        "Could not save",
+                        "Queue is empty or write failed",
+                    ));
+                }
             }
-            None => {
-                *toast = Some(Toast::new(
-                    "Could not save",
-                    "Queue is empty or write failed",
-                ));
-            }
-        },
+        }
         MenuCommand::DeletePlaylist(name) => {
             if let Some(i) = playlists.iter().position(|p| p.name() == name) {
                 playlists[i].delete();
@@ -340,10 +340,7 @@ fn apply_menu_command(
                     *mode = Mode::Playlist;
                     selection.clear();
                 }
-                *toast = Some(Toast::new(
-                    "Playlist deleted",
-                    format!("Removed “{name}”"),
-                ));
+                *toast = Some(Toast::new("Playlist deleted", format!("Removed “{name}”")));
             }
         }
     }
@@ -417,18 +414,12 @@ fn start_scan(
     }
     if persist.music_folder.is_empty() {
         log!("No music folder set. Use: mu_gui add <path>");
-        *toast = Some(Toast::new(
-            "No music folder",
-            "Use: mu_gui add <path>",
-        ));
+        *toast = Some(Toast::new("No music folder", "Use: mu_gui add <path>"));
         return;
     }
     *scan_timer = Instant::now();
     *dots = 1;
-    *scan_handle = Some(db::create(
-        &persist.music_folder,
-        config.database.clone(),
-    ));
+    *scan_handle = Some(db::create(&persist.music_folder, config.database.clone()));
     log!("Scanning {}…", persist.music_folder);
 }
 
@@ -616,10 +607,7 @@ fn main() {
                     }
                     db::ScanResult::FileInUse => {
                         log!("Could not update database, file in use.");
-                        toast = Some(Toast::new(
-                            "Scan failed",
-                            "Database file is in use",
-                        ));
+                        toast = Some(Toast::new("Scan failed", "Database file is in use"));
                     }
                 }
             }
@@ -682,14 +670,10 @@ fn main() {
             let search_focus = search.focused && matches!(mode, Mode::Search);
 
             // Global shortcuts — available even while search/page focus is active.
-            if ctrl
-                && (window.pressed(Key::Char('P')) || window.pressed(Key::Char('p')))
-            {
+            if ctrl && (window.pressed(Key::Char('P')) || window.pressed(Key::Char('p'))) {
                 search.focused = false;
                 palette.open_commands();
-            } else if ctrl
-                && (window.pressed(Key::Char('F')) || window.pressed(Key::Char('f')))
-            {
+            } else if ctrl && (window.pressed(Key::Char('F')) || window.pressed(Key::Char('f'))) {
                 search.focused = false;
                 palette.open_search();
             } else if palette.open {
@@ -755,16 +739,12 @@ fn main() {
                 // to the first name matching the growing prefix (resets after idle).
                 let artist_list_focus = selected_artist.is_some();
                 if artist_list_focus {
-                    if !artist_jump.is_empty()
-                        && artist_jump_at.elapsed() > ARTIST_JUMP_TIMEOUT
-                    {
+                    if !artist_jump.is_empty() && artist_jump_at.elapsed() > ARTIST_JUMP_TIMEOUT {
                         artist_jump.clear();
                     }
                     let mut typed = false;
                     for c in window.text_input() {
-                        if c.is_alphanumeric()
-                            || matches!(*c, ' ' | '\'' | '.' | '-' | '&' | '+')
-                        {
+                        if c.is_alphanumeric() || matches!(*c, ' ' | '\'' | '.' | '-' | '&' | '+') {
                             artist_jump.push(*c);
                             artist_jump_at = Instant::now();
                             typed = true;
@@ -1333,9 +1313,7 @@ fn main() {
 
             // Command palette overlay (Ctrl+P / Ctrl+F).
             let shift = ui.window.modifiers().shift;
-            if let Some(action) =
-                command_palette::draw(ui, &mut palette, &db, &artists, shift)
-            {
+            if let Some(action) = command_palette::draw(ui, &mut palette, &db, &artists, shift) {
                 apply_palette_action(
                     action,
                     &mut palette,
@@ -1367,6 +1345,10 @@ fn main() {
             }
         });
     }
+
+    // Stop audio before saving so closing the window always silences playback.
+    // (The WASAPI thread is independent of the UI and would otherwise keep going.)
+    player.shutdown();
 
     persist.volume = player.volume();
     persist.queue = queue.iter().cloned().collect();

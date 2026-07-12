@@ -1,6 +1,6 @@
 use crate::{ALBUM, ARTIST, NUMBER, SEEKER, TITLE};
 use core::ops::Range;
-use mu_core::{log, Index, Song};
+use mu_core::{Index, Song, log};
 use onmi::{Player, State};
 use winter::*;
 

@@ -1,8 +1,8 @@
 use crate::context_menu::{self, ContextMenu, MenuCommand};
 use crate::selection::PathSelection;
 use crate::theme::{colors, paint_cover};
-use mu_core::vdb::Database;
 use mu_core::Song;
+use mu_core::vdb::Database;
 use neoui::*;
 
 const COVER: i32 = 140;
@@ -13,7 +13,10 @@ const ALBUM_GAP: i32 = 28;
 pub enum Action {
     MissingArtist,
     /// Play through the artist discography starting at `index` (does not touch the queue).
-    PlayDiscography { songs: Vec<Song>, index: usize },
+    PlayDiscography {
+        songs: Vec<Song>,
+        index: usize,
+    },
 }
 
 pub fn draw(
@@ -104,19 +107,14 @@ pub fn draw(
             let album_songs = songs.clone();
 
             ui.flow_right(
-                style()
-                    .padl(40)
-                    .padr(40)
-                    .height(card_h)
-                    .fill_width(),
+                style().padl(40).padr(40).height(card_h).fill_width(),
                 |ui| {
                     let layout = ui.walk_layout(COVER, COVER, 0);
                     let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
                     paint_cover(ui, cover_rect, 8);
                     if ui.double_clicked(cover_rect) && !album_songs.is_empty() {
-                        if let Some(index) = ordered_paths
-                            .iter()
-                            .position(|p| p == &album_songs[0].path)
+                        if let Some(index) =
+                            ordered_paths.iter().position(|p| p == &album_songs[0].path)
                         {
                             action = Some(Action::PlayDiscography {
                                 songs: all_songs.clone(),
@@ -204,16 +202,9 @@ pub fn draw(
                                     });
                                 }
                             } else if state.clicked {
-                                selection.click(
-                                    &ordered_paths,
-                                    song.path.clone(),
-                                    shift,
-                                    ctrl,
-                                );
+                                selection.click(&ordered_paths, song.path.clone(), shift, ctrl);
                             }
-                            if let Some((mx, my)) =
-                                context_menu::right_click_at(ui, state.rect)
-                            {
+                            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
                                 open_song_menu(
                                     menu,
                                     selection,
@@ -261,10 +252,7 @@ fn open_song_menu(
     }
     let selected = selection.collect_songs(all_songs);
     let n = selected.len();
-    let play_index = ordered_paths
-        .iter()
-        .position(|p| p == path)
-        .unwrap_or(0);
+    let play_index = ordered_paths.iter().position(|p| p == path).unwrap_or(0);
 
     let add_label = if n <= 1 {
         "Add to queue".to_string()

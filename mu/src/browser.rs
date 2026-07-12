@@ -1,4 +1,4 @@
-use mu_core::{vdb::Database, Album};
+use mu_core::{Album, vdb::Database};
 use mu_core::{Index, Song};
 use winter::*;
 

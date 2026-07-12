@@ -1,5 +1,5 @@
-use crate::theme::{colors, format_time, icons, paint_cover};
 use crate::RepeatMode;
+use crate::theme::{colors, format_time, icons, paint_cover};
 use mu_core::{Index, Song};
 use neoui::*;
 use onmi::{Player, State};
@@ -104,10 +104,7 @@ pub fn draw(
         let labels = [
             (icons::SHUFFLE, *shuffle),
             (icons::SKIP_PREV, false),
-            (
-                if playing { icons::PAUSE } else { icons::PLAY },
-                true,
-            ),
+            (if playing { icons::PAUSE } else { icons::PLAY }, true),
             (icons::SKIP_NEXT, false),
             (
                 icons::REPEAT,

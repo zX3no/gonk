@@ -1,7 +1,7 @@
+use crate::Mode;
 use crate::context_menu::{self, ContextMenu, MenuCommand};
 use crate::selection::PathSelection;
 use crate::theme::colors;
-use crate::Mode;
 use mu_core::playlist::Playlist;
 use mu_core::{Index, Song};
 use neoui::*;
@@ -10,7 +10,10 @@ pub enum Action {
     OpenDetail(String),
     Back,
     /// Replace playback and play from index (double-click).
-    Play { songs: Vec<Song>, index: usize },
+    Play {
+        songs: Vec<Song>,
+        index: usize,
+    },
 }
 
 pub fn draw_list(

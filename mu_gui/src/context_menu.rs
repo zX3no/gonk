@@ -11,7 +11,10 @@ const PAD: i32 = 4;
 #[derive(Clone)]
 pub enum MenuCommand {
     /// Play a temporary session (does not touch the queue).
-    Play { songs: Vec<Song>, index: usize },
+    Play {
+        songs: Vec<Song>,
+        index: usize,
+    },
     /// Append to the explicit queue.
     AddToQueue(Vec<Song>),
     /// Queue: remove indices.
@@ -138,10 +141,7 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
         let row = Rect::new(x + PAD, cy, MENU_W - PAD * 2, ROW_H - 2);
         let hovered = ui.hovered(row);
         if hovered {
-            ui.paint_rect(
-                row,
-                style().bg(colors::HOVER).radius(5).depth(depth),
-            );
+            ui.paint_rect(row, style().bg(colors::HOVER).radius(5).depth(depth));
         }
 
         ui.paint_text(
@@ -166,14 +166,18 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
 
     // Click outside dismisses (don't steal the click that opened us on the same frame —
     // open happens on right-click; left-click outside closes).
-    if ui.window.mouse_clicked(Mouse::Left, Rect::new(0, 0, win_w, win_h))
+    if ui
+        .window
+        .mouse_clicked(Mouse::Left, Rect::new(0, 0, win_w, win_h))
         && !ui.mouse_position().intersects(panel)
         && chosen.is_none()
     {
         menu.close();
         return None;
     }
-    if ui.window.mouse_clicked(Mouse::Right, Rect::new(0, 0, win_w, win_h))
+    if ui
+        .window
+        .mouse_clicked(Mouse::Right, Rect::new(0, 0, win_w, win_h))
         && !ui.mouse_position().intersects(panel)
     {
         // Another right-click outside: close; the view may open a new menu same frame.

@@ -33,9 +33,15 @@ pub enum Action {
     /// Append one song to the working list.
     Append(Song),
     /// Append a whole album.
-    AppendAlbum { artist: String, album: String },
+    AppendAlbum {
+        artist: String,
+        album: String,
+    },
     /// Play a whole album (replace).
-    PlayAlbum { artist: String, album: String },
+    PlayAlbum {
+        artist: String,
+        album: String,
+    },
 }
 
 pub fn draw(
@@ -182,8 +188,7 @@ pub fn draw(
                     }
                 }
                 Item::Song((artist, album, title, disc, num)) => {
-                    let state =
-                        ui.item(format!("{title}  ·  {artist} · {album}"), false, row);
+                    let state = ui.item(format!("{title}  ·  {artist} · {album}"), false, row);
                     if state.double_clicked {
                         if let Some(song) = find_song(db, artists, artist, album, *disc, *num) {
                             action = Some(Action::Play(song));

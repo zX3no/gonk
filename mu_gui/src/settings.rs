@@ -1,6 +1,6 @@
 use crate::theme::colors;
-use onmi::Device;
 use neoui::*;
+use onmi::Device;
 
 pub enum Action {
     SelectDevice(usize),

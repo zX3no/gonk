@@ -1,7 +1,7 @@
 use crate::search;
 use crate::theme::colors;
-use mu_core::vdb::{Database, Item};
 use mu_core::Song;
+use mu_core::vdb::{Database, Item};
 use neoui::*;
 use std::time::Instant;
 
@@ -28,7 +28,9 @@ const COMMANDS: &[CommandDef] = &[CommandDef {
     id: CommandId::RescanDatabase,
     label: "Rescan Database",
     detail: "Refresh the music library from disk",
-    keywords: &["rescan", "refresh", "scan", "update", "library", "database", "reload"],
+    keywords: &[
+        "rescan", "refresh", "scan", "update", "library", "database", "reload",
+    ],
 }];
 
 pub struct CommandPalette {
@@ -395,11 +397,12 @@ fn build_entries(palette: &CommandPalette, db: &Database) -> Vec<Entry> {
                 }
                 let label = cmd.label.to_lowercase();
                 label.contains(&filter)
-                    || cmd.keywords.iter().any(|k| k.contains(&filter) || filter.contains(k))
+                    || cmd
+                        .keywords
+                        .iter()
+                        .any(|k| k.contains(&filter) || filter.contains(k))
             })
-            .map(|cmd| {
-                Entry::Command(cmd.id, cmd.label.to_string(), cmd.detail.to_string())
-            })
+            .map(|cmd| Entry::Command(cmd.id, cmd.label.to_string(), cmd.detail.to_string()))
             .collect()
     } else {
         let q = palette.query.trim();
@@ -430,12 +433,7 @@ fn entry_labels(entry: &Entry) -> (String, String) {
     }
 }
 
-fn activate_entry(
-    entry: &Entry,
-    db: &Database,
-    artists: &[String],
-    shift: bool,
-) -> Option<Action> {
+fn activate_entry(entry: &Entry, db: &Database, artists: &[String], shift: bool) -> Option<Action> {
     match entry {
         Entry::Command(CommandId::RescanDatabase, _, _) => Some(Action::RescanDatabase),
         Entry::Song(Item::Song((artist, album, _, disc, num))) => {
