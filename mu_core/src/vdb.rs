@@ -191,6 +191,7 @@ impl Database {
     pub fn search(&self, query: &str) -> Vec<Item> {
         const MAX: usize = 40;
 
+        let query = normalize_for_search(query);
         let mut results = Vec::new();
 
         for (artist, albums) in self.btree.iter() {
