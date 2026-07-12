@@ -17,15 +17,6 @@ pub enum Action {
     CycleRepeat,
 }
 
-const BAR_COUNT: usize = 48;
-
-fn bar_height(i: usize, max_h: i32) -> i32 {
-    let mut seed = (i as u32).wrapping_mul(16807).wrapping_add(7);
-    seed = seed.wrapping_mul(16807) % 2147483647;
-    let r = seed as f32 / 2147483647.0;
-    (6.0 + r * (max_h as f32 - 6.0).max(1.0)) as i32
-}
-
 pub fn draw(
     ui: &mut FrameContext<'_, '_>,
     rect: Rect,
@@ -218,6 +209,14 @@ fn draw_seekbar(
     player: &Player,
     seek_drag: &mut Option<f32>,
 ) {
+    // Window close / tiny layouts can produce empty rects — skip safely.
+    let time_w = 40;
+    let head_d = 12;
+    if rect.width < time_w * 2 + head_d || rect.height <= 0 {
+        *seek_drag = None;
+        return;
+    }
+
     let duration = player.duration().as_secs_f32();
     let elapsed = player.elapsed().as_secs_f32();
     let live = if duration > 0.0 && duration.is_finite() {
@@ -225,16 +224,19 @@ fn draw_seekbar(
     } else {
         0.0
     };
-    let ratio = seek_drag.unwrap_or(live);
+    let ratio = seek_drag.unwrap_or(live).clamp(0.0, 1.0);
     let display_elapsed = if duration > 0.0 && duration.is_finite() {
         ratio * duration
     } else {
         0.0
     };
 
-    let time_w = 40;
     let (left, rest) = ui.split_rect_h(rect, time_w);
-    let (wave, right) = ui.split_rect_h(rest, Size::FillMinus(time_w));
+    let (track_area, right) = ui.split_rect_h(rest, Size::FillMinus(time_w));
+    if track_area.width <= 0 || track_area.height <= 0 {
+        *seek_drag = None;
+        return;
+    }
 
     ui.paint_text(
         format_time(display_elapsed),
@@ -263,38 +265,50 @@ fn draw_seekbar(
         0,
     );
 
-    let bar_gap = 2;
-    let usable = wave.width.saturating_sub(bar_gap * (BAR_COUNT as i32 - 1));
-    let bar_w = (usable / BAR_COUNT as i32).max(2);
-    let max_h = (wave.height - 4).max(8);
-    let mut x = wave.x;
-    for i in 0..BAR_COUNT {
-        let h = bar_height(i, max_h);
-        let y = wave.y + (wave.height - h) / 2;
-        let played = (i as f32 / BAR_COUNT as f32) < ratio;
-        ui.paint_rect(
-            Rect::new(x, y, bar_w, h),
-            style()
-                .bg(if played {
-                    colors::ACCENT_BRIGHT
-                } else {
-                    colors::LINE
-                })
-                .radius(1),
-        );
-        x += bar_w + bar_gap;
-    }
+    // Basic track line + rounded scrub head.
+    let track_h = 4;
+    let track = Rect::new(
+        track_area.x,
+        track_area.y + (track_area.height - track_h) / 2,
+        track_area.width,
+        track_h,
+    );
+    ui.paint_rect(track, style().bg(colors::LINE).radius(2));
 
-    if ui.dragged(wave) {
-        if let Some(pct) = ui.drag_percentage_x(wave) {
-            *seek_drag = Some(pct);
+    // Keep the head fully within the track (avoids clamp min>max on bad sizes).
+    let head_travel = (track.width - head_d).max(0);
+    let head_x = track.x + ((head_travel as f32) * ratio).round() as i32;
+    let fill_w = (head_x + head_d / 2 - track.x).clamp(0, track.width);
+    if fill_w > 0 {
+        ui.paint_rect(
+            Rect::new(track.x, track.y, fill_w, track.height),
+            style().bg(colors::ACCENT_BRIGHT).radius(2),
+        );
+    }
+    let head = Rect::new(
+        head_x,
+        track.y + track.height / 2 - head_d / 2,
+        head_d,
+        head_d,
+    );
+    ui.paint_rect(head, style().bg(colors::TEXT).radius((head_d / 2) as usize));
+
+    // Slightly taller hit target than the thin track.
+    let hit = Rect::new(track.x, track_area.y, track.width, track_area.height);
+    if ui.dragged(hit) {
+        if let Some(pct) = ui.drag_percentage_x(hit) {
+            *seek_drag = Some(pct.clamp(0.0, 1.0));
         }
     }
-    if ui.released(wave) {
+    if ui.released(hit) {
         if let Some(pct) = seek_drag.take().or_else(|| {
             if let Some((mx, _)) = ui.window.mouse_pos() {
-                let x = (mx as i32).saturating_sub(wave.x);
-                Some((x as f32 / wave.width as f32).clamp(0.0, 1.0))
+                if hit.width > 0 {
+                    let x = (mx as i32).saturating_sub(hit.x);
+                    Some((x as f32 / hit.width as f32).clamp(0.0, 1.0))
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -303,16 +317,18 @@ fn draw_seekbar(
                 player.seek_to(Duration::from_secs_f32(pct * duration));
             }
         }
-    } else if ui.window.mouse_released(Mouse::Left) && !ui.dragged(wave) {
+    } else if ui.window.mouse_released(Mouse::Left) && !ui.dragged(hit) {
         *seek_drag = None;
     }
 
-    if ui.clicked(wave) && seek_drag.is_none() {
+    if ui.clicked(hit) && seek_drag.is_none() {
         if let Some((mx, _)) = ui.window.mouse_pos() {
-            let x = (mx as i32).saturating_sub(wave.x);
-            let pct = (x as f32 / wave.width as f32).clamp(0.0, 1.0);
-            if duration > 0.0 && duration.is_finite() {
-                player.seek_to(Duration::from_secs_f32(pct * duration));
+            if hit.width > 0 {
+                let x = (mx as i32).saturating_sub(hit.x);
+                let pct = (x as f32 / hit.width as f32).clamp(0.0, 1.0);
+                if duration > 0.0 && duration.is_finite() {
+                    player.seek_to(Duration::from_secs_f32(pct * duration));
+                }
             }
         }
     }
