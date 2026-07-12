@@ -5,22 +5,9 @@
 //! Also contains code for querying artists, albums and songs.
 //!
 use crate::db::{Album, Song};
-use crate::{strsim, Deserialize};
+use crate::{Deserialize, strsim};
 use std::{cmp::Ordering, collections::BTreeMap, fs, path::Path, str::from_utf8_unchecked};
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::*;
-
-    #[test]
-    fn db() {
-        let config = config_paths();
-        let db = Database::new(&config.database);
-        dbg!(db.artists());
-        dbg!(db.search("test"));
-    }
-}
+use unicode_normalization::UnicodeNormalization;
 
 const MIN_ACCURACY: f64 = 0.70;
 
@@ -34,18 +21,71 @@ pub enum Item {
     Artist(String),
 }
 
-///https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance
+fn normalize_for_search(s: &str) -> String {
+    s.nfd()
+        .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
+        .collect::<String>()
+        .to_lowercase()
+}
+
+fn score_match(query: &str, text: &str) -> f64 {
+    let text = normalize_for_search(text);
+    if query.is_empty() || text.is_empty() {
+        return 0.0;
+    }
+    if text == query {
+        return 1.0;
+    }
+
+    // Whole-string prefix: "neo" → "neo wax bloom"
+    if text.starts_with(query) {
+        let coverage = query.len() as f64 / text.len() as f64;
+        return 0.95 + 0.05 * coverage;
+    }
+
+    // Word-level exact / prefix, and best fuzzy among words + full string.
+    let mut best_fuzzy = strsim::jaro_winkler(query, &text);
+    for word in text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+    {
+        if word == query {
+            return 0.94;
+        }
+        if word.starts_with(query) {
+            let coverage = query.len() as f64 / word.len() as f64;
+            return 0.90 + 0.04 * coverage;
+        }
+        best_fuzzy = best_fuzzy.max(strsim::jaro_winkler(query, word));
+    }
+
+    // Substring somewhere in the middle.
+    if text.contains(query) {
+        return 0.88;
+    }
+
+    best_fuzzy
+}
+
 fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
-    let str = match input {
-        Item::Artist(ref artist) => artist,
-        Item::Album((_, ref album)) => album,
-        Item::Song((_, _, ref song, _, _)) => song,
+    let text = match input {
+        Item::Artist(ref artist) => artist.as_str(),
+        Item::Album((_, ref album)) => album.as_str(),
+        Item::Song((_, _, ref song, _, _)) => song.as_str(),
     };
-    let acc = strsim::jaro_winkler(query, &str.to_lowercase());
+    let acc = score_match(query, text);
     if acc > MIN_ACCURACY {
         Ok((input, acc))
     } else {
         Err((input, acc))
+    }
+}
+
+fn item_rank(item: &Item) -> u8 {
+    match item {
+        Item::Artist(_) => 0,
+        Item::Album(_) => 1,
+        Item::Song(_) => 2,
     }
 }
 
@@ -151,7 +191,6 @@ impl Database {
     pub fn search(&self, query: &str) -> Vec<Item> {
         const MAX: usize = 40;
 
-        let query = query.to_lowercase();
         let mut results = Vec::new();
 
         for (artist, albums) in self.btree.iter() {
@@ -189,43 +228,26 @@ impl Database {
 
         let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
 
-        //Sort results by score.
-        results.sort_unstable_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
-
-        if results.len() > MAX {
-            //Remove the less accurate results.
-            unsafe {
-                results.set_len(MAX);
-            }
-        }
-
+        // Highest score first, on ties prefer Artist > Album > Song, then track order.
         results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
-            if score_1 == score_2 {
-                match item_1 {
-                    Item::Artist(_) => match item_2 {
-                        Item::Song(_) | Item::Album(_) => Ordering::Less,
-                        Item::Artist(_) => Ordering::Equal,
+            match score_2.partial_cmp(score_1).unwrap_or(Ordering::Equal) {
+                Ordering::Equal => match item_rank(item_1).cmp(&item_rank(item_2)) {
+                    Ordering::Equal => match (item_1, item_2) {
+                        (
+                            Item::Song((_, _, _, disc_a, number_a)),
+                            Item::Song((_, _, _, disc_b, number_b)),
+                        ) => disc_a.cmp(disc_b).then(number_a.cmp(number_b)),
+                        _ => Ordering::Equal,
                     },
-                    Item::Album(_) => match item_2 {
-                        Item::Song(_) => Ordering::Less,
-                        Item::Album(_) => Ordering::Equal,
-                        Item::Artist(_) => Ordering::Greater,
-                    },
-                    Item::Song((_, _, _, disc_a, number_a)) => match item_2 {
-                        Item::Song((_, _, _, disc_b, number_b)) => match disc_a.cmp(disc_b) {
-                            Ordering::Less => Ordering::Less,
-                            Ordering::Equal => number_a.cmp(number_b),
-                            Ordering::Greater => Ordering::Greater,
-                        },
-                        Item::Album(_) | Item::Artist(_) => Ordering::Greater,
-                    },
-                }
-            } else if score_2 > score_1 {
-                Ordering::Equal
-            } else {
-                Ordering::Less
+                    ord => ord,
+                },
+                ord => ord,
             }
         });
+
+        if results.len() > MAX {
+            results.truncate(MAX);
+        }
 
         results.into_iter().map(|(item, _)| item).collect()
     }

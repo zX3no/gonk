@@ -13,3 +13,4 @@ winwalk = { git = "https://github.com/zfphex/winwalk", version = "0.2.2" }
 # onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0" }
 onmi = { version = "0.1.0", path = "../../onmi" }
 rayon = "1.7.0"
+unicode-normalization = "0.1.25"
