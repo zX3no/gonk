@@ -45,7 +45,7 @@ pub fn draw_list(
                 .align(Alignment::Left),
         );
         ui.text(
-            "Saved lists · right-click for play / add to queue",
+            "Saved lists · right-click to play, queue, or delete",
             style()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
@@ -84,24 +84,29 @@ pub fn draw_list(
                 action = Some(Action::OpenDetail(name.clone()));
             }
             if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+                let mut entries = Vec::new();
                 if !songs.is_empty() {
-                    menu.open_at(
-                        mx,
-                        my,
-                        vec![
-                            (
-                                "Play".into(),
-                                MenuCommand::Play {
-                                    songs: songs.clone(),
-                                    index: 0,
-                                },
-                            ),
-                            (
-                                "Add to queue".into(),
-                                MenuCommand::AddToQueue(songs.clone()),
-                            ),
-                        ],
-                    );
+                    entries.push((
+                        "Play".into(),
+                        MenuCommand::Play {
+                            songs: songs.clone(),
+                            index: 0,
+                        },
+                    ));
+                    entries.push((
+                        "Add to queue".into(),
+                        MenuCommand::AddToQueue(songs.clone()),
+                    ));
+                }
+                let sep = entries.len();
+                entries.push((
+                    "Delete playlist".into(),
+                    MenuCommand::DeletePlaylist(name.clone()),
+                ));
+                if sep > 0 {
+                    menu.open_at_with_sep(mx, my, entries, sep);
+                } else {
+                    menu.open_at(mx, my, entries);
                 }
             }
         }
@@ -180,10 +185,13 @@ pub fn draw_detail(
             .fg(colors::TEXT)
             .selected(colors::ACCENT_DIM);
 
+        let playlist_name = name_owned.clone();
+
         for (i, song) in songs.iter().enumerate() {
             let is_playing = playing_path == Some(song.path.as_str());
             let is_selected = selection.contains(&song.path);
-            let mark = if is_playing { "♪ " } else { "  " };
+            // ASCII only — default UI font has no ♪ glyph (rendered as ?).
+            let mark = if is_playing { "> " } else { "  " };
             let label = format!(
                 "{mark}{}  ·  {}  ·  {}",
                 song.title, song.artist, song.album
@@ -209,7 +217,7 @@ pub fn draw_detail(
                 } else {
                     format!("Add {n} to queue")
                 };
-                menu.open_at(
+                menu.open_at_with_sep(
                     mx,
                     my,
                     vec![
@@ -225,7 +233,12 @@ pub fn draw_detail(
                             "Add all to queue".into(),
                             MenuCommand::AddToQueue(songs.clone()),
                         ),
+                        (
+                            "Delete playlist".into(),
+                            MenuCommand::DeletePlaylist(playlist_name.clone()),
+                        ),
                     ],
+                    3,
                 );
             }
         }

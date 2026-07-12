@@ -88,9 +88,12 @@ impl CommandPalette {
 
 pub enum Action {
     RescanDatabase,
-    Play(Song),
-    Append(Song),
-    AppendMany(Vec<Song>),
+    /// Start playback and append tracks to the explicit queue.
+    PlayAndQueue {
+        play: Vec<Song>,
+        play_index: usize,
+        queue_add: Vec<Song>,
+    },
     OpenArtist(String),
     Close,
 }
@@ -161,7 +164,7 @@ pub fn draw(
 
     let (display, placeholder) = if palette.query.is_empty() {
         (
-            "Search songs…  (prefix > for commands)".to_string(),
+            "Search…  Enter play+queue · Shift+Enter artist · > commands".to_string(),
             true,
         )
     } else {
@@ -436,28 +439,75 @@ fn activate_entry(
     match entry {
         Entry::Command(CommandId::RescanDatabase, _, _) => Some(Action::RescanDatabase),
         Entry::Song(Item::Song((artist, album, _, disc, num))) => {
+            // Shift+Enter → artist page; Enter → play + add to queue.
+            if shift {
+                return Some(Action::OpenArtist(artist.clone()));
+            }
             let song = search::find_song(db, artists, artist, album, *disc, *num)?;
-            // Palette is "I want this" — Enter plays, Shift+Enter appends to queue.
-            Some(if shift {
-                Action::Append(song)
-            } else {
-                Action::Play(song)
+            let (play, play_index) = discography_from(db, artists, artist, &song.path);
+            Some(Action::PlayAndQueue {
+                play,
+                play_index,
+                queue_add: vec![song],
             })
         }
         Entry::Song(_) => None,
-        Entry::Artist(name) => Some(Action::OpenArtist(name.clone())),
-        Entry::Album(artist, album) => {
-            // Shift+Enter/click on album → append whole album; else open artist.
+        Entry::Artist(name) => {
             if shift {
-                let songs = search::album_songs(db, artists, artist, album);
-                if songs.is_empty() {
-                    Some(Action::OpenArtist(artist.clone()))
-                } else {
-                    Some(Action::AppendMany(songs))
-                }
+                return Some(Action::OpenArtist(name.clone()));
+            }
+            let play = if artists.iter().any(|a| a == name) {
+                db.albums_by_artist(name)
+                    .into_iter()
+                    .flat_map(|a| a.songs.clone())
+                    .collect::<Vec<_>>()
             } else {
-                Some(Action::OpenArtist(artist.clone()))
+                Vec::new()
+            };
+            if play.is_empty() {
+                Some(Action::OpenArtist(name.clone()))
+            } else {
+                Some(Action::PlayAndQueue {
+                    queue_add: play.clone(),
+                    play,
+                    play_index: 0,
+                })
             }
         }
+        Entry::Album(artist, album) => {
+            if shift {
+                return Some(Action::OpenArtist(artist.clone()));
+            }
+            let album_songs = search::album_songs(db, artists, artist, album);
+            if album_songs.is_empty() {
+                return Some(Action::OpenArtist(artist.clone()));
+            }
+            let start_path = album_songs[0].path.clone();
+            let (play, play_index) = discography_from(db, artists, artist, &start_path);
+            Some(Action::PlayAndQueue {
+                play,
+                play_index,
+                queue_add: album_songs,
+            })
+        }
     }
+}
+
+/// Full artist discography for playback, starting at `path` when possible.
+fn discography_from(
+    db: &Database,
+    artists: &[String],
+    artist: &str,
+    path: &str,
+) -> (Vec<Song>, usize) {
+    if !artists.iter().any(|a| a == artist) {
+        return (Vec::new(), 0);
+    }
+    let play: Vec<Song> = db
+        .albums_by_artist(artist)
+        .into_iter()
+        .flat_map(|a| a.songs.clone())
+        .collect();
+    let play_index = play.iter().position(|s| s.path == path).unwrap_or(0);
+    (play, play_index)
 }

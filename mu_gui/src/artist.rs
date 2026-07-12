@@ -186,10 +186,11 @@ pub fn draw(
                         for song in songs.iter() {
                             let is_playing = playing.as_deref() == Some(song.path.as_str());
                             let is_selected = selection.contains(&song.path);
+                            // ASCII only — default UI font has no ♪ glyph (rendered as ?).
                             let label = if is_playing {
-                                format!("♪  {}.  {}", song.track_number, song.title)
+                                format!(">  {}.  {}", song.track_number, song.title)
                             } else {
-                                format!("    {}.  {}", song.track_number, song.title)
+                                format!("   {}.  {}", song.track_number, song.title)
                             };
                             let state = ui.item(label, is_selected, row_style);
                             if state.double_clicked {

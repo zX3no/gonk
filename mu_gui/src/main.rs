@@ -174,6 +174,7 @@ fn apply_menu_command(
     playlists: &mut Index<mu_core::Playlist>,
     selection: &mut PathSelection,
     toast: &mut Option<Toast>,
+    mode: &mut Mode,
     config_path: &std::path::Path,
 ) {
     match cmd {
@@ -227,6 +228,25 @@ fn apply_menu_command(
                 ));
             }
         },
+        MenuCommand::DeletePlaylist(name) => {
+            if let Some(i) = playlists.iter().position(|p| p.name() == name) {
+                playlists[i].delete();
+                playlists.remove(i);
+                if let Some(idx) = playlists.index() {
+                    if idx >= playlists.len() {
+                        playlists.select(playlists.len().checked_sub(1));
+                    }
+                }
+                if matches!(mode, Mode::PlaylistDetail { name: n } if n == &name) {
+                    *mode = Mode::Playlist;
+                    selection.clear();
+                }
+                *toast = Some(Toast::new(
+                    "Playlist deleted",
+                    format!("Removed “{name}”"),
+                ));
+            }
+        }
     }
 }
 
@@ -247,35 +267,24 @@ fn apply_palette_action(
     persist: &mu_core::settings::Settings,
     config: &Config,
     artists: &[String],
-    db: &Database,
+    _db: &Database,
 ) {
     match action {
         command_palette::Action::RescanDatabase => {
             palette.close();
             start_scan(scan_handle, scan_timer, dots, toast, persist, config);
         }
-        command_palette::Action::Play(song) => {
+        command_palette::Action::PlayAndQueue {
+            play,
+            play_index,
+            queue_add,
+        } => {
             palette.close();
-            // Prefer full artist discography when we can resolve the artist.
-            let artist = song.artist.clone();
-            if artists.iter().any(|a| a == &artist) {
-                let disco = artist_discography(db, &artist);
-                if let Some(index) = disco.iter().position(|s| s.path == song.path) {
-                    start_playback(player, playback, disco, index);
-                    return;
-                }
+            let n = append_queue(queue, queue_add);
+            append_toast(toast, n);
+            if !play.is_empty() {
+                start_playback(player, playback, play, play_index);
             }
-            start_playback(player, playback, vec![song], 0);
-        }
-        command_palette::Action::Append(song) => {
-            palette.close();
-            let n = append_queue(queue, vec![song]);
-            append_toast(toast, n);
-        }
-        command_palette::Action::AppendMany(list) => {
-            palette.close();
-            let n = append_queue(queue, list);
-            append_toast(toast, n);
         }
         command_palette::Action::OpenArtist(name) => {
             palette.close();
@@ -1099,6 +1108,7 @@ fn main() {
                     &mut playlists,
                     &mut selection,
                     &mut toast,
+                    &mut mode,
                     &config.mu,
                 );
             }

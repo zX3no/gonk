@@ -22,6 +22,8 @@ pub enum MenuCommand {
     ClearQueue,
     ClearExceptPlaying,
     SaveQueueAsPlaylist,
+    /// Delete a saved playlist by name (file + list entry).
+    DeletePlaylist(String),
 }
 
 struct Entry {

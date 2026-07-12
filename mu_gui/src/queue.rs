@@ -89,7 +89,8 @@ pub fn draw(
         for (i, song) in tracks.iter().enumerate() {
             let is_playing = playing.as_deref() == Some(song.path.as_str());
             let is_selected = selection.contains(&song.path);
-            let mark = if is_playing { "♪ " } else { "  " };
+            // ASCII only — default UI font has no ♪ glyph (rendered as ?).
+            let mark = if is_playing { "> " } else { "  " };
             let label = format!(
                 "{mark}{}. {}  ·  {}  ·  {}",
                 i + 1,
