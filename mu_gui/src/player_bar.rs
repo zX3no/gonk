@@ -8,7 +8,8 @@ use std::time::Duration;
 pub const PLAYER_H: i32 = 90;
 
 pub enum Action {
-    OpenQueue,
+    /// Jump to where the current track is playing from (queue or library).
+    GoToNowPlaying,
     TogglePlay,
     Prev,
     Next,
@@ -95,7 +96,7 @@ pub fn draw(
         );
 
         if ui.clicked(Rect::new(left.x, left.y, left.width, left.height)) && has_track {
-            action = Some(Action::OpenQueue);
+            action = Some(Action::GoToNowPlaying);
         }
     }
 

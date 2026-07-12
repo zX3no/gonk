@@ -12,5 +12,5 @@ neoui = { version = "0.1.0", path = "../../../neoui" }
 mu_core = { version = "0.4.0", path = "../mu_core" }
 mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
 onmi = { version = "0.1.0", path = "../../onmi", features = ["simd"] }
-# Required to construct Font for ui.add_font — neoui does not re-export fontdue.
-fontdue = { version = "0.9.3", default-features = false }
+# Must match neoui's fontdue so Font types are identical for ui.add_font.
+fontdue = { git = "https://github.com/zfphex/fontdue", default-features = false }

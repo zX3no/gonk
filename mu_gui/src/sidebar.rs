@@ -196,7 +196,12 @@ pub fn draw(
     });
 
     if let Some(letter) = sticky {
-        let pin = Rect::new(list_rect.x, list_rect.y, list_rect.width, 22);
+        let pin = Rect::new(
+            list_rect.x,
+            list_rect.y,
+            list_rect.width,
+            ARTIST_LETTER_H as i32,
+        );
         ui.paint_rect(pin, style().bg(colors::PANEL));
         ui.paint_text(
             letter.to_string(),
@@ -221,12 +226,17 @@ pub fn draw(
     action
 }
 
+// Heights must match the styles used in `draw` with the default UI font (Aptos)
+// and `ui.default_font_size = 13`:
+//   letter header: font 11, padt 6, padb 2 → new_line≈13 + 8 = 21
+//   artist row:    font 13, padtb 7        → new_line≈16 + 14 = 30
+const ARTIST_ROW_H: usize = 30;
+const ARTIST_LETTER_H: usize = 21;
+
 fn sticky_letter(artists: &[String], scroll_y: usize) -> Option<char> {
     if artists.is_empty() {
         return None;
     }
-    const ROW_H: usize = 30;
-    const LETTER_H: usize = 22;
     let mut y = 0usize;
     let mut last = artists[0]
         .chars()
@@ -241,15 +251,52 @@ fn sticky_letter(artists: &[String], scroll_y: usize) -> Option<char> {
             .map(|c| c.to_ascii_uppercase())
             .unwrap_or('#');
         if letter != last {
-            y += LETTER_H;
+            y += ARTIST_LETTER_H;
             last = letter;
         }
-        if y + ROW_H > scroll_y {
+        if y + ARTIST_ROW_H > scroll_y {
             sticky = letter;
             break;
         }
-        y += ROW_H;
+        y += ARTIST_ROW_H;
         sticky = letter;
     }
     Some(sticky)
+}
+
+/// Pixel scroll offset so `artists[index]` sits just below the sticky letter pin.
+pub fn scroll_to_index(artists: &[String], index: usize) -> usize {
+    if artists.is_empty() || index >= artists.len() {
+        return 0;
+    }
+    let mut y = 0usize;
+    let mut last_letter: Option<char> = None;
+    for (i, name) in artists.iter().enumerate() {
+        let letter = name
+            .chars()
+            .next()
+            .map(|c| c.to_ascii_uppercase())
+            .unwrap_or('#');
+        if last_letter != Some(letter) {
+            y += ARTIST_LETTER_H;
+            last_letter = Some(letter);
+        }
+        if i == index {
+            // Leave room for the sticky letter overlay so the name stays visible.
+            return y.saturating_sub(ARTIST_LETTER_H);
+        }
+        y += ARTIST_ROW_H;
+    }
+    0
+}
+
+/// First artist whose name starts with `prefix` (case-insensitive).
+pub fn find_prefix(artists: &[String], prefix: &str) -> Option<usize> {
+    if prefix.is_empty() {
+        return None;
+    }
+    let prefix_lower = prefix.to_lowercase();
+    artists
+        .iter()
+        .position(|name| name.to_lowercase().starts_with(&prefix_lower))
 }
