@@ -28,8 +28,14 @@ impl Search {
 
 pub enum Action {
     OpenArtist(String),
+    /// Replace working list with this song.
     Play(Song),
+    /// Append one song to the working list.
     Append(Song),
+    /// Append a whole album.
+    AppendAlbum { artist: String, album: String },
+    /// Play a whole album (replace).
+    PlayAlbum { artist: String, album: String },
 }
 
 pub fn draw(
@@ -125,6 +131,16 @@ pub fn draw(
                     .fill_width()
                     .align(Alignment::Left),
             );
+            ui.text(
+                "Tip: click adds to queue · double-click plays the artist discography",
+                style()
+                    .fg(colors::TEXT_DIM)
+                    .font_size(12)
+                    .padl(40)
+                    .padt(8)
+                    .fill_width()
+                    .align(Alignment::Left),
+            );
             return;
         }
 
@@ -146,24 +162,38 @@ pub fn draw(
                     }
                 }
                 Item::Album((artist, album)) => {
-                    if ui
-                        .item(format!("{album}  ·  {artist}"), false, row)
-                        .clicked
-                    {
-                        action = Some(Action::OpenArtist(artist.clone()));
+                    let state = ui.item(format!("{album}  ·  {artist}  ·  Album"), false, row);
+                    if state.double_clicked {
+                        // Double-click album → play it.
+                        action = Some(Action::PlayAlbum {
+                            artist: artist.clone(),
+                            album: album.clone(),
+                        });
+                    } else if state.clicked {
+                        if shift {
+                            // Shift+click album → append all tracks.
+                            action = Some(Action::AppendAlbum {
+                                artist: artist.clone(),
+                                album: album.clone(),
+                            });
+                        } else {
+                            action = Some(Action::OpenArtist(artist.clone()));
+                        }
                     }
                 }
                 Item::Song((artist, album, title, disc, num)) => {
-                    if ui
-                        .item(format!("{title}  ·  {artist} · {album}"), false, row)
-                        .clicked
-                    {
+                    let state =
+                        ui.item(format!("{title}  ·  {artist} · {album}"), false, row);
+                    if state.double_clicked {
                         if let Some(song) = find_song(db, artists, artist, album, *disc, *num) {
-                            action = Some(if shift {
-                                Action::Append(song)
-                            } else {
-                                Action::Play(song)
-                            });
+                            action = Some(Action::Play(song));
+                        }
+                    } else if state.clicked {
+                        if let Some(song) = find_song(db, artists, artist, album, *disc, *num) {
+                            // Single click (or Shift) → append; Shift alone was old "append"
+                            // and is still append for consistency with building a mix.
+                            let _ = shift;
+                            action = Some(Action::Append(song));
                         }
                     }
                 }
@@ -196,6 +226,17 @@ pub fn find_song(
         }
     }
     None
+}
+
+pub fn album_songs(db: &Database, artists: &[String], artist: &str, album: &str) -> Vec<Song> {
+    if !artists.iter().any(|a| a == artist) {
+        return Vec::new();
+    }
+    db.albums_by_artist(artist)
+        .into_iter()
+        .find(|a| a.title == album)
+        .map(|a| a.songs.clone())
+        .unwrap_or_default()
 }
 
 pub fn on_backspace(search: &mut Search, window: &neoui::Window, shift: bool) {

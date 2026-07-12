@@ -16,6 +16,7 @@ pub fn draw(
     artists: &[String],
     selected_artist: Option<&str>,
     artist_scroll: &mut usize,
+    queue_len: usize,
     icon_font: usize,
 ) -> Option<Action> {
     ui.paint_rect(rect, style().bg(colors::PANEL));
@@ -29,7 +30,6 @@ pub fn draw(
     let (brand_rect, rest) = ui.split_rect_v(rect, brand_h);
     let (nav_rect, list_rect) = ui.split_rect_v(rest, nav_h);
 
-    // Brand text only — no icon mark.
     ui.paint_text(
         "mu",
         brand_rect.x + 20,
@@ -48,16 +48,26 @@ pub fn draw(
     let mut y = nav_rect.y + 4;
     let row_h = 40;
     let pad_x = 10;
-    let nav_items = [
-        (Mode::Home, icons::HOME, "Home"),
-        (Mode::Search, icons::SEARCH, "Search"),
-        (Mode::Playlist, icons::PLAYLISTS, "Playlists"),
+
+    let nav_items: [(Mode, &str, &str, Option<String>); 3] = [
+        (
+            Mode::Queue,
+            icons::QUEUE,
+            "Queue",
+            if queue_len > 0 {
+                Some(queue_len.to_string())
+            } else {
+                None
+            },
+        ),
+        (Mode::Search, icons::SEARCH, "Search", None),
+        (Mode::Playlist, icons::PLAYLISTS, "Playlists", None),
     ];
 
-    for (item, icon, label) in nav_items {
+    for (item, icon, label, badge) in nav_items {
         let active = matches!(
             (mode, &item),
-            (Mode::Home, Mode::Home)
+            (Mode::Queue, Mode::Queue)
                 | (Mode::Search, Mode::Search)
                 | (Mode::Playlist | Mode::PlaylistDetail { .. }, Mode::Playlist)
         );
@@ -100,7 +110,7 @@ pub fn draw(
             label,
             r.x + 40,
             r.y,
-            r.width - 48,
+            r.width - 80,
             r.height,
             text_color,
             0,
@@ -109,6 +119,26 @@ pub fn draw(
             Padding::default(),
             0,
         );
+
+        if let Some(badge) = badge {
+            let bw = 28;
+            let bh = 20;
+            let br = Rect::new(r.right() - bw - 10, r.y + (r.height - bh) / 2, bw, bh);
+            ui.paint_rect(br, style().bg(colors::ACCENT_DIM).radius(10));
+            ui.paint_text(
+                badge,
+                br.x,
+                br.y,
+                br.width,
+                br.height,
+                colors::ACCENT_BRIGHT,
+                0,
+                11,
+                Alignment::Center,
+                Padding::default(),
+                0,
+            );
+        }
 
         if ui.clicked(r) {
             action = Some(Action::Mode(item));
@@ -121,7 +151,6 @@ pub fn draw(
         style().bg(colors::LINE),
     );
 
-    // Artist list — no "ARTISTS" heading.
     let row_style = style()
         .padlr(12)
         .padtb(7)

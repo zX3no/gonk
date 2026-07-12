@@ -1,3 +1,5 @@
+use crate::context_menu::{self, ContextMenu, MenuCommand};
+use crate::selection::PathSelection;
 use crate::theme::colors;
 use crate::Mode;
 use mu_core::playlist::Playlist;
@@ -7,19 +9,26 @@ use neoui::*;
 pub enum Action {
     OpenDetail(String),
     Back,
+    /// Replace playback and play from index (double-click).
     Play { songs: Vec<Song>, index: usize },
-    Append(Song),
 }
 
 pub fn draw_list(
     ui: &mut FrameContext<'_, '_>,
     rect: Rect,
     lists: &Index<Playlist>,
+    menu: &mut ContextMenu,
     scroll: &mut usize,
 ) -> Option<Action> {
-    let names: Vec<(String, usize)> = lists
+    let names: Vec<(String, usize, Vec<Song>)> = lists
         .iter()
-        .map(|p| (p.name().to_string(), p.songs.len()))
+        .map(|p| {
+            (
+                p.name().to_string(),
+                p.songs.len(),
+                p.songs.iter().cloned().collect(),
+            )
+        })
         .collect();
     let mut action = None;
 
@@ -31,14 +40,24 @@ pub fn draw_list(
                 .font_size(28)
                 .padl(40)
                 .padt(34)
-                .padb(20)
+                .padb(8)
+                .fill_width()
+                .align(Alignment::Left),
+        );
+        ui.text(
+            "Saved lists · right-click for play / add to queue",
+            style()
+                .fg(colors::TEXT_MUTED)
+                .font_size(13)
+                .padl(40)
+                .padb(16)
                 .fill_width()
                 .align(Alignment::Left),
         );
 
         if names.is_empty() {
             ui.text(
-                "No playlists yet.",
+                "No playlists yet. Right-click the queue and choose Save as playlist.",
                 style()
                     .fg(colors::TEXT_DIM)
                     .font_size(14)
@@ -59,12 +78,31 @@ pub fn draw_list(
             .hover(colors::HOVER)
             .fg(colors::TEXT);
 
-        for (name, count) in &names {
-            if ui
-                .item(format!("{name}  ·  {count} songs"), false, row)
-                .clicked
-            {
+        for (name, count, songs) in &names {
+            let state = ui.item(format!("{name}  ·  {count} songs"), false, row);
+            if state.clicked {
                 action = Some(Action::OpenDetail(name.clone()));
+            }
+            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+                if !songs.is_empty() {
+                    menu.open_at(
+                        mx,
+                        my,
+                        vec![
+                            (
+                                "Play".into(),
+                                MenuCommand::Play {
+                                    songs: songs.clone(),
+                                    index: 0,
+                                },
+                            ),
+                            (
+                                "Add to queue".into(),
+                                MenuCommand::AddToQueue(songs.clone()),
+                            ),
+                        ],
+                    );
+                }
             }
         }
     });
@@ -77,7 +115,8 @@ pub fn draw_detail(
     name: &str,
     lists: &Index<Playlist>,
     playing_path: Option<&str>,
-    selected_path: &mut Option<String>,
+    selection: &mut PathSelection,
+    menu: &mut ContextMenu,
     scroll: &mut usize,
 ) -> Option<Action> {
     let songs: Vec<Song> = lists
@@ -85,8 +124,10 @@ pub fn draw_detail(
         .find(|p| p.name() == name)
         .map(|p| p.songs.iter().cloned().collect())
         .unwrap_or_default();
+    let ordered: Vec<String> = songs.iter().map(|s| s.path.clone()).collect();
     let name_owned = name.to_string();
     let shift = ui.window.modifiers().shift;
+    let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
 
     ui.scroll_view(bounds(rect).bg(colors::BG), scroll, |ui| {
@@ -110,15 +151,15 @@ pub fn draw_detail(
             name_owned.clone(),
             style()
                 .fg(colors::TEXT)
-                .font_size(32)
+                .font_size(28)
                 .padl(40)
                 .padt(12)
-                .padb(4)
+                .padb(2)
                 .fill_width()
                 .align(Alignment::Left),
         );
         ui.text(
-            format!("{} songs", songs.len()),
+            format!("{} songs · right-click a track", songs.len()),
             style()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
@@ -141,23 +182,51 @@ pub fn draw_detail(
 
         for (i, song) in songs.iter().enumerate() {
             let is_playing = playing_path == Some(song.path.as_str());
-            let is_selected = selected_path.as_deref() == Some(song.path.as_str());
+            let is_selected = selection.contains(&song.path);
             let mark = if is_playing { "♪ " } else { "  " };
             let label = format!(
                 "{mark}{}  ·  {}  ·  {}",
                 song.title, song.artist, song.album
             );
             let state = ui.item(label, is_selected, row);
-            if state.clicked {
-                *selected_path = Some(song.path.clone());
-                if shift {
-                    action = Some(Action::Append(song.clone()));
-                } else if state.double_clicked {
-                    action = Some(Action::Play {
-                        songs: songs.clone(),
-                        index: i,
-                    });
+            if state.double_clicked {
+                selection.select_only(song.path.clone());
+                action = Some(Action::Play {
+                    songs: songs.clone(),
+                    index: i,
+                });
+            } else if state.clicked {
+                selection.click(&ordered, song.path.clone(), shift, ctrl);
+            }
+            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+                if !selection.contains(&song.path) {
+                    selection.select_only(song.path.clone());
                 }
+                let selected = selection.collect_songs(&songs);
+                let n = selected.len();
+                let add_label = if n <= 1 {
+                    "Add to queue".to_string()
+                } else {
+                    format!("Add {n} to queue")
+                };
+                menu.open_at(
+                    mx,
+                    my,
+                    vec![
+                        (
+                            "Play".into(),
+                            MenuCommand::Play {
+                                songs: songs.clone(),
+                                index: i,
+                            },
+                        ),
+                        (add_label, MenuCommand::AddToQueue(selected)),
+                        (
+                            "Add all to queue".into(),
+                            MenuCommand::AddToQueue(songs.clone()),
+                        ),
+                    ],
+                );
             }
         }
     });

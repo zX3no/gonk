@@ -17,9 +17,10 @@ pub mod colors {
 }
 
 pub mod icons {
-    pub const HOME: &str = "\u{e88a}";
     pub const SEARCH: &str = "\u{e8b6}";
     pub const PLAYLISTS: &str = "\u{e05f}";
+    /// queue_music
+    pub const QUEUE: &str = "\u{e03d}";
     pub const PLAY: &str = "\u{e037}";
     pub const PAUSE: &str = "\u{e034}";
     pub const SKIP_PREV: &str = "\u{e045}";

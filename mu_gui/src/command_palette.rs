@@ -90,6 +90,7 @@ pub enum Action {
     RescanDatabase,
     Play(Song),
     Append(Song),
+    AppendMany(Vec<Song>),
     OpenArtist(String),
     Close,
 }
@@ -436,6 +437,7 @@ fn activate_entry(
         Entry::Command(CommandId::RescanDatabase, _, _) => Some(Action::RescanDatabase),
         Entry::Song(Item::Song((artist, album, _, disc, num))) => {
             let song = search::find_song(db, artists, artist, album, *disc, *num)?;
+            // Palette is "I want this" — Enter plays, Shift+Enter appends to queue.
             Some(if shift {
                 Action::Append(song)
             } else {
@@ -444,6 +446,18 @@ fn activate_entry(
         }
         Entry::Song(_) => None,
         Entry::Artist(name) => Some(Action::OpenArtist(name.clone())),
-        Entry::Album(artist, _) => Some(Action::OpenArtist(artist.clone())),
+        Entry::Album(artist, album) => {
+            // Shift+Enter/click on album → append whole album; else open artist.
+            if shift {
+                let songs = search::album_songs(db, artists, artist, album);
+                if songs.is_empty() {
+                    Some(Action::OpenArtist(artist.clone()))
+                } else {
+                    Some(Action::AppendMany(songs))
+                }
+            } else {
+                Some(Action::OpenArtist(artist.clone()))
+            }
+        }
     }
 }
