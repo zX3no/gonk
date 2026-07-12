@@ -4,6 +4,7 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
     thread::{self, JoinHandle},
+    time::{Duration, Instant},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -171,8 +172,15 @@ impl TryFrom<&Path> for Song {
 
 #[derive(Debug)]
 pub enum ScanResult {
-    Completed,
-    CompletedWithErrors(Vec<String>),
+    Completed {
+        elapsed: Duration,
+        tracks: usize,
+    },
+    CompletedWithErrors {
+        elapsed: Duration,
+        tracks: usize,
+        errors: Vec<String>,
+    },
     FileInUse,
 }
 
@@ -187,6 +195,7 @@ pub fn reset(config: &Config) -> Result<(), Box<dyn Error>> {
 pub fn create(music_dir: &str, config_database_path: PathBuf) -> JoinHandle<ScanResult> {
     let path = music_dir.to_string();
     thread::spawn(move || {
+        let started = Instant::now();
         let mut db_path = config_database_path.to_path_buf();
         db_path.pop();
         db_path.push("temp.db");
@@ -198,7 +207,10 @@ pub fn create(music_dir: &str, config_database_path: PathBuf) -> JoinHandle<Scan
                     .flatten()
                     .filter(|entry| match entry.extension() {
                         Some(ex) => {
-                            matches!(ex.to_str(), Some("flac" | "mp3" | "ogg"))
+                            matches!(
+                                ex.to_str().map(|s| s.to_ascii_lowercase()).as_deref(),
+                                Some("flac" | "mp3" | "ogg")
+                            )
                         }
                         None => false,
                     })
@@ -221,6 +233,7 @@ pub fn create(music_dir: &str, config_database_path: PathBuf) -> JoinHandle<Scan
                     .collect();
 
                 let songs: Vec<Song> = songs.into_iter().flatten().collect();
+                let tracks = songs.len();
                 let mut writer = BufWriter::new(&file);
                 writer.write_all(&songs.serialize().into_bytes()).unwrap();
                 writer.flush().unwrap();
@@ -228,12 +241,15 @@ pub fn create(music_dir: &str, config_database_path: PathBuf) -> JoinHandle<Scan
                 //Remove old database and replace it with new.
                 fs::rename(db_path, config_database_path).unwrap();
 
-                // let _db = vdb::create().unwrap();
-
+                let elapsed = started.elapsed();
                 if errors.is_empty() {
-                    ScanResult::Completed
+                    ScanResult::Completed { elapsed, tracks }
                 } else {
-                    ScanResult::CompletedWithErrors(errors)
+                    ScanResult::CompletedWithErrors {
+                        elapsed,
+                        tracks,
+                        errors,
+                    }
                 }
             }
             Err(_) => ScanResult::FileInUse,

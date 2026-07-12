@@ -7,6 +7,7 @@ use std::{
 };
 
 mod artist;
+mod command_palette;
 mod home;
 mod player_bar;
 mod playlist;
@@ -15,9 +16,12 @@ mod search;
 mod settings;
 mod sidebar;
 mod theme;
+mod toast;
 
+use command_palette::CommandPalette;
 use search::Search;
 use theme::colors;
+use toast::Toast;
 
 const PLAYER_H: i32 = player_bar::PLAYER_H;
 const SIDEBAR_W: i32 = sidebar::SIDEBAR_W;
@@ -89,6 +93,35 @@ fn append(player: &mut Player, songs: &mut Index<Song>, list: Vec<Song>) {
 
 fn refresh_artists(db: &Database) -> Vec<String> {
     db.artists().into_iter().cloned().collect()
+}
+
+fn start_scan(
+    scan_handle: &mut Option<std::thread::JoinHandle<db::ScanResult>>,
+    scan_timer: &mut Instant,
+    dots: &mut usize,
+    toast: &mut Option<Toast>,
+    persist: &mu_core::settings::Settings,
+    config: &Config,
+) {
+    if scan_handle.is_some() {
+        *toast = Some(Toast::new("Scan already running", "Please wait…"));
+        return;
+    }
+    if persist.music_folder.is_empty() {
+        log!("No music folder set. Use: mu_gui add <path>");
+        *toast = Some(Toast::new(
+            "No music folder",
+            "Use: mu_gui add <path>",
+        ));
+        return;
+    }
+    *scan_timer = Instant::now();
+    *dots = 1;
+    *scan_handle = Some(db::create(
+        &persist.music_folder,
+        config.database.clone(),
+    ));
+    log!("Scanning {}…", persist.music_folder);
 }
 
 fn main() {
@@ -187,6 +220,8 @@ fn main() {
     let mut mode = Mode::Home;
     let mut prev_mode = Mode::Home;
     let mut search = Search::new();
+    let mut palette = CommandPalette::new();
+    let mut toast: Option<Toast> = None;
     let mut selected_artist: Option<String> = None;
     let mut list_selected_path: Option<String> = None;
     let mut artist_scroll: usize = 0;
@@ -221,22 +256,52 @@ fn main() {
                     }
                 }
 
+                // Prefer worker-thread duration (true scan cost). Wall-clock from
+                // `scan_timer` also includes main-loop lag before we notice completion.
                 match result {
-                    db::ScanResult::Completed => {
+                    db::ScanResult::Completed { elapsed, tracks } => {
+                        let secs = elapsed.as_secs_f32();
                         log!(
-                            "Finished scanning in {:.2}s ({} tracks).",
-                            scan_timer.elapsed().as_secs_f32(),
-                            db.len
+                            "Finished scanning in {:.2}s ({} tracks, wall {:.2}s).",
+                            secs,
+                            tracks,
+                            scan_timer.elapsed().as_secs_f32()
                         );
+                        toast = Some(Toast::new(
+                            "Scan complete",
+                            format!("{secs:.2}s · {tracks} tracks"),
+                        ));
                     }
-                    db::ScanResult::CompletedWithErrors(errors) => {
-                        log!("Scan finished with {} errors.", errors.len());
+                    db::ScanResult::CompletedWithErrors {
+                        elapsed,
+                        tracks,
+                        errors,
+                    } => {
+                        let secs = elapsed.as_secs_f32();
+                        log!(
+                            "Scan finished with {} errors in {:.2}s ({} tracks).",
+                            errors.len(),
+                            secs,
+                            tracks
+                        );
+                        toast = Some(Toast::new(
+                            "Scan finished with errors",
+                            format!("{secs:.2}s · {} errors", errors.len()),
+                        ));
                     }
                     db::ScanResult::FileInUse => {
                         log!("Could not update database, file in use.");
+                        toast = Some(Toast::new(
+                            "Scan failed",
+                            "Database file is in use",
+                        ));
                     }
                 }
             }
+        }
+
+        if toast.as_ref().is_some_and(|t| t.expired()) {
+            toast = None;
         }
 
         if last_tick.elapsed() >= Duration::from_millis(150) {
@@ -278,9 +343,71 @@ fn main() {
         {
             let window = &ui.window;
             let shift = window.modifiers().shift;
+            let ctrl = window.modifiers().ctrl;
             let search_focus = search.focused && matches!(mode, Mode::Search);
 
-            if search_focus {
+            // Global shortcuts — available even while search/page focus is active.
+            if ctrl
+                && (window.pressed(Key::Char('P')) || window.pressed(Key::Char('p')))
+            {
+                search.focused = false;
+                palette.open_commands();
+            } else if ctrl
+                && (window.pressed(Key::Char('F')) || window.pressed(Key::Char('f')))
+            {
+                search.focused = false;
+                palette.open_search();
+            } else if palette.open {
+                command_palette::on_text_input(&mut palette, window.text_input());
+                command_palette::on_backspace(&mut palette, window, shift);
+
+                if window.pressed(Key::Escape) {
+                    palette.close();
+                }
+                if window.pressed(Key::ArrowUp) || window.pressed(Key::Up) {
+                    command_palette::move_selection(&mut palette, &db, -1);
+                }
+                if window.pressed(Key::ArrowDown) || window.pressed(Key::Down) {
+                    command_palette::move_selection(&mut palette, &db, 1);
+                }
+                if window.pressed(Key::Enter) {
+                    if let Some(action) =
+                        command_palette::try_activate(&palette, &db, &artists, shift)
+                    {
+                        match action {
+                            command_palette::Action::RescanDatabase => {
+                                palette.close();
+                                start_scan(
+                                    &mut scan_handle,
+                                    &mut scan_timer,
+                                    &mut dots,
+                                    &mut toast,
+                                    &persist,
+                                    &config,
+                                );
+                            }
+                            command_palette::Action::Play(song) => {
+                                palette.close();
+                                replace_and_play(&mut player, &mut songs, vec![song], 0);
+                            }
+                            command_palette::Action::Append(song) => {
+                                palette.close();
+                                append(&mut player, &mut songs, vec![song]);
+                            }
+                            command_palette::Action::OpenArtist(name) => {
+                                palette.close();
+                                if artists.iter().any(|a| a == &name) {
+                                    selected_artist = Some(name.clone());
+                                    mode = Mode::Artist { name };
+                                    list_selected_path = None;
+                                    main_scroll = 0;
+                                }
+                            }
+                            command_palette::Action::Close => palette.close(),
+                        }
+                    }
+                }
+            } else if search_focus {
                 for c in window.text_input() {
                     if !c.is_control() {
                         search.query.push(*c);
@@ -410,23 +537,21 @@ fn main() {
                     }
                 }
                 if window.pressed(Key::Char('U')) || window.pressed(Key::Char('u')) {
-                    if scan_handle.is_none() && !persist.music_folder.is_empty() {
-                        scan_timer = Instant::now();
-                        dots = 1;
-                        scan_handle = Some(db::create(
-                            &persist.music_folder,
-                            config.database.clone(),
-                        ));
-                        log!("Scanning {}…", persist.music_folder);
-                    } else if persist.music_folder.is_empty() {
-                        log!("No music folder set. Use: mu_gui add <path>");
-                    }
+                    start_scan(
+                        &mut scan_handle,
+                        &mut scan_timer,
+                        &mut dots,
+                        &mut toast,
+                        &persist,
+                        &config,
+                    );
                 }
             }
         }
 
         ui.frame(|ui| {
             ui.clear_color = colors::BG;
+            let palette_open = palette.open;
 
             let (body, bar_rect) = ui.split_v(Size::FillMinus(PLAYER_H));
             let (sidebar_rect, main_rect) = ui.split_rect_h(body, SIDEBAR_W);
@@ -440,22 +565,24 @@ fn main() {
                 &mut artist_scroll,
                 icon_font,
             ) {
-                match action {
-                    sidebar::Action::Mode(m) => {
-                        mode = m;
-                        selected_artist = None;
-                        list_selected_path = None;
-                        main_scroll = 0;
-                        if matches!(mode, Mode::Search) {
-                            search.focused = true;
-                        }
-                    }
-                    sidebar::Action::Artist(name) => {
-                        if artists.iter().any(|a| a == &name) {
-                            selected_artist = Some(name.clone());
-                            mode = Mode::Artist { name };
+                if !palette_open {
+                    match action {
+                        sidebar::Action::Mode(m) => {
+                            mode = m;
+                            selected_artist = None;
                             list_selected_path = None;
                             main_scroll = 0;
+                            if matches!(mode, Mode::Search) {
+                                search.focused = true;
+                            }
+                        }
+                        sidebar::Action::Artist(name) => {
+                            if artists.iter().any(|a| a == &name) {
+                                selected_artist = Some(name.clone());
+                                mode = Mode::Artist { name };
+                                list_selected_path = None;
+                                main_scroll = 0;
+                            }
                         }
                     }
                 }
@@ -478,21 +605,23 @@ fn main() {
                     if let Some(action) =
                         search::draw(ui, main_rect, &mut search, &db, &artists, &mut main_scroll)
                     {
-                        match action {
-                            search::Action::OpenArtist(name) => {
-                                search.focused = false;
-                                selected_artist = Some(name.clone());
-                                mode = Mode::Artist { name };
-                                list_selected_path = None;
-                                main_scroll = 0;
-                            }
-                            search::Action::Play(song) => {
-                                search.focused = false;
-                                replace_and_play(&mut player, &mut songs, vec![song], 0);
-                            }
-                            search::Action::Append(song) => {
-                                search.focused = false;
-                                append(&mut player, &mut songs, vec![song]);
+                        if !palette_open {
+                            match action {
+                                search::Action::OpenArtist(name) => {
+                                    search.focused = false;
+                                    selected_artist = Some(name.clone());
+                                    mode = Mode::Artist { name };
+                                    list_selected_path = None;
+                                    main_scroll = 0;
+                                }
+                                search::Action::Play(song) => {
+                                    search.focused = false;
+                                    replace_and_play(&mut player, &mut songs, vec![song], 0);
+                                }
+                                search::Action::Append(song) => {
+                                    search.focused = false;
+                                    append(&mut player, &mut songs, vec![song]);
+                                }
                             }
                         }
                     }
@@ -501,10 +630,12 @@ fn main() {
                     if let Some(action) =
                         playlist::draw_list(ui, main_rect, &playlists, &mut main_scroll)
                     {
-                        if let playlist::Action::OpenDetail(name) = action {
-                            mode = Mode::PlaylistDetail { name };
-                            list_selected_path = None;
-                            main_scroll = 0;
+                        if !palette_open {
+                            if let playlist::Action::OpenDetail(name) = action {
+                                mode = Mode::PlaylistDetail { name };
+                                list_selected_path = None;
+                                main_scroll = 0;
+                            }
                         }
                     }
                 }
@@ -518,19 +649,21 @@ fn main() {
                         &mut list_selected_path,
                         &mut main_scroll,
                     ) {
-                        match action {
-                            playlist::Action::Back => {
-                                mode = Mode::Playlist;
-                                list_selected_path = None;
-                                main_scroll = 0;
+                        if !palette_open {
+                            match action {
+                                playlist::Action::Back => {
+                                    mode = Mode::Playlist;
+                                    list_selected_path = None;
+                                    main_scroll = 0;
+                                }
+                                playlist::Action::Play { songs: list, index } => {
+                                    replace_and_play(&mut player, &mut songs, list, index);
+                                }
+                                playlist::Action::Append(song) => {
+                                    append(&mut player, &mut songs, vec![song]);
+                                }
+                                playlist::Action::OpenDetail(_) => {}
                             }
-                            playlist::Action::Play { songs: list, index } => {
-                                replace_and_play(&mut player, &mut songs, list, index);
-                            }
-                            playlist::Action::Append(song) => {
-                                append(&mut player, &mut songs, vec![song]);
-                            }
-                            playlist::Action::OpenDetail(_) => {}
                         }
                     }
                 }
@@ -545,18 +678,20 @@ fn main() {
                         &mut list_selected_path,
                         &mut main_scroll,
                     ) {
-                        match action {
-                            artist::Action::MissingArtist => {
-                                selected_artist = None;
-                                list_selected_path = None;
-                                mode = Mode::Home;
-                                log!("Artist not found: {name}");
-                            }
-                            artist::Action::PlayAlbum { songs: list, index } => {
-                                replace_and_play(&mut player, &mut songs, list, index);
-                            }
-                            artist::Action::Append(song) => {
-                                append(&mut player, &mut songs, vec![song]);
+                        if !palette_open {
+                            match action {
+                                artist::Action::MissingArtist => {
+                                    selected_artist = None;
+                                    list_selected_path = None;
+                                    mode = Mode::Home;
+                                    log!("Artist not found: {name}");
+                                }
+                                artist::Action::PlayAlbum { songs: list, index } => {
+                                    replace_and_play(&mut player, &mut songs, list, index);
+                                }
+                                artist::Action::Append(song) => {
+                                    append(&mut player, &mut songs, vec![song]);
+                                }
                             }
                         }
                     }
@@ -565,9 +700,11 @@ fn main() {
                     if let Some(queue::Action::PlayIndex(i)) =
                         queue::draw(ui, main_rect, &songs, &mut list_selected_path, &mut main_scroll)
                     {
-                        songs.select(Some(i));
-                        if let Some(song) = songs.selected().cloned() {
-                            play(&mut player, &song, true);
+                        if !palette_open {
+                            songs.select(Some(i));
+                            if let Some(song) = songs.selected().cloned() {
+                                play(&mut player, &song, true);
+                            }
                         }
                     }
                 }
@@ -580,10 +717,12 @@ fn main() {
                         &persist.music_folder,
                         &mut main_scroll,
                     ) {
-                        if let Some(dev) = devices.get(i).cloned() {
-                            player.set_output_device(dev.clone());
-                            persist.output_device = dev.name.clone();
-                            current_device = dev.name;
+                        if !palette_open {
+                            if let Some(dev) = devices.get(i).cloned() {
+                                player.set_output_device(dev.clone());
+                                persist.output_device = dev.name.clone();
+                                current_device = dev.name;
+                            }
                         }
                     }
                 }
@@ -600,34 +739,81 @@ fn main() {
                 &mut mute,
                 icon_font,
             ) {
-                match action {
-                    player_bar::Action::OpenQueue => {
-                        mode = Mode::Queue;
-                        selected_artist = None;
-                        list_selected_path = None;
-                        main_scroll = 0;
-                    }
-                    player_bar::Action::TogglePlay => player.toggle_playback(),
-                    player_bar::Action::Prev => {
-                        if !songs.is_empty() {
-                            songs.up();
-                            if let Some(song) = songs.selected().cloned() {
-                                play(&mut player, &song, true);
+                if !palette_open {
+                    match action {
+                        player_bar::Action::OpenQueue => {
+                            mode = Mode::Queue;
+                            selected_artist = None;
+                            list_selected_path = None;
+                            main_scroll = 0;
+                        }
+                        player_bar::Action::TogglePlay => player.toggle_playback(),
+                        player_bar::Action::Prev => {
+                            if !songs.is_empty() {
+                                songs.up();
+                                if let Some(song) = songs.selected().cloned() {
+                                    play(&mut player, &song, true);
+                                }
                             }
                         }
-                    }
-                    player_bar::Action::Next => {
-                        if !songs.is_empty() {
-                            songs.down();
-                            if let Some(song) = songs.selected().cloned() {
-                                play(&mut player, &song, true);
+                        player_bar::Action::Next => {
+                            if !songs.is_empty() {
+                                songs.down();
+                                if let Some(song) = songs.selected().cloned() {
+                                    play(&mut player, &song, true);
+                                }
                             }
                         }
+                        player_bar::Action::ToggleShuffle | player_bar::Action::CycleRepeat => {}
                     }
-                    player_bar::Action::ToggleShuffle | player_bar::Action::CycleRepeat => {}
                 }
             }
 
+            // Command palette overlay (Ctrl+P / Ctrl+F).
+            let shift = ui.window.modifiers().shift;
+            if let Some(action) =
+                command_palette::draw(ui, &mut palette, &db, &artists, shift)
+            {
+                match action {
+                    command_palette::Action::RescanDatabase => {
+                        palette.close();
+                        start_scan(
+                            &mut scan_handle,
+                            &mut scan_timer,
+                            &mut dots,
+                            &mut toast,
+                            &persist,
+                            &config,
+                        );
+                    }
+                    command_palette::Action::Play(song) => {
+                        palette.close();
+                        replace_and_play(&mut player, &mut songs, vec![song], 0);
+                    }
+                    command_palette::Action::Append(song) => {
+                        palette.close();
+                        append(&mut player, &mut songs, vec![song]);
+                    }
+                    command_palette::Action::OpenArtist(name) => {
+                        palette.close();
+                        if artists.iter().any(|a| a == &name) {
+                            selected_artist = Some(name.clone());
+                            mode = Mode::Artist { name };
+                            list_selected_path = None;
+                            main_scroll = 0;
+                        }
+                    }
+                    command_palette::Action::Close => palette.close(),
+                }
+            }
+
+            // Scan-complete toast (bottom-right, above player bar).
+            if let Some(t) = &toast {
+                let (win_w, _) = ui.window.content_size();
+                if toast::draw(ui, t, bar_rect.y, win_w as i32) {
+                    toast = None;
+                }
+            }
         });
     }
 

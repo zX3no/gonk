@@ -291,21 +291,27 @@ fn main() {
                 log::clear();
 
                 match result {
-                    db::ScanResult::Completed => {
+                    db::ScanResult::Completed { elapsed, tracks } => {
                         log!(
-                            "Finished adding {} files in {:.2} seconds.",
-                            db.len,
+                            "Finished adding {} files in {:.2} seconds (wall {:.2}s).",
+                            tracks,
+                            elapsed.as_secs_f32(),
                             scan_timer.elapsed().as_secs_f32()
                         );
                     }
-                    db::ScanResult::CompletedWithErrors(errors) => {
+                    db::ScanResult::CompletedWithErrors {
+                        elapsed,
+                        tracks,
+                        errors,
+                    } => {
                         let dir = "See %appdata%/mu/mu.log for details.";
                         let len = errors.len();
                         let s = if len == 1 { "" } else { "s" };
 
                         log!(
-                            "Added {} files with {len} error{s}. {dir}",
-                            db.len.saturating_sub(len)
+                            "Added {} files with {len} error{s} in {:.2}s. {dir}",
+                            tracks,
+                            elapsed.as_secs_f32()
                         );
 
                         let path = config.mu.join("mu.log");

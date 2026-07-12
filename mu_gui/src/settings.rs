@@ -76,7 +76,7 @@ pub fn draw(
                 .align(Alignment::Left),
         );
         ui.text(
-            "Scan: press U (or CLI: mu_gui add <path>)",
+            "Scan: U · Ctrl+P → Rescan · Ctrl+F song search (or CLI: mu_gui add <path>)",
             style()
                 .fg(colors::TEXT_DIM)
                 .font_size(12)
