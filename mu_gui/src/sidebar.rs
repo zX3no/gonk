@@ -128,7 +128,7 @@ pub fn draw(
         .fill_width()
         .radius(7)
         .align(Alignment::Left)
-        .fg(colors::TEXT_MUTED)
+        .fg(colors::TEXT)
         .hover(colors::HOVER)
         .selected(colors::ACCENT_DIM);
 
@@ -149,7 +149,7 @@ pub fn draw(
                 ui.text(
                     letter.to_string(),
                     style()
-                        .fg(colors::TEXT_DIM)
+                        .fg(colors::TEXT_MUTED)
                         .font_size(11)
                         .padl(12)
                         .padt(6)
@@ -175,7 +175,7 @@ pub fn draw(
             pin.y,
             pin.width - 12,
             pin.height,
-            colors::TEXT_DIM,
+            colors::TEXT_MUTED,
             0,
             11,
             Alignment::Left,
