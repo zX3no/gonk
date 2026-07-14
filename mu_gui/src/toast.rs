@@ -38,20 +38,20 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, toast: &'_ Toast, above_y: i32, windo
     }
 
     let rect = Rect::new(x, y, TOAST_W, TOAST_H);
-    let depth = 2;
     let message = toast.message.clone();
     let detail = toast.detail.clone();
 
     let (bar, body) = ui.split_rect_h(rect, 4);
 
-    ui.paint_rect(bar, bg(colors::ACCENT));
+    // Accent strip is outside the place frame, so depth must be set explicitly.
+    ui.paint_rect(bar, bg(colors::ACCENT).depth(2));
 
     ui.place_right(
         bounds(body)
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
             .cross_align(CrossAlign::Center)
-            .depth(depth),
+            .depth(2),
         |ui| {
             let content_h = if detail.is_empty() { 20 } else { 44 };
             let content = ui.rect(style().fill_width().height(content_h)).rect;

@@ -1169,9 +1169,11 @@ fn main() {
                 );
             }
 
-            // Command palette overlay (Ctrl+P / Ctrl+F).
+            // Command palette overlay (Ctrl+P / Ctrl+F), centered in the main body.
             let shift = ui.window.modifiers().shift;
-            if let Some(action) = command_palette::draw(ui, &mut palette, &db, &artists, shift) {
+            if let Some(action) =
+                command_palette::draw(ui, &mut palette, &db, &artists, main_rect, shift)
+            {
                 apply_palette_action(
                     action,
                     &mut palette,

@@ -147,8 +147,7 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
         .hover(colors::HOVER)
         .fg(colors::TEXT)
         .font_size(13)
-        .align(Alignment::Left)
-        .depth(DEPTH);
+        .align(Alignment::Left);
 
     let mut chosen = None;
     ui.place_down(
@@ -162,7 +161,7 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
             for (i, entry) in menu.entries.iter().enumerate() {
                 if entry.separator_before && i > 0 {
                     ui.gap(4);
-                    ui.rect(style().fill_width().height(1).bg(colors::LINE).depth(DEPTH));
+                    ui.rect(style().fill_width().height(1).bg(colors::LINE));
                     ui.gap(4);
                 }
                 if ui.item(entry.label.clone(), row).clicked {

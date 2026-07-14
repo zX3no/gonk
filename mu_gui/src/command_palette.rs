@@ -10,6 +10,8 @@ const INPUT_H: i32 = 44;
 const ROW_H: i32 = 36;
 const MAX_VISIBLE: i32 = 10;
 const MAX_RESULTS: usize = 40;
+/// Above normal content / toast; below context menu.
+const DEPTH: usize = 3;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CommandId {
@@ -112,16 +114,13 @@ pub fn draw(
     palette: &mut CommandPalette,
     db: &Database,
     artists: &[String],
+    // Main content area (excludes sidebar / player bar) to center within.
+    body: Rect,
     shift: bool,
 ) -> Option<Action> {
     if !palette.open {
         return None;
     }
-
-    let (win_w, win_h) = ui.window.content_size();
-    let win_w = win_w as i32;
-    let win_h = win_h as i32;
-    let depth = 3;
 
     let entries = build_entries(palette, db);
     if palette.selected >= entries.len() && !entries.is_empty() {
@@ -138,8 +137,8 @@ pub fn draw(
         visible * ROW_H
     };
     let panel_h = INPUT_H + 8 + list_h + 8;
-    let panel_w = PALETTE_W.min(win_w - 40).max(280);
-    let panel = Rect::new((win_w - panel_w) / 2, (win_h / 6).max(48), panel_w, panel_h);
+    let panel_w = PALETTE_W.min(body.width - 40).max(280);
+    let panel_top = (body.height / 6).max(48);
 
     let (display, placeholder) = if palette.query.is_empty() {
         (
@@ -151,118 +150,127 @@ pub fn draw(
     };
 
     let mut action = None;
+    let mut panel = Rect::default();
+
+    // Overlay the main body so the panel is cross-aligned to that region's center.
     ui.place_down(
-        bounds(panel)
-            .bg(colors::PANEL_RAISED)
-            .border(colors::LINE)
-            .radius(10)
-            .depth(depth)
-            .pad(8),
+        bounds(body)
+            .cross_align(CrossAlign::Center)
+            .depth(DEPTH)
+            .padt(panel_top as usize),
         |ui| {
-            ui.text(
-                display,
+            // Chrome at full panel size (padding must not shrink the painted panel).
+            let chrome = ui.rect(
                 style()
-                    .fill_width()
-                    .height(INPUT_H - 8)
-                    .padlr(12)
-                    .bg(colors::PANEL)
-                    .border(colors::ACCENT)
-                    .radius(7)
-                    .fg(if placeholder {
-                        colors::TEXT_DIM
-                    } else {
-                        colors::TEXT
-                    })
-                    .font_size(14)
-                    .align(Alignment::Left)
-                    .depth(depth),
+                    .width(panel_w)
+                    .height(panel_h)
+                    .bg(colors::PANEL_RAISED)
+                    .border(colors::LINE)
+                    .radius(10),
             );
+            panel = chrome.rect;
 
-            ui.gap(4);
-
-            if entries.is_empty() {
-                let hint = if palette.is_command_mode() {
-                    "No matching commands"
-                } else if palette.query.is_empty() {
-                    "Type to search songs, or > for commands"
-                } else {
-                    "No matching songs"
-                };
+            ui.place_down(bounds(chrome.rect).pad(8), |ui| {
                 ui.text(
-                    hint,
+                    display,
                     style()
                         .fill_width()
-                        .height(ROW_H)
-                        .padl(12)
-                        .fg(colors::TEXT_DIM)
-                        .font_size(13)
-                        .align(Alignment::Left)
-                        .depth(depth),
+                        .height(INPUT_H - 8)
+                        .padlr(12)
+                        .bg(colors::PANEL)
+                        .border(colors::ACCENT)
+                        .radius(7)
+                        .fg(if placeholder {
+                            colors::TEXT_DIM
+                        } else {
+                            colors::TEXT
+                        })
+                        .font_size(14)
+                        .align(Alignment::Left),
                 );
-                return;
-            }
 
-            let scroll_offset = palette
-                .selected
-                .saturating_sub(MAX_VISIBLE as usize - 1)
-                .min(entries.len().saturating_sub(visible as usize));
+                ui.gap(4);
 
-            let row = style()
-                .fill_width()
-                .height(ROW_H - 2)
-                .radius(6)
-                .hover(colors::HOVER)
-                .selected(colors::ACCENT_DIM)
-                .bg(colors::PANEL_RAISED)
-                .depth(depth);
-
-            for idx in scroll_offset..scroll_offset + visible as usize {
-                let Some(entry) = entries.get(idx) else {
-                    break;
-                };
-                let selected = idx == palette.selected;
-                let (title, subtitle) = entry_labels(entry);
-                let state = ui.rect(row.is_selected(selected));
-
-                ui.place_down(bounds(state.rect).padl(12).padr(12), |ui| {
-                    let title_h = if subtitle.is_empty() {
-                        state.rect.height
+                if entries.is_empty() {
+                    let hint = if palette.is_command_mode() {
+                        "No matching commands"
+                    } else if palette.query.is_empty() {
+                        "Type to search songs, or > for commands"
                     } else {
-                        state.rect.height / 2 + 4
+                        "No matching songs"
                     };
                     ui.text(
-                        title,
+                        hint,
                         style()
                             .fill_width()
-                            .height(title_h)
-                            .fg(if selected {
-                                colors::ACCENT_BRIGHT
-                            } else {
-                                colors::TEXT
-                            })
+                            .height(ROW_H)
+                            .padl(12)
+                            .fg(colors::TEXT_DIM)
                             .font_size(13)
-                            .align(Alignment::Left)
-                            .depth(depth),
+                            .align(Alignment::Left),
                     );
-                    if !subtitle.is_empty() {
+                    return;
+                }
+
+                let scroll_offset = palette
+                    .selected
+                    .saturating_sub(MAX_VISIBLE as usize - 1)
+                    .min(entries.len().saturating_sub(visible as usize));
+
+                let row = style()
+                    .fill_width()
+                    .height(ROW_H - 2)
+                    .radius(6)
+                    .hover(colors::HOVER)
+                    .selected(colors::ACCENT_DIM)
+                    .bg(colors::PANEL_RAISED);
+
+                for idx in scroll_offset..scroll_offset + visible as usize {
+                    let Some(entry) = entries.get(idx) else {
+                        break;
+                    };
+                    let selected = idx == palette.selected;
+                    let (title, subtitle) = entry_labels(entry);
+                    let state = ui.rect(row.is_selected(selected));
+
+                    ui.place_down(bounds(state.rect).padl(12).padr(12), |ui| {
+                        let title_h = if subtitle.is_empty() {
+                            state.rect.height
+                        } else {
+                            state.rect.height / 2 + 4
+                        };
                         ui.text(
-                            subtitle,
+                            title,
                             style()
                                 .fill_width()
-                                .height(state.rect.height / 2)
-                                .fg(colors::TEXT_MUTED)
-                                .font_size(11)
-                                .align(Alignment::Left)
-                                .depth(depth),
+                                .height(title_h)
+                                .fg(if selected {
+                                    colors::ACCENT_BRIGHT
+                                } else {
+                                    colors::TEXT
+                                })
+                                .font_size(13)
+                                .align(Alignment::Left),
                         );
-                    }
-                });
+                        if !subtitle.is_empty() {
+                            ui.text(
+                                subtitle,
+                                style()
+                                    .fill_width()
+                                    .height(state.rect.height / 2)
+                                    .fg(colors::TEXT_MUTED)
+                                    .font_size(11)
+                                    .align(Alignment::Left),
+                            );
+                        }
+                    });
 
-                if state.clicked {
-                    palette.selected = idx;
-                    action = activate_entry(entry, db, artists, shift);
+                    if state.clicked {
+                        palette.selected = idx;
+                        action = activate_entry(entry, db, artists, shift);
+                    }
                 }
-            }
+            });
         },
     );
 
