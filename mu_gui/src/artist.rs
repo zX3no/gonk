@@ -58,8 +58,7 @@ pub fn draw(
 
     let (header_rect, list_rect) = ui.split_rect_v(rect, HEADER_H);
 
-    ui.paint_rect(header_rect, style().bg(colors::BG));
-    ui.flow_skip(bounds(header_rect), Flow::Down, |ui| {
+    ui.place_down(bounds(header_rect).bg(colors::BG), |ui| {
         ui.text(
             artist_owned.clone(),
             style()
@@ -190,7 +189,7 @@ pub fn draw(
                             } else {
                                 format!("   {}.  {}", song.track_number, song.title)
                             };
-                            let state = ui.item(label, is_selected, row_style);
+                            let state = ui.item(label, row_style.is_selected(is_selected));
                             if state.double_clicked {
                                 selection.select_only(song.path.clone());
                                 if let Some(index) =
@@ -224,8 +223,7 @@ pub fn draw(
             if i + 1 < album_data.len() {
                 ui.gap(ALBUM_GAP);
                 ui.flow_right(style().padl(40).padr(40).fill_width().height(1), |ui| {
-                    let layout = ui.walk_layout(ui.current_frame_bounds().width, 1, 0);
-                    ui.paint_rect(layout.size, style().bg(colors::LINE));
+                    ui.rect(style().fill_width().height(1).bg(colors::LINE));
                 });
                 ui.gap(ALBUM_GAP);
             } else {

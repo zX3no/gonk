@@ -28,12 +28,6 @@ pub fn draw(
     mute: &mut bool,
     icon_font: usize,
 ) -> Option<Action> {
-    ui.paint_rect(rect, style().bg(colors::PANEL));
-    ui.paint_rect(
-        Rect::new(rect.x, rect.y, rect.width, 1),
-        style().bg(colors::LINE),
-    );
-
     let left_w = 280;
     let right_w = 160;
     let (left, rest) = ui.split_rect_h(rect, left_w);
@@ -50,6 +44,12 @@ pub fn draw(
     let has_track = songs.selected().is_some();
     let mut action = None;
 
+    ui.paint_rect(rect, style().bg(colors::PANEL));
+    ui.paint_rect(
+        Rect::new(rect.x, rect.y, rect.width, 1),
+        style().bg(colors::LINE),
+    );
+
     // Now playing
     {
         let pad = 12;
@@ -59,34 +59,29 @@ pub fn draw(
 
         let info_x = art_rect.right() + 12;
         let info_w = left.right() - info_x - 8;
-        ui.paint_text(
-            title,
-            info_x,
-            left.y + left.height / 2 - 16,
-            info_w,
-            18,
-            colors::TEXT,
-            0,
-            13,
-            Alignment::Left,
-            Padding::default(),
-            0,
-        );
-        ui.paint_text(
-            artist,
-            info_x,
-            left.y + left.height / 2 + 2,
-            info_w,
-            16,
-            colors::TEXT_MUTED,
-            0,
-            12,
-            Alignment::Left,
-            Padding::default(),
-            0,
-        );
+        let info = Rect::new(info_x, left.y + left.height / 2 - 16, info_w, 36);
+        ui.place_down(bounds(info), |ui| {
+            ui.text(
+                title,
+                style()
+                    .fg(colors::TEXT)
+                    .font_size(13)
+                    .fill_width()
+                    .height(18)
+                    .align(Alignment::Left),
+            );
+            ui.text(
+                artist,
+                style()
+                    .fg(colors::TEXT_MUTED)
+                    .font_size(12)
+                    .fill_width()
+                    .height(16)
+                    .align(Alignment::Left),
+            );
+        });
 
-        if ui.clicked(Rect::new(left.x, left.y, left.width, left.height)) && has_track {
+        if ui.clicked(left) && has_track {
             action = Some(Action::GoToNowPlaying);
         }
     }
@@ -100,87 +95,67 @@ pub fn draw(
         let total_w = btn * 5 + gap * 4;
         let start_x = transport_rect.x + (transport_rect.width - total_w) / 2;
         let y = transport_rect.y + (transport_rect.height - btn) / 2;
+        let transport = Rect::new(start_x, y, total_w, btn);
 
         let labels = [
-            (icons::SHUFFLE, *shuffle),
-            (icons::SKIP_PREV, false),
-            (if playing { icons::PAUSE } else { icons::PLAY }, true),
-            (icons::SKIP_NEXT, false),
+            (icons::SHUFFLE, *shuffle, false),
+            (icons::SKIP_PREV, false, false),
+            (
+                if playing { icons::PAUSE } else { icons::PLAY },
+                true,
+                true,
+            ),
+            (icons::SKIP_NEXT, false, false),
             (
                 icons::REPEAT,
                 matches!(*repeat, RepeatMode::All | RepeatMode::One),
+                false,
             ),
         ];
 
-        for (i, (icon, on)) in labels.iter().enumerate() {
-            let x = start_x + i as i32 * (btn + gap);
-            let r = Rect::new(x, y, btn, btn);
-            let is_play = i == 2;
-
-            if is_play {
-                ui.paint_rect(r, style().bg(colors::TEXT).radius(16));
-                ui.paint_text(
-                    *icon,
-                    r.x,
-                    r.y,
-                    r.width,
-                    r.height,
-                    colors::BG,
-                    icon_font,
-                    16,
-                    Alignment::Center,
-                    Padding::default(),
-                    0,
-                );
-            } else {
-                let color = if *on {
-                    colors::ACCENT_BRIGHT
+        ui.place_right(bounds(transport).cross_align(CrossAlign::Center), |ui| {
+            for (i, (icon, on, is_play)) in labels.iter().enumerate() {
+                let mut s = style()
+                    .font(icon_font)
+                    .font_size(if *is_play { 16 } else { 18 })
+                    .width(btn)
+                    .height(btn)
+                    .radius(16)
+                    .hover(colors::HOVER);
+                s = if *is_play {
+                    s.fg(colors::BG).bg(colors::TEXT).hover(colors::TEXT)
+                } else if *on {
+                    s.fg(colors::ACCENT_BRIGHT)
                 } else {
-                    colors::TEXT_MUTED
+                    s.fg(colors::TEXT_MUTED)
                 };
-                if ui.hovered(r) {
-                    ui.paint_rect(r, style().bg(colors::HOVER).radius(16));
+                if ui.text(*icon, s).clicked {
+                    match i {
+                        0 => {
+                            *shuffle = !*shuffle;
+                            action = Some(Action::ToggleShuffle);
+                        }
+                        1 => action = Some(Action::Prev),
+                        2 => action = Some(Action::TogglePlay),
+                        3 => action = Some(Action::Next),
+                        4 => {
+                            *repeat = match *repeat {
+                                RepeatMode::Off => RepeatMode::All,
+                                RepeatMode::All => RepeatMode::One,
+                                RepeatMode::One => RepeatMode::Off,
+                            };
+                            action = Some(Action::CycleRepeat);
+                        }
+                        _ => {}
+                    }
                 }
-                ui.paint_text(
-                    *icon,
-                    r.x,
-                    r.y,
-                    r.width,
-                    r.height,
-                    color,
-                    icon_font,
-                    18,
-                    Alignment::Center,
-                    Padding::default(),
-                    0,
-                );
-            }
-
-            if ui.clicked(r) {
-                match i {
-                    0 => {
-                        *shuffle = !*shuffle;
-                        action = Some(Action::ToggleShuffle);
-                    }
-                    1 => action = Some(Action::Prev),
-                    2 => action = Some(Action::TogglePlay),
-                    3 => action = Some(Action::Next),
-                    4 => {
-                        *repeat = match *repeat {
-                            RepeatMode::Off => RepeatMode::All,
-                            RepeatMode::All => RepeatMode::One,
-                            RepeatMode::One => RepeatMode::Off,
-                        };
-                        action = Some(Action::CycleRepeat);
-                    }
-                    _ => {}
+                if i + 1 < labels.len() {
+                    ui.gap(gap);
                 }
             }
-        }
+        });
 
-        // Seekbar
-        let seek = seek_rect.inner(20, 4);
-        draw_seekbar(ui, seek, player, seek_drag);
+        draw_seekbar(ui, seek_rect.inner(20, 4), player, seek_drag);
     }
 
     // Volume
@@ -235,34 +210,21 @@ fn draw_seekbar(
         return;
     }
 
-    ui.paint_text(
-        format_time(display_elapsed),
-        left.x,
-        left.y,
-        left.width,
-        left.height,
-        colors::TEXT_DIM,
-        0,
-        11,
-        Alignment::Center,
-        Padding::default(),
-        0,
-    );
-    ui.paint_text(
-        format_time(if duration.is_finite() { duration } else { 0.0 }),
-        right.x,
-        right.y,
-        right.width,
-        right.height,
-        colors::TEXT_DIM,
-        0,
-        11,
-        Alignment::Center,
-        Padding::default(),
-        0,
-    );
+    let time = style()
+        .fg(colors::TEXT_DIM)
+        .font_size(11)
+        .fill_width()
+        .fill_height();
+    ui.place_down(bounds(left), |ui| {
+        ui.text(format_time(display_elapsed), time);
+    });
+    ui.place_down(bounds(right), |ui| {
+        ui.text(
+            format_time(if duration.is_finite() { duration } else { 0.0 }),
+            time,
+        );
+    });
 
-    // Basic track line + rounded scrub head.
     let track_h = 4;
     let track = Rect::new(
         track_area.x,
@@ -272,7 +234,6 @@ fn draw_seekbar(
     );
     ui.paint_rect(track, style().bg(colors::LINE).radius(2));
 
-    // Keep the head fully within the track (avoids clamp min>max on bad sizes).
     let head_travel = (track.width - head_d).max(0);
     let head_x = track.x + ((head_travel as f32) * ratio).round() as i32;
     let fill_w = (head_x + head_d / 2 - track.x).clamp(0, track.width);
@@ -282,15 +243,16 @@ fn draw_seekbar(
             style().bg(colors::ACCENT_BRIGHT).radius(2),
         );
     }
-    let head = Rect::new(
-        head_x,
-        track.y + track.height / 2 - head_d / 2,
-        head_d,
-        head_d,
+    ui.paint_rect(
+        Rect::new(
+            head_x,
+            track.y + track.height / 2 - head_d / 2,
+            head_d,
+            head_d,
+        ),
+        style().bg(colors::TEXT).radius((head_d / 2) as usize),
     );
-    ui.paint_rect(head, style().bg(colors::TEXT).radius((head_d / 2) as usize));
 
-    // Slightly taller hit target than the thin track.
     let hit = Rect::new(track.x, track_area.y, track.width, track_area.height);
     if ui.dragged(hit) {
         if let Some(pct) = ui.drag_percentage_x(hit) {
@@ -340,19 +302,18 @@ fn draw_volume(
 ) -> Option<u8> {
     let icon_w = 28;
     let (icon_rect, track_area) = ui.split_rect_h(rect, icon_w);
-    ui.paint_text(
-        icons::VOLUME,
-        icon_rect.x,
-        icon_rect.y,
-        icon_rect.width,
-        icon_rect.height,
-        colors::TEXT_MUTED,
-        icon_font,
-        16,
-        Alignment::Center,
-        Padding::default(),
-        0,
-    );
+
+    ui.place_down(bounds(icon_rect), |ui| {
+        ui.text(
+            icons::VOLUME,
+            style()
+                .font(icon_font)
+                .font_size(16)
+                .fg(colors::TEXT_MUTED)
+                .fill_width()
+                .fill_height(),
+        );
+    });
 
     let track = Rect::new(
         track_area.x,

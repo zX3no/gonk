@@ -136,60 +136,42 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
     let (win_w, win_h) = ui.window.content_size();
     let win_w = win_w as i32;
     let win_h = win_h as i32;
-
     let panel = menu.panel_rect(win_w, win_h);
-    let x = panel.x;
-    let y = panel.y;
-    // Re-claim in case anything else raised hover depth this frame.
     let _ = ui.hovered_depth(panel, DEPTH);
 
-    ui.paint_rect(
-        panel,
-        style()
+    let row = style()
+        .fill_width()
+        .height(ROW_H - 2)
+        .padlr(12)
+        .radius(5)
+        .hover(colors::HOVER)
+        .fg(colors::TEXT)
+        .font_size(13)
+        .align(Alignment::Left)
+        .depth(DEPTH);
+
+    let mut chosen = None;
+    ui.place_down(
+        bounds(panel)
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
             .radius(8)
-            .depth(DEPTH),
+            .depth(DEPTH)
+            .pad(PAD as usize),
+        |ui| {
+            for (i, entry) in menu.entries.iter().enumerate() {
+                if entry.separator_before && i > 0 {
+                    ui.gap(4);
+                    ui.rect(style().fill_width().height(1).bg(colors::LINE).depth(DEPTH));
+                    ui.gap(4);
+                }
+                if ui.item(entry.label.clone(), row).clicked {
+                    chosen = Some(entry.command.clone());
+                }
+                ui.gap(2);
+            }
+        },
     );
-
-    let mut cy = y + PAD;
-    let mut chosen = None;
-
-    for (i, entry) in menu.entries.iter().enumerate() {
-        if entry.separator_before && i > 0 {
-            ui.paint_rect(
-                Rect::new(x + 10, cy + 3, MENU_W - 20, 1),
-                style().bg(colors::LINE).depth(DEPTH),
-            );
-            cy += 9;
-        }
-
-        let row = Rect::new(x + PAD, cy, MENU_W - PAD * 2, ROW_H - 2);
-        // Same depth as the panel claim — equal depth still counts as hovered.
-        let hovered = ui.hovered_depth(row, DEPTH);
-        if hovered {
-            ui.paint_rect(row, style().bg(colors::HOVER).radius(5).depth(DEPTH));
-        }
-
-        ui.paint_text(
-            entry.label.clone(),
-            row.x + 12,
-            row.y,
-            row.width - 24,
-            row.height,
-            colors::TEXT,
-            0,
-            13,
-            Alignment::Left,
-            Padding::default(),
-            DEPTH,
-        );
-
-        if hovered && ui.clicked(row) {
-            chosen = Some(entry.command.clone());
-        }
-        cy += ROW_H;
-    }
 
     // Click outside dismisses (don't steal the click that opened us on the same frame —
     // open happens on right-click; left-click outside closes).

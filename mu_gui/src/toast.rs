@@ -30,7 +30,7 @@ impl Toast {
 }
 
 /// Draw a bottom-right toast above the player bar. Returns true if the toast was dismissed.
-pub fn draw(ui: &mut FrameContext<'_, '_>, toast: &Toast, above_y: i32, window_w: i32) -> bool {
+pub fn draw(ui: &mut FrameContext<'_, '_>, toast: &'_ Toast, above_y: i32, window_w: i32) -> bool {
     let x = window_w - TOAST_W - MARGIN;
     let y = above_y - TOAST_H - MARGIN;
     if x < 0 || y < 0 {
@@ -39,52 +39,51 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, toast: &Toast, above_y: i32, window_w
 
     let rect = Rect::new(x, y, TOAST_W, TOAST_H);
     let depth = 2;
+    let message = toast.message.clone();
+    let detail = toast.detail.clone();
 
-    ui.paint_rect(
-        rect,
-        style()
+    let (bar, body) = ui.split_rect_h(rect, 4);
+
+    ui.paint_rect(bar, bg(colors::ACCENT));
+
+    ui.place_right(
+        bounds(body)
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
-            .radius(10)
+            .cross_align(CrossAlign::Center)
             .depth(depth),
+        |ui| {
+            let content_h = if detail.is_empty() { 20 } else { 44 };
+            let content = ui.rect(style().fill_width().height(content_h)).rect;
+
+            ui.place_down(bounds(content), |ui| {
+                ui.text(
+                    message,
+                    style()
+                        .padl(12)
+                        .fg(colors::TEXT)
+                        .font_size(14)
+                        .fill_width()
+                        .height(20)
+                        .align(Alignment::Left),
+                );
+
+                if !detail.is_empty() {
+                    ui.gap(4);
+                    ui.text(
+                        detail,
+                        style()
+                            .padl(12)
+                            .fg(colors::TEXT_MUTED)
+                            .font_size(12)
+                            .fill_width()
+                            .height(18)
+                            .align(Alignment::Left),
+                    );
+                }
+            });
+        },
     );
 
-    // Accent strip on the left.
-    ui.paint_rect(
-        Rect::new(rect.x, rect.y, 4, rect.height),
-        style().bg(colors::ACCENT).radius(10).depth(depth),
-    );
-
-    ui.paint_text(
-        toast.message.clone(),
-        rect.x + 16,
-        rect.y + 14,
-        rect.width - 28,
-        20,
-        colors::TEXT,
-        0,
-        14,
-        Alignment::Left,
-        Padding::default(),
-        depth,
-    );
-
-    if !toast.detail.is_empty() {
-        ui.paint_text(
-            toast.detail.clone(),
-            rect.x + 16,
-            rect.y + 38,
-            rect.width - 28,
-            18,
-            colors::TEXT_MUTED,
-            0,
-            12,
-            Alignment::Left,
-            Padding::default(),
-            depth,
-        );
-    }
-
-    // Click to dismiss.
     ui.clicked(rect)
 }

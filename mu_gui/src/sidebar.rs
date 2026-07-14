@@ -19,36 +19,31 @@ pub fn draw(
     queue_len: usize,
     icon_font: usize,
 ) -> Option<Action> {
+    let brand_h = 48;
+    let nav_h = 44 * 3 + 16;
+    let (brand_rect, rest) = ui.split_rect_v(rect, brand_h);
+    let (nav_rect, list_rect) = ui.split_rect_v(rest, nav_h);
+
     ui.paint_rect(rect, style().bg(colors::PANEL));
     ui.paint_rect(
         Rect::new(rect.right() - 1, rect.y, 1, rect.height),
         style().bg(colors::LINE),
     );
 
-    let brand_h = 48;
-    let nav_h = 44 * 3 + 16;
-    let (brand_rect, rest) = ui.split_rect_v(rect, brand_h);
-    let (nav_rect, list_rect) = ui.split_rect_v(rest, nav_h);
-
-    ui.paint_text(
-        "mu",
-        brand_rect.x + 20,
-        brand_rect.y,
-        brand_rect.width - 20,
-        brand_rect.height,
-        colors::TEXT,
-        0,
-        18,
-        Alignment::Left,
-        Padding::default(),
-        0,
-    );
+    ui.place_down(bounds(brand_rect), |ui| {
+        ui.text(
+            "mu",
+            style()
+                .fg(colors::TEXT)
+                .font_size(18)
+                .padl(20)
+                .fill_width()
+                .fill_height()
+                .align(Alignment::Left),
+        );
+    });
 
     let mut action = None;
-    let mut y = nav_rect.y + 4;
-    let row_h = 40;
-    let pad_x = 10;
-
     let nav_items: [(Mode, &str, &str, Option<String>); 3] = [
         (
             Mode::Queue,
@@ -64,92 +59,89 @@ pub fn draw(
         (Mode::Settings, icons::SETTINGS, "Settings", None),
     ];
 
-    for (item, icon, label, badge) in nav_items {
-        let active = matches!(
-            (mode, &item),
-            (Mode::Queue, Mode::Queue)
-                | (Mode::Playlist | Mode::PlaylistDetail { .. }, Mode::Playlist)
-                | (Mode::Settings, Mode::Settings)
-        );
-
-        let r = Rect::new(nav_rect.x + pad_x, y, nav_rect.width - pad_x * 2, row_h);
-        let bg = if active {
-            colors::ACCENT_DIM
-        } else if ui.hovered(r) {
-            colors::HOVER
-        } else {
-            colors::PANEL
-        };
-        ui.paint_rect(r, style().bg(bg).radius(7));
-
-        let icon_color = if active {
-            colors::ACCENT_BRIGHT
-        } else {
-            colors::TEXT_MUTED
-        };
-        let text_color = if active {
-            colors::TEXT
-        } else {
-            colors::TEXT_MUTED
-        };
-
-        ui.paint_text(
-            icon,
-            r.x + 10,
-            r.y,
-            24,
-            r.height,
-            icon_color,
-            icon_font,
-            17,
-            Alignment::Center,
-            Padding::default(),
-            0,
-        );
-        ui.paint_text(
-            label,
-            r.x + 40,
-            r.y,
-            r.width - 80,
-            r.height,
-            text_color,
-            0,
-            14,
-            Alignment::Left,
-            Padding::default(),
-            0,
-        );
-
-        if let Some(badge) = badge {
-            let bw = 28;
-            let bh = 20;
-            let br = Rect::new(r.right() - bw - 10, r.y + (r.height - bh) / 2, bw, bh);
-            ui.paint_rect(br, style().bg(colors::ACCENT_DIM).radius(10));
-            ui.paint_text(
-                badge,
-                br.x,
-                br.y,
-                br.width,
-                br.height,
-                colors::ACCENT_BRIGHT,
-                0,
-                11,
-                Alignment::Center,
-                Padding::default(),
-                0,
+    ui.place_down(bounds(nav_rect).padlr(10).padt(4), |ui| {
+        for (item, icon, label, badge) in nav_items {
+            let active = matches!(
+                (mode, &item),
+                (Mode::Queue, Mode::Queue)
+                    | (Mode::Playlist | Mode::PlaylistDetail { .. }, Mode::Playlist)
+                    | (Mode::Settings, Mode::Settings)
             );
+            let icon_color = if active {
+                colors::ACCENT_BRIGHT
+            } else {
+                colors::TEXT_MUTED
+            };
+            let text_color = if active {
+                colors::TEXT
+            } else {
+                colors::TEXT_MUTED
+            };
+
+            let row = ui.rect(
+                style()
+                    .fill_width()
+                    .height(40)
+                    .radius(7)
+                    .bg(colors::PANEL)
+                    .hover(colors::HOVER)
+                    .selected(colors::ACCENT_DIM)
+                    .is_selected(active),
+            );
+
+            ui.place_right(
+                bounds(row.rect)
+                    .padl(10)
+                    .padr(10)
+                    .cross_align(CrossAlign::Center),
+                |ui| {
+                    ui.text(
+                        icon,
+                        style()
+                            .font(icon_font)
+                            .font_size(17)
+                            .fg(icon_color)
+                            .width(30)
+                            .height(40),
+                    );
+                    let label_w = if badge.is_some() {
+                        Size::FillMinus(38)
+                    } else {
+                        Size::Fill
+                    };
+                    ui.text(
+                        label,
+                        style()
+                            .fg(text_color)
+                            .font_size(14)
+                            .width(label_w)
+                            .height(40)
+                            .align(Alignment::Left),
+                    );
+                    if let Some(badge) = badge {
+                        ui.text(
+                            badge,
+                            style()
+                                .fg(colors::ACCENT_BRIGHT)
+                                .bg(colors::ACCENT_DIM)
+                                .font_size(11)
+                                .width(28)
+                                .height(20)
+                                .radius(10),
+                        );
+                    }
+                },
+            );
+
+            if row.clicked {
+                action = Some(Action::Mode(item));
+            }
+            ui.gap(2);
         }
 
-        if ui.clicked(r) {
-            action = Some(Action::Mode(item));
-        }
-        y += row_h + 2;
-    }
-
-    ui.paint_rect(
-        Rect::new(nav_rect.x + 10, y + 4, nav_rect.width - 20, 1),
-        style().bg(colors::LINE),
-    );
+        ui.gap(8);
+        ui.rect(style().fill_width().height(1).bg(colors::LINE));
+    });
 
     let row_style = style()
         .padlr(12)
@@ -189,7 +181,7 @@ pub fn draw(
                 );
             }
             let active = selected.as_deref() == Some(name.as_str());
-            if ui.item(format!("  {name}"), active, row_style).clicked {
+            if ui.item(format!("  {name}"), row_style.is_selected(active)).clicked {
                 artist_click = Some(name.clone());
             }
         }
@@ -202,20 +194,17 @@ pub fn draw(
             list_rect.width,
             ARTIST_LETTER_H as i32,
         );
-        ui.paint_rect(pin, style().bg(colors::PANEL));
-        ui.paint_text(
-            letter.to_string(),
-            pin.x + 12,
-            pin.y,
-            pin.width - 12,
-            pin.height,
-            colors::TEXT_MUTED,
-            0,
-            11,
-            Alignment::Left,
-            Padding::default(),
-            1,
-        );
+        ui.place_down(bounds(pin).bg(colors::PANEL).padl(12), |ui| {
+            ui.text(
+                letter.to_string(),
+                style()
+                    .fg(colors::TEXT_MUTED)
+                    .font_size(11)
+                    .fill_width()
+                    .fill_height()
+                    .align(Alignment::Left),
+            );
+        });
     }
 
     if action.is_none() {

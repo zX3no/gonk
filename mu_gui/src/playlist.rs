@@ -82,7 +82,7 @@ pub fn draw_list(
             .fg(colors::TEXT);
 
         for (name, count, songs) in &names {
-            let state = ui.item(format!("{name}  ·  {count} songs"), false, row);
+            let state = ui.item(format!("{name}  ·  {count} songs"), row);
             if state.clicked {
                 action = Some(Action::OpenDetail(name.clone()));
             }
@@ -142,7 +142,6 @@ pub fn draw_detail(
         if ui
             .item(
                 "← Back",
-                false,
                 style()
                     .padl(40)
                     .padt(20)
@@ -199,7 +198,7 @@ pub fn draw_detail(
                 "{mark}{}  ·  {}  ·  {}",
                 song.title, song.artist, song.album
             );
-            let state = ui.item(label, is_selected, row);
+            let state = ui.item(label, row.is_selected(is_selected));
             if state.double_clicked {
                 selection.select_only(song.path.clone());
                 action = Some(Action::Play {

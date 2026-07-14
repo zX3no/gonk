@@ -60,7 +60,7 @@ pub fn draw(
             } else {
                 format!("   {name}")
             };
-            if ui.item(label, active, row).clicked {
+            if ui.item(label, row.is_selected(active)).clicked {
                 action = Some(Action::SelectDevice(i));
             }
         }

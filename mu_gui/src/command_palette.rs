@@ -139,30 +139,7 @@ pub fn draw(
     };
     let panel_h = INPUT_H + 8 + list_h + 8;
     let panel_w = PALETTE_W.min(win_w - 40).max(280);
-    let panel_x = (win_w - panel_w) / 2;
-    let panel_y = (win_h / 6).max(48);
-
-    let panel = Rect::new(panel_x, panel_y, panel_w, panel_h);
-
-    ui.paint_rect(
-        panel,
-        style()
-            .bg(colors::PANEL_RAISED)
-            .border(colors::LINE)
-            .radius(10)
-            .depth(depth),
-    );
-
-    // Input row
-    let input = Rect::new(panel.x + 8, panel.y + 8, panel.width - 16, INPUT_H - 8);
-    ui.paint_rect(
-        input,
-        style()
-            .bg(colors::PANEL)
-            .border(colors::ACCENT)
-            .radius(7)
-            .depth(depth),
-    );
+    let panel = Rect::new((win_w - panel_w) / 2, (win_h / 6).max(48), panel_w, panel_h);
 
     let (display, placeholder) = if palette.query.is_empty() {
         (
@@ -173,121 +150,124 @@ pub fn draw(
         (palette.query.clone(), false)
     };
 
-    ui.paint_text(
-        display,
-        input.x + 12,
-        input.y,
-        input.width - 24,
-        input.height,
-        if placeholder {
-            colors::TEXT_DIM
-        } else {
-            colors::TEXT
-        },
-        0,
-        14,
-        Alignment::Left,
-        Padding::default(),
-        depth,
-    );
-
-    // Results list
-    let list_top = panel.y + INPUT_H + 4;
     let mut action = None;
-
-    if entries.is_empty() {
-        let hint = if palette.is_command_mode() {
-            "No matching commands"
-        } else if palette.query.is_empty() {
-            "Type to search songs, or > for commands"
-        } else {
-            "No matching songs"
-        };
-        ui.paint_text(
-            hint,
-            panel.x + 20,
-            list_top,
-            panel.width - 40,
-            ROW_H,
-            colors::TEXT_DIM,
-            0,
-            13,
-            Alignment::Left,
-            Padding::default(),
-            depth,
-        );
-    } else {
-        let scroll_offset = palette
-            .selected
-            .saturating_sub(MAX_VISIBLE as usize - 1)
-            .min(entries.len().saturating_sub(visible as usize));
-
-        for (vis_i, idx) in (scroll_offset..scroll_offset + visible as usize).enumerate() {
-            let Some(entry) = entries.get(idx) else {
-                break;
-            };
-            let y = list_top + vis_i as i32 * ROW_H;
-            let row = Rect::new(panel.x + 8, y, panel.width - 16, ROW_H - 2);
-            let selected = idx == palette.selected;
-
-            let bg = if selected {
-                colors::ACCENT_DIM
-            } else if ui.hovered(row) {
-                colors::HOVER
-            } else {
-                colors::PANEL_RAISED
-            };
-
-            ui.paint_rect(row, style().bg(bg).radius(6).depth(depth));
-
-            let (title, subtitle) = entry_labels(entry);
-            ui.paint_text(
-                title,
-                row.x + 12,
-                row.y,
-                row.width - 24,
-                if subtitle.is_empty() {
-                    row.height
-                } else {
-                    row.height / 2 + 4
-                },
-                if selected {
-                    colors::ACCENT_BRIGHT
-                } else {
-                    colors::TEXT
-                },
-                0,
-                13,
-                Alignment::Left,
-                Padding::default(),
-                depth,
+    ui.place_down(
+        bounds(panel)
+            .bg(colors::PANEL_RAISED)
+            .border(colors::LINE)
+            .radius(10)
+            .depth(depth)
+            .pad(8),
+        |ui| {
+            ui.text(
+                display,
+                style()
+                    .fill_width()
+                    .height(INPUT_H - 8)
+                    .padlr(12)
+                    .bg(colors::PANEL)
+                    .border(colors::ACCENT)
+                    .radius(7)
+                    .fg(if placeholder {
+                        colors::TEXT_DIM
+                    } else {
+                        colors::TEXT
+                    })
+                    .font_size(14)
+                    .align(Alignment::Left)
+                    .depth(depth),
             );
-            if !subtitle.is_empty() {
-                ui.paint_text(
-                    subtitle,
-                    row.x + 12,
-                    row.y + row.height / 2 - 2,
-                    row.width - 24,
-                    row.height / 2,
-                    colors::TEXT_MUTED,
-                    0,
-                    11,
-                    Alignment::Left,
-                    Padding::default(),
-                    depth,
+
+            ui.gap(4);
+
+            if entries.is_empty() {
+                let hint = if palette.is_command_mode() {
+                    "No matching commands"
+                } else if palette.query.is_empty() {
+                    "Type to search songs, or > for commands"
+                } else {
+                    "No matching songs"
+                };
+                ui.text(
+                    hint,
+                    style()
+                        .fill_width()
+                        .height(ROW_H)
+                        .padl(12)
+                        .fg(colors::TEXT_DIM)
+                        .font_size(13)
+                        .align(Alignment::Left)
+                        .depth(depth),
                 );
+                return;
             }
 
-            if ui.clicked(row) {
-                palette.selected = idx;
-                action = activate_entry(entry, db, artists, shift);
+            let scroll_offset = palette
+                .selected
+                .saturating_sub(MAX_VISIBLE as usize - 1)
+                .min(entries.len().saturating_sub(visible as usize));
+
+            let row = style()
+                .fill_width()
+                .height(ROW_H - 2)
+                .radius(6)
+                .hover(colors::HOVER)
+                .selected(colors::ACCENT_DIM)
+                .bg(colors::PANEL_RAISED)
+                .depth(depth);
+
+            for idx in scroll_offset..scroll_offset + visible as usize {
+                let Some(entry) = entries.get(idx) else {
+                    break;
+                };
+                let selected = idx == palette.selected;
+                let (title, subtitle) = entry_labels(entry);
+                let state = ui.rect(row.is_selected(selected));
+
+                ui.place_down(bounds(state.rect).padl(12).padr(12), |ui| {
+                    let title_h = if subtitle.is_empty() {
+                        state.rect.height
+                    } else {
+                        state.rect.height / 2 + 4
+                    };
+                    ui.text(
+                        title,
+                        style()
+                            .fill_width()
+                            .height(title_h)
+                            .fg(if selected {
+                                colors::ACCENT_BRIGHT
+                            } else {
+                                colors::TEXT
+                            })
+                            .font_size(13)
+                            .align(Alignment::Left)
+                            .depth(depth),
+                    );
+                    if !subtitle.is_empty() {
+                        ui.text(
+                            subtitle,
+                            style()
+                                .fill_width()
+                                .height(state.rect.height / 2)
+                                .fg(colors::TEXT_MUTED)
+                                .font_size(11)
+                                .align(Alignment::Left)
+                                .depth(depth),
+                        );
+                    }
+                });
+
+                if state.clicked {
+                    palette.selected = idx;
+                    action = activate_entry(entry, db, artists, shift);
+                }
             }
-        }
-    }
+        },
+    );
 
     // Click outside the panel dismisses it.
     if ui.window.mouse_released(Mouse::Left) && !ui.mouse_position().intersects(panel) {
-        // Only close if the release wasn't on a result row (already handled above).
         if action.is_none() {
             action = Some(Action::Close);
         }

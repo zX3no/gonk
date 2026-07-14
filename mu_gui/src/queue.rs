@@ -99,7 +99,7 @@ pub fn draw(
                 song.album
             );
 
-            let state = ui.item(label, is_selected, row);
+            let state = ui.item(label, row.is_selected(is_selected));
             if state.double_clicked {
                 selection.select_only(song.path.clone());
                 action = Some(Action::PlayIndex(i));
