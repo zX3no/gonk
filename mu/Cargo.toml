@@ -21,5 +21,5 @@ mu_core = { version = "0.4.0", path = "../mu_core" }
 mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
 winter = { version = "0.1.0", git = "https://github.com/zfphex/winter" }
 # winter = { version = "0.1.0", path = "../../winter" }
-onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0" }
+onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0", rev = "4a7b59dae6b5ee1f72cb0eabeca0b42e0366f7a7", branch = "mu" }
 # onmi = { version = "0.1.0", path = "../../onmi"}
