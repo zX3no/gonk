@@ -10,6 +10,6 @@ profile = ["mini/profile"]
 minbin = { git = "https://github.com/zfphex/minbin", version = "0.1.0" }
 mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
 winwalk = { git = "https://github.com/zfphex/winwalk", version = "0.2.2" }
-onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0", rev = "4a7b59dae6b5ee1f72cb0eabeca0b42e0366f7a7", branch = "mu" }
+onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0", branch = "mu" }
 # onmi = { version = "0.1.0", path = "../../onmi"}
 rayon = "1.7.0"

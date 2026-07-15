@@ -124,7 +124,7 @@ dependencies = [
 [[package]]
 name = "onmi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi?rev=7b9b0f23d6c696da01978f0ca762d6d26d41324c#7b9b0f23d6c696da01978f0ca762d6d26d41324c"
+source = "git+https://github.com/zfphex/onmi?branch=mu#8935ddac373f6d831b144e7a1f44acafde2d3caf"
 dependencies = [
  "symphonia",
  "wasapi",
