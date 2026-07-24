@@ -6,8 +6,9 @@ use mu_core::vdb::Database;
 use neoui::*;
 
 const COVER: i32 = 140;
+/// Pixel size stored for covers (2× logical for hi-dpi).
+const COVER_PX: usize = (COVER * 2) as usize;
 const HEADER_H: i32 = 96;
-/// Vertical space between album sections.
 const ALBUM_GAP: i32 = 28;
 
 pub enum Action {
@@ -19,15 +20,15 @@ pub enum Action {
     },
 }
 
-/// Load album artwork for an artist from the first track of each album.
-/// Not stored on Song or in the database.
 pub fn load_covers(db: &Database, artist: &str) -> Vec<Option<Image>> {
     db.albums_by_artist(artist)
         .iter()
         .map(|album| {
             let path = &album.songs.first()?.path;
             let art = onmi::metadata(path, false, true).ok()?.artwork?;
-            Image::decode(&art.data).ok()
+            Image::decode(&art.data)
+                .ok()
+                .map(|img| img.thumbnail(COVER_PX))
         })
         .collect()
 }
@@ -125,7 +126,7 @@ pub fn draw<'a>(
                     let layout = ui.walk_layout(COVER, COVER, 0);
                     let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
                     if let Some(Some(img)) = covers.get(i) {
-                        ui.paint_image(cover_rect, img, style().fit(ImageFit::Cover).radius(8));
+                        ui.paint_image(cover_rect, img, style().fit(ImageFit::Stretch).radius(8));
                     } else {
                         paint_cover(ui, cover_rect, 8);
                     }
