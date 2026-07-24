@@ -89,7 +89,7 @@ fn item_rank(item: &Item) -> u8 {
 
 //I feel like Box<[String, Box<Album>]> might have been a better choice.
 pub struct Database {
-    btree: BTreeMap<String, Vec<Album>>,
+    pub btree: BTreeMap<String, Vec<Album>>,
     pub len: usize,
 }
 

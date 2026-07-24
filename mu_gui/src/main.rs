@@ -3,6 +3,7 @@ use mu_core::{vdb::*, *};
 use neoui::*;
 use onmi::{OutputDevices, Player};
 use std::{
+    collections::HashMap,
     fs,
     time::{Duration, Instant},
 };
@@ -531,8 +532,7 @@ fn main() {
     let mut context_menu = ContextMenu::new();
     let mut toast: Option<Toast> = None;
     let mut selected_artist: Option<String> = None;
-    let mut album_covers: Vec<Option<Image>> = Vec::new();
-    let mut covers_artist = String::new();
+    let mut cover_cache: HashMap<String, Vec<Option<Image>>> = HashMap::new();
     let mut selection = PathSelection::new();
     let mut artist_scroll: usize = 0;
     let mut main_scroll: usize = 0;
@@ -556,8 +556,7 @@ fn main() {
                 db = Database::new(&config.database);
                 artists = refresh_artists(&db);
                 playlists = Index::from(mu_core::playlist::playlists(&config.mu));
-                covers_artist.clear();
-                album_covers.clear();
+                cover_cache.clear();
 
                 if let Some(name) = &selected_artist {
                     if !artists.iter().any(|a| a == name) {
@@ -915,9 +914,9 @@ fn main() {
         }
 
         if let Mode::Artist { name } = &mode {
-            if covers_artist != *name {
-                album_covers = artist::load_covers(&db, name);
-                covers_artist = name.clone();
+            if !cover_cache.contains_key(name) {
+                let covers = artist::load_covers(&mut db, name);
+                cover_cache.insert(name.clone(), covers);
             }
         }
 
@@ -1036,13 +1035,17 @@ fn main() {
                     }
                 }
                 Mode::Artist { name } => {
+                    let covers = cover_cache
+                        .get(name)
+                        .map(|c| c.as_slice())
+                        .unwrap_or(&[]);
                     if let Some(action) = artist::draw(
                         ui,
                         main_rect,
                         &db,
                         &artists,
                         name,
-                        &album_covers,
+                        covers,
                         playing_path.as_deref(),
                         &mut selection,
                         &mut context_menu,

@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Song {
     pub title: String,
     pub album: String,
@@ -17,6 +17,23 @@ pub struct Song {
     pub path: String,
     pub gain: f32,
     pub year: u16,
+    pub artwork: Option<onmi::Artwork>,
+}
+
+impl Clone for Song {
+    fn clone(&self) -> Self {
+        Self {
+            title: self.title.clone(),
+            album: self.album.clone(),
+            artist: self.artist.clone(),
+            disc_number: self.disc_number.clone(),
+            track_number: self.track_number.clone(),
+            path: self.path.clone(),
+            gain: self.gain.clone(),
+            year: self.year.clone(),
+            artwork: None,
+        }
+    }
 }
 
 impl Serialize for Song {
@@ -79,6 +96,7 @@ impl Deserialize for Song {
                 .next()
                 .and_then(|y| y.parse::<u16>().ok())
                 .unwrap_or(0),
+            artwork: None,
         })
     }
 }
@@ -112,8 +130,10 @@ impl Song {
             path: String::new(),
             gain: 0.0,
             year: 0,
+            artwork: None,
         }
     }
+
     pub fn example() -> Self {
         Self {
             title: "title".to_string(),
@@ -124,6 +144,7 @@ impl Song {
             path: "path".to_string(),
             gain: 1.0,
             year: 0,
+            artwork: None,
         }
     }
 }
@@ -166,6 +187,7 @@ impl TryFrom<&Path> for Song {
             path: osong.path,
             gain: osong.gain,
             year: osong.year,
+            artwork: osong.artwork,
         })
     }
 }

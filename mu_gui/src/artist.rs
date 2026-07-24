@@ -20,12 +20,20 @@ pub enum Action {
     },
 }
 
-pub fn load_covers(db: &Database, artist: &str) -> Vec<Option<Image>> {
-    db.albums_by_artist(artist)
-        .iter()
+pub fn load_covers(db: &mut Database, artist: &str) -> Vec<Option<Image>> {
+    let Some(albums) = db.btree.get_mut(artist) else {
+        return Vec::new();
+    };
+    albums
+        .iter_mut()
         .map(|album| {
-            let path = &album.songs.first()?.path;
-            let art = onmi::metadata(path, false, true).ok()?.artwork?;
+            let song = album.songs.first_mut()?;
+            if song.artwork.is_none() {
+                if let Ok(meta) = onmi::metadata(&song.path, false, true) {
+                    song.artwork = meta.artwork;
+                }
+            }
+            let art = song.artwork.as_ref()?;
             Image::decode(&art.data)
                 .ok()
                 .map(|img| img.thumbnail(COVER_PX))
@@ -52,7 +60,10 @@ pub fn draw<'a>(
     let albums = db.albums_by_artist(artist);
     let album_data: Vec<(String, u16, Vec<Song>)> = albums
         .iter()
-        .map(|a| (a.title.clone(), a.year(), a.songs.clone()))
+        .map(|a| {
+            let songs = a.songs.iter().cloned().collect();
+            (a.title.clone(), a.year(), songs)
+        })
         .collect();
     let artist_owned = artist.to_string();
     let total_tracks: usize = album_data.iter().map(|(_, _, s)| s.len()).sum();
