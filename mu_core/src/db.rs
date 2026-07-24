@@ -156,7 +156,7 @@ impl TryFrom<&Path> for Song {
         //TODO: Two different song implementations?
         //I feel like the decoder stuff belongs in the playback library.
         //But something just feels weird about this.
-        let osong = onmi::metadata(path, false)?;
+        let osong = onmi::metadata(path, false, false)?;
         Ok(Song {
             title: osong.title,
             album: osong.album,

@@ -19,12 +19,26 @@ pub enum Action {
     },
 }
 
-pub fn draw(
-    ui: &mut FrameContext<'_, '_>,
+/// Load album artwork for an artist from the first track of each album.
+/// Not stored on Song or in the database.
+pub fn load_covers(db: &Database, artist: &str) -> Vec<Option<Image>> {
+    db.albums_by_artist(artist)
+        .iter()
+        .map(|album| {
+            let path = &album.songs.first()?.path;
+            let art = onmi::metadata(path, false, true).ok()?.artwork?;
+            Image::decode(&art.data).ok()
+        })
+        .collect()
+}
+
+pub fn draw<'a>(
+    ui: &mut FrameContext<'_, 'a>,
     rect: Rect,
     db: &Database,
     artists: &[String],
     artist: &str,
+    covers: &'a [Option<Image>],
     playing_path: Option<&str>,
     selection: &mut PathSelection,
     menu: &mut ContextMenu,
@@ -110,7 +124,11 @@ pub fn draw(
                 |ui| {
                     let layout = ui.walk_layout(COVER, COVER, 0);
                     let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
-                    paint_cover(ui, cover_rect, 8);
+                    if let Some(Some(img)) = covers.get(i) {
+                        ui.paint_image(cover_rect, img, style().fit(ImageFit::Cover).radius(8));
+                    } else {
+                        paint_cover(ui, cover_rect, 8);
+                    }
                     if ui.double_clicked(cover_rect) && !album_songs.is_empty() {
                         if let Some(index) =
                             ordered_paths.iter().position(|p| p == &album_songs[0].path)

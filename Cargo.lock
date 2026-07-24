@@ -10,15 +10,15 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "bitflags"
-version = "2.13.0"
+version = "2.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
+checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
 
 [[package]]
 name = "bytemuck"
-version = "1.25.1"
+version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6aedf8ae72766347502cf3cb4f41cf5e9cc37d28bee90f1fdaaae15f9cf9424"
+checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 
 [[package]]
 name = "core_maths"
@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#e8ee56180845da74864451c985ef96e1e8bcfcef"
+source = "git+https://github.com/zfphex/onmi#a5d60b1c78538629fb0a51affb8b4889ba151262"
 
 [[package]]
 name = "crossbeam-deque"
@@ -107,7 +107,7 @@ version = "0.1.0"
 source = "git+https://github.com/zfphex/miniwalk#7a2afcabc267e8e09803dba1a4e2eacedbdebdd6"
 
 [[package]]
-name = "miniwin"
+name = "minwin"
 version = "0.1.0"
 
 [[package]]
@@ -148,8 +148,10 @@ version = "0.1.0"
 dependencies = [
  "fontdue",
  "mini",
- "miniwin",
+ "minwin",
  "rustc-hash",
+ "zune-jpeg",
+ "zune-png",
 ]
 
 [[package]]
@@ -182,7 +184,7 @@ dependencies = [
 [[package]]
 name = "onmi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#e8ee56180845da74864451c985ef96e1e8bcfcef"
+source = "git+https://github.com/zfphex/onmi#a5d60b1c78538629fb0a51affb8b4889ba151262"
 dependencies = [
  "coreaudio",
  "miniwalk",
@@ -246,6 +248,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "simd-adler32"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
+
+[[package]]
 name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -260,7 +268,7 @@ checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 [[package]]
 name = "symphonia"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "lazy_static",
  "symphonia-bundle-flac",
@@ -274,7 +282,7 @@ dependencies = [
 [[package]]
 name = "symphonia-bundle-flac"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "log",
  "symphonia-common",
@@ -285,7 +293,7 @@ dependencies = [
 [[package]]
 name = "symphonia-bundle-mp3"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "lazy_static",
  "log",
@@ -295,7 +303,7 @@ dependencies = [
 [[package]]
 name = "symphonia-codec-vorbis"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "log",
  "symphonia-common",
@@ -305,7 +313,7 @@ dependencies = [
 [[package]]
 name = "symphonia-common"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "log",
  "symphonia-core",
@@ -315,7 +323,7 @@ dependencies = [
 [[package]]
 name = "symphonia-core"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -329,7 +337,7 @@ dependencies = [
 [[package]]
 name = "symphonia-format-ogg"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "log",
  "symphonia-common",
@@ -340,7 +348,7 @@ dependencies = [
 [[package]]
 name = "symphonia-metadata"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#9b791099ae99bed4f4fe7f7c1243ef4b8e7b3ccd"
+source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
 dependencies = [
  "lazy_static",
  "log",
@@ -401,7 +409,7 @@ checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 [[package]]
 name = "wasapi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#e8ee56180845da74864451c985ef96e1e8bcfcef"
+source = "git+https://github.com/zfphex/onmi#a5d60b1c78538629fb0a51affb8b4889ba151262"
 
 [[package]]
 name = "winter"
@@ -410,4 +418,38 @@ source = "git+https://github.com/zfphex/winter#168ec7717c40ad1e7c76477e66e3a36f2
 dependencies = [
  "bitflags",
  "unicode-width",
+]
+
+[[package]]
+name = "zune-core"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9"
+
+[[package]]
+name = "zune-inflate"
+version = "0.2.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73ab332fe2f6680068f3582b16a24f90ad7096d5d39b974d1c0aff0125116f02"
+dependencies = [
+ "simd-adler32",
+]
+
+[[package]]
+name = "zune-jpeg"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
+dependencies = [
+ "zune-core",
+]
+
+[[package]]
+name = "zune-png"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a321146329f7617ba0a5b26982cba45b7ce78163135aba78be25850aefcea80"
+dependencies = [
+ "zune-core",
+ "zune-inflate",
 ]

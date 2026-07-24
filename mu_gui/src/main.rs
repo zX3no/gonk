@@ -531,6 +531,8 @@ fn main() {
     let mut context_menu = ContextMenu::new();
     let mut toast: Option<Toast> = None;
     let mut selected_artist: Option<String> = None;
+    let mut album_covers: Vec<Option<Image>> = Vec::new();
+    let mut covers_artist = String::new();
     let mut selection = PathSelection::new();
     let mut artist_scroll: usize = 0;
     let mut main_scroll: usize = 0;
@@ -554,6 +556,8 @@ fn main() {
                 db = Database::new(&config.database);
                 artists = refresh_artists(&db);
                 playlists = Index::from(mu_core::playlist::playlists(&config.mu));
+                covers_artist.clear();
+                album_covers.clear();
 
                 if let Some(name) = &selected_artist {
                     if !artists.iter().any(|a| a == name) {
@@ -910,6 +914,13 @@ fn main() {
             }
         }
 
+        if let Mode::Artist { name } = &mode {
+            if covers_artist != *name {
+                album_covers = artist::load_covers(&db, name);
+                covers_artist = name.clone();
+            }
+        }
+
         ui.frame(|ui| {
             ui.clear_color = colors::BG;
             let palette_open = palette.open;
@@ -1031,6 +1042,7 @@ fn main() {
                         &db,
                         &artists,
                         name,
+                        &album_covers,
                         playing_path.as_deref(),
                         &mut selection,
                         &mut context_menu,
