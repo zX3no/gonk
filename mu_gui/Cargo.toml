@@ -14,5 +14,6 @@ neoui = { version = "0.1.0", path = "../../neoui", features = ["image"] }
 
 mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
 onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0" }
+rayon = "1.12.0"
 
 # onmi = { version = "0.1.0", path = "../../onmi", features = ["simd"] }

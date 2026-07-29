@@ -4,6 +4,7 @@ use crate::theme::{colors, paint_cover};
 use mu_core::Song;
 use mu_core::vdb::Database;
 use neoui::*;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 const COVER: i32 = 140;
 /// Pixel size stored for covers (2× logical for hi-dpi).
@@ -21,11 +22,13 @@ pub enum Action {
 }
 
 pub fn load_covers(db: &mut Database, artist: &str) -> Vec<Option<Image>> {
+    mini::profile!();
     let Some(albums) = db.btree.get_mut(artist) else {
         return Vec::new();
     };
     albums
-        .iter_mut()
+        .par_iter_mut()
+        //This should really by async.
         .map(|album| {
             let song = album.songs.first_mut()?;
             if song.artwork.is_none() {
