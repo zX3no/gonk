@@ -144,6 +144,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mu_gui2"
+version = "0.1.0"
+dependencies = [
+ "mini",
+ "mu_core",
+ "neoui",
+ "onmi",
+ "rayon",
+]
+
+[[package]]
 name = "neoui"
 version = "0.1.0"
 dependencies = [

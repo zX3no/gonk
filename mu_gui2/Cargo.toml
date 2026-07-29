@@ -1,0 +1,19 @@
+[package]
+name = "mu_gui2"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+profile = ["neoui/profile"]
+
+[dependencies]
+mu_core = { version = "0.4.0", path = "../mu_core" }
+
+neoui = { version = "0.1.0", path = "../../neoui", features = ["image"] }
+# neoui = { git = "https://github.com/zfphex/neoui", version = "0.1.0" }
+
+mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
+onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0" }
+rayon = "1.12.0"
+
+# onmi = { version = "0.1.0", path = "../../onmi", features = ["simd"] }
