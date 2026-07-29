@@ -31,13 +31,6 @@ pub mod icons {
     pub const VOLUME: &str = "\u{e050}";
 }
 
-pub const MATERIAL_ICONS: &[u8] = include_bytes!("../assets/fonts/MaterialIcons-Regular.ttf");
-
-pub fn load_icon_font() -> fontdue::Font {
-    fontdue::Font::from_bytes(MATERIAL_ICONS, fontdue::FontSettings::default())
-        .expect("Material Icons font")
-}
-
 pub fn format_time(secs: f32) -> String {
     if !secs.is_finite() || secs < 0.0 {
         return "—:——".to_string();

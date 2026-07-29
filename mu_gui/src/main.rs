@@ -517,7 +517,21 @@ fn main() {
     ui.default_font_size = 13;
     ui.clear_color = colors::BG;
 
-    let icon_font = ui.add_font(theme::load_icon_font());
+    let icon_font = ui.add_font(
+        fontdue::Font::from_bytes(
+            include_bytes!("../assets/fonts/MaterialIcons-Regular.ttf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .expect("Material Icons font"),
+    );
+
+    ui.add_font_fallback(
+        fontdue::Font::from_bytes(
+            include_bytes!("../assets/fonts/NotoSansCJKjp-Regular.otf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .expect("Noto Sans CJK JP"),
+    );
 
     player.set_volume(volume);
     if let Some(song) = playback.selected() {
@@ -1035,10 +1049,7 @@ fn main() {
                     }
                 }
                 Mode::Artist { name } => {
-                    let covers = cover_cache
-                        .get(name)
-                        .map(|c| c.as_slice())
-                        .unwrap_or(&[]);
+                    let covers = cover_cache.get(name).map(|c| c.as_slice()).unwrap_or(&[]);
                     if let Some(action) = artist::draw(
                         ui,
                         main_rect,
