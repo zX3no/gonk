@@ -79,13 +79,11 @@ fn main() {
                     });
 
                     ui.flow_down(sb.gap(2).padlr(8), |ui| {
-                        ui.flow_right(sb, |ui| {});
-
                         let mut item = |t: &'static str, i: &'static str, s: bool| {
                             //TODO: Should use impl IntoColor to allow for Option or u32.
                             // sel.bg(if s { Some(ROW_SELECTED) } else { None });
 
-                            let mut sel = sb.padlr(12).padtb(8).radius(6);
+                            let mut sel = sb.padlr(12).padtb(8).radius(6).hover(ROW_HOVER);
                             sel.bg = if s { Some(ROW_SELECTED) } else { None };
                             let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
                             let ntext = sb
