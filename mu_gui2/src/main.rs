@@ -50,7 +50,10 @@ fn main() {
         "eightiesheadachetape",
     ];
 
-    const ALPHABET: &str = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ";
+    const ALPHABET: &[&str] = &[
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R",
+        "S", "T", "U", "V", "W", "X", "Y", "Z",
+    ];
 
     let selected_aritst = "Duster";
 
@@ -119,10 +122,23 @@ fn main() {
                     }
                 });
 
-                ui.text(
-                    ALPHABET,
-                    sb.font_size(10).fg(TEXT_MUTED).line_height(14).bounds(alphabet),
-                );
+                let selected_letter = selected_aritst.chars().next().unwrap().to_ascii_uppercase();
+
+                ui.flow_down(bounds(alphabet).pad(12), |ui| {
+                    //TODO: Best way to center this content?
+                    ui.gap((10 * 26) / 2);
+                    for &letter in ALPHABET {
+                        let ch = letter.chars().next().unwrap();
+                        let dist = (ch as i32 - selected_letter as i32).abs();
+                        let color = match dist {
+                            0 => ACCENT,
+                            1 => TEXT,
+                            _ => TEXT_FAINT,
+                        };
+                        ui.text(letter, sb.font_size(10).fg(color));
+                    }
+                    ui.current_frame_bounds().height
+                });
             });
 
             ui.flow_down(bounds(body).bg(BODY), |ui| {})
