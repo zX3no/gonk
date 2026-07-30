@@ -140,7 +140,11 @@ pub fn draw<'a>(
                     let layout = ui.walk_layout(COVER, COVER, 0);
                     let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
                     if let Some(Some(img)) = covers.get(i) {
-                        ui.paint_image(cover_rect, img, style().fit(ImageFit::Stretch).radius(8));
+                        ui.paint_image(
+                            cover_rect,
+                            img,
+                            style().image_fit(ImageFit::Stretch).radius(8),
+                        );
                     } else {
                         paint_cover(ui, cover_rect, 8);
                     }

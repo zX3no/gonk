@@ -38,27 +38,33 @@ fn main() {
         ui.frame(|ui| {
             let (sidebar, body) = ui.split_h(280);
 
-            let sb = style().font_size(16);
+            let sb = style().fg(TEXT).font_size(16);
             ui.flow_down(bounds(sidebar).bg(SIDEBAR).pad(12), |ui| {
-                ui.flow_right(sb, |ui| {
+                ui.flow_right(sb.pad(12), |ui| {
                     ui.text("mu", sb);
                     ui.text("[]", sb.fill_width().align_right())
                 });
 
-                ui.flow_down(sb.gap(12), |ui| {
+                ui.flow_down(sb.gap(2), |ui| {
                     ui.flow_right(sb, |ui| {});
 
-                    let mut item = |t: &'static str, i: &'static str| {
-                        ui.flow_right(sb, |ui| {
-                            ui.text(t, sb);
-                            ui.text(i, sb.fill_width().align(Alignment::Right));
+                    let mut item = |t: &'static str, i: &'static str, s: bool| {
+                        let mut sel = sb.padlr(12).padtb(8).radius(4);
+                        sel.bg = if s { Some(ROW_SELECTED) } else { None };
+                        let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
+
+                        //TODO: Should use impl IntoColor to allow for Option or u32.
+                        // sel.bg(if s { Some(ROW_SELECTED) } else { None });
+                        ui.flow_right(sel, |ui| {
+                            ui.text(t, text);
+                            ui.text(i, sb.fg(TEXT_MUTED).fill_width().align_right());
                         })
                     };
 
-                    item("Library", "1");
-                    item("Queue", "2");
-                    item("Playlist", "3");
-                    item("Settings", "4");
+                    item("Library", "1", true);
+                    item("Queue", "2", false);
+                    item("Playlist", "3", false);
+                    item("Settings", "4", false);
                 });
             });
 
