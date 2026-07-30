@@ -67,81 +67,97 @@ fn main() {
 
             let sb = style().fg(TEXT).font_size(16);
 
-            ui.flow_down(bounds(sidebar).bg(SIDEBAR).pad(12), |ui| {
-                ui.flow_right(sb.pad(12), |ui| {
-                    ui.text("mu", sb);
-                    ui.text("[]", sb.fill_width().align_right())
-                });
+            ui.flow_down(
+                bounds(sidebar)
+                    .bg(SIDEBAR)
+                    .border(BORDER_DIM)
+                    .border_side(RIGHT),
+                |ui| {
+                    ui.flow_right(sb.pad(20), |ui| {
+                        ui.text("mu", sb);
+                        ui.text("[]", sb.fill_width().align_right())
+                    });
 
-                ui.flow_down(sb.gap(2), |ui| {
-                    ui.flow_right(sb, |ui| {});
+                    ui.flow_down(sb.gap(2).padlr(8), |ui| {
+                        ui.flow_right(sb, |ui| {});
 
-                    let mut item = |t: &'static str, i: &'static str, s: bool| {
-                        //TODO: Should use impl IntoColor to allow for Option or u32.
-                        // sel.bg(if s { Some(ROW_SELECTED) } else { None });
+                        let mut item = |t: &'static str, i: &'static str, s: bool| {
+                            //TODO: Should use impl IntoColor to allow for Option or u32.
+                            // sel.bg(if s { Some(ROW_SELECTED) } else { None });
 
-                        let mut sel = sb.padlr(12).padtb(8).radius(6);
-                        sel.bg = if s { Some(ROW_SELECTED) } else { None };
-                        let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
-                        let ntext = sb
-                            .fg(if s { TEXT_MUTED } else { TEXT_FAINT })
-                            .fill_width()
-                            .align_right();
+                            let mut sel = sb.padlr(12).padtb(8).radius(6);
+                            sel.bg = if s { Some(ROW_SELECTED) } else { None };
+                            let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
+                            let ntext = sb
+                                .fg(if s { TEXT_MUTED } else { TEXT_FAINT })
+                                .fill_width()
+                                .align_right();
 
-                        ui.flow_right(sel, |ui| {
-                            ui.text(t, text);
-                            ui.text(i, ntext);
-                        })
-                    };
-
-                    item("Library", "1", true);
-                    item("Queue", "2", false);
-                    item("Playlist", "3", false);
-                    item("Settings", "4", false);
-                });
-
-                ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
-
-                let (artist, alphabet) = ui.split_h(-20);
-                ui.flow_down(bounds(artist), |ui| {
-                    //Assuming artists is pre sorted alphabetically.
-                    let mut first_letter = String::new();
-                    let text = sb.padlr(12).padtb(8);
-                    let mut selected_text =
-                        text.bg(ROW_SELECTED).align_left().fill_width().radius(6);
-
-                    for artist in ARTISTS {
-                        let next = artist[..1].to_ascii_uppercase();
-                        if next != first_letter {
-                            first_letter = next;
-                            let letter = text.font_size(12).fg(TEXT_MUTED);
-                            ui.text(first_letter.clone(), letter);
-                        }
-                        let sel = *artist == selected_aritst;
-                        ui.text(*artist, if sel { selected_text } else { text });
-                    }
-                });
-
-                let selected_letter = selected_aritst.chars().next().unwrap().to_ascii_uppercase();
-
-                ui.flow_down(bounds(alphabet).pad(12), |ui| {
-                    //TODO: Best way to center this content?
-                    ui.gap((10 * 26) / 2);
-                    for &letter in ALPHABET {
-                        let ch = letter.chars().next().unwrap();
-                        let dist = (ch as i32 - selected_letter as i32).abs();
-                        let color = match dist {
-                            0 => ACCENT,
-                            1 => TEXT,
-                            _ => TEXT_FAINT,
+                            ui.flow_right(sel, |ui| {
+                                ui.text(t, text);
+                                ui.text(i, ntext);
+                            })
                         };
-                        ui.text(letter, sb.font_size(10).fg(color));
-                    }
-                    ui.current_frame_bounds().height
-                });
-            });
 
-            ui.flow_down(bounds(body).bg(BODY), |ui| {})
+                        item("Library", "1", true);
+                        item("Queue", "2", false);
+                        item("Playlist", "3", false);
+                        item("Settings", "4", false);
+                    });
+
+                    ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
+
+                    let (artist, mut alphabet) = ui.split_h(-30);
+                    ui.flow_down(bounds(artist).padlr(8), |ui| {
+                        //Assuming artists is pre sorted alphabetically.
+                        let mut first_letter = String::new();
+                        let text = sb
+                            .padlr(12)
+                            .padtb(8)
+                            .radius(6)
+                            .align_left()
+                            .fill_width()
+                            .hover(ROW_HOVER);
+                        let mut selected_text = text.bg(ROW_SELECTED);
+
+                        for artist in ARTISTS {
+                            let next = artist[..1].to_ascii_uppercase();
+                            if next != first_letter {
+                                first_letter = next;
+                                let letter = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
+                                ui.text(first_letter.clone(), letter);
+                            }
+                            let sel = *artist == selected_aritst;
+                            ui.text(*artist, if sel { selected_text } else { text });
+                        }
+                    });
+
+                    let selected_letter =
+                        selected_aritst.chars().next().unwrap().to_ascii_uppercase();
+
+                    ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
+                    alphabet.x += 12;
+                    ui.flow_down(bounds(alphabet), |ui| {
+                        let letter = sb.font_size(10);
+                        let row = ui.measure_text("A", 0, 10, None).height;
+                        ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
+
+                        for &letter in ALPHABET {
+                            let ch = letter.chars().next().unwrap();
+                            let dist = (ch as i32 - selected_letter as i32).abs();
+                            let color = match dist {
+                                0 => ACCENT,
+                                1 => TEXT,
+                                _ => TEXT_FAINT,
+                            };
+                            ui.text(letter, sb.font_size(10).fg(color));
+                        }
+                        ui.current_frame_bounds().height
+                    });
+                },
+            );
+
+            // ui.flow_down(bounds(body).bg(BODY), |ui| {})
 
             // ui.paint_rect(left, bg(red()));
             // ui.paint_rect(right, bg(gray()));
