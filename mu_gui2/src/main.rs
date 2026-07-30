@@ -46,7 +46,11 @@ fn main() {
         "Daft Punk",
         "Dorian Concept",
         "Duster",
+        "EDEN",
+        "eightiesheadachetape",
     ];
+
+    const ALPHABET: &str = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ";
 
     let selected_aritst = "Duster";
 
@@ -59,6 +63,7 @@ fn main() {
             let (sidebar, body) = ui.split_h(280);
 
             let sb = style().fg(TEXT).font_size(16);
+
             ui.flow_down(bounds(sidebar).bg(SIDEBAR).pad(12), |ui| {
                 ui.flow_right(sb.pad(12), |ui| {
                     ui.text("mu", sb);
@@ -94,7 +99,8 @@ fn main() {
 
                 ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
 
-                ui.flow_down(style(), |ui| {
+                let (artist, alphabet) = ui.split_h(-20);
+                ui.flow_down(bounds(artist), |ui| {
                     //Assuming artists is pre sorted alphabetically.
                     let mut first_letter = String::new();
                     let text = sb.padlr(12).padtb(8);
@@ -112,6 +118,11 @@ fn main() {
                         ui.text(*artist, if sel { selected_text } else { text });
                     }
                 });
+
+                ui.text(
+                    ALPHABET,
+                    sb.font_size(10).fg(TEXT_MUTED).line_height(14).bounds(alphabet),
+                );
             });
 
             ui.flow_down(bounds(body).bg(BODY), |ui| {})
