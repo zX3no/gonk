@@ -136,11 +136,30 @@ fn main() {
                         selected_aritst.chars().next().unwrap().to_ascii_uppercase();
 
                     ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
+                    let strip = alphabet;
                     alphabet.x += 12;
                     ui.flow_down(bounds(alphabet), |ui| {
                         let letter = sb.font_size(10);
                         let row = ui.measure_text("A", 0, 10, None).height;
                         ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
+
+                        // let index = (selected_letter as i32 - 'A' as i32).clamp(0, 25);
+                        // let top = ui.current_frame_bounds().y + index * row;
+                        // let glow = Rect::new(strip.x + 1, top - row * 2, strip.width - 1, row * 5);
+                        // let (edge, core) = (with_alpha(TEXT, 1), with_alpha(TEXT, 8));
+                        // ui.paint_rect(
+                        //     Rect::new(glow.x, glow.y, glow.width, glow.height / 2),
+                        //     bg(edge).gradient(edge, core),
+                        // );
+                        // ui.paint_rect(
+                        //     Rect::new(
+                        //         glow.x,
+                        //         glow.y + glow.height / 2,
+                        //         glow.width,
+                        //         glow.height / 2,
+                        //     ),
+                        //     bg(core).gradient(core, edge),
+                        // );
 
                         for &letter in ALPHABET {
                             let ch = letter.chars().next().unwrap();
