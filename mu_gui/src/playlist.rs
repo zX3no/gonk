@@ -86,7 +86,7 @@ pub fn draw_list(
             if state.clicked {
                 action = Some(Action::OpenDetail(name.clone()));
             }
-            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+            if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
                 let mut entries = Vec::new();
                 if !songs.is_empty() {
                     entries.push((
@@ -208,7 +208,7 @@ pub fn draw_detail(
             } else if state.clicked {
                 selection.click(&ordered, song.path.clone(), shift, ctrl);
             }
-            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+            if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
                 if !selection.contains(&song.path) {
                     selection.select_only(song.path.clone());
                 }

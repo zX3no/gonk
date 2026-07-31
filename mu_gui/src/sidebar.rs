@@ -90,10 +90,10 @@ pub fn draw(
             );
 
             ui.place_right(
-                bounds(row.rect)
+                bounds(row.bounds)
                     .padl(10)
                     .padr(10)
-                    .cross_align(CrossAlign::Center),
+                    .align_flow(AlignFlow::Center),
                 |ui| {
                     ui.text(
                         icon,
@@ -181,7 +181,10 @@ pub fn draw(
                 );
             }
             let active = selected.as_deref() == Some(name.as_str());
-            if ui.item(format!("  {name}"), row_style.is_selected(active)).clicked {
+            if ui
+                .item(format!("  {name}"), row_style.is_selected(active))
+                .clicked
+            {
                 artist_click = Some(name.clone());
             }
         }

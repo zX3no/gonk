@@ -56,6 +56,7 @@ fn main() {
     ];
 
     let selected_aritst = "Duster";
+    let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
 
     while ui.window.open() {
         if ui.window.pressed(Key::Escape) {
@@ -75,7 +76,9 @@ fn main() {
                 |ui| {
                     ui.flow_right(sb.pad(20), |ui| {
                         ui.text("mu", sb);
-                        ui.text("[]", sb.fill_width().align_right())
+                        ui.place_left(style().fill_width().bleed().padr(15), |ui| {
+                            ui.image(&panel_left, style().mar(5).radius(6).hover(ROW_HOVER));
+                        });
                     });
 
                     ui.flow_down(sb.gap(2).padlr(8), |ui| {

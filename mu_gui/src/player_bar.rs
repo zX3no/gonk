@@ -100,11 +100,7 @@ pub fn draw(
         let labels = [
             (icons::SHUFFLE, *shuffle, false),
             (icons::SKIP_PREV, false, false),
-            (
-                if playing { icons::PAUSE } else { icons::PLAY },
-                true,
-                true,
-            ),
+            (if playing { icons::PAUSE } else { icons::PLAY }, true, true),
             (icons::SKIP_NEXT, false, false),
             (
                 icons::REPEAT,
@@ -113,7 +109,7 @@ pub fn draw(
             ),
         ];
 
-        ui.place_right(bounds(transport).cross_align(CrossAlign::Center), |ui| {
+        ui.place_right(bounds(transport).align_flow(AlignFlow::Center), |ui| {
             for (i, (icon, on, is_play)) in labels.iter().enumerate() {
                 let mut s = style()
                     .font(icon_font)

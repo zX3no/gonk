@@ -155,7 +155,7 @@ pub fn draw(
     // Overlay the main body so the panel is cross-aligned to that region's center.
     ui.place_down(
         bounds(body)
-            .cross_align(CrossAlign::Center)
+            .align_flow(AlignFlow::Center)
             .depth(DEPTH)
             .padt(panel_top as usize),
         |ui| {
@@ -168,9 +168,9 @@ pub fn draw(
                     .border(colors::LINE)
                     .radius(10),
             );
-            panel = chrome.rect;
+            panel = chrome.bounds;
 
-            ui.place_down(bounds(chrome.rect).pad(8), |ui| {
+            ui.place_down(bounds(chrome.bounds).pad(8), |ui| {
                 ui.text(
                     display,
                     style()
@@ -233,11 +233,11 @@ pub fn draw(
                     let (title, subtitle) = entry_labels(entry);
                     let state = ui.rect(row.is_selected(selected));
 
-                    ui.place_down(bounds(state.rect).padl(12).padr(12), |ui| {
+                    ui.place_down(bounds(state.bounds).padl(12).padr(12), |ui| {
                         let title_h = if subtitle.is_empty() {
-                            state.rect.height
+                            state.bounds.height
                         } else {
-                            state.rect.height / 2 + 4
+                            state.bounds.height / 2 + 4
                         };
                         ui.text(
                             title,
@@ -257,7 +257,7 @@ pub fn draw(
                                 subtitle,
                                 style()
                                     .fill_width()
-                                    .height(state.rect.height / 2)
+                                    .height(state.bounds.height / 2)
                                     .fg(colors::TEXT_MUTED)
                                     .font_size(11)
                                     .align(Alignment::Left),

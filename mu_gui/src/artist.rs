@@ -240,7 +240,7 @@ pub fn draw<'a>(
                             } else if state.clicked {
                                 selection.click(&ordered_paths, song.path.clone(), shift, ctrl);
                             }
-                            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+                            if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
                                 open_song_menu(
                                     menu,
                                     selection,

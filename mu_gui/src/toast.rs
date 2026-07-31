@@ -50,11 +50,11 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, toast: &'_ Toast, above_y: i32, windo
         bounds(body)
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
-            .cross_align(CrossAlign::Center)
+            .align_flow(AlignFlow::Center)
             .depth(2),
         |ui| {
             let content_h = if detail.is_empty() { 20 } else { 44 };
-            let content = ui.rect(style().fill_width().height(content_h)).rect;
+            let content = ui.rect(style().fill_width().height(content_h)).bounds;
 
             ui.place_down(bounds(content), |ui| {
                 ui.text(

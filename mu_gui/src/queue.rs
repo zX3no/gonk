@@ -106,7 +106,7 @@ pub fn draw(
             } else if state.clicked {
                 selection.click(&ordered, song.path.clone(), shift, ctrl);
             }
-            if let Some((mx, my)) = context_menu::right_click_at(ui, state.rect) {
+            if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
                 if !selection.contains(&song.path) {
                     selection.select_only(song.path.clone());
                 }
