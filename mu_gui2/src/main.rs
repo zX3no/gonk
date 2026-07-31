@@ -33,30 +33,166 @@ const ACCENT_HOVER: u32 = hex("#ad98e2");
 const ACCENT_PRESSED: u32 = hex("#8871c6");
 const ACCENT_SOFT: u32 = hex("#9b84d938");
 
+const ARTISTS: &[&str] = &[
+    "black midi",
+    "Bonobo",
+    "C418",
+    "Clarance Clarity",
+    "Covet",
+    "Daft Punk",
+    "Dorian Concept",
+    "Duster",
+    "EDEN",
+    "eightiesheadachetape",
+];
+
+const ALPHABET: &[&str] = &[
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
+    "T", "U", "V", "W", "X", "Y", "Z",
+];
+
+struct Sidebar<'a> {
+    panel_left: &'a Image,
+    selected_artist: &'static str,
+    bounds: Rect,
+    active: bool,
+}
+
+fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
+    let sb = style().fg(TEXT).font_size(16);
+    ui.flow_down(
+        bounds(sidebar.bounds)
+            .bg(SIDEBAR)
+            .border(BORDER_DIM)
+            .border_side(RIGHT),
+        |ui| {
+            ui.flow_right(sb.pad(20), |ui| {
+                ui.text("mu", sb);
+                ui.place_left(style().fill_width().bleed().padr(15), |ui| {
+                    if ui
+                        .image(
+                            sidebar.panel_left,
+                            style().mar(5).radius(6).hover(ROW_HOVER),
+                        )
+                        .clicked
+                    {
+                        sidebar.active = false;
+                    }
+                });
+            });
+
+            ui.flow_down(sb.gap(2).padlr(8), |ui| {
+                let mut item = |t: &'static str, i: &'static str, s: bool| {
+                    //TODO: Should use impl IntoColor to allow for Option or u32.
+                    // sel.bg(if s { Some(ROW_SELECTED) } else { None });
+
+                    let mut sel = sb.padlr(12).padtb(8).radius(6).hover(ROW_HOVER);
+                    sel.bg = if s { Some(ROW_SELECTED) } else { None };
+                    let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
+                    let ntext = sb
+                        .fg(if s { TEXT_MUTED } else { TEXT_FAINT })
+                        .fill_width()
+                        .align_right();
+
+                    ui.flow_right(sel, |ui| {
+                        ui.text(t, text);
+                        ui.text(i, ntext);
+                    })
+                };
+
+                item("Library", "1", true);
+                item("Queue", "2", false);
+                item("Playlist", "3", false);
+                item("Settings", "4", false);
+            });
+
+            ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
+
+            let (artist, mut alphabet) = ui.split_h(-30);
+            ui.flow_down(bounds(artist).padlr(8), |ui| {
+                //Assuming artists is pre sorted alphabetically.
+                let mut first_letter = String::new();
+                let text = sb
+                    .padlr(12)
+                    .padtb(8)
+                    .radius(6)
+                    .align_left()
+                    .fill_width()
+                    .hover(ROW_HOVER);
+                let mut selected_text = text.bg(ROW_SELECTED);
+
+                for artist in ARTISTS {
+                    let next = artist[..1].to_ascii_uppercase();
+                    if next != first_letter {
+                        first_letter = next;
+                        let letter = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
+                        ui.text(first_letter.clone(), letter);
+                    }
+                    let sel = *artist == sidebar.selected_artist;
+                    ui.text(*artist, if sel { selected_text } else { text });
+                }
+            });
+
+            let selected_letter = sidebar
+                .selected_artist
+                .chars()
+                .next()
+                .unwrap()
+                .to_ascii_uppercase();
+
+            ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
+            let strip = alphabet;
+            alphabet.x += 12;
+            ui.flow_down(bounds(alphabet), |ui| {
+                let letter = sb.font_size(10);
+                let row = ui.measure_text("A", 0, 10, None).height;
+                ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
+
+                // let index = (selected_letter as i32 - 'A' as i32).clamp(0, 25);
+                // let top = ui.current_frame_bounds().y + index * row;
+                // let glow = Rect::new(strip.x + 1, top - row * 2, strip.width - 1, row * 5);
+                // let (edge, core) = (with_alpha(TEXT, 1), with_alpha(TEXT, 8));
+                // ui.paint_rect(
+                //     Rect::new(glow.x, glow.y, glow.width, glow.height / 2),
+                //     bg(edge).gradient(edge, core),
+                // );
+                // ui.paint_rect(
+                //     Rect::new(
+                //         glow.x,
+                //         glow.y + glow.height / 2,
+                //         glow.width,
+                //         glow.height / 2,
+                //     ),
+                //     bg(core).gradient(core, edge),
+                // );
+
+                for &letter in ALPHABET {
+                    let ch = letter.chars().next().unwrap();
+                    let dist = (ch as i32 - selected_letter as i32).abs();
+                    let color = match dist {
+                        0 => ACCENT,
+                        1 => TEXT,
+                        _ => TEXT_FAINT,
+                    };
+                    ui.text(letter, sb.font_size(10).fg(color));
+                }
+                ui.current_frame_bounds().height
+            });
+        },
+    );
+}
+
 fn main() {
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 13;
 
-    const ARTISTS: &[&str] = &[
-        "black midi",
-        "Bonobo",
-        "C418",
-        "Clarance Clarity",
-        "Covet",
-        "Daft Punk",
-        "Dorian Concept",
-        "Duster",
-        "EDEN",
-        "eightiesheadachetape",
-    ];
-
-    const ALPHABET: &[&str] = &[
-        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R",
-        "S", "T", "U", "V", "W", "X", "Y", "Z",
-    ];
-
-    let selected_aritst = "Duster";
     let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
+    let mut sidebar = Sidebar {
+        panel_left: &panel_left,
+        selected_artist: "Duster",
+        bounds: Rect::default(),
+        active: true,
+    };
 
     while ui.window.open() {
         if ui.window.pressed(Key::Escape) {
@@ -64,118 +200,12 @@ fn main() {
         }
 
         ui.frame(|ui| {
-            let (sidebar, body) = ui.split_h(280);
+            let (sb, body) = ui.split_h(280);
+            sidebar.bounds = sb;
 
-            let sb = style().fg(TEXT).font_size(16);
-
-            ui.flow_down(
-                bounds(sidebar)
-                    .bg(SIDEBAR)
-                    .border(BORDER_DIM)
-                    .border_side(RIGHT),
-                |ui| {
-                    ui.flow_right(sb.pad(20), |ui| {
-                        ui.text("mu", sb);
-                        ui.place_left(style().fill_width().bleed().padr(15), |ui| {
-                            ui.image(&panel_left, style().mar(5).radius(6).hover(ROW_HOVER));
-                        });
-                    });
-
-                    ui.flow_down(sb.gap(2).padlr(8), |ui| {
-                        let mut item = |t: &'static str, i: &'static str, s: bool| {
-                            //TODO: Should use impl IntoColor to allow for Option or u32.
-                            // sel.bg(if s { Some(ROW_SELECTED) } else { None });
-
-                            let mut sel = sb.padlr(12).padtb(8).radius(6).hover(ROW_HOVER);
-                            sel.bg = if s { Some(ROW_SELECTED) } else { None };
-                            let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
-                            let ntext = sb
-                                .fg(if s { TEXT_MUTED } else { TEXT_FAINT })
-                                .fill_width()
-                                .align_right();
-
-                            ui.flow_right(sel, |ui| {
-                                ui.text(t, text);
-                                ui.text(i, ntext);
-                            })
-                        };
-
-                        item("Library", "1", true);
-                        item("Queue", "2", false);
-                        item("Playlist", "3", false);
-                        item("Settings", "4", false);
-                    });
-
-                    ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
-
-                    let (artist, mut alphabet) = ui.split_h(-30);
-                    ui.flow_down(bounds(artist).padlr(8), |ui| {
-                        //Assuming artists is pre sorted alphabetically.
-                        let mut first_letter = String::new();
-                        let text = sb
-                            .padlr(12)
-                            .padtb(8)
-                            .radius(6)
-                            .align_left()
-                            .fill_width()
-                            .hover(ROW_HOVER);
-                        let mut selected_text = text.bg(ROW_SELECTED);
-
-                        for artist in ARTISTS {
-                            let next = artist[..1].to_ascii_uppercase();
-                            if next != first_letter {
-                                first_letter = next;
-                                let letter = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
-                                ui.text(first_letter.clone(), letter);
-                            }
-                            let sel = *artist == selected_aritst;
-                            ui.text(*artist, if sel { selected_text } else { text });
-                        }
-                    });
-
-                    let selected_letter =
-                        selected_aritst.chars().next().unwrap().to_ascii_uppercase();
-
-                    ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
-                    let strip = alphabet;
-                    alphabet.x += 12;
-                    ui.flow_down(bounds(alphabet), |ui| {
-                        let letter = sb.font_size(10);
-                        let row = ui.measure_text("A", 0, 10, None).height;
-                        ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
-
-                        // let index = (selected_letter as i32 - 'A' as i32).clamp(0, 25);
-                        // let top = ui.current_frame_bounds().y + index * row;
-                        // let glow = Rect::new(strip.x + 1, top - row * 2, strip.width - 1, row * 5);
-                        // let (edge, core) = (with_alpha(TEXT, 1), with_alpha(TEXT, 8));
-                        // ui.paint_rect(
-                        //     Rect::new(glow.x, glow.y, glow.width, glow.height / 2),
-                        //     bg(edge).gradient(edge, core),
-                        // );
-                        // ui.paint_rect(
-                        //     Rect::new(
-                        //         glow.x,
-                        //         glow.y + glow.height / 2,
-                        //         glow.width,
-                        //         glow.height / 2,
-                        //     ),
-                        //     bg(core).gradient(core, edge),
-                        // );
-
-                        for &letter in ALPHABET {
-                            let ch = letter.chars().next().unwrap();
-                            let dist = (ch as i32 - selected_letter as i32).abs();
-                            let color = match dist {
-                                0 => ACCENT,
-                                1 => TEXT,
-                                _ => TEXT_FAINT,
-                            };
-                            ui.text(letter, sb.font_size(10).fg(color));
-                        }
-                        ui.current_frame_bounds().height
-                    });
-                },
-            );
+            if sidebar.active {
+                draw_sidebar(&mut sidebar, ui);
+            }
 
             // ui.flow_down(bounds(body).bg(BODY), |ui| {})
 
