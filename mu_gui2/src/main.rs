@@ -34,16 +34,95 @@ const ACCENT_PRESSED: u32 = hex("#8871c6");
 const ACCENT_SOFT: u32 = hex("#9b84d938");
 
 const ARTISTS: &[&str] = &[
-    "black midi",
+    "Arca",
+    "BADBADNOTGOOD",
+    "Björk",
     "Bonobo",
     "C418",
-    "Clarance Clarity",
+    "Clarence Clarity",
+    "Clown Core",
+    "Corea",
     "Covet",
     "Daft Punk",
+    "Death Grips",
     "Dorian Concept",
     "Duster",
     "EDEN",
+    "Eminem",
+    "Flawed Mangoes",
+    "Floating Points, Pharoah Sanders & The London Symphony Orchestra",
+    "Flume",
+    "Flying Lotus",
+    "Funeral Diner",
+    "Godspeed You! Black Emperor",
+    "Gospel",
+    "Hans Zimmer",
+    "Iglooghost",
+    "J-E-T-S",
+    "JPEGMAFIA",
+    "Jakey",
+    "John Coltrane",
+    "Joji",
+    "Julie",
+    "Kai Whiston",
+    "Kanazu Tomoyuki",
+    "Kanye West",
+    "Kendrick Lamar",
+    "Koan Sound",
+    "Komorebi",
+    "LINGUA IGNOTA",
+    "Lena Raine",
+    "Machine Girl",
+    "Machinedrum",
+    "Madvillain",
+    "Massive Attack",
+    "Medasin",
+    "Memo Boy",
+    "Men I Trust",
+    "Mick Gordon",
+    "Miles Davis",
+    "Nas",
+    "Nirvana",
+    "Nujabes",
+    "Oli XL",
+    "Otuka",
+    "PinkPantheress",
+    "Pokelawls",
+    "Portishead",
+    "Portraits of Past",
+    "Puma Blue",
+    "Rachel's",
+    "Radiohead",
+    "Ramin Djawadi",
+    "Ryo Fukui",
+    "Ryuichi Sakamoto",
+    "STEINS;GATE",
+    "Sam Gellaitry",
+    "Seatbelts",
+    "Sinjin Hawke",
+    "Sinjin Hawke & Zora Jones",
+    "Slauson Malone",
+    "Slint",
+    "Steve Reich",
+    "Sweet Trip",
+    "Tera Melos",
+    "The Comet Is Coming",
+    "Title Fight",
+    "Toby Fox",
+    "Travis Scott",
+    "Tyler, The Creator",
+    "Various Artists",
+    "Yussef Dayes",
+    "beabadoobee",
+    "black midi",
     "eightiesheadachetape",
+    "foxtails",
+    "kinoue64",
+    "mage tears",
+    "mouse on the keys",
+    "my bloody valentine",
+    "william crooks",
+    "Øneheart", //TODO: This should be converted to an O.
 ];
 
 const ALPHABET: &[&str] = &[
@@ -56,6 +135,7 @@ struct Sidebar<'a> {
     selected_artist: &'static str,
     bounds: Rect,
     active: bool,
+    artist_scroll: Scroll,
 }
 
 fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
@@ -109,29 +189,34 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
             ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
 
             let (artist, mut alphabet) = ui.split_h(-30);
-            ui.flow_down(bounds(artist).padlr(8), |ui| {
-                //Assuming artists is pre sorted alphabetically.
-                let mut first_letter = String::new();
-                let text = sb
-                    .padlr(12)
-                    .padtb(8)
-                    .radius(6)
-                    .align_left()
-                    .fill_width()
-                    .hover(ROW_HOVER);
-                let mut selected_text = text.bg(ROW_SELECTED);
+            let selected_artist = sidebar.selected_artist;
+            ui.scroll(
+                bounds(artist).padlr(8).elastic(true),
+                &mut sidebar.artist_scroll,
+                |ui| {
+                    //Assuming artists is pre sorted alphabetically.
+                    let mut first_letter = ' ';
+                    let text = sb
+                        .padlr(12)
+                        .padtb(8)
+                        .radius(6)
+                        .align_left()
+                        .fill_width()
+                        .hover(ROW_HOVER);
+                    let mut selected_text = text.bg(ROW_SELECTED);
 
-                for artist in ARTISTS {
-                    let next = artist[..1].to_ascii_uppercase();
-                    if next != first_letter {
-                        first_letter = next;
-                        let letter = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
-                        ui.text(first_letter.clone(), letter);
+                    for artist in ARTISTS {
+                        let next = artist.chars().next().unwrap().to_ascii_uppercase();
+                        if next != first_letter {
+                            first_letter = next;
+                            let letter = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
+                            ui.text(first_letter.to_string(), letter);
+                        }
+                        let sel = *artist == selected_artist;
+                        ui.text(*artist, if sel { selected_text } else { text });
                     }
-                    let sel = *artist == sidebar.selected_artist;
-                    ui.text(*artist, if sel { selected_text } else { text });
-                }
-            });
+                },
+            );
 
             let selected_letter = sidebar
                 .selected_artist
@@ -191,6 +276,7 @@ fn main() {
         panel_left: &panel_left,
         selected_artist: "Duster",
         bounds: Rect::default(),
+        artist_scroll: Scroll::new(),
         active: true,
     };
 
