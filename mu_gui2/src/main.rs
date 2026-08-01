@@ -33,10 +33,12 @@ const ACCENT_HOVER: u32 = hex("#ad98e2");
 const ACCENT_PRESSED: u32 = hex("#8871c6");
 const ACCENT_SOFT: u32 = hex("#9b84d938");
 
-const ARTISTS: &[&str] = &[
+const ARTISTS: &[&'static str] = &[
     "Arca",
     "BADBADNOTGOOD",
+    "beabadoobee",
     "Björk",
+    "black midi",
     "Bonobo",
     "C418",
     "Clarence Clarity",
@@ -48,39 +50,45 @@ const ARTISTS: &[&str] = &[
     "Dorian Concept",
     "Duster",
     "EDEN",
+    "eightiesheadachetape",
     "Eminem",
     "Flawed Mangoes",
     "Floating Points, Pharoah Sanders & The London Symphony Orchestra",
     "Flume",
     "Flying Lotus",
+    "foxtails",
     "Funeral Diner",
     "Godspeed You! Black Emperor",
     "Gospel",
     "Hans Zimmer",
     "Iglooghost",
     "J-E-T-S",
-    "JPEGMAFIA",
     "Jakey",
     "John Coltrane",
     "Joji",
+    "JPEGMAFIA",
     "Julie",
     "Kai Whiston",
     "Kanazu Tomoyuki",
     "Kanye West",
     "Kendrick Lamar",
+    "kinoue64",
     "Koan Sound",
     "Komorebi",
-    "LINGUA IGNOTA",
     "Lena Raine",
+    "LINGUA IGNOTA",
     "Machine Girl",
     "Machinedrum",
     "Madvillain",
+    "mage tears",
     "Massive Attack",
     "Medasin",
     "Memo Boy",
     "Men I Trust",
     "Mick Gordon",
     "Miles Davis",
+    "mouse on the keys",
+    "my bloody valentine",
     "Nas",
     "Nirvana",
     "Nujabes",
@@ -96,13 +104,13 @@ const ARTISTS: &[&str] = &[
     "Ramin Djawadi",
     "Ryo Fukui",
     "Ryuichi Sakamoto",
-    "STEINS;GATE",
     "Sam Gellaitry",
     "Seatbelts",
     "Sinjin Hawke",
     "Sinjin Hawke & Zora Jones",
     "Slauson Malone",
     "Slint",
+    "STEINS;GATE",
     "Steve Reich",
     "Sweet Trip",
     "Tera Melos",
@@ -112,17 +120,9 @@ const ARTISTS: &[&str] = &[
     "Travis Scott",
     "Tyler, The Creator",
     "Various Artists",
-    "Yussef Dayes",
-    "beabadoobee",
-    "black midi",
-    "eightiesheadachetape",
-    "foxtails",
-    "kinoue64",
-    "mage tears",
-    "mouse on the keys",
-    "my bloody valentine",
     "william crooks",
-    "Øneheart", //TODO: This should be converted to an O.
+    "Yussef Dayes",
+    "Øneheart", //Should be sorted as an O.
 ];
 
 const ALPHABET: &[&str] = &[
@@ -184,6 +184,7 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
                 item("Queue", "2", false);
                 item("Playlist", "3", false);
                 item("Settings", "4", false);
+                ui.gap(8);
             });
 
             ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
