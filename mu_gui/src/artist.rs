@@ -54,7 +54,7 @@ pub fn draw<'a>(
     playing_path: Option<&str>,
     selection: &mut PathSelection,
     menu: &mut ContextMenu,
-    scroll: &mut usize,
+    scroll: &mut Scroll,
 ) -> Option<Action> {
     if !artists.iter().any(|a| a == artist) {
         return Some(Action::MissingArtist);

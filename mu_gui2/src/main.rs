@@ -4,13 +4,10 @@ use neoui::*;
 const BODY: u32 = hex("#0b0b0c");
 const SIDEBAR: u32 = hex("#101011");
 
-const TEXT: u32 = hex("#ece9e4");
-const TEXT_SECONDARY: u32 = hex("#ece9e4d9");
+const TEXT: u32 = hex("#EDE9E5");
+const TEXT_SECONDARY: u32 = hex("#CAC8C4");
 const TEXT_TERTIARY: u32 = hex("#ece9e499");
-// const TEXT_MUTED: u32 = hex("#ece9e46b");
-// const TEXT_FAINT: u32 = hex("#ece9e44d");
 const TEXT_MUTED: u32 = hex("#555454");
-// const TEXT_MUTED: u32 = hex("#4D4D4C");
 const TEXT_FAINT: u32 = hex("#40403F");
 
 const BORDER: u32 = hex("#ece9e41a");
@@ -291,9 +288,8 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
             ui.flow_down(style(), |ui| {
                 ui.line(
                     [
-                        text("Apex, Trance-Like", style().font_size(24)),
-                        //TODO: Different font sizes do not share a baseline.
-                        text(" 1998 · 2 tracks", style().fg(TEXT_MUTED)),
+                        text("Apex, Trance-Like", style().font_size(24).padr(12)),
+                        text("1998 · 2 tracks", style().fg(TEXT_MUTED)),
                     ],
                     style(),
                 );
@@ -304,30 +300,20 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
                     .radius(12)
                     .padlr(6)
                     .padtb(4);
-                // let sel = song.bg(ROW_SELECTED);
 
-                // ui.line(
-                //     [
-                //         text("01", style().padr(12)),
-                //         //TODO: Cannot use sizing in pad.
-                //         // text("Light Years", style().padr(-12)),
-                //         //TODO: Cannot use fill_width in lines.
-                //         text("Light Years", style().fill_width().align_right()),
-                //         text("4:12", style()),
-                //     ],
-                //     style(),
-                // );
+                let dur = song.fill_width().fg(TEXT_MUTED).align_right();
 
                 ui.flow_right(song.bg(ROW_SELECTED).hover(ROW_HOVER), |ui| {
-                    ui.text("01", song);
+                    ui.text("01", song.fg(ACCENT));
                     ui.text("Light Years", song);
-                    ui.text("4:12", song.fill_width().align_right());
+                    //TODO: Times are not aligned??
+                    ui.text("4:12", dur);
                 });
 
                 ui.flow_right(song.hover(ROW_HOVER), |ui| {
-                    ui.text("02", song);
-                    ui.text("Four Hours", song);
-                    ui.text("3:38", song.fill_width().align_right());
+                    ui.text("02", song.fg(TEXT_MUTED));
+                    ui.text("Four Hours", song.fg(TEXT_SECONDARY));
+                    ui.text("3:38", dur);
                 });
             });
         });

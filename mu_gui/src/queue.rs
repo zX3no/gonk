@@ -15,7 +15,7 @@ pub fn draw(
     playing_path: Option<&str>,
     selection: &mut PathSelection,
     menu: &mut ContextMenu,
-    scroll: &mut usize,
+    scroll: &mut Scroll,
 ) -> Option<Action> {
     let tracks: Vec<Song> = queue.iter().cloned().collect();
     let ordered: Vec<String> = tracks.iter().map(|s| s.path.clone()).collect();

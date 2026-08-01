@@ -21,7 +21,7 @@ pub fn draw_list(
     rect: Rect,
     lists: &Index<Playlist>,
     menu: &mut ContextMenu,
-    scroll: &mut usize,
+    scroll: &mut Scroll,
 ) -> Option<Action> {
     let names: Vec<(String, usize, Vec<Song>)> = lists
         .iter()
@@ -125,7 +125,7 @@ pub fn draw_detail(
     playing_path: Option<&str>,
     selection: &mut PathSelection,
     menu: &mut ContextMenu,
-    scroll: &mut usize,
+    scroll: &mut Scroll,
 ) -> Option<Action> {
     let songs: Vec<Song> = lists
         .iter()

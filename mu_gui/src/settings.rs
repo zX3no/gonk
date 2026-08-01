@@ -12,7 +12,7 @@ pub fn draw(
     devices: &[Device],
     current_device: &str,
     music_folder: &str,
-    scroll: &mut usize,
+    scroll: &mut Scroll,
 ) -> Option<Action> {
     let names: Vec<String> = devices.iter().map(|d| d.name.clone()).collect();
     let current = current_device.to_string();

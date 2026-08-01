@@ -106,23 +106,23 @@ fn go_to_now_playing(
     playlists: &Index<mu_core::Playlist>,
     mode: &mut Mode,
     selected_artist: &mut Option<String>,
-    artist_scroll: &mut usize,
-    main_scroll: &mut usize,
+    artist_scroll: &mut Scroll,
+    main_scroll: &mut Scroll,
     selection: &mut PathSelection,
 ) {
     selection.clear();
-    *main_scroll = 0;
+    main_scroll.jump(0.0);
 
     let resolve_artist = |name: &str,
                           mode: &mut Mode,
                           selected_artist: &mut Option<String>,
-                          artist_scroll: &mut usize| {
+                          artist_scroll: &mut Scroll| {
         if let Some(i) = artists.iter().position(|a| a == name) {
             *selected_artist = Some(name.to_string());
             *mode = Mode::Artist {
                 name: name.to_string(),
             };
-            *artist_scroll = sidebar::scroll_to_index(artists, i);
+            artist_scroll.jump(sidebar::scroll_to_index(artists, i));
             return true;
         }
         false
@@ -355,7 +355,7 @@ fn apply_palette_action(
     mode: &mut Mode,
     selected_artist: &mut Option<String>,
     selection: &mut PathSelection,
-    main_scroll: &mut usize,
+    main_scroll: &mut Scroll,
     toast: &mut Option<Toast>,
     scan_handle: &mut Option<std::thread::JoinHandle<db::ScanResult>>,
     scan_timer: &mut Instant,
@@ -392,7 +392,7 @@ fn apply_palette_action(
                 *selected_artist = Some(name.clone());
                 *mode = Mode::Artist { name };
                 selection.clear();
-                *main_scroll = 0;
+                main_scroll.jump(0.0);
             }
         }
         command_palette::Action::Close => palette.close(),
@@ -548,8 +548,8 @@ fn main() {
     let mut selected_artist: Option<String> = None;
     let mut cover_cache: HashMap<String, Vec<Option<Image>>> = HashMap::new();
     let mut selection = PathSelection::new();
-    let mut artist_scroll: usize = 0;
-    let mut main_scroll: usize = 0;
+    let mut artist_scroll = Scroll::new();
+    let mut main_scroll = Scroll::new();
     let mut seek_drag: Option<f32> = None;
     let mut shuffle = false;
     let mut repeat = RepeatMode::Off;
@@ -745,10 +745,10 @@ fn main() {
                             let name = artists[i].clone();
                             selected_artist = Some(name.clone());
                             mode = Mode::Artist { name };
-                            artist_scroll = sidebar::scroll_to_index(&artists, i);
+                            artist_scroll.jump(sidebar::scroll_to_index(&artists, i));
                             selection.clear();
                             context_menu.close();
-                            main_scroll = 0;
+                            main_scroll.jump(0.0);
                         }
                     }
                 } else {
@@ -759,21 +759,21 @@ fn main() {
                     mode = Mode::Queue;
                     selected_artist = None;
                     selection.clear();
-                    main_scroll = 0;
+                    main_scroll.jump(0.0);
                     artist_jump.clear();
                 }
                 if window.pressed(Key::Char('2')) {
                     mode = Mode::Playlist;
                     selected_artist = None;
                     selection.clear();
-                    main_scroll = 0;
+                    main_scroll.jump(0.0);
                     artist_jump.clear();
                 }
                 if window.pressed(Key::Char('3')) {
                     mode = Mode::Settings;
                     selected_artist = None;
                     selection.clear();
-                    main_scroll = 0;
+                    main_scroll.jump(0.0);
                     artist_jump.clear();
                 }
                 if window.pressed(Key::Char('/')) {
@@ -962,7 +962,7 @@ fn main() {
                             selected_artist = None;
                             selection.clear();
                             context_menu.close();
-                            main_scroll = 0;
+                            main_scroll.jump(0.0);
                             artist_jump.clear();
                         }
                         sidebar::Action::Artist(name) => {
@@ -971,7 +971,7 @@ fn main() {
                                 mode = Mode::Artist { name };
                                 selection.clear();
                                 context_menu.close();
-                                main_scroll = 0;
+                                main_scroll.jump(0.0);
                                 artist_jump.clear();
                             }
                         }
@@ -997,7 +997,7 @@ fn main() {
                                     mode = Mode::PlaylistDetail { name };
                                     selection.clear();
                                     context_menu.close();
-                                    main_scroll = 0;
+                                    main_scroll.jump(0.0);
                                 }
                                 playlist::Action::Play { songs: list, index } => {
                                     start_playback(
@@ -1031,7 +1031,7 @@ fn main() {
                                     mode = Mode::Playlist;
                                     selection.clear();
                                     context_menu.close();
-                                    main_scroll = 0;
+                                    main_scroll.jump(0.0);
                                 }
                                 playlist::Action::Play { songs: list, index } => {
                                     start_playback(

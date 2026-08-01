@@ -15,7 +15,7 @@ pub fn draw(
     mode: &Mode,
     artists: &[String],
     selected_artist: Option<&str>,
-    artist_scroll: &mut usize,
+    artist_scroll: &mut Scroll,
     queue_len: usize,
     icon_font: usize,
 ) -> Option<Action> {
@@ -153,7 +153,7 @@ pub fn draw(
         .hover(colors::HOVER)
         .selected(colors::ACCENT_DIM);
 
-    let sticky = sticky_letter(artists, *artist_scroll);
+    let sticky = sticky_letter(artists, artist_scroll.offset as usize);
     let selected = selected_artist.map(|s| s.to_string());
     let mut artist_click = None;
 
@@ -257,9 +257,9 @@ fn sticky_letter(artists: &[String], scroll_y: usize) -> Option<char> {
 }
 
 /// Pixel scroll offset so `artists[index]` sits just below the sticky letter pin.
-pub fn scroll_to_index(artists: &[String], index: usize) -> usize {
+pub fn scroll_to_index(artists: &[String], index: usize) -> f32 {
     if artists.is_empty() || index >= artists.len() {
-        return 0;
+        return 0.0;
     }
     let mut y = 0usize;
     let mut last_letter: Option<char> = None;
@@ -275,11 +275,11 @@ pub fn scroll_to_index(artists: &[String], index: usize) -> usize {
         }
         if i == index {
             // Leave room for the sticky letter overlay so the name stays visible.
-            return y.saturating_sub(ARTIST_LETTER_H);
+            return y.saturating_sub(ARTIST_LETTER_H) as f32;
         }
         y += ARTIST_ROW_H;
     }
-    0
+    0.0
 }
 
 /// First artist whose name starts with `prefix` (case-insensitive).
