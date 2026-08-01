@@ -130,12 +130,24 @@ const ALPHABET: &[&str] = &[
 struct Sidebar<'a> {
     bounds: Rect,
     panel_left: &'a Image,
+    artists: &'a [String],
     selected_artist: &'static str,
+    selected_mode: &'static str,
     active: bool,
     artist_scroll: Scroll,
 }
 
 fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
+    for key in ui.window.pressed_keys() {
+        match *key {
+            Key::Char('1') => sidebar.selected_mode = "Library",
+            Key::Char('2') => sidebar.selected_mode = "Queue",
+            Key::Char('3') => sidebar.selected_mode = "Playlist",
+            Key::Char('4') => sidebar.selected_mode = "Settings",
+            _ => {}
+        }
+    }
+
     let sb = style().fg(TEXT).font_size(16);
     ui.flow_down(
         bounds(sidebar.bounds)
@@ -159,28 +171,33 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
             });
 
             ui.flow_down(sb.gap(2).padlr(8), |ui| {
-                let mut item = |t: &'static str, i: &'static str, s: bool| {
+                let mut item = |t: &'static str, i: &'static str| {
                     //TODO: Should use impl IntoColor to allow for Option or u32.
                     // sel.bg(if s { Some(ROW_SELECTED) } else { None });
-
+                    let selected = t == sidebar.selected_mode;
                     let mut sel = sb.padlr(12).padtb(8).radius(6).hover(ROW_HOVER);
-                    sel.bg = if s { Some(ROW_SELECTED) } else { None };
-                    let text = sb.fg(if s { TEXT } else { TEXT_TERTIARY });
+                    sel.bg = if selected { Some(ROW_SELECTED) } else { None };
+                    let text = sb.fg(if selected { TEXT } else { TEXT_TERTIARY });
                     let ntext = sb
-                        .fg(if s { TEXT_MUTED } else { TEXT_FAINT })
+                        .fg(if selected { TEXT_MUTED } else { TEXT_FAINT })
                         .fill_width()
                         .align_right();
 
-                    ui.flow_right(sel, |ui| {
-                        ui.text(t, text);
-                        ui.text(i, ntext);
-                    })
+                    if ui
+                        .flow_right(sel, |ui| {
+                            ui.text(t, text);
+                            ui.text(i, ntext);
+                        })
+                        .clicked
+                    {
+                        sidebar.selected_mode = t;
+                    }
                 };
 
-                item("Library", "1", true);
-                item("Queue", "2", false);
-                item("Playlist", "3", false);
-                item("Settings", "4", false);
+                item("Library", "1");
+                item("Queue", "2");
+                item("Playlist", "3");
+                item("Settings", "4");
                 ui.gap(8);
             });
 
@@ -324,13 +341,22 @@ fn main() {
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 13;
 
+    // Skip slow db loading for now.
+    // let config = mu_core::config_paths();
+    // let db = mu_core::vdb::Database::new(&config.database);
+    // let mut artists: Vec<String> = db.btree.keys().cloned().collect();
+    // artists.sort_by_key(|a| a.to_ascii_lowercase());
+
     let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
         panel_left: &panel_left,
         selected_artist: "Duster",
+        artists: &[],
+        // artists: &artists,
         artist_scroll: Scroll::new(),
         active: true,
+        selected_mode: "Library",
     };
 
     let mut library = Library {
