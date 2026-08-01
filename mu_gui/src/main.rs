@@ -481,6 +481,21 @@ fn main() {
         std::process::exit(1);
     }));
 
+    let font_thread = std::thread::spawn(|| {
+        let icons = fontdue::Font::from_bytes(
+            include_bytes!("../assets/fonts/MaterialIcons-Regular.ttf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .unwrap();
+
+        let cjk = fontdue::Font::from_bytes(
+            include_bytes!("../assets/fonts/NotoSansCJK-Subset.otf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .unwrap();
+        (icons, cjk)
+    });
+
     let elapsed = persist.elapsed;
     let volume = persist.volume;
     // Explicit queue (Add only). Playback is a separate session list.
@@ -517,22 +532,6 @@ fn main() {
     ui.default_font_size = 13;
     ui.clear_color = colors::BG;
 
-    let icon_font = ui.add_font(
-        fontdue::Font::from_bytes(
-            include_bytes!("../assets/fonts/MaterialIcons-Regular.ttf").as_slice(),
-            fontdue::FontSettings::default(),
-        )
-        .expect("Material Icons font"),
-    );
-
-    ui.add_font_fallback(
-        fontdue::Font::from_bytes(
-            include_bytes!("../assets/fonts/NotoSansCJKjp-Regular.otf").as_slice(),
-            fontdue::FontSettings::default(),
-        )
-        .expect("Noto Sans CJK JP"),
-    );
-
     player.set_volume(volume);
     if let Some(song) = playback.selected() {
         play(&mut player, song, false);
@@ -561,6 +560,10 @@ fn main() {
     let mut artist_jump = String::new();
     let mut artist_jump_at = Instant::now();
     const ARTIST_JUMP_TIMEOUT: Duration = Duration::from_millis(1000);
+
+    let (icons, cjk) = font_thread.join().unwrap();
+    let icon_font = ui.add_font(icons);
+    ui.add_font_fallback(cjk);
 
     while ui.window.open() {
         if let Some(handle) = &scan_handle {
