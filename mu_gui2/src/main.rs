@@ -131,9 +131,9 @@ const ALPHABET: &[&str] = &[
 ];
 
 struct Sidebar<'a> {
+    bounds: Rect,
     panel_left: &'a Image,
     selected_artist: &'static str,
-    bounds: Rect,
     active: bool,
     artist_scroll: Scroll,
 }
@@ -268,17 +268,88 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
     );
 }
 
+struct Library<'a> {
+    bounds: Rect,
+    artist: &'a str,
+}
+
+fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
+    ui.flow_down(bounds(library.bounds).padlr(36).padtb(24).bg(BODY), |ui| {
+        ui.text(library.artist, style().font_size(42));
+        //TODO: Add letter spacing?
+        ui.gap(4);
+        ui.text(
+            "10 ALBUMS · 102 TRACKS · 6.1 GB LOCAL",
+            style().fg(TEXT_MUTED),
+        );
+        ui.gap(12);
+        ui.rect(style().fill_width().height(1).bg(BORDER_DIM));
+        ui.gap(12);
+        ui.flow_right(style(), |ui| {
+            ui.rect(style().wh(120).bg(gray()));
+            ui.gap(24);
+            ui.flow_down(style(), |ui| {
+                ui.line(
+                    [
+                        text("Apex, Trance-Like", style().font_size(24)),
+                        //TODO: Different font sizes do not share a baseline.
+                        text(" 1998 · 2 tracks", style().fg(TEXT_MUTED)),
+                    ],
+                    style(),
+                );
+                ui.gap(12);
+                let song = style()
+                    .align_left()
+                    .font_size(15)
+                    .radius(12)
+                    .padlr(6)
+                    .padtb(4);
+                // let sel = song.bg(ROW_SELECTED);
+
+                // ui.line(
+                //     [
+                //         text("01", style().padr(12)),
+                //         //TODO: Cannot use sizing in pad.
+                //         // text("Light Years", style().padr(-12)),
+                //         //TODO: Cannot use fill_width in lines.
+                //         text("Light Years", style().fill_width().align_right()),
+                //         text("4:12", style()),
+                //     ],
+                //     style(),
+                // );
+
+                ui.flow_right(song.bg(ROW_SELECTED).hover(ROW_HOVER), |ui| {
+                    ui.text("01", song);
+                    ui.text("Light Years", song);
+                    ui.text("4:12", song.fill_width().align_right());
+                });
+
+                ui.flow_right(song.hover(ROW_HOVER), |ui| {
+                    ui.text("02", song);
+                    ui.text("Four Hours", song);
+                    ui.text("3:38", song.fill_width().align_right());
+                });
+            });
+        });
+    });
+}
+
 fn main() {
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 13;
 
     let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
     let mut sidebar = Sidebar {
+        bounds: Rect::default(),
         panel_left: &panel_left,
         selected_artist: "Duster",
-        bounds: Rect::default(),
         artist_scroll: Scroll::new(),
         active: true,
+    };
+
+    let mut library = Library {
+        bounds: Rect::default(),
+        artist: "Duster",
     };
 
     while ui.window.open() {
@@ -289,15 +360,14 @@ fn main() {
         ui.frame(|ui| {
             let (sb, body) = ui.split_h(280);
             sidebar.bounds = sb;
+            library.bounds = body;
 
             if sidebar.active {
                 draw_sidebar(&mut sidebar, ui);
             }
 
-            // ui.flow_down(bounds(body).bg(BODY), |ui| {})
-
-            // ui.paint_rect(left, bg(red()));
-            // ui.paint_rect(right, bg(gray()));
+            let (body, controls) = ui.split_rect_v(body, -48);
+            draw_library(&mut library, ui);
         });
     }
 }
