@@ -17,7 +17,7 @@ pub fn draw(
     selected_artist: Option<&str>,
     artist_scroll: &mut Scroll,
     queue_len: usize,
-    icon_font: usize,
+    icon_font: Font,
 ) -> Option<Action> {
     let brand_h = 48;
     let nav_h = 44 * 3 + 16;

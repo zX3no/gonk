@@ -26,7 +26,7 @@ pub fn draw(
     shuffle: &mut bool,
     repeat: &mut RepeatMode,
     mute: &mut bool,
-    icon_font: usize,
+    icon_font: Font,
 ) -> Option<Action> {
     let left_w = 280;
     let right_w = 160;
@@ -294,7 +294,7 @@ fn draw_volume(
     rect: Rect,
     player: &Player,
     mute: bool,
-    icon_font: usize,
+    icon_font: Font,
 ) -> Option<u8> {
     let icon_w = 28;
     let (icon_rect, track_area) = ui.split_rect_h(rect, icon_w);
