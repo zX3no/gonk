@@ -137,51 +137,32 @@ struct Sidebar<'a> {
     artist_scroll: Scroll,
 }
 
-//TODO: Remove.
-fn icon(ui: &mut FrameContext, kind: &str, r: Rect, color: u32) {
-    let dim = with_alpha(color, 110);
-    let u = |v: i32| v * r.width / 24;
-    let mut bar = |x: i32, y: i32, w: i32, h: i32, c: u32| {
-        let rect = Rect::new(r.x + u(x), r.y + u(y), u(w).max(1), u(h).max(1));
-        ui.paint_rect(rect, bg(c).radius(1));
-    };
+fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
+    ui.widget(24, 24, style, |ui, r, _, depth| {
+        let fill = style.fg.unwrap_or(white());
+        let palette = [fill, with_alpha(fill, 110), SIDEBAR];
+        let u = |v: i32| v * r.width / 24;
 
-    match kind {
-        "Panel" => {
-            bar(2, 4, 20, 16, color);
-            bar(4, 6, 16, 12, SIDEBAR);
-            bar(4, 6, 5, 12, color);
+        #[rustfmt::skip]
+        let bars: &[[i32; 5]] = match kind {
+            "Panel"    => &[[2,4,20,16,0], [4,6,16,12,2], [4,6,5,12,0]],
+            "Library"  => &[[3,4,4,17,0], [9,4,4,17,0], [15,6,4,15,0], [19,7,3,14,1]],
+            "Queue"    => &[[3,6,12,2,0], [3,11,12,2,0], [3,16,8,2,1]],
+            "Playlist" => &[[3,6,15,2,0], [3,11,15,2,0], [3,16,9,2,1], [15,16,7,2,0], [17,14,2,7,0]],
+            "Settings" => &[[5,3,2,18,1], [12,3,2,18,1], [19,3,2,18,1], [3,7,6,3,0], [10,13,6,3,0], [17,6,6,3,0]],
+            _ => &[],
+        };
+
+        for &[x, y, w, h, c] in bars {
+            let rect = Rect::new(r.x + u(x), r.y + u(y), u(w).max(1), u(h).max(1));
+            ui.paint_rect(rect, bg(palette[c as usize]).radius(1).depth(depth));
         }
-        "Library" => {
-            bar(3, 4, 4, 17, color);
-            bar(9, 4, 4, 17, color);
-            bar(15, 6, 4, 15, color);
-            bar(19, 7, 3, 14, dim);
-        }
-        "Queue" => {
-            bar(3, 6, 12, 2, color);
-            bar(3, 11, 12, 2, color);
-            bar(3, 16, 8, 2, dim);
+
+        if kind == "Queue" {
             let (x, y) = (r.x + u(15), r.y + u(11));
-            ui.paint_triangle((x, y), (x, y + u(9)), (x + u(7), y + u(4)), bg(color));
+            ui.paint_triangle((x, y), (x, y + u(9)), (x + u(7), y + u(4)), bg(fill).depth(depth));
         }
-        "Playlist" => {
-            bar(3, 6, 15, 2, color);
-            bar(3, 11, 15, 2, color);
-            bar(3, 16, 9, 2, dim);
-            bar(15, 16, 7, 2, color);
-            bar(17, 14, 2, 7, color);
-        }
-        "Settings" => {
-            bar(5, 3, 2, 18, dim);
-            bar(12, 3, 2, 18, dim);
-            bar(19, 3, 2, 18, dim);
-            bar(3, 7, 6, 3, color);
-            bar(10, 13, 6, 3, color);
-            bar(17, 6, 6, 3, color);
-        }
-        _ => {}
-    }
+    })
 }
 
 //TODO: Remove
@@ -195,11 +176,14 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
             .padlr(11)
             .gap(4),
         |ui| {
-            let mut btn = style().wh(34).radius(8).hover(ROW_HOVER);
-            let toggle = ui.rect(btn);
-            let panel = Rect::new(toggle.bounds.x + 7, toggle.bounds.y + 7, 20, 20);
-            icon(ui, "Panel", panel, TEXT_TERTIARY);
-            if toggle.clicked {
+            let btn = style()
+                .wh(34)
+                .pad(7)
+                .radius(8)
+                .hover(ROW_HOVER)
+                .selected(ROW_SELECTED);
+
+            if icon(ui, "Panel", btn.fg(TEXT_TERTIARY)).clicked {
                 sidebar.active = true;
             }
 
@@ -207,12 +191,10 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
             for mode in ["Library", "Queue", "Playlist", "Settings"] {
                 let selected = mode == sidebar.selected_mode;
-                btn.bg = if selected { Some(ROW_SELECTED) } else { None };
-                let state = ui.rect(btn);
-                let color = if selected { TEXT } else { TEXT_TERTIARY };
-                let b = Rect::new(state.bounds.x + 7, state.bounds.y + 7, 20, 20);
-                icon(ui, mode, b, color);
-                if state.clicked {
+                let btn = btn
+                    .is_selected(selected)
+                    .fg(if selected { TEXT } else { TEXT_TERTIARY });
+                if icon(ui, mode, btn).clicked {
                     sidebar.selected_mode = mode;
                 }
             }
@@ -223,7 +205,7 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     );
 }
 
-fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
+fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     let sb = style().fg(TEXT).font_size(16);
     ui.flow_down(
         bounds(sidebar.bounds)
@@ -231,29 +213,26 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
             .border(BORDER_DIM)
             .border_side(RIGHT),
         |ui| {
-            ui.flow_right(sb.pad(20), |ui| {
-                ui.text("mu", sb);
-
-                //TODO: Remove
-                let frame = ui.current_frame_bounds();
-                let size = ui.resolve_size(Size::FillMinus(-15), Flow::Right);
-                let bounds = Rect::new(frame.x + size, frame.y, 20, 20);
-                icon(ui, "Panel", bounds, TEXT_TERTIARY);
-                if ui.clicked(bounds) {
-                    sidebar.active = false;
-                }
-                // ui.place_left(style().fill_width().bleed().padr(15), |ui| {
-                //     if ui
-                //         .image(
-                //             sidebar.panel_left,
-                //             style().mar(5).radius(6).hover(ROW_HOVER),
-                //         )
-                //         .clicked
-                //     {
-                //         sidebar.active = false;
-                //     }
-                // });
-            });
+            ui.flow_right(
+                sb.padtb(20)
+                    .padl(18)
+                    .padr(10)
+                    .height(48)
+                    .align_flow(AlignFlow::Center),
+                |ui| {
+                    ui.text("mu", sb);
+                    ui.gap(-28);
+                    let btn = style()
+                        .wh(30)
+                        .pad(5)
+                        .radius(6)
+                        .hover(ROW_HOVER)
+                        .fg(TEXT_TERTIARY);
+                    if icon(ui, "Panel", btn).clicked {
+                        sidebar.active = false;
+                    }
+                },
+            );
 
             ui.flow_down(sb.gap(2).padlr(8), |ui| {
                 let mut item = |t: &'static str, i: &'static str| {
@@ -441,10 +420,12 @@ fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
 
                 ui.flow_down(style(), |ui| {
                     ui.text("Light Years", style().fg(TEXT));
-                    ui.text("Duster · Apex, Trance-Like", style().font_size(14).fg(TEXT_MUTED));
+                    ui.text(
+                        "Duster · Apex, Trance-Like",
+                        style().font_size(14).fg(TEXT_MUTED),
+                    );
                 });
             });
-
         },
     );
 }
