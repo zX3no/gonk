@@ -135,6 +135,7 @@ struct Sidebar<'a> {
     selected_mode: &'static str,
     active: bool,
     artist_scroll: Scroll,
+    shrunk: bool,
 }
 
 fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
@@ -453,6 +454,7 @@ fn main() {
         artist_scroll: Scroll::new(),
         active: true,
         selected_mode: "Library",
+        shrunk: false,
     };
 
     let mut library = Library {
@@ -475,7 +477,7 @@ fn main() {
                 Key::Char('2') => sidebar.selected_mode = "Queue",
                 Key::Char('3') => sidebar.selected_mode = "Playlist",
                 Key::Char('4') => sidebar.selected_mode = "Settings",
-                Key::Tab => sidebar.active = !sidebar.active,
+                Key::Tab if !sidebar.shrunk => sidebar.active = !sidebar.active,
                 _ => {}
             }
         }
@@ -483,10 +485,17 @@ fn main() {
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
             let width = ui.animate_f32(target, 0.15, Ease::OutCubic) as i32;
+            let max_width = ui.window.width() as f32 * 0.33;
+            if max_width < (width as f32) {
+                sidebar.shrunk = true;
+            } else {
+                sidebar.shrunk = false;
+            }
+            let width = if sidebar.shrunk { 56 } else { width };
             let (sb, body) = ui.split_h(width);
             sidebar.bounds = sb;
 
-            if width > 168 {
+            if width > 168 && !sidebar.shrunk {
                 draw_sidebar(&mut sidebar, ui);
             } else {
                 draw_rail(&mut sidebar, ui);
