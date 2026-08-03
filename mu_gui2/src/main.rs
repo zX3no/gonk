@@ -151,6 +151,9 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             "Queue"    => &[[3,6,12,2,0], [3,11,12,2,0], [3,16,8,2,1]],
             "Playlist" => &[[3,6,15,2,0], [3,11,15,2,0], [3,16,9,2,1], [15,16,7,2,0], [17,14,2,7,0]],
             "Settings" => &[[5,3,2,18,1], [12,3,2,18,1], [19,3,2,18,1], [3,7,6,3,0], [10,13,6,3,0], [17,6,6,3,0]],
+            "Shuffle"  => &[[4,7,13,2,0], [7,15,13,2,0]],
+            "Pause"    => &[[7,4,4,16,0], [13,4,4,16,0]],
+            "Volume"   => &[[3,9,4,6,0], [14,9,2,6,1]],
             _ => &[],
         };
 
@@ -159,9 +162,40 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             ui.paint_rect(rect, bg(palette[c as usize]).radius(1).depth(depth));
         }
 
-        if kind == "Queue" {
-            let (x, y) = (r.x + u(15), r.y + u(11));
-            ui.paint_triangle((x, y), (x, y + u(9)), (x + u(7), y + u(4)), bg(fill).depth(depth));
+        let (x, y) = (r.x, r.y);
+        let tri = |ui: &mut FrameContext, a: (i32, i32), b: (i32, i32), c: (i32, i32)| {
+            let p = |(px, py): (i32, i32)| (x + u(px), y + u(py));
+            ui.paint_triangle(p(a), p(b), p(c), bg(fill).depth(depth));
+        };
+        let ring = |ui: &mut FrameContext, i: i32, color: u32| {
+            let rect = Rect::new(x + u(i), y + u(i), u(24 - i * 2), u(24 - i * 2));
+            ui.paint_rect(rect, bg(color).radius(u(12 - i).max(1) as usize).depth(depth));
+        };
+
+        match kind {
+            "Queue" => tri(ui, (15, 11), (15, 20), (22, 15)),
+            "Shuffle" => {
+                tri(ui, (16, 4), (16, 12), (21, 8));
+                tri(ui, (8, 12), (8, 20), (3, 16));
+            }
+            "Play" => tri(ui, (6, 3), (6, 21), (21, 12)),
+            "Rewind" => {
+                tri(ui, (11, 3), (11, 21), (1, 12));
+                tri(ui, (22, 3), (22, 21), (12, 12));
+            }
+            "Forward" => {
+                tri(ui, (13, 3), (13, 21), (23, 12));
+                tri(ui, (2, 3), (2, 21), (12, 12));
+            }
+            "Volume" => tri(ui, (11, 3), (11, 21), (6, 12)),
+            "Repeat" => {
+                ring(ui, 3, fill);
+                ring(ui, 6, SIDEBAR);
+                let notch = Rect::new(x + u(11), y, u(9), u(8));
+                ui.paint_rect(notch, bg(SIDEBAR).depth(depth));
+                tri(ui, (12, 0), (12, 10), (6, 5));
+            }
+            _ => {}
         }
     })
 }
@@ -404,9 +438,17 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
 
 struct Controls {
     bounds: Rect,
+    playing: bool,
+    shuffle: bool,
+    repeat: bool,
+    muted: bool,
+    elapsed: f32,
+    duration: f32,
+    volume: f32,
 }
 
 fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
+    //TODO: Align this to the center.
     ui.flow_right(
         bounds(controls.bounds)
             .pad(16)
@@ -464,6 +506,13 @@ fn main() {
 
     let mut controls = Controls {
         bounds: Rect::default(),
+        playing: false,
+        shuffle: false,
+        repeat: false,
+        muted: false,
+        elapsed: 0.0,
+        duration: 252.0,
+        volume: 0.32,
     };
 
     while ui.window.open() {
@@ -487,7 +536,7 @@ fn main() {
             let width = ui.animate_f32(target, 0.15, Ease::OutCubic) as i32;
             //TODO: Weird platform difference on width()??
             let (window_width, _) = ui.window.content_size();
-            let max_width =  window_width as f32 * 0.33;
+            let max_width = window_width as f32 * 0.33;
             if max_width < (width as f32) {
                 sidebar.shrunk = true;
             } else {
@@ -503,7 +552,7 @@ fn main() {
                 draw_rail(&mut sidebar, ui);
             }
 
-            let (body, con) = ui.split_rect_v(body, -64);
+            let (body, con) = ui.split_rect_v(body, -84);
             library.bounds = body;
             controls.bounds = con;
 
