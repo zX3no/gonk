@@ -485,7 +485,9 @@ fn main() {
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
             let width = ui.animate_f32(target, 0.15, Ease::OutCubic) as i32;
-            let max_width = ui.window.width() as f32 * 0.33;
+            //TODO: Weird platform difference on width()??
+            let (window_width, _) = ui.window.content_size();
+            let max_width =  window_width as f32 * 0.33;
             if max_width < (width as f32) {
                 sidebar.shrunk = true;
             } else {
