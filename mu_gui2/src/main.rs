@@ -135,7 +135,6 @@ struct Sidebar<'a> {
     selected_mode: &'static str,
     active: bool,
     artist_scroll: Scroll,
-    shrunk: bool,
 }
 
 fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
@@ -167,11 +166,6 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             let p = |(px, py): (i32, i32)| (x + u(px), y + u(py));
             ui.paint_triangle(p(a), p(b), p(c), bg(fill).depth(depth));
         };
-        let ring = |ui: &mut FrameContext, i: i32, color: u32| {
-            let rect = Rect::new(x + u(i), y + u(i), u(24 - i * 2), u(24 - i * 2));
-            ui.paint_rect(rect, bg(color).radius(u(12 - i).max(1) as usize).depth(depth));
-        };
-
         match kind {
             "Queue" => tri(ui, (15, 11), (15, 20), (22, 15)),
             "Shuffle" => {
@@ -189,11 +183,18 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             }
             "Volume" => tri(ui, (11, 3), (11, 21), (6, 12)),
             "Repeat" => {
-                ring(ui, 3, fill);
-                ring(ui, 6, SIDEBAR);
-                let notch = Rect::new(x + u(11), y, u(9), u(8));
-                ui.paint_rect(notch, bg(SIDEBAR).depth(depth));
-                tri(ui, (12, 0), (12, 10), (6, 5));
+                let ring = Rect::new(x + u(3), y + u(3), u(18), u(18));
+                let stroke = Style::default()
+                    .border(fill)
+                    .border_thickness(u(2).max(1) as usize)
+                    .radius(u(9).max(1) as usize)
+                    .depth(depth);
+                //Draw the ring twice, clipped, so everything but the top right is covered.
+                ui.clipped(Rect::new(x, y, u(12), u(24)), |ui| ui.paint_rect(ring, stroke));
+                ui.clipped(Rect::new(x + u(12), y + u(9), u(12), u(15)), |ui| {
+                    ui.paint_rect(ring, stroke)
+                });
+                tri(ui, (12, 1), (12, 7), (18, 4));
             }
             _ => {}
         }
@@ -447,28 +448,119 @@ struct Controls {
     volume: f32,
 }
 
-fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
-    //TODO: Align this to the center.
-    ui.flow_right(
-        bounds(controls.bounds)
-            .pad(16)
-            .bg(SIDEBAR)
-            .border(BORDER_DIM)
-            .border_side(TOP),
-        |ui| {
-            //Current Song
-            ui.flow_right(style(), |ui| {
-                ui.rect(style().wh(34).bg(gray()));
-                ui.gap(12);
+fn time(t: f32) -> String {
+    let total_seconds = t.max(0.0) as u32;
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+    format!("{:02}:{:02}", minutes, seconds)
+}
 
-                ui.flow_down(style(), |ui| {
-                    ui.text("Light Years", style().fg(TEXT));
-                    ui.text(
-                        "Duster · Apex, Trance-Like",
-                        style().font_size(14).fg(TEXT_MUTED),
-                    );
-                });
+fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
+    ui.paint_rect(
+        controls.bounds,
+        bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
+    );
+
+    let [info, center, extras] = ui.split_cols(controls.bounds, [0.28, 0.44, 0.28]);
+
+    ui.flow_right(
+        bounds(info)
+            .padlr(16)
+            .gap(12)
+            .align_flow(AlignFlow::Center)
+            .clip(true),
+        |ui| {
+            ui.rect(style().wh(48).radius(4).bg(gray()));
+            ui.flow_down(style().height(40), |ui| {
+                ui.text("Light Years", style().fg(TEXT));
+                ui.text(
+                    "Duster · Apex, Trance-Like",
+                    style().font_size(14).fg(TEXT_MUTED),
+                );
             });
+        },
+    );
+
+    let t = style().w(36).font_size(13).fg(TEXT_MUTED);
+    let btn = style()
+        .wh(32)
+        .pad(4)
+        .radius(8)
+        .hover(ROW_HOVER)
+        .fg(TEXT_TERTIARY);
+
+    ui.flow_down(
+        bounds(center)
+            .padtb(12)
+            .gap(4)
+            .align_flow(AlignFlow::Center)
+            .clip(true),
+        |ui| {
+            ui.flow_right(
+                style()
+                    .w(200)
+                    .clip(true)
+                    .h(36)
+                    .gap(10)
+                    .align_flow(AlignFlow::Center),
+                |ui| {
+                    icon(ui, "Shuffle", btn);
+                    icon(ui, "Rewind", btn);
+                    icon(
+                        ui,
+                        if controls.playing { "Pause" } else { "Play" },
+                        btn.bg(TEXT).fg(SIDEBAR).radius(16),
+                    );
+                    icon(ui, "Forward", btn);
+                    icon(ui, "Repeat", btn);
+                },
+            );
+
+            ui.flow_right(
+                style()
+                    .clip(true)
+                    .h(20)
+                    .gap(10)
+                    .align_flow(AlignFlow::Center),
+                |ui| {
+                    ui.text(time(controls.elapsed), t.align_right());
+                    let track = ui.rect(
+                        style()
+                            .w(Size::FillMinus(46))
+                            .h(4)
+                            .radius(2)
+                            .bg(TRACK_EMPTY),
+                    );
+                    ui.text(time(controls.duration), t.align_left());
+
+                    ui.paint_rect(
+                        Rect::new(
+                            track.bounds.x,
+                            track.bounds.y,
+                            (track.bounds.width as f32 * controls.elapsed / controls.duration)
+                                as i32,
+                            track.bounds.height,
+                        ),
+                        bg(ACCENT).radius(2),
+                    );
+                },
+            );
+        },
+    );
+
+    ui.flow_left(
+        bounds(extras)
+            .padlr(16)
+            .gap(10)
+            .clip(true)
+            .align_flow(AlignFlow::Center),
+        |ui| {
+            ui.text(
+                format!("{}", (controls.volume * 100.0).clamp(0.0, 100.0).round()),
+                style().w(24).font_size(13).fg(TEXT_MUTED),
+            );
+            ui.rect(style().w(96).h(4).radius(2).bg(TRACK_EMPTY));
+            icon(ui, "Volume", btn);
         },
     );
 }
@@ -496,7 +588,6 @@ fn main() {
         artist_scroll: Scroll::new(),
         active: true,
         selected_mode: "Library",
-        shrunk: false,
     };
 
     let mut library = Library {
@@ -510,7 +601,7 @@ fn main() {
         shuffle: false,
         repeat: false,
         muted: false,
-        elapsed: 0.0,
+        elapsed: 132.0,
         duration: 252.0,
         volume: 0.32,
     };
@@ -526,7 +617,7 @@ fn main() {
                 Key::Char('2') => sidebar.selected_mode = "Queue",
                 Key::Char('3') => sidebar.selected_mode = "Playlist",
                 Key::Char('4') => sidebar.selected_mode = "Settings",
-                Key::Tab if !sidebar.shrunk => sidebar.active = !sidebar.active,
+                Key::Tab => sidebar.active = !sidebar.active,
                 _ => {}
             }
         }
@@ -534,19 +625,10 @@ fn main() {
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
             let width = ui.animate_f32(target, 0.15, Ease::OutCubic) as i32;
-            //TODO: Weird platform difference on width()??
-            let (window_width, _) = ui.window.content_size();
-            let max_width = window_width as f32 * 0.33;
-            if max_width < (width as f32) {
-                sidebar.shrunk = true;
-            } else {
-                sidebar.shrunk = false;
-            }
-            let width = if sidebar.shrunk { 56 } else { width };
             let (sb, body) = ui.split_h(width);
             sidebar.bounds = sb;
 
-            if width > 168 && !sidebar.shrunk {
+            if width > 168 {
                 draw_sidebar(&mut sidebar, ui);
             } else {
                 draw_rail(&mut sidebar, ui);
