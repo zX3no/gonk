@@ -54,27 +54,27 @@ impl PathSelection {
     }
 
     /// Shift click: select contiguous range in `ordered` from anchor to `path`.
-    pub fn select_range(&mut self, ordered: &[String], path: String) {
+    pub fn select_range<S: AsRef<str>>(&mut self, ordered: &[S], path: String) {
         let Some(anchor) = self.anchor.clone() else {
             self.select_only(path);
             return;
         };
-        let Some(a) = ordered.iter().position(|p| p == &anchor) else {
+        let Some(a) = ordered.iter().position(|p| p.as_ref() == anchor) else {
             self.select_only(path);
             return;
         };
-        let Some(b) = ordered.iter().position(|p| p == &path) else {
+        let Some(b) = ordered.iter().position(|p| p.as_ref() == path) else {
             self.select_only(path);
             return;
         };
         let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
-        self.paths = ordered[lo..=hi].to_vec();
+        self.paths = ordered[lo..=hi].iter().map(|s| s.as_ref().to_string()).collect();
         // Keep original anchor so further Shift-clicks extend from it.
         self.anchor = Some(anchor);
     }
 
     /// Apply modifiers: shift = range, ctrl = toggle, else only.
-    pub fn click(&mut self, ordered: &[String], path: String, shift: bool, ctrl: bool) {
+    pub fn click<S: AsRef<str>>(&mut self, ordered: &[S], path: String, shift: bool, ctrl: bool) {
         if shift {
             self.select_range(ordered, path);
         } else if ctrl {

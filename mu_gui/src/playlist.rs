@@ -23,16 +23,6 @@ pub fn draw_list(
     menu: &mut ContextMenu,
     scroll: &mut Scroll,
 ) -> Option<Action> {
-    let names: Vec<(String, usize, Vec<Song>)> = lists
-        .iter()
-        .map(|p| {
-            (
-                p.name().to_string(),
-                p.songs.len(),
-                p.songs.iter().cloned().collect(),
-            )
-        })
-        .collect();
     let mut action = None;
 
     ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
@@ -58,7 +48,7 @@ pub fn draw_list(
                 .align(Alignment::Left),
         );
 
-        if names.is_empty() {
+        if lists.is_empty() {
             ui.text(
                 "No playlists yet. Right-click the queue and choose Save as playlist.",
                 style()
@@ -81,30 +71,33 @@ pub fn draw_list(
             .hover(colors::HOVER)
             .fg(colors::TEXT);
 
-        for (name, count, songs) in &names {
-            let state = ui.item(format!("{name}  ·  {count} songs"), row);
+        for p in lists.iter() {
+            let name = p.name();
+            let count = p.songs.len();
+            let label = ui.fmt(format_args!("{name}  ·  {count} songs"));
+            let state = ui.item(label, row);
             if state.clicked {
-                action = Some(Action::OpenDetail(name.clone()));
+                action = Some(Action::OpenDetail(name.to_string()));
             }
             if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
                 let mut entries = Vec::new();
-                if !songs.is_empty() {
+                if !p.songs.is_empty() {
                     entries.push((
                         "Play".into(),
                         MenuCommand::Play {
-                            songs: songs.clone(),
+                            songs: p.songs.clone(),
                             index: 0,
                         },
                     ));
                     entries.push((
                         "Add to queue".into(),
-                        MenuCommand::AddToQueue(songs.clone()),
+                        MenuCommand::AddToQueue(p.songs.clone()),
                     ));
                 }
                 let sep = entries.len();
                 entries.push((
                     "Delete playlist".into(),
-                    MenuCommand::DeletePlaylist(name.clone()),
+                    MenuCommand::DeletePlaylist(name.to_string()),
                 ));
                 if sep > 0 {
                     menu.open_at_with_sep(mx, my, entries, sep);
@@ -127,13 +120,11 @@ pub fn draw_detail(
     menu: &mut ContextMenu,
     scroll: &mut Scroll,
 ) -> Option<Action> {
-    let songs: Vec<Song> = lists
-        .iter()
-        .find(|p| p.name() == name)
-        .map(|p| p.songs.iter().cloned().collect())
-        .unwrap_or_default();
-    let ordered: Vec<String> = songs.iter().map(|s| s.path.clone()).collect();
-    let name_owned = name.to_string();
+    let Some(playlist) = lists.iter().find(|p| p.name() == name) else {
+        return Some(Action::Back);
+    };
+    let songs = &playlist.songs;
+    let ordered: Vec<&str> = songs.iter().map(|s| s.path.as_str()).collect();
     let shift = ui.window.modifiers().shift;
     let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
@@ -155,7 +146,7 @@ pub fn draw_detail(
         }
 
         ui.text(
-            name_owned.clone(),
+            name.to_string(),
             style()
                 .fg(colors::TEXT)
                 .font_size(28)
@@ -165,8 +156,9 @@ pub fn draw_detail(
                 .fill_width()
                 .align(Alignment::Left),
         );
+        let txt = ui.fmt(format_args!("{} songs · right-click a track", songs.len()));
         ui.text(
-            format!("{} songs · right-click a track", songs.len()),
+            txt,
             style()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
@@ -187,22 +179,20 @@ pub fn draw_detail(
             .fg(colors::TEXT)
             .selected(colors::ACCENT_DIM);
 
-        let playlist_name = name_owned.clone();
-
         for (i, song) in songs.iter().enumerate() {
             let is_playing = playing_path == Some(song.path.as_str());
             let is_selected = selection.contains(&song.path);
             // ASCII only — default UI font has no ♪ glyph (rendered as ?).
             let mark = if is_playing { "> " } else { "  " };
-            let label = format!(
+            let label = ui.fmt(format_args!(
                 "{mark}{}  ·  {}  ·  {}",
                 song.title, song.artist, song.album
-            );
+            ));
             let state = ui.item(label, row.is_selected(is_selected));
             if state.double_clicked {
                 selection.select_only(song.path.clone());
                 action = Some(Action::Play {
-                    songs: songs.clone(),
+                    songs: songs.iter().cloned().collect(),
                     index: i,
                 });
             } else if state.clicked {
@@ -212,7 +202,7 @@ pub fn draw_detail(
                 if !selection.contains(&song.path) {
                     selection.select_only(song.path.clone());
                 }
-                let selected = selection.collect_songs(&songs);
+                let selected = selection.collect_songs(songs.as_slice());
                 let n = selected.len();
                 let add_label = if n <= 1 {
                     "Add to queue".to_string()
@@ -226,18 +216,18 @@ pub fn draw_detail(
                         (
                             "Play".into(),
                             MenuCommand::Play {
-                                songs: songs.clone(),
+                                songs: songs.iter().cloned().collect(),
                                 index: i,
                             },
                         ),
                         (add_label, MenuCommand::AddToQueue(selected)),
                         (
                             "Add all to queue".into(),
-                            MenuCommand::AddToQueue(songs.clone()),
+                            MenuCommand::AddToQueue(songs.iter().cloned().collect()),
                         ),
                         (
                             "Delete playlist".into(),
-                            MenuCommand::DeletePlaylist(playlist_name.clone()),
+                            MenuCommand::DeletePlaylist(name.to_string()),
                         ),
                     ],
                     3,

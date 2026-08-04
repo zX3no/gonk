@@ -61,35 +61,26 @@ pub fn draw<'a>(
     }
 
     let albums = db.albums_by_artist(artist);
-    let album_data: Vec<(String, u16, Vec<Song>)> = albums
-        .iter()
-        .map(|a| {
-            let songs = a.songs.iter().cloned().collect();
-            (a.title.clone(), a.year(), songs)
-        })
-        .collect();
-    let artist_owned = artist.to_string();
-    let total_tracks: usize = album_data.iter().map(|(_, _, s)| s.len()).sum();
-    let album_count = album_data.len();
+    let total_tracks: usize = albums.iter().map(|a| a.songs.len()).sum();
+    let album_count = albums.len();
     let shift = ui.window.modifiers().shift;
     let ctrl = ui.window.modifiers().ctrl;
-    let playing = playing_path.map(|s| s.to_string());
     let mut action = None;
 
-    let ordered_paths: Vec<String> = album_data
+    let ordered_paths: Vec<&str> = albums
         .iter()
-        .flat_map(|(_, _, songs)| songs.iter().map(|s| s.path.clone()))
+        .flat_map(|a| a.songs.iter().map(|s| s.path.as_str()))
         .collect();
-    let all_songs: Vec<Song> = album_data
-        .iter()
-        .flat_map(|(_, _, songs)| songs.iter().cloned())
-        .collect();
+
+    let get_all_songs = || -> Vec<Song> {
+        albums.iter().flat_map(|a| a.songs.iter().cloned()).collect()
+    };
 
     let (header_rect, list_rect) = ui.split_rect_v(rect, HEADER_H);
 
     ui.place_down(bounds(header_rect).bg(colors::BG), |ui| {
         ui.text(
-            artist_owned.clone(),
+            artist.to_string(),
             style()
                 .fg(colors::TEXT)
                 .font_size(32)
@@ -99,14 +90,15 @@ pub fn draw<'a>(
                 .fill_width()
                 .align(Alignment::Left),
         );
+        let txt = ui.fmt(format_args!(
+            "{} album{} · {} track{}",
+            album_count,
+            if album_count == 1 { "" } else { "s" },
+            total_tracks,
+            if total_tracks == 1 { "" } else { "s" }
+        ));
         ui.text(
-            format!(
-                "{} album{} · {} track{}",
-                album_count,
-                if album_count == 1 { "" } else { "s" },
-                total_tracks,
-                if total_tracks == 1 { "" } else { "s" }
-            ),
+            txt,
             style()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
@@ -124,15 +116,15 @@ pub fn draw<'a>(
     ui.scroll(bounds(list_rect).bg(colors::BG), scroll, |ui| {
         ui.gap(16);
 
-        for (i, (album_title, year, songs)) in album_data.iter().enumerate() {
-            let body_h = 28 + 20 + songs.len() as i32 * 28;
+        for (i, album) in albums.iter().enumerate() {
+            let year = album.year();
+            let body_h = 28 + 20 + album.songs.len() as i32 * 28;
             let card_h = COVER.max(body_h);
-            let subtext = if *year > 0 {
-                format!("{year} · {} tracks", songs.len())
+            let subtext = if year > 0 {
+                ui.fmt(format_args!("{year} · {} tracks", album.songs.len()))
             } else {
-                format!("{} tracks", songs.len())
+                ui.fmt(format_args!("{} tracks", album.songs.len()))
             };
-            let album_songs = songs.clone();
 
             ui.flow_right(
                 style().padl(40).padr(40).height(card_h).fill_width(),
@@ -148,22 +140,22 @@ pub fn draw<'a>(
                     } else {
                         paint_cover(ui, cover_rect, 8);
                     }
-                    if ui.double_clicked(cover_rect) && !album_songs.is_empty() {
+                    if ui.double_clicked(cover_rect) && !album.songs.is_empty() {
                         if let Some(index) =
-                            ordered_paths.iter().position(|p| p == &album_songs[0].path)
+                            ordered_paths.iter().position(|p| *p == album.songs[0].path)
                         {
                             action = Some(Action::PlayDiscography {
-                                songs: all_songs.clone(),
+                                songs: get_all_songs(),
                                 index,
                             });
                         }
                     }
                     // Right-click cover → album menu.
                     if let Some((mx, my)) = context_menu::right_click_at(ui, cover_rect) {
-                        if let Some(first) = album_songs.first() {
+                        if let Some(first) = album.songs.first() {
                             let index = ordered_paths
                                 .iter()
-                                .position(|p| p == &first.path)
+                                .position(|p| *p == first.path)
                                 .unwrap_or(0);
                             menu.open_at(
                                 mx,
@@ -172,13 +164,13 @@ pub fn draw<'a>(
                                     (
                                         "Play from album".into(),
                                         MenuCommand::Play {
-                                            songs: all_songs.clone(),
+                                            songs: get_all_songs(),
                                             index,
                                         },
                                     ),
                                     (
                                         "Add album to queue".into(),
-                                        MenuCommand::AddToQueue(album_songs.clone()),
+                                        MenuCommand::AddToQueue(album.songs.clone()),
                                     ),
                                 ],
                             );
@@ -188,7 +180,7 @@ pub fn draw<'a>(
 
                     ui.flow_down(style().fill_width().height(card_h), |ui| {
                         ui.text(
-                            album_title.clone(),
+                            album.title.to_string(),
                             style()
                                 .fg(colors::TEXT)
                                 .font_size(20)
@@ -197,7 +189,7 @@ pub fn draw<'a>(
                                 .align(Alignment::Left),
                         );
                         ui.text(
-                            subtext.clone(),
+                            subtext,
                             style()
                                 .fg(colors::TEXT_DIM)
                                 .font_size(12)
@@ -217,23 +209,23 @@ pub fn draw<'a>(
                             .fg(colors::TEXT)
                             .selected(colors::ACCENT_DIM);
 
-                        for song in songs.iter() {
-                            let is_playing = playing.as_deref() == Some(song.path.as_str());
+                        for song in album.songs.iter() {
+                            let is_playing = playing_path == Some(song.path.as_str());
                             let is_selected = selection.contains(&song.path);
                             // ASCII only — default UI font has no ♪ glyph (rendered as ?).
                             let label = if is_playing {
-                                format!(">  {}.  {}", song.track_number, song.title)
+                                ui.fmt(format_args!(">  {}.  {}", song.track_number, song.title))
                             } else {
-                                format!("   {}.  {}", song.track_number, song.title)
+                                ui.fmt(format_args!("   {}.  {}", song.track_number, song.title))
                             };
                             let state = ui.item(label, row_style.is_selected(is_selected));
                             if state.double_clicked {
                                 selection.select_only(song.path.clone());
                                 if let Some(index) =
-                                    ordered_paths.iter().position(|p| p == &song.path)
+                                    ordered_paths.iter().position(|p| *p == song.path)
                                 {
                                     action = Some(Action::PlayDiscography {
-                                        songs: all_songs.clone(),
+                                        songs: get_all_songs(),
                                         index,
                                     });
                                 }
@@ -245,8 +237,8 @@ pub fn draw<'a>(
                                     menu,
                                     selection,
                                     &ordered_paths,
-                                    &all_songs,
-                                    &album_songs,
+                                    &get_all_songs(),
+                                    &album.songs,
                                     &song.path,
                                     mx,
                                     my,
@@ -257,7 +249,7 @@ pub fn draw<'a>(
                 },
             );
 
-            if i + 1 < album_data.len() {
+            if i + 1 < albums.len() {
                 ui.gap(ALBUM_GAP);
                 ui.flow_right(style().padl(40).padr(40).fill_width().height(1), |ui| {
                     ui.rect(style().fill_width().height(1).bg(colors::LINE));
@@ -272,10 +264,10 @@ pub fn draw<'a>(
     action
 }
 
-fn open_song_menu(
+fn open_song_menu<S: AsRef<str>>(
     menu: &mut ContextMenu,
     selection: &mut PathSelection,
-    ordered_paths: &[String],
+    ordered_paths: &[S],
     all_songs: &[Song],
     album_songs: &[Song],
     path: &str,
@@ -287,7 +279,10 @@ fn open_song_menu(
     }
     let selected = selection.collect_songs(all_songs);
     let n = selected.len();
-    let play_index = ordered_paths.iter().position(|p| p == path).unwrap_or(0);
+    let play_index = ordered_paths
+        .iter()
+        .position(|p| p.as_ref() == path)
+        .unwrap_or(0);
 
     let add_label = if n <= 1 {
         "Add to queue".to_string()

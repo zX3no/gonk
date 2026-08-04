@@ -17,9 +17,8 @@ pub fn draw(
     menu: &mut ContextMenu,
     scroll: &mut Scroll,
 ) -> Option<Action> {
-    let tracks: Vec<Song> = queue.iter().cloned().collect();
-    let ordered: Vec<String> = tracks.iter().map(|s| s.path.clone()).collect();
-    let playing = playing_path.map(|s| s.to_string());
+    let queue_len = queue.len();
+    let ordered: Vec<&str> = queue.iter().map(|s| s.path.as_str()).collect();
     let shift = ui.window.modifiers().shift;
     let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
@@ -36,12 +35,13 @@ pub fn draw(
                 .fill_width()
                 .align(Alignment::Left),
         );
+        let txt = ui.fmt(format_args!(
+            "{} track{}  ·  right-click a song for actions",
+            queue_len,
+            if queue_len == 1 { "" } else { "s" }
+        ));
         ui.text(
-            format!(
-                "{} track{}  ·  right-click a song for actions",
-                tracks.len(),
-                if tracks.len() == 1 { "" } else { "s" }
-            ),
+            txt,
             style()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
@@ -51,7 +51,7 @@ pub fn draw(
                 .align(Alignment::Left),
         );
 
-        if tracks.is_empty() {
+        if queue.is_empty() {
             ui.text(
                 "Queue is empty.",
                 style()
@@ -86,18 +86,18 @@ pub fn draw(
             .fg(colors::TEXT)
             .selected(colors::ACCENT_DIM);
 
-        for (i, song) in tracks.iter().enumerate() {
-            let is_playing = playing.as_deref() == Some(song.path.as_str());
+        for (i, song) in queue.iter().enumerate() {
+            let is_playing = playing_path == Some(song.path.as_str());
             let is_selected = selection.contains(&song.path);
             // ASCII only — default UI font has no ♪ glyph (rendered as ?).
             let mark = if is_playing { "> " } else { "  " };
-            let label = format!(
+            let label = ui.fmt(format_args!(
                 "{mark}{}. {}  ·  {}  ·  {}",
                 i + 1,
                 song.title,
                 song.artist,
                 song.album
-            );
+            ));
 
             let state = ui.item(label, row.is_selected(is_selected));
             if state.double_clicked {
@@ -113,7 +113,7 @@ pub fn draw(
                 let idxs: Vec<usize> = selection
                     .paths()
                     .iter()
-                    .filter_map(|p| ordered.iter().position(|o| o == p))
+                    .filter_map(|p| ordered.iter().position(|o| *o == p))
                     .collect();
                 let n = idxs.len().max(1);
                 let remove_label = if n == 1 {
@@ -126,7 +126,7 @@ pub fn draw(
                     (
                         "Play".into(),
                         MenuCommand::Play {
-                            songs: tracks.clone(),
+                            songs: queue.iter().cloned().collect(),
                             index: i,
                         },
                     ),
@@ -138,7 +138,7 @@ pub fn draw(
                 if i > 0 {
                     entries.push(("Move up".into(), MenuCommand::MoveUp(i)));
                 }
-                if i + 1 < tracks.len() {
+                if i + 1 < queue_len {
                     entries.push(("Move down".into(), MenuCommand::MoveDown(i)));
                 }
                 let sep_at = entries.len();
