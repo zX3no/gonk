@@ -318,7 +318,7 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                         .align_left()
                         .fill_width()
                         .hover(ROW_HOVER);
-                    let mut selected_text = text.bg(ROW_SELECTED);
+                    let selected_text = text.bg(ROW_SELECTED);
 
                     for artist in ARTISTS {
                         let next = artist.chars().next().unwrap().to_ascii_uppercase();
@@ -342,37 +342,38 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
             ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
             let strip = alphabet;
+            let hovered = ui.hovered(strip);
+            let fade = ui.animate_f32(if hovered { 1.0 } else { 0.0 }, 0.15, Ease::InOutSine);
+            let my = ui.mouse_position().y;
+            let glow = |a: f32| rgba(155, 132, 217, (a * fade * 255.0) as u8);
+            ui.place_down(bounds(strip).clip(true), |ui| {
+                ui.gradient(
+                    style().x(strip.x).y(my.saturating_sub(55)).width(strip.width).height(110),
+                    180.0,
+                )
+                .stop(0.0, glow(0.0))
+                .stop(0.21, glow(0.11))
+                .stop(0.5, glow(0.30))
+                .stop(0.79, glow(0.11))
+                .stop(1.0, glow(0.0));
+
+                ui.gradient(style().x(strip.x).y(my - 70).width(1).height(140), 180.0)
+                    .stop(0.0, glow(0.0))
+                    .stop(0.5, rgba(199, 183, 240, (0.75 * fade * 255.0) as u8))
+                    .stop(1.0, glow(0.0));
+            });
             alphabet.x += 12;
             ui.flow_down(bounds(alphabet), |ui| {
-                let letter = sb.font_size(10);
                 let row = ui.measure_text("A", Font::default(), 10, None).height;
                 ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
-
-                // let index = (selected_letter as i32 - 'A' as i32).clamp(0, 25);
-                // let top = ui.current_frame_bounds().y + index * row;
-                // let glow = Rect::new(strip.x + 1, top - row * 2, strip.width - 1, row * 5);
-                // let (edge, core) = (with_alpha(TEXT, 1), with_alpha(TEXT, 8));
-                // ui.paint_rect(
-                //     Rect::new(glow.x, glow.y, glow.width, glow.height / 2),
-                //     bg(edge).gradient(edge, core),
-                // );
-                // ui.paint_rect(
-                //     Rect::new(
-                //         glow.x,
-                //         glow.y + glow.height / 2,
-                //         glow.width,
-                //         glow.height / 2,
-                //     ),
-                //     bg(core).gradient(core, edge),
-                // );
 
                 for &letter in ALPHABET {
                     let ch = letter.chars().next().unwrap();
                     let dist = (ch as i32 - selected_letter as i32).abs();
                     let color = match dist {
                         0 => ACCENT,
-                        1 => TEXT,
-                        _ => TEXT_FAINT,
+                        // 1 => TEXT,
+                        _ => TEXT_TERTIARY,
                     };
                     ui.text(letter, sb.font_size(10).fg(color));
                 }
