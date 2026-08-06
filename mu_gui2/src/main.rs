@@ -197,7 +197,7 @@ struct Sidebar<'a> {
     artists: &'a [String],
     selected_artist: &'static str,
     selected_mode: &'static str,
-    current_letter: char,
+    current_letter: Option<char>,
     active: bool,
     artist_scroll: Scroll,
 }
@@ -305,7 +305,7 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
             let (artist, mut alphabet) = ui.split_h(-30);
             let selected_artist = sidebar.selected_artist;
-            let top_of_artist_view = artist.y + 8;
+            let top_of_artist_view = artist.y;
 
             ui.scroll(
                 bounds(artist).padlr(8).elastic(true),
@@ -313,6 +313,8 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                 |ui| {
                     //Assuming artists is pre sorted alphabetically.
                     let mut first_letter = ' ';
+                    // let mut top_letter = None;
+                    sidebar.current_letter = None;
                     let text = sb
                         .padlr(12)
                         .padtb(8)
@@ -327,12 +329,13 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                         if next != first_letter {
                             first_letter = next;
                             let l = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
-                            let letter = ui.text(first_letter.to_string(), l);
-                            //Not sure why letter sometimes has no size?
-                            //Should maybe look into this.
-                            if letter.bounds.y <= top_of_artist_view && letter.bounds.height > 0 {
-                                sidebar.current_letter = first_letter;
+                            let frame = ui.current_frame();
+                            if sidebar.current_letter.is_none()
+                                || frame.cursor_y - frame.scroll_y <= top_of_artist_view
+                            {
+                                sidebar.current_letter = Some(first_letter);
                             }
+                            ui.text(first_letter.to_string(), l);
                         }
                         let sel = *artist == selected_artist;
                         ui.text(*artist, if sel { selected_text } else { text });
@@ -371,9 +374,13 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                 let row = ui.measure_text("A", Font::default(), 10, None).height;
                 ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
 
+                let Some(current_letter) = sidebar.current_letter else {
+                    return;
+                };
+
                 for &letter in ALPHABET {
                     let ch = letter.chars().next().unwrap();
-                    let dist = (ch as i32 - sidebar.current_letter as i32).abs();
+                    let dist = (ch as i32 - current_letter as i32).abs();
                     let color = match dist {
                         0 => ACCENT,
                         // 1 => TEXT,
@@ -381,7 +388,6 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                     };
                     ui.text(letter, sb.font_size(10).fg(color));
                 }
-                ui.current_frame_bounds().height
             });
         },
     );
@@ -593,7 +599,7 @@ fn main() {
         artist_scroll: Scroll::new(),
         active: true,
         selected_mode: "Library",
-        current_letter: 'A',
+        current_letter: None,
     };
 
     let mut library = Library {
