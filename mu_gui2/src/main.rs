@@ -127,16 +127,6 @@ const ALPHABET: &[&str] = &[
     "T", "U", "V", "W", "X", "Y", "Z",
 ];
 
-struct Sidebar<'a> {
-    bounds: Rect,
-    panel_left: &'a Image,
-    artists: &'a [String],
-    selected_artist: &'static str,
-    selected_mode: &'static str,
-    active: bool,
-    artist_scroll: Scroll,
-}
-
 fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
     ui.widget(24, 24, style, |ui, r, _, depth| {
         let fill = style.fg.unwrap_or(white());
@@ -201,7 +191,17 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
     })
 }
 
-//TODO: Remove
+struct Sidebar<'a> {
+    bounds: Rect,
+    panel_left: &'a Image,
+    artists: &'a [String],
+    selected_artist: &'static str,
+    selected_mode: &'static str,
+    current_letter: char,
+    active: bool,
+    artist_scroll: Scroll,
+}
+
 fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     ui.flow_down(
         bounds(sidebar.bounds)
@@ -305,6 +305,8 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
             let (artist, mut alphabet) = ui.split_h(-30);
             let selected_artist = sidebar.selected_artist;
+            let top_of_artist_view = artist.y + 8;
+
             ui.scroll(
                 bounds(artist).padlr(8).elastic(true),
                 &mut sidebar.artist_scroll,
@@ -324,21 +326,19 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                         let next = artist.chars().next().unwrap().to_ascii_uppercase();
                         if next != first_letter {
                             first_letter = next;
-                            let letter = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
-                            ui.text(first_letter.to_string(), letter);
+                            let l = sb.padlr(12).padtb(8).font_size(12).fg(TEXT_MUTED);
+                            let letter = ui.text(first_letter.to_string(), l);
+                            //Not sure why letter sometimes has no size?
+                            //Should maybe look into this.
+                            if letter.bounds.y <= top_of_artist_view && letter.bounds.height > 0 {
+                                sidebar.current_letter = first_letter;
+                            }
                         }
                         let sel = *artist == selected_artist;
                         ui.text(*artist, if sel { selected_text } else { text });
                     }
                 },
             );
-
-            let selected_letter = sidebar
-                .selected_artist
-                .chars()
-                .next()
-                .unwrap()
-                .to_ascii_uppercase();
 
             ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
             let strip = alphabet;
@@ -348,7 +348,11 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
             let glow = |a: f32| rgba(155, 132, 217, (a * fade * 255.0) as u8);
             ui.place_down(bounds(strip).clip(true), |ui| {
                 ui.gradient(
-                    style().x(strip.x).y(my.saturating_sub(55)).width(strip.width).height(110),
+                    style()
+                        .x(strip.x)
+                        .y(my.saturating_sub(55))
+                        .width(strip.width)
+                        .height(110),
                     180.0,
                 )
                 .stop(0.0, glow(0.0))
@@ -369,7 +373,7 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
                 for &letter in ALPHABET {
                     let ch = letter.chars().next().unwrap();
-                    let dist = (ch as i32 - selected_letter as i32).abs();
+                    let dist = (ch as i32 - sidebar.current_letter as i32).abs();
                     let color = match dist {
                         0 => ACCENT,
                         // 1 => TEXT,
@@ -589,6 +593,7 @@ fn main() {
         artist_scroll: Scroll::new(),
         active: true,
         selected_mode: "Library",
+        current_letter: 'A',
     };
 
     let mut library = Library {
