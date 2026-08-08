@@ -346,23 +346,22 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
             );
 
             ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
-            let strip = alphabet;
 
-            if let Some(raw_pct) = ui.drag_percentage_y(strip) {
+            if let Some(raw_pct) = ui.drag_percentage_y(alphabet) {
                 let pct = ((raw_pct - 0.03) / 0.90).clamp(0.0, 1.0);
                 sidebar.artist_scroll.jump(pct * scroll_state.max_scroll as f32);
             }
 
-            let hovered = ui.hovered(strip);
+            let hovered = ui.hovered(alphabet);
             let fade = ui.animate_f32(if hovered { 1.0 } else { 0.0 }, 0.15, Ease::InOutSine);
             let my = ui.mouse_position().y;
             let glow = |a: f32| rgba(155, 132, 217, (a * fade * 255.0) as u8);
-            ui.place_down(bounds(strip).clip(true), |ui| {
+            ui.place_down(bounds(alphabet).clip(true), |ui| {
                 ui.gradient(
                     style()
-                        .x(strip.x)
+                        .x(alphabet.x)
                         .y(my.saturating_sub(55))
-                        .width(strip.width)
+                        .width(alphabet.width)
                         .height(110),
                     180.0,
                 )
@@ -372,7 +371,7 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                 .stop(0.79, glow(0.11))
                 .stop(1.0, glow(0.0));
 
-                ui.gradient(style().x(strip.x).y(my - 70).width(1).height(140), 180.0)
+                ui.gradient(style().x(alphabet.x).y(my - 70).width(1).height(140), 180.0)
                     .stop(0.0, glow(0.0))
                     .stop(0.5, rgba(199, 183, 240, (0.75 * fade * 255.0) as u8))
                     .stop(1.0, glow(0.0));
