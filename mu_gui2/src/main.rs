@@ -309,7 +309,7 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
             let selected_artist = sidebar.selected_artist;
             let top_of_artist_view = artist.y;
 
-            ui.scroll(
+            let scroll_state = ui.scroll(
                 bounds(artist).padlr(8).elastic(true),
                 &mut sidebar.artist_scroll,
                 |ui| {
@@ -347,6 +347,12 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
             ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
             let strip = alphabet;
+
+            if let Some(raw_pct) = ui.drag_percentage_y(strip) {
+                let pct = ((raw_pct - 0.03) / 0.90).clamp(0.0, 1.0);
+                sidebar.artist_scroll.jump(pct * scroll_state.max_scroll as f32);
+            }
+
             let hovered = ui.hovered(strip);
             let fade = ui.animate_f32(if hovered { 1.0 } else { 0.0 }, 0.15, Ease::InOutSine);
             let my = ui.mouse_position().y;
@@ -404,6 +410,7 @@ struct Library<'a> {
 
 struct Album<'a> {
     name: &'a str,
+    year: u16,
     songs: &'a [mu_core::Song],
 }
 
@@ -426,11 +433,14 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
 
                 ui.gap(24);
 
+                #[rustfmt::skip]
                 ui.flow_down(style(), |ui| {
+                    let tracks = if album.songs.len() > 1 { "tracks" } else { "track" };
+                    let year = ui.fmt(format_args!("{} · {} {}", album.year, album.songs.len(), tracks));
                     ui.lines(
                         [
                             text(album.name, style().font_size(24).padr(12)),
-                            text("1998 · 2 tracks", style().font_size(16).fg(TEXT_MUTED)),
+                            text(year, style().font_size(16).fg(TEXT_MUTED)),
                         ],
                         style(),
                     );
@@ -667,11 +677,13 @@ fn main() {
         albums: &[
             Album {
                 name: "Apex, Trance Like",
+                year: 1998,
                 songs: &[mu_core::Song::example(), mu_core::Song::example()],
             },
             Album {
                 name: "Contemporary Movement",
-                songs: &[],
+                year: 2001,
+                songs: &[mu_core::Song::example(), mu_core::Song::example()],
             },
         ],
     };
