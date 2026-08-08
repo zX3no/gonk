@@ -1,4 +1,6 @@
 #![allow(unused)]
+use std::time::Duration;
+
 use neoui::*;
 
 const BODY: u32 = hex("#0b0b0c");
@@ -396,6 +398,13 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 struct Library<'a> {
     bounds: Rect,
     artist: &'a str,
+    albums: &'a [Album<'a>],
+    selected_song: Option<(usize, usize)>, //(Album, Song)
+}
+
+struct Album<'a> {
+    name: &'a str,
+    songs: &'a [mu_core::Song],
 }
 
 fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
@@ -410,41 +419,90 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
         ui.gap(12);
         ui.rect(style().fill_width().height(1).bg(BORDER_DIM));
         ui.gap(12);
-        ui.flow_right(style(), |ui| {
-            ui.rect(style().wh(120).bg(gray()));
-            ui.gap(24);
-            ui.flow_down(style(), |ui| {
-                ui.line(
-                    [
-                        text("Apex, Trance-Like", style().font_size(24).padr(12)),
-                        text("1998 · 2 tracks", style().font_size(16).fg(TEXT_MUTED)),
-                    ],
-                    style(),
-                );
-                ui.gap(12);
-                let song = style()
-                    .align_left()
-                    .font_size(16)
-                    .radius(12)
-                    .padlr(6)
-                    .padtb(4);
 
-                let dur = song.fill_width().fg(TEXT_MUTED).align_right();
+        for (ai, album) in library.albums.iter().enumerate() {
+            ui.flow_right(style(), |ui| {
+                ui.rect(style().wh(120).bg(gray()));
 
-                ui.flow_right(song.bg(ROW_SELECTED).hover(ROW_HOVER), |ui| {
-                    ui.text("01", song.fg(ACCENT));
-                    ui.text("Light Years", song);
-                    //TODO: Times are not aligned??
-                    ui.text("4:12", dur);
-                });
+                ui.gap(24);
 
-                ui.flow_right(song.hover(ROW_HOVER), |ui| {
-                    ui.text("02", song.fg(TEXT_MUTED));
-                    ui.text("Four Hours", song.fg(TEXT_SECONDARY));
-                    ui.text("3:38", dur);
+                ui.flow_down(style(), |ui| {
+                    ui.lines(
+                        [
+                            text(album.name, style().font_size(24).padr(12)),
+                            text("1998 · 2 tracks", style().font_size(16).fg(TEXT_MUTED)),
+                        ],
+                        style(),
+                    );
+
+                    ui.gap(12);
+
+                    let s = style()
+                        .align_left()
+                        .font_size(16)
+                        .radius(12)
+                        .padlr(6)
+                        .padtb(4);
+
+                    for (si, song) in album.songs.iter().enumerate() {
+                        let selected = Some((ai, si)) == library.selected_song;
+                        let sel = if selected { s.bg(ROW_SELECTED) } else { s };
+
+                        let song_row = ui.flow_right(sel.hover(ROW_HOVER), |ui| {
+                            let track_number = ui.fmt(format_args!("{:02}", song.track_number));
+
+                            ui.text(
+                                track_number,
+                                s.fg(if selected { ACCENT } else { TEXT_MUTED }),
+                            );
+
+                            ui.text(&song.title, if selected { s } else { s.fg(TEXT_SECONDARY) });
+
+                            let duration = Duration::from_secs_f32(song.duration);
+                            let total_secs = duration.as_secs();
+                            let hours = total_secs / 3600;
+                            let minutes = (total_secs % 3600) / 60;
+                            let seconds = total_secs % 60;
+
+                            let duration = if hours > 0 {
+                                ui.fmt(format_args!("{:02}:{:02}:{:02}", hours, minutes, seconds))
+                            } else {
+                                ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
+                            };
+
+                            ui.text(duration, s.fg(TEXT_MUTED).fill_width().align_right());
+                        });
+
+                        if song_row.clicked {
+                            library.selected_song = Some((ai, si));
+                        }
+
+                        if (ai + 1) < album.songs.len() {
+                            ui.gap(2)
+                        }
+                    }
+
+                    // ui.flow_right(song.bg(ROW_SELECTED).hover(ROW_HOVER), |ui| {
+                    //     ui.text("01", song.fg(ACCENT));
+                    //     ui.text("Light Years", song);
+                    //     //TODO: Times are not aligned??
+                    //     ui.text("4:12", dur);
+                    // });
+
+                    // ui.flow_right(song.hover(ROW_HOVER), |ui| {
+                    //     ui.text("02", song.fg(TEXT_MUTED));
+                    //     ui.text("Four Hours", song.fg(TEXT_SECONDARY));
+                    //     ui.text("3:38", dur);
+                    // });
                 });
             });
-        });
+
+            if (ai + 1) < library.albums.len() {
+                ui.gap(24);
+                ui.rect(style().fill_width().bg(BORDER_DIM).h(1));
+                ui.gap(24);
+            }
+        }
     });
 }
 
@@ -605,6 +663,17 @@ fn main() {
     let mut library = Library {
         bounds: Rect::default(),
         artist: "Duster",
+        selected_song: Some((0, 0)),
+        albums: &[
+            Album {
+                name: "Apex, Trance Like",
+                songs: &[mu_core::Song::example(), mu_core::Song::example()],
+            },
+            Album {
+                name: "Contemporary Movement",
+                songs: &[],
+            },
+        ],
     };
 
     let mut controls = Controls {

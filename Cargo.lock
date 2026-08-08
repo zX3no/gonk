@@ -32,7 +32,6 @@ dependencies = [
 [[package]]
 name = "coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#a5d60b1c78538629fb0a51affb8b4889ba151262"
 
 [[package]]
 name = "crossbeam-deque"
@@ -197,7 +196,6 @@ dependencies = [
 [[package]]
 name = "onmi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#a5d60b1c78538629fb0a51affb8b4889ba151262"
 dependencies = [
  "coreaudio",
  "miniwalk",
@@ -422,7 +420,6 @@ checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 [[package]]
 name = "wasapi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#a5d60b1c78538629fb0a51affb8b4889ba151262"
 
 [[package]]
 name = "winter"

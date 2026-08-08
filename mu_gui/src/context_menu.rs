@@ -122,7 +122,7 @@ pub fn claim_hover(ui: &mut FrameContext<'_, '_>, menu: &ContextMenu) {
     if !menu.open {
         return;
     }
-    let (win_w, win_h) = ui.window.content_size();
+    let (win_w, win_h) = ui.window.scaled_size();
     let panel = menu.panel_rect(win_w as i32, win_h as i32);
     let _ = ui.hovered_depth(panel, DEPTH);
 }
@@ -133,7 +133,7 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
         return None;
     }
 
-    let (win_w, win_h) = ui.window.content_size();
+    let (win_w, win_h) = ui.window.scaled_size();
     let win_w = win_w as i32;
     let win_h = win_h as i32;
     let panel = menu.panel_rect(win_w, win_h);

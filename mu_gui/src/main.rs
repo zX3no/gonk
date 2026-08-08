@@ -1227,7 +1227,7 @@ fn main() {
 
             // Toast (add-to-queue feedback, scan complete, etc.).
             if let Some(t) = &toast {
-                let (win_w, _) = ui.window.content_size();
+                let (win_w, _) = ui.window.scaled_size();
                 if toast::draw(ui, t, bar_rect.y, win_w as i32) {
                     toast = None;
                 }

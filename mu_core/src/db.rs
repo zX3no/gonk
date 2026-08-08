@@ -17,6 +17,7 @@ pub struct Song {
     pub path: String,
     pub gain: f32,
     pub year: u16,
+    pub duration: f32,
     pub artwork: Option<onmi::Artwork>,
 }
 
@@ -31,6 +32,7 @@ impl Clone for Song {
             path: self.path.clone(),
             gain: self.gain.clone(),
             year: self.year.clone(),
+            duration: self.duration.clone(),
             artwork: None,
         }
     }
@@ -46,10 +48,15 @@ impl Serialize for Song {
         } else {
             self.gain.to_string()
         };
+        let duration = if self.duration == 0.0 {
+            "0.0".to_string()
+        } else {
+            self.duration.to_string()
+        };
 
         let result = writeln!(
             &mut buffer,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             escape(&self.title),
             escape(&self.album),
             escape(&self.artist),
@@ -58,6 +65,7 @@ impl Serialize for Song {
             escape(&self.path),
             gain,
             self.year,
+            duration,
         );
 
         match result {
@@ -96,6 +104,10 @@ impl Deserialize for Song {
                 .next()
                 .and_then(|y| y.parse::<u16>().ok())
                 .unwrap_or(0),
+            duration: parts
+                .next()
+                .and_then(|d| d.parse::<f32>().ok())
+                .unwrap_or(0.0),
             artwork: None,
         })
     }
@@ -130,6 +142,7 @@ impl Song {
             path: String::new(),
             gain: 0.0,
             year: 0,
+            duration: 0.0,
             artwork: None,
         }
     }
@@ -144,6 +157,7 @@ impl Song {
             path: "path".to_string(),
             gain: 1.0,
             year: 0,
+            duration: 0.0,
             artwork: None,
         }
     }
@@ -187,6 +201,7 @@ impl TryFrom<&Path> for Song {
             path: osong.path,
             gain: osong.gain,
             year: osong.year,
+            duration: osong.duration,
             artwork: osong.artwork,
         })
     }
