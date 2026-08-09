@@ -1,3 +1,6 @@
+
+</think>
+
 <h1 align="center" style="font-size: 55px">mu</h1>
 
 <h3 align="center">A terminal music player.</h3>
@@ -40,15 +43,15 @@ mu
 | Command                     | Key               |
 | --------------------------- | ----------------- |
 | Move Up                     | `K / Up`          |
-| Move Down                   | `J / Down`        |
-| Move Left                   | `H / Left`        |
-| Move Right                  | `L / Right`       |
+| Move Down                   | `J / Down`          |
+| Move Left                   | `H / Left`          |
+| Move Right                  | `L / Right`          |
 | Volume Up                   | `W`               |
 | Volume Down                 | `S`               |
 | Mute                        | `Z`               |
 | Play/Pause                  | `Space`           |
 | Previous                    | `A`               |
-| Next                        | `D`               |
+| Next                    | `D`               |
 | Seek -10s                   | `Q`               |
 | Seek 10s                    | `E`               |
 | Clear queue                 | `C`               |
@@ -79,7 +82,7 @@ mu
 - mu doesn't start after an update.
 
   Run `mu reset` to reset your database.
-  If this doesn't work, you can reset the database by deleting `%appdata%/mu/`
+  If this doesn't work, you can reset the database by deleting `%appdata%/mu/` (Windows) or `~/.config/mu/` (Linux/Mac).
 
 - If your music player has broken lines, increase your zoom level or font size.
 
