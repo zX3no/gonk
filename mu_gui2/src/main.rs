@@ -1,5 +1,5 @@
 #![allow(unused)]
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use neoui::*;
 
@@ -195,7 +195,7 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
 
 struct Sidebar<'a> {
     bounds: Rect,
-    panel_left: &'a Image,
+    // panel_left: &'a Image,
     artists: &'a [String],
     selected_artist: &'static str,
     selected_mode: &'static str,
@@ -349,7 +349,9 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 
             if let Some(raw_pct) = ui.drag_percentage_y(alphabet) {
                 let pct = ((raw_pct - 0.03) / 0.90).clamp(0.0, 1.0);
-                sidebar.artist_scroll.jump(pct * scroll_state.max_scroll as f32);
+                sidebar
+                    .artist_scroll
+                    .jump(pct * scroll_state.max_scroll as f32);
             }
 
             let hovered = ui.hovered(alphabet);
@@ -647,6 +649,7 @@ fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
 //Allow the user to customize them.
 //Currently keeping track of all the sizings is very difficult.
 fn main() {
+    let now = Instant::now();
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 16;
 
@@ -656,10 +659,10 @@ fn main() {
     // let mut artists: Vec<String> = db.btree.keys().cloned().collect();
     // artists.sort_by_key(|a| a.to_ascii_lowercase());
 
-    let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
+    // let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
-        panel_left: &panel_left,
+        // panel_left: &panel_left,
         selected_artist: "Duster",
         artists: &[],
         // artists: &artists,
