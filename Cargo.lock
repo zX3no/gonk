@@ -32,6 +32,7 @@ dependencies = [
 [[package]]
 name = "coreaudio"
 version = "0.1.0"
+source = "git+https://github.com/zfphex/onmi#2805f1a57c8694ea7fdc7e4330a657f92249dfd1"
 
 [[package]]
 name = "crossbeam-deque"
@@ -196,6 +197,7 @@ dependencies = [
 [[package]]
 name = "onmi"
 version = "0.1.0"
+source = "git+https://github.com/zfphex/onmi#2805f1a57c8694ea7fdc7e4330a657f92249dfd1"
 dependencies = [
  "coreaudio",
  "miniwalk",
@@ -279,7 +281,7 @@ checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 [[package]]
 name = "symphonia"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "lazy_static",
  "symphonia-bundle-flac",
@@ -293,7 +295,7 @@ dependencies = [
 [[package]]
 name = "symphonia-bundle-flac"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "log",
  "symphonia-common",
@@ -304,7 +306,7 @@ dependencies = [
 [[package]]
 name = "symphonia-bundle-mp3"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "lazy_static",
  "log",
@@ -314,7 +316,7 @@ dependencies = [
 [[package]]
 name = "symphonia-codec-vorbis"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "log",
  "symphonia-common",
@@ -324,7 +326,7 @@ dependencies = [
 [[package]]
 name = "symphonia-common"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "log",
  "symphonia-core",
@@ -334,7 +336,7 @@ dependencies = [
 [[package]]
 name = "symphonia-core"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -348,7 +350,7 @@ dependencies = [
 [[package]]
 name = "symphonia-format-ogg"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "log",
  "symphonia-common",
@@ -359,7 +361,7 @@ dependencies = [
 [[package]]
 name = "symphonia-metadata"
 version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#5f26f020b3a1e62a4a3efad41e6e5752ab21fbeb"
+source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
 dependencies = [
  "lazy_static",
  "log",
@@ -420,6 +422,7 @@ checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 [[package]]
 name = "wasapi"
 version = "0.1.0"
+source = "git+https://github.com/zfphex/onmi#2805f1a57c8694ea7fdc7e4330a657f92249dfd1"
 
 [[package]]
 name = "winter"
@@ -432,9 +435,9 @@ dependencies = [
 
 [[package]]
 name = "zune-core"
-version = "0.5.1"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9"
+checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
 
 [[package]]
 name = "zune-inflate"
