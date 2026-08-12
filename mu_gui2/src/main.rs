@@ -32,98 +32,6 @@ const ACCENT_HOVER: u32 = hex("#ad98e2");
 const ACCENT_PRESSED: u32 = hex("#8871c6");
 const ACCENT_SOFT: u32 = hex("#9b84d938");
 
-const ARTISTS: &[&'static str] = &[
-    "Arca",
-    "BADBADNOTGOOD",
-    "beabadoobee",
-    "Björk",
-    "black midi",
-    "Bonobo",
-    "C418",
-    "Clarence Clarity",
-    "Clown Core",
-    "Corea",
-    "Covet",
-    "Daft Punk",
-    "Death Grips",
-    "Dorian Concept",
-    "Duster",
-    "EDEN",
-    "eightiesheadachetape",
-    "Eminem",
-    "Flawed Mangoes",
-    "Floating Points, Pharoah Sanders & The London Symphony Orchestra",
-    "Flume",
-    "Flying Lotus",
-    "foxtails",
-    "Funeral Diner",
-    "Godspeed You! Black Emperor",
-    "Gospel",
-    "Hans Zimmer",
-    "Iglooghost",
-    "J-E-T-S",
-    "Jakey",
-    "John Coltrane",
-    "Joji",
-    "JPEGMAFIA",
-    "Julie",
-    "Kai Whiston",
-    "Kanazu Tomoyuki",
-    "Kanye West",
-    "Kendrick Lamar",
-    "kinoue64",
-    "Koan Sound",
-    "Komorebi",
-    "Lena Raine",
-    "LINGUA IGNOTA",
-    "Machine Girl",
-    "Machinedrum",
-    "Madvillain",
-    "mage tears",
-    "Massive Attack",
-    "Medasin",
-    "Memo Boy",
-    "Men I Trust",
-    "Mick Gordon",
-    "Miles Davis",
-    "mouse on the keys",
-    "my bloody valentine",
-    "Nas",
-    "Nirvana",
-    "Nujabes",
-    "Oli XL",
-    "Otuka",
-    "PinkPantheress",
-    "Pokelawls",
-    "Portishead",
-    "Portraits of Past",
-    "Puma Blue",
-    "Rachel's",
-    "Radiohead",
-    "Ramin Djawadi",
-    "Ryo Fukui",
-    "Ryuichi Sakamoto",
-    "Sam Gellaitry",
-    "Seatbelts",
-    "Sinjin Hawke",
-    "Sinjin Hawke & Zora Jones",
-    "Slauson Malone",
-    "Slint",
-    "STEINS;GATE",
-    "Steve Reich",
-    "Sweet Trip",
-    "Tera Melos",
-    "The Comet Is Coming",
-    "Title Fight",
-    "Toby Fox",
-    "Travis Scott",
-    "Tyler, The Creator",
-    "Various Artists",
-    "william crooks",
-    "Yussef Dayes",
-    "Øneheart", //Should be sorted as an O.
-];
-
 const ALPHABET: &[&str] = &[
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
     "T", "U", "V", "W", "X", "Y", "Z",
@@ -197,10 +105,11 @@ struct Sidebar<'a> {
     bounds: Rect,
     // panel_left: &'a Image,
     artists: &'a [String],
-    selected_artist: &'static str,
-    selected_mode: &'static str,
+    selected_artist: &'a str,
+    selected_mode: &'a str,
     current_letter: Option<char>,
     active: bool,
+    update_library: bool,
     artist_scroll: Scroll,
 }
 
@@ -243,7 +152,7 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     );
 }
 
-fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
+fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
     let sb = style().fg(TEXT).font_size(16);
     ui.flow_down(
         bounds(sidebar.bounds)
@@ -326,7 +235,7 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                         .hover(ROW_HOVER);
                     let selected_text = text.bg(ROW_SELECTED);
 
-                    for artist in ARTISTS {
+                    for artist in sidebar.artists {
                         let next = artist.chars().next().unwrap().to_ascii_uppercase();
                         if next != first_letter {
                             first_letter = next;
@@ -340,7 +249,11 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                             ui.text(first_letter.to_string(), l);
                         }
                         let sel = *artist == selected_artist;
-                        ui.text(*artist, if sel { selected_text } else { text });
+                        let state = ui.text(artist, if sel { selected_text } else { text });
+                        if state.clicked {
+                            sidebar.selected_artist = artist;
+                            sidebar.update_library = true;
+                        }
                     }
                 },
             );
@@ -405,14 +318,10 @@ fn draw_sidebar(sidebar: &mut Sidebar, ui: &mut FrameContext) {
 struct Library<'a> {
     bounds: Rect,
     artist: &'a str,
-    albums: &'a [Album<'a>],
+    total_tracks: usize,
+    albums: &'a [mu_core::Album],
     selected_song: Option<(usize, usize)>, //(Album, Song)
-}
-
-struct Album<'a> {
-    name: &'a str,
-    year: u16,
-    songs: &'a [mu_core::Song],
+    scroll: Scroll,
 }
 
 fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
@@ -420,100 +329,105 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
         ui.text(library.artist, style().font_size(42));
         //TODO: Add letter spacing?
         ui.gap(4);
-        ui.text(
-            "10 ALBUMS · 102 TRACKS · 6.1 GB LOCAL",
-            style().font_size(12).fg(TEXT_MUTED),
-        );
+        let header = ui.fmt(format_args!(
+            "{} ALBUMS · {} TRACKS",
+            library.albums.len(),
+            library.total_tracks,
+        ));
+        ui.text(header, style().font_size(12).fg(TEXT_MUTED));
         ui.gap(12);
         ui.rect(style().fill_width().height(1).bg(BORDER_DIM));
         ui.gap(12);
 
-        for (ai, album) in library.albums.iter().enumerate() {
-            ui.flow_right(style(), |ui| {
-                ui.rect(style().wh(120).bg(gray()));
+        ui.scroll(style().elastic(true), &mut library.scroll, |ui| {
+            for (ai, album) in library.albums.iter().enumerate() {
+                ui.flow_right(style(), |ui| {
+                    ui.rect(style().wh(120).bg(gray()));
 
-                ui.gap(24);
+                    ui.gap(24);
 
-                #[rustfmt::skip]
-                ui.flow_down(style(), |ui| {
-                    let tracks = if album.songs.len() > 1 { "tracks" } else { "track" };
-                    let year = ui.fmt(format_args!("{} · {} {}", album.year, album.songs.len(), tracks));
-                    ui.lines(
-                        [
-                            text(album.name, style().font_size(24).padr(12)),
-                            text(year, style().font_size(16).fg(TEXT_MUTED)),
-                        ],
-                        style(),
-                    );
+                    ui.flow_down(style(), |ui| {
+                        let tracks = if album.songs.len() > 1 {
+                            "tracks"
+                        } else {
+                            "track"
+                        };
+                        let year = ui.fmt(format_args!(
+                            "{} · {} {}",
+                            album.year(),
+                            album.songs.len(),
+                            tracks
+                        ));
+                        ui.lines(
+                            [
+                                text(&album.title, style().font_size(24).padr(12)),
+                                text(year, style().font_size(16).fg(TEXT_MUTED)),
+                            ],
+                            style(),
+                        );
 
-                    ui.gap(12);
+                        ui.gap(12);
 
-                    let s = style()
-                        .align_left()
-                        .font_size(16)
-                        .radius(12)
-                        .padlr(6)
-                        .padtb(4);
+                        let s = style()
+                            .align_left()
+                            .font_size(16)
+                            .radius(12)
+                            .padlr(6)
+                            .padtb(4);
 
-                    for (si, song) in album.songs.iter().enumerate() {
-                        let selected = Some((ai, si)) == library.selected_song;
-                        let sel = if selected { s.bg(ROW_SELECTED) } else { s };
+                        for (si, song) in album.songs.iter().enumerate() {
+                            let selected = Some((ai, si)) == library.selected_song;
+                            let sel = if selected { s.bg(ROW_SELECTED) } else { s };
 
-                        let song_row = ui.flow_right(sel.hover(ROW_HOVER), |ui| {
-                            let track_number = ui.fmt(format_args!("{:02}", song.track_number));
+                            let song_row = ui.flow_right(sel.hover(ROW_HOVER), |ui| {
+                                let track_number = ui.fmt(format_args!("{:02}", song.track_number));
 
-                            ui.text(
-                                track_number,
-                                s.fg(if selected { ACCENT } else { TEXT_MUTED }),
-                            );
+                                ui.text(
+                                    track_number,
+                                    s.fg(if selected { ACCENT } else { TEXT_MUTED }),
+                                );
 
-                            ui.text(&song.title, if selected { s } else { s.fg(TEXT_SECONDARY) });
+                                ui.text(
+                                    &song.title,
+                                    if selected { s } else { s.fg(TEXT_SECONDARY) },
+                                );
 
-                            let duration = Duration::from_secs_f32(song.duration);
-                            let total_secs = duration.as_secs();
-                            let hours = total_secs / 3600;
-                            let minutes = (total_secs % 3600) / 60;
-                            let seconds = total_secs % 60;
+                                let duration = Duration::from_secs_f32(song.duration);
+                                let total_secs = duration.as_secs();
+                                let hours = total_secs / 3600;
+                                let minutes = (total_secs % 3600) / 60;
+                                let seconds = total_secs % 60;
 
-                            let duration = if hours > 0 {
-                                ui.fmt(format_args!("{:02}:{:02}:{:02}", hours, minutes, seconds))
-                            } else {
-                                ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
-                            };
+                                let duration = if hours > 0 {
+                                    ui.fmt(format_args!(
+                                        "{:02}:{:02}:{:02}",
+                                        hours, minutes, seconds
+                                    ))
+                                } else {
+                                    ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
+                                };
 
-                            ui.text(duration, s.fg(TEXT_MUTED).fill_width().align_right());
-                        });
+                                ui.text(duration, s.fg(TEXT_MUTED).fill_width().align_right());
+                            });
 
-                        if song_row.clicked {
-                            library.selected_song = Some((ai, si));
+                            if song_row.clicked {
+                                library.selected_song = Some((ai, si));
+                            }
+
+                            if (ai + 1) < album.songs.len() {
+                                ui.gap(2)
+                            }
                         }
-
-                        if (ai + 1) < album.songs.len() {
-                            ui.gap(2)
-                        }
-                    }
-
-                    // ui.flow_right(song.bg(ROW_SELECTED).hover(ROW_HOVER), |ui| {
-                    //     ui.text("01", song.fg(ACCENT));
-                    //     ui.text("Light Years", song);
-                    //     //TODO: Times are not aligned??
-                    //     ui.text("4:12", dur);
-                    // });
-
-                    // ui.flow_right(song.hover(ROW_HOVER), |ui| {
-                    //     ui.text("02", song.fg(TEXT_MUTED));
-                    //     ui.text("Four Hours", song.fg(TEXT_SECONDARY));
-                    //     ui.text("3:38", dur);
-                    // });
+                    });
                 });
-            });
 
-            if (ai + 1) < library.albums.len() {
-                ui.gap(24);
-                ui.rect(style().fill_width().bg(BORDER_DIM).h(1));
-                ui.gap(24);
+                if (ai + 1) < library.albums.len() {
+                    ui.gap(24);
+                    ui.rect(style().fill_width().bg(BORDER_DIM).h(1));
+                    ui.gap(24);
+                }
             }
-        }
+        });
     });
 }
 
@@ -649,45 +563,37 @@ fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
 //Allow the user to customize them.
 //Currently keeping track of all the sizings is very difficult.
 fn main() {
-    let now = Instant::now();
+    let db = std::thread::spawn(|| {
+        let config = mu_core::config_paths();
+        let db = mu_core::vdb::Database::new(&config.database);
+        let mut artists: Vec<String> = db.btree.keys().cloned().collect();
+        artists.sort_by_key(|a| a.to_ascii_lowercase());
+        (db, artists)
+    });
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 16;
 
-    // Skip slow db loading for now.
-    // let config = mu_core::config_paths();
-    // let db = mu_core::vdb::Database::new(&config.database);
-    // let mut artists: Vec<String> = db.btree.keys().cloned().collect();
-    // artists.sort_by_key(|a| a.to_ascii_lowercase());
+    let (db, artists) = db.join().unwrap();
 
-    // let panel_left = Image::open("assets/panel-left.png").unwrap().thumbnail(18);
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
-        // panel_left: &panel_left,
         selected_artist: "Duster",
-        artists: &[],
-        // artists: &artists,
+        artists: &artists,
         artist_scroll: Scroll::new(),
+        update_library: false,
         active: true,
         selected_mode: "Library",
         current_letter: None,
     };
 
+    let albums = db.albums_by_artist("Duster");
     let mut library = Library {
+        scroll: Scroll::default(),
         bounds: Rect::default(),
+        total_tracks: albums.iter().map(|a| a.songs.len()).sum(),
         artist: "Duster",
-        selected_song: Some((0, 0)),
-        albums: &[
-            Album {
-                name: "Apex, Trance Like",
-                year: 1998,
-                songs: &[mu_core::Song::example(), mu_core::Song::example()],
-            },
-            Album {
-                name: "Contemporary Movement",
-                year: 2001,
-                songs: &[mu_core::Song::example(), mu_core::Song::example()],
-            },
-        ],
+        selected_song: None,
+        albums,
     };
 
     let mut controls = Controls {
@@ -715,6 +621,16 @@ fn main() {
                 Key::Tab => sidebar.active = !sidebar.active,
                 _ => {}
             }
+        }
+
+        //It's not as immediate, but easier than passing in db and library into sidebar.
+        if sidebar.update_library {
+            sidebar.update_library = false;
+            library.albums = db.albums_by_artist(sidebar.selected_artist);
+            library.selected_song = None;
+            library.scroll = Scroll::default();
+            library.artist = sidebar.selected_artist;
+            library.total_tracks = library.albums.iter().map(|a| a.songs.len()).sum();
         }
 
         ui.frame(|ui| {
