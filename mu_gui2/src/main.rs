@@ -1,6 +1,7 @@
 #![allow(unused)]
 use std::time::{Duration, Instant};
 
+use mu_core::db::Artwork;
 use neoui::*;
 
 const BODY: u32 = hex("#0b0b0c");
@@ -111,6 +112,7 @@ struct Sidebar<'a> {
     active: bool,
     update_library: bool,
     artist_scroll: Scroll,
+    jump_to_letter: Option<char>,
 }
 
 fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
@@ -152,9 +154,9 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     );
 }
 
-fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
+fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_, 'a>) {
     let sb = style().fg(TEXT).font_size(16);
-    ui.flow_down(
+    let state = ui.flow_down(
         bounds(sidebar.bounds)
             .bg(SIDEBAR)
             .border(BORDER_DIM)
@@ -217,6 +219,8 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
             let (artist, mut alphabet) = ui.split_h(-30);
             let selected_artist = sidebar.selected_artist;
             let top_of_artist_view = artist.y;
+            let jump_target = sidebar.jump_to_letter.take();
+            let mut jump_offset = None;
 
             let scroll_state = ui.scroll(
                 bounds(artist).padlr(8).elastic(true),
@@ -246,6 +250,12 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
                             {
                                 sidebar.current_letter = Some(first_letter);
                             }
+                            if let Some(target) = jump_target
+                                && first_letter == target.to_ascii_uppercase()
+                                && jump_offset.is_none()
+                            {
+                                jump_offset = Some((frame.cursor_y - frame.inner_bounds.y) as f32);
+                            }
                             ui.text(first_letter.to_string(), l);
                         }
                         let sel = *artist == selected_artist;
@@ -257,6 +267,13 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
                     }
                 },
             );
+
+            if let Some(offset) = jump_offset {
+                //TODO: This should not allow for jumping out of bounds.
+                //TODO: Should also have some momentum when jumping around.
+                //Currently just a fixed jump.
+                sidebar.artist_scroll.jump(offset);
+            }
 
             ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
 
@@ -313,25 +330,37 @@ fn draw_sidebar<'a>(sidebar: &mut Sidebar<'a>, ui: &mut FrameContext<'_, 'a>) {
             });
         },
     );
+
+    if state.hovered {
+        for key in ui.window.pressed_keys() {
+            match key {
+                Key::Char(c) => sidebar.jump_to_letter = Some(*c),
+                _ => {}
+            }
+        }
+    }
 }
 
 struct Library<'a> {
     bounds: Rect,
     artist: &'a str,
     total_tracks: usize,
-    albums: &'a [mu_core::Album],
     selected_song: Option<(usize, usize)>, //(Album, Song)
     scroll: Scroll,
 }
 
-fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
+fn draw_library<'a, 'b: 'a>(
+    albums: &'a [mu_core::Album],
+    library: &mut Library<'b>,
+    ui: &mut FrameContext<'_, 'a>,
+) {
     ui.flow_down(bounds(library.bounds).padlr(36).padtb(24).bg(BODY), |ui| {
         ui.text(library.artist, style().font_size(42));
         //TODO: Add letter spacing?
         ui.gap(4);
         let header = ui.fmt(format_args!(
             "{} ALBUMS · {} TRACKS",
-            library.albums.len(),
+            albums.len(),
             library.total_tracks,
         ));
         ui.text(header, style().font_size(12).fg(TEXT_MUTED));
@@ -340,9 +369,20 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
         ui.gap(12);
 
         ui.scroll(style().elastic(true), &mut library.scroll, |ui| {
-            for (ai, album) in library.albums.iter().enumerate() {
+            for (ai, album) in albums.iter().enumerate() {
                 ui.flow_right(style(), |ui| {
-                    ui.rect(style().wh(120).bg(gray()));
+                    //In terms of API, images are always user retained.
+                    //It's a bit painful to deal with for the current use case.
+                    //Each library page can have an unbounded number of images.
+
+                    if let Some(first) = &album.songs.first()
+                        && let Some(Artwork::Decoded(pixels, width, height)) = &first.artwork
+                    {
+                        ui.image_bytes(pixels, *width, *height, style().wh(148));
+                    } else {
+                        //TODO: Better placeholder
+                        ui.rect(style().wh(148).bg(BORDER_DIM));
+                    }
 
                     ui.gap(24);
 
@@ -421,7 +461,7 @@ fn draw_library<'a>(library: &mut Library<'a>, ui: &mut FrameContext<'_, 'a>) {
                     });
                 });
 
-                if (ai + 1) < library.albums.len() {
+                if (ai + 1) < albums.len() {
                     ui.gap(24);
                     ui.rect(style().fill_width().bg(BORDER_DIM).h(1));
                     ui.gap(24);
@@ -559,10 +599,35 @@ fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
     );
 }
 
+fn load_artwork_for_artist(db: &mut mu_core::vdb::Database, artist: &str) {
+    profile!();
+    for a in db.btree.get_mut(artist).unwrap() {
+        //Use the first song for the whole album.
+        //Technically each track can have a different album cover.
+        let first = a.songs.first_mut().unwrap();
+        if first.artwork.is_none()
+            && let Ok(s) = onmi::metadata(&first.path, false, true)
+        {
+            if let Some(artwork) = s.artwork {
+                //TODO: The point of the thumbnails is to allow users to cache a downscaled version
+                //Currently even though the image is being rendered at 120x120px.
+                //We need a high resolution version stored ???
+                let image = Image::decode(&artwork.data).unwrap().thumbnail(512);
+                first.artwork = Some(Artwork::Decoded(image.pixels, image.width, image.height));
+            }
+        }
+    }
+}
+
 //TODO: Add tailwind style font size and padding builders.
 //Allow the user to customize them.
 //Currently keeping track of all the sizings is very difficult.
 fn main() {
+    defer_results!();
+    // let config = mu_core::config_paths();
+    // let s = mu_core::db::create("/Users/bay/Music/gdrive", config.database);
+    // s.join().unwrap();
+
     let db = std::thread::spawn(|| {
         let config = mu_core::config_paths();
         let db = mu_core::vdb::Database::new(&config.database);
@@ -573,7 +638,8 @@ fn main() {
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 16;
 
-    let (db, artists) = db.join().unwrap();
+    let (mut db, artists) = db.join().unwrap();
+    load_artwork_for_artist(&mut db, "Duster");
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
@@ -584,16 +650,19 @@ fn main() {
         active: true,
         selected_mode: "Library",
         current_letter: None,
+        jump_to_letter: None,
     };
 
-    let albums = db.albums_by_artist("Duster");
     let mut library = Library {
         scroll: Scroll::default(),
         bounds: Rect::default(),
-        total_tracks: albums.iter().map(|a| a.songs.len()).sum(),
+        total_tracks: db
+            .albums_by_artist("Duster")
+            .iter()
+            .map(|a| a.songs.len())
+            .sum(),
         artist: "Duster",
         selected_song: None,
-        albums,
     };
 
     let mut controls = Controls {
@@ -626,11 +695,15 @@ fn main() {
         //It's not as immediate, but easier than passing in db and library into sidebar.
         if sidebar.update_library {
             sidebar.update_library = false;
-            library.albums = db.albums_by_artist(sidebar.selected_artist);
+            load_artwork_for_artist(&mut db, sidebar.selected_artist);
             library.selected_song = None;
             library.scroll = Scroll::default();
             library.artist = sidebar.selected_artist;
-            library.total_tracks = library.albums.iter().map(|a| a.songs.len()).sum();
+            library.total_tracks = db
+                .albums_by_artist(sidebar.selected_artist)
+                .iter()
+                .map(|a| a.songs.len())
+                .sum();
         }
 
         ui.frame(|ui| {
@@ -650,9 +723,7 @@ fn main() {
             controls.bounds = con;
 
             match sidebar.selected_mode {
-                "Library" => {
-                    draw_library(&mut library, ui);
-                }
+                "Library" => draw_library(db.albums_by_artist(library.artist), &mut library, ui),
                 "Queue" => {}
                 "Playlist" => {}
                 "Settings" => {}

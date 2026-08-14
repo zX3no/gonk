@@ -8,6 +8,12 @@ use std::{
 };
 
 #[derive(Debug, PartialEq)]
+pub enum Artwork {
+    Decoded(Box<[u32]>, usize, usize),
+    Compressed(onmi::Artwork),
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Song {
     pub title: String,
     pub album: String,
@@ -18,7 +24,7 @@ pub struct Song {
     pub gain: f32,
     pub year: u16,
     pub duration: f32,
-    pub artwork: Option<onmi::Artwork>,
+    pub artwork: Option<Artwork>,
 }
 
 impl Clone for Song {
@@ -202,7 +208,9 @@ impl TryFrom<&Path> for Song {
             gain: osong.gain,
             year: osong.year,
             duration: osong.duration,
-            artwork: osong.artwork,
+            // artwork: osong.artwork.map(|a| Artwork::Compressed(a)),
+            //Not saved in database.
+            artwork: None,
         })
     }
 }
@@ -229,6 +237,7 @@ pub fn reset(config: &Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[must_use]
 pub fn create(music_dir: &str, config_database_path: PathBuf) -> JoinHandle<ScanResult> {
     let path = music_dir.to_string();
     thread::spawn(move || {
