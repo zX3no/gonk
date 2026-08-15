@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "coreaudio"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#2805f1a57c8694ea7fdc7e4330a657f92249dfd1"
+source = "git+https://github.com/zfphex/onmi#b33085276b20fdf5f0c2795b7106ca01472ed652"
 
 [[package]]
 name = "crossbeam-deque"
@@ -178,9 +178,9 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.46"
+version = "0.1.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
+checksum = "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b"
 dependencies = [
  "num-traits",
 ]
@@ -197,7 +197,7 @@ dependencies = [
 [[package]]
 name = "onmi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#2805f1a57c8694ea7fdc7e4330a657f92249dfd1"
+source = "git+https://github.com/zfphex/onmi#b33085276b20fdf5f0c2795b7106ca01472ed652"
 dependencies = [
  "coreaudio",
  "miniwalk",
@@ -280,8 +280,8 @@ checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 
 [[package]]
 name = "symphonia"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "lazy_static",
  "symphonia-bundle-flac",
@@ -294,8 +294,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-bundle-flac"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "log",
  "symphonia-common",
@@ -305,8 +305,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-bundle-mp3"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "lazy_static",
  "log",
@@ -315,8 +315,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-codec-vorbis"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "log",
  "symphonia-common",
@@ -325,8 +325,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-common"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "log",
  "symphonia-core",
@@ -335,8 +335,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-core"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "bitflags",
  "bytemuck",
@@ -349,8 +349,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-format-ogg"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "log",
  "symphonia-common",
@@ -360,8 +360,8 @@ dependencies = [
 
 [[package]]
 name = "symphonia-metadata"
-version = "0.6.0"
-source = "git+https://github.com/pdeljanov/Symphonia#67760d1d740df8d6d8cc45a88623358969381b5a"
+version = "0.6.1"
+source = "git+https://github.com/pdeljanov/Symphonia#ee35874b571a35a9a6e15d3bc9a3aaf8f11fbeee"
 dependencies = [
  "lazy_static",
  "log",
@@ -422,7 +422,7 @@ checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 [[package]]
 name = "wasapi"
 version = "0.1.0"
-source = "git+https://github.com/zfphex/onmi#2805f1a57c8694ea7fdc7e4330a657f92249dfd1"
+source = "git+https://github.com/zfphex/onmi#b33085276b20fdf5f0c2795b7106ca01472ed652"
 
 [[package]]
 name = "winter"

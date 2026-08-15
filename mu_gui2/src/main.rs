@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unused)]
 use std::{
     thread::JoinHandle,
@@ -348,16 +349,21 @@ struct Library<'a> {
     bounds: Rect,
     artist: &'a str,
     total_tracks: usize,
-    selected_song: Option<(usize, usize)>, //(Album, Song)
+    ///(Album, Song)
+    playing_song: Option<(usize, usize)>,
+    ///(Album, Song)
+    selected_song: Option<(usize, usize)>,
     scroll: Scroll,
+    update_controls: bool,
 }
 
 fn draw_library<'a, 'b: 'a>(
     albums: &'a [mu_core::Album],
     library: &mut Library<'b>,
+    player: &mut onmi::Player,
     ui: &mut FrameContext<'_, 'a>,
 ) {
-    ui.flow_down(bounds(library.bounds).padlr(36).padtb(24).bg(BODY), |ui| {
+    ui.flow_down(bounds(library.bounds).padlr(36).bg(BODY), |ui| {
         ui.text(library.artist, style().font_size(42));
         //TODO: Add letter spacing?
         ui.gap(4);
@@ -371,7 +377,13 @@ fn draw_library<'a, 'b: 'a>(
         ui.rect(style().fill_width().height(1).bg(BORDER_DIM));
         ui.gap(12);
 
-        ui.scroll(style().elastic(true), &mut library.scroll, |ui| {
+        //TODO: Make mouse scroll better on elastic so it doesn't need to be disabled.
+        let scroll_style = style();
+
+        // #[cfg(not(target_os = "windows"))]
+        let scroll_style = style().elastic(true);
+
+        ui.scroll(scroll_style, &mut library.scroll, |ui| {
             for (ai, album) in albums.iter().enumerate() {
                 ui.flow_right(style(), |ui| {
                     //In terms of API, images are always user retained.
@@ -419,21 +431,26 @@ fn draw_library<'a, 'b: 'a>(
                             .padtb(4);
 
                         for (si, song) in album.songs.iter().enumerate() {
+                            let playing = Some((ai, si)) == library.playing_song;
                             let selected = Some((ai, si)) == library.selected_song;
-                            let sel = if selected { s.bg(ROW_SELECTED) } else { s };
 
-                            let song_row = ui.flow_right(sel.hover(ROW_HOVER), |ui| {
+                            let style = if playing {
+                                s.bg(ROW_SELECTED)
+                            } else if selected {
+                                //TODO: Maybe a dimmer version of this?
+                                s.bg(ROW_SELECTED)
+                            } else {
+                                s
+                            };
+
+                            let song_row = ui.flow_right(style.hover(ROW_HOVER), |ui| {
                                 let track_number = ui.fmt(format_args!("{:02}", song.track_number));
 
-                                ui.text(
-                                    track_number,
-                                    s.fg(if selected { ACCENT } else { TEXT_MUTED }),
-                                );
+                                let number_color = if playing { ACCENT } else { TEXT_MUTED };
+                                ui.text(track_number, s.fg(number_color));
 
-                                ui.text(
-                                    &song.title,
-                                    if selected { s } else { s.fg(TEXT_SECONDARY) },
-                                );
+                                let title_style = if playing { s } else { s.fg(TEXT_SECONDARY) };
+                                ui.text(&song.title, title_style);
 
                                 let duration = Duration::from_secs_f32(song.duration);
                                 let total_secs = duration.as_secs();
@@ -457,6 +474,12 @@ fn draw_library<'a, 'b: 'a>(
                                 library.selected_song = Some((ai, si));
                             }
 
+                            if song_row.double_clicked {
+                                player.play_song(&song.path, Some(song.gain), true);
+                                library.playing_song = Some((ai, si));
+                                library.update_controls = true;
+                            }
+
                             if (ai + 1) < album.songs.len() {
                                 ui.gap(2)
                             }
@@ -474,7 +497,7 @@ fn draw_library<'a, 'b: 'a>(
     });
 }
 
-struct Controls {
+struct Controls<'a> {
     bounds: Rect,
     playing: bool,
     shuffle: bool,
@@ -483,6 +506,8 @@ struct Controls {
     elapsed: f32,
     duration: f32,
     volume: f32,
+    current_song: Option<&'a mu_core::Song>,
+    artwork: Option<&'a Artwork>,
 }
 
 fn time(t: f32) -> String {
@@ -492,7 +517,7 @@ fn time(t: f32) -> String {
     format!("{:02}:{:02}", minutes, seconds)
 }
 
-fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
+fn draw_controls<'a, 'b: 'a>(controls: &mut Controls<'b>, ui: &mut FrameContext<'_, 'a>) {
     ui.paint_rect(
         controls.bounds,
         bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
@@ -500,23 +525,28 @@ fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
 
     let [info, center, extras] = ui.split_cols(controls.bounds, [0.28, 0.44, 0.28]);
 
-    ui.flow_right(
-        bounds(info)
-            .padlr(16)
-            .gap(12)
-            .align_flow(AlignFlow::Center)
-            .clip(true),
-        |ui| {
-            ui.rect(style().wh(48).radius(4).bg(gray()));
-            ui.flow_down(style().height(40), |ui| {
-                ui.text("Light Years", style().fg(TEXT));
-                ui.text(
-                    "Duster · Apex, Trance-Like",
-                    style().font_size(14).fg(TEXT_MUTED),
-                );
-            });
-        },
-    );
+    if let Some(song) = controls.current_song {
+        ui.flow_right(
+            bounds(info)
+                .padlr(16)
+                .gap(12)
+                .align_flow(AlignFlow::Center)
+                .clip(true),
+            |ui| {
+                if let Some(Artwork::Decoded(pixels, width, height)) = controls.artwork {
+                    ui.image_bytes(pixels, *width, *height, style().wh(48));
+                } else {
+                    //TODO: Better placeholder
+                    ui.rect(style().wh(48).radius(4).bg(gray()));
+                }
+                ui.flow_down(style().height(40), |ui| {
+                    ui.text(&song.title, style().fg(TEXT));
+                    let txt = ui.fmt(format_args!("{} · {}", song.artist, song.album));
+                    ui.text(txt, style().font_size(14).fg(TEXT_MUTED));
+                });
+            },
+        );
+    }
 
     let t = style().w(36).font_size(13).fg(TEXT_MUTED);
     let btn = style()
@@ -615,9 +645,11 @@ fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(Str
                         //TODO: The point of the thumbnails is to allow users to cache a downscaled version
                         //Currently even though the image is being rendered at 120x120px.
                         //We need a high resolution version stored ???
-                        let image = Image::decode(&artwork.data).unwrap().thumbnail(512);
-                        first.artwork =
-                            Some(Artwork::Decoded(image.pixels, image.width, image.height));
+                        if let Ok(image) = Image::decode(&artwork.data) {
+                            let image = image.thumbnail(512);
+                            first.artwork =
+                                Some(Artwork::Decoded(image.pixels, image.width, image.height));
+                        }
                     }
                 }
             }
@@ -631,26 +663,38 @@ fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(Str
 //Currently keeping track of all the sizings is very difficult.
 fn main() {
     defer_results!();
+
     // let config = mu_core::config_paths();
     // let s = mu_core::db::create("/Users/bay/Music/gdrive", config.database);
     // s.join().unwrap();
 
+    let now = Instant::now();
+    let player = std::thread::spawn(move || {
+        let outputs = onmi::OutputDevices::new();
+        onmi::Player::new(outputs.default_device())
+    });
+
     let db = std::thread::spawn(|| {
+        let now = Instant::now();
         let config = mu_core::config_paths();
         let db = mu_core::vdb::Database::new(&config.database);
         let mut artists: Vec<String> = db.btree.keys().cloned().collect();
         artists.sort_by_key(|a| a.to_ascii_lowercase());
         (db, artists)
     });
+
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 16;
 
+    let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
 
     let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
     if let Some(albums) = db.btree.get("Duster").cloned() {
         artwork_task = Some(spawn_load_artwork("Duster".into(), albums));
     }
+
+    // println!("Loaded in {}ms", now.elapsed().as_millis());
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
@@ -673,7 +717,9 @@ fn main() {
             .map(|a| a.songs.len())
             .sum(),
         artist: "Duster",
+        playing_song: None,
         selected_song: None,
+        update_controls: false,
     };
 
     let mut controls = Controls {
@@ -685,6 +731,8 @@ fn main() {
         elapsed: 132.0,
         duration: 252.0,
         volume: 0.32,
+        current_song: None,
+        artwork: None,
     };
 
     while ui.window.open() {
@@ -719,7 +767,7 @@ fn main() {
                 artwork_task = Some(spawn_load_artwork(artist, albums));
             }
 
-            library.selected_song = None;
+            library.playing_song = None;
             library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
             library.total_tracks = db
@@ -727,6 +775,16 @@ fn main() {
                 .iter()
                 .map(|a| a.songs.len())
                 .sum();
+        }
+
+        if library.update_controls {
+            let albums = db.albums_by_artist(library.artist);
+            controls.current_song = library.playing_song.map(|(a, s)| &albums[a].songs[s]);
+            //Artwork is only loaded on the first song 😅
+            controls.artwork = library
+                .playing_song
+                .and_then(|(a, _)| albums[a].songs.first())
+                .and_then(|song| song.artwork.as_ref());
         }
 
         ui.frame(|ui| {
@@ -746,7 +804,12 @@ fn main() {
             controls.bounds = con;
 
             match sidebar.selected_mode {
-                "Library" => draw_library(db.albums_by_artist(library.artist), &mut library, ui),
+                "Library" => draw_library(
+                    db.albums_by_artist(library.artist),
+                    &mut library,
+                    &mut player,
+                    ui,
+                ),
                 "Queue" => {}
                 "Playlist" => {}
                 "Settings" => {}
