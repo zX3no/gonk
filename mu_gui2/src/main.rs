@@ -292,26 +292,28 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
             let fade = ui.animate_f32(if hovered { 1.0 } else { 0.0 }, 0.15, Ease::InOutSine);
             let my = ui.mouse_position().y;
             let glow = |a: f32| rgba(155, 132, 217, (a * fade * 255.0) as u8);
-            ui.place_down(bounds(alphabet).clip(true), |ui| {
-                ui.gradient(
-                    style()
-                        .x(alphabet.x)
-                        .y(my.saturating_sub(55))
-                        .width(alphabet.width)
-                        .height(110),
-                    180.0,
-                )
-                .stop(0.0, glow(0.0))
-                .stop(0.21, glow(0.11))
-                .stop(0.5, glow(0.30))
-                .stop(0.79, glow(0.11))
-                .stop(1.0, glow(0.0));
-
-                ui.gradient(style().x(alphabet.x).y(my - 70).width(1).height(140), 180.0)
+            if fade > 0.0 {
+                ui.place_down(bounds(alphabet).clip(true), |ui| {
+                    ui.gradient(
+                        style()
+                            .x(alphabet.x)
+                            .y(my.saturating_sub(55))
+                            .width(alphabet.width)
+                            .height(110),
+                        180.0,
+                    )
                     .stop(0.0, glow(0.0))
-                    .stop(0.5, rgba(199, 183, 240, (0.75 * fade * 255.0) as u8))
+                    .stop(0.21, glow(0.11))
+                    .stop(0.5, glow(0.30))
+                    .stop(0.79, glow(0.11))
                     .stop(1.0, glow(0.0));
-            });
+
+                    ui.gradient(style().x(alphabet.x).y(my - 70).width(1).height(140), 180.0)
+                        .stop(0.0, glow(0.0))
+                        .stop(0.5, rgba(199, 183, 240, (0.75 * fade * 255.0) as u8))
+                        .stop(1.0, glow(0.0));
+                });
+            }
             alphabet.x += 12;
             ui.flow_down(bounds(alphabet), |ui| {
                 let row = ui.measure_text("A", Font::default(), 10, None).height;
@@ -715,6 +717,7 @@ fn main() {
 
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 16;
+    ui.debug_damage = true;
 
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
