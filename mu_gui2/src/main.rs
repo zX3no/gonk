@@ -393,7 +393,12 @@ fn draw_library<'a, 'b: 'a>(
                     if let Some(first) = &album.songs.first()
                         && let Some(Artwork::Decoded(pixels, width, height)) = &first.artwork
                     {
-                        ui.image_bytes(pixels, *width, *height, style().wh(148));
+                        let image = Image {
+                            width: *width,
+                            height: *height,
+                            pixels,
+                        };
+                        ui.image(image, style().wh(148));
                     } else {
                         //TODO: Better placeholder
                         ui.rect(style().wh(148).bg(BORDER_DIM));
@@ -546,7 +551,12 @@ fn draw_controls<'a>(
                 .clip(true),
             |ui| {
                 if let Some(Artwork::Decoded(pixels, width, height)) = artwork {
-                    ui.image_bytes(pixels, *width, *height, style().wh(48));
+                    let image = Image {
+                        width: *width,
+                        height: *height,
+                        pixels,
+                    };
+                    ui.image(image, style().wh(48));
                 } else {
                     //TODO: Better placeholder
                     ui.rect(style().wh(48).radius(4).bg(gray()));
@@ -657,10 +667,18 @@ fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(Str
                         //TODO: The point of the thumbnails is to allow users to cache a downscaled version
                         //Currently even though the image is being rendered at 120x120px.
                         //We need a high resolution version stored ???
-                        if let Ok(image) = Image::decode(&artwork.data) {
-                            let image = image.thumbnail(512);
+                        if let Ok((pixels, width, height)) = image::decode(&artwork.data) {
+                            let pixels = image::resize(
+                                Image {
+                                    pixels: &pixels,
+                                    width,
+                                    height,
+                                },
+                                512,
+                                512,
+                            );
                             first.artwork =
-                                Some(Artwork::Decoded(image.pixels, image.width, image.height));
+                                Some(Artwork::Decoded(pixels.into_boxed_slice(), 512, 512));
                         }
                     }
                 }
