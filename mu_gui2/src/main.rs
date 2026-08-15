@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unused)]
 use std::{
     thread::JoinHandle,
@@ -487,6 +487,7 @@ fn draw_library<'a, 'b: 'a>(
                                 //Library can change the selected artist so must clone here.
                                 //Also db is used mutabled so cannot borrow outside of the frame.
                                 controls.song = Some((library.artist.to_string(), ai, si));
+                                controls.playing = true;
                             }
 
                             if (ai + 1) < album.songs.len() {
@@ -528,6 +529,7 @@ fn time(t: f32) -> String {
 
 fn draw_controls<'a>(
     controls: &mut Controls,
+    player: &mut onmi::Player,
     db: &'a mu_core::vdb::Database,
     ui: &mut FrameContext<'_, 'a>,
 ) {
@@ -597,11 +599,20 @@ fn draw_controls<'a>(
                 |ui| {
                     icon(ui, "Shuffle", btn);
                     icon(ui, "Rewind", btn);
-                    icon(
+                    if icon(
                         ui,
                         if controls.playing { "Pause" } else { "Play" },
                         btn.bg(TEXT).fg(SIDEBAR).radius(16),
-                    );
+                    )
+                    .clicked
+                    {
+                        if controls.playing {
+                            player.pause();
+                        } else {
+                            player.play();
+                        }
+                        controls.playing = !controls.playing;
+                    }
                     icon(ui, "Forward", btn);
                     icon(ui, "Repeat", btn);
                 },
@@ -727,7 +738,7 @@ fn main() {
         artwork_task = Some(spawn_load_artwork("Duster".into(), albums));
     }
 
-    // println!("Loaded in {}ms", now.elapsed().as_millis());
+    println!("Loaded in {}ms", now.elapsed().as_millis());
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
@@ -761,8 +772,8 @@ fn main() {
         shuffle: false,
         repeat: false,
         muted: false,
-        elapsed: 132.0,
-        duration: 252.0,
+        elapsed: 0.0,
+        duration: 0.0,
         volume: 0.32,
     };
 
@@ -799,6 +810,7 @@ fn main() {
             }
 
             library.playing_song = None;
+            library.selected_song = None;
             library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
             library.total_tracks = db
@@ -807,6 +819,9 @@ fn main() {
                 .map(|a| a.songs.len())
                 .sum();
         }
+
+        controls.duration = player.duration().as_secs_f32();
+        controls.elapsed = player.elapsed().as_secs_f32();
 
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
@@ -838,7 +853,7 @@ fn main() {
                 _ => unreachable!(),
             }
 
-            draw_controls(&mut controls, &db, ui);
+            draw_controls(&mut controls, &mut player, &db, ui);
         });
     }
 }
