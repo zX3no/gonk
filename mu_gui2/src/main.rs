@@ -654,7 +654,7 @@ fn main() {
     };
 
     let mut library = Library {
-        scroll: Scroll::default(),
+        scroll: Scroll::new(),
         bounds: Rect::default(),
         total_tracks: db
             .albums_by_artist("Duster")
@@ -697,7 +697,7 @@ fn main() {
             sidebar.update_library = false;
             load_artwork_for_artist(&mut db, sidebar.selected_artist);
             library.selected_song = None;
-            library.scroll = Scroll::default();
+            library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
             library.total_tracks = db
                 .albums_by_artist(sidebar.selected_artist)
