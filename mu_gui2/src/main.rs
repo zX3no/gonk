@@ -1,7 +1,10 @@
 #![allow(unused)]
-use std::time::{Duration, Instant};
+use std::{
+    thread::JoinHandle,
+    time::{Duration, Instant},
+};
 
-use mu_core::db::Artwork;
+use mu_core::{Album, db::Artwork};
 use neoui::*;
 
 const BODY: u32 = hex("#0b0b0c");
@@ -599,24 +602,28 @@ fn draw_controls(controls: &mut Controls, ui: &mut FrameContext<'_, '_>) {
     );
 }
 
-fn load_artwork_for_artist(db: &mut mu_core::vdb::Database, artist: &str) {
-    profile!();
-    for a in db.btree.get_mut(artist).unwrap() {
-        //Use the first song for the whole album.
-        //Technically each track can have a different album cover.
-        let first = a.songs.first_mut().unwrap();
-        if first.artwork.is_none()
-            && let Ok(s) = onmi::metadata(&first.path, false, true)
-        {
-            if let Some(artwork) = s.artwork {
-                //TODO: The point of the thumbnails is to allow users to cache a downscaled version
-                //Currently even though the image is being rendered at 120x120px.
-                //We need a high resolution version stored ???
-                let image = Image::decode(&artwork.data).unwrap().thumbnail(512);
-                first.artwork = Some(Artwork::Decoded(image.pixels, image.width, image.height));
+fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(String, Vec<Album>)> {
+    std::thread::spawn(move || {
+        for a in albums.iter_mut() {
+            //Use the first song for the whole album.
+            //Technically each track can have a different album cover.
+            if let Some(first) = a.songs.first_mut() {
+                if first.artwork.is_none()
+                    && let Ok(s) = onmi::metadata(&first.path, false, true)
+                {
+                    if let Some(artwork) = s.artwork {
+                        //TODO: The point of the thumbnails is to allow users to cache a downscaled version
+                        //Currently even though the image is being rendered at 120x120px.
+                        //We need a high resolution version stored ???
+                        let image = Image::decode(&artwork.data).unwrap().thumbnail(512);
+                        first.artwork =
+                            Some(Artwork::Decoded(image.pixels, image.width, image.height));
+                    }
+                }
             }
         }
-    }
+        (artist, albums)
+    })
 }
 
 //TODO: Add tailwind style font size and padding builders.
@@ -639,7 +646,11 @@ fn main() {
     ui.default_font_size = 16;
 
     let (mut db, artists) = db.join().unwrap();
-    load_artwork_for_artist(&mut db, "Duster");
+
+    let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
+    if let Some(albums) = db.btree.get("Duster").cloned() {
+        artwork_task = Some(spawn_load_artwork("Duster".into(), albums));
+    }
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
@@ -692,10 +703,22 @@ fn main() {
             }
         }
 
+        if let Some(handle) = &artwork_task {
+            if handle.is_finished() {
+                let (artist, albums) = artwork_task.take().unwrap().join().unwrap();
+                db.btree.insert(artist, albums);
+            }
+        }
+
         //It's not as immediate, but easier than passing in db and library into sidebar.
         if sidebar.update_library {
             sidebar.update_library = false;
-            load_artwork_for_artist(&mut db, sidebar.selected_artist);
+
+            let artist = sidebar.selected_artist.to_string();
+            if let Some(albums) = db.btree.get(&artist).cloned() {
+                artwork_task = Some(spawn_load_artwork(artist, albums));
+            }
+
             library.selected_song = None;
             library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
