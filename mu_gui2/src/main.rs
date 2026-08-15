@@ -728,7 +728,7 @@ fn main() {
 
     let mut ui = ui("mu", 1200, 780);
     ui.default_font_size = 16;
-    ui.debug_damage = true;
+    // ui.debug_damage = true;
 
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
@@ -803,14 +803,22 @@ fn main() {
         //It's not as immediate, but easier than passing in db and library into sidebar.
         if sidebar.update_library {
             sidebar.update_library = false;
+            library.playing_song = None;
+            library.selected_song = None;
 
             let artist = sidebar.selected_artist.to_string();
+
+            //Restore the playing song state.
+            if let Some((a, ai, si)) = &controls.song {
+                if a == &artist {
+                    library.playing_song = Some((*ai, *si));
+                }
+            }
+
             if let Some(albums) = db.btree.get(&artist).cloned() {
                 artwork_task = Some(spawn_load_artwork(artist, albums));
             }
 
-            library.playing_song = None;
-            library.selected_song = None;
             library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
             library.total_tracks = db
