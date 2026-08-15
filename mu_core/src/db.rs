@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Artwork {
     Decoded(Box<[u32]>, usize, usize),
     Compressed(onmi::Artwork),
@@ -39,7 +39,7 @@ impl Clone for Song {
             gain: self.gain.clone(),
             year: self.year.clone(),
             duration: self.duration.clone(),
-            artwork: None,
+            artwork: self.artwork.clone(),
         }
     }
 }

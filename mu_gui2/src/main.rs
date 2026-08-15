@@ -354,13 +354,13 @@ struct Library<'a> {
     ///(Album, Song)
     selected_song: Option<(usize, usize)>,
     scroll: Scroll,
-    update_controls: bool,
 }
 
 fn draw_library<'a, 'b: 'a>(
     albums: &'a [mu_core::Album],
     library: &mut Library<'b>,
     player: &mut onmi::Player,
+    controls: &mut Controls,
     ui: &mut FrameContext<'_, 'a>,
 ) {
     ui.flow_down(bounds(library.bounds).padlr(36).bg(BODY), |ui| {
@@ -477,7 +477,9 @@ fn draw_library<'a, 'b: 'a>(
                             if song_row.double_clicked {
                                 player.play_song(&song.path, Some(song.gain), true);
                                 library.playing_song = Some((ai, si));
-                                library.update_controls = true;
+                                //Library can change the selected artist so must clone here.
+                                //Also db is used mutabled so cannot borrow outside of the frame.
+                                controls.song = Some((library.artist.to_string(), ai, si));
                             }
 
                             if (ai + 1) < album.songs.len() {
@@ -497,7 +499,9 @@ fn draw_library<'a, 'b: 'a>(
     });
 }
 
-struct Controls<'a> {
+struct Controls {
+    ///Artist, Album, Song
+    song: Option<(String, usize, usize)>,
     bounds: Rect,
     playing: bool,
     shuffle: bool,
@@ -506,8 +510,6 @@ struct Controls<'a> {
     elapsed: f32,
     duration: f32,
     volume: f32,
-    current_song: Option<&'a mu_core::Song>,
-    artwork: Option<&'a Artwork>,
 }
 
 fn time(t: f32) -> String {
@@ -517,15 +519,25 @@ fn time(t: f32) -> String {
     format!("{:02}:{:02}", minutes, seconds)
 }
 
-fn draw_controls<'a, 'b: 'a>(controls: &mut Controls<'b>, ui: &mut FrameContext<'_, 'a>) {
+fn draw_controls<'a>(
+    controls: &mut Controls,
+    db: &'a mu_core::vdb::Database,
+    ui: &mut FrameContext<'_, 'a>,
+) {
     ui.paint_rect(
         controls.bounds,
         bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
     );
 
     let [info, center, extras] = ui.split_cols(controls.bounds, [0.28, 0.44, 0.28]);
+    if let Some((artist, ai, si)) = &controls.song {
+        let albums = db.albums_by_artist(artist);
+        let song = &albums[*ai].songs[*si];
+        let artwork = albums[*ai]
+            .songs
+            .first()
+            .and_then(|song| song.artwork.as_ref());
 
-    if let Some(song) = controls.current_song {
         ui.flow_right(
             bounds(info)
                 .padlr(16)
@@ -533,7 +545,7 @@ fn draw_controls<'a, 'b: 'a>(controls: &mut Controls<'b>, ui: &mut FrameContext<
                 .align_flow(AlignFlow::Center)
                 .clip(true),
             |ui| {
-                if let Some(Artwork::Decoded(pixels, width, height)) = controls.artwork {
+                if let Some(Artwork::Decoded(pixels, width, height)) = artwork {
                     ui.image_bytes(pixels, *width, *height, style().wh(48));
                 } else {
                     //TODO: Better placeholder
@@ -719,10 +731,10 @@ fn main() {
         artist: "Duster",
         playing_song: None,
         selected_song: None,
-        update_controls: false,
     };
 
     let mut controls = Controls {
+        song: None,
         bounds: Rect::default(),
         playing: false,
         shuffle: false,
@@ -731,8 +743,6 @@ fn main() {
         elapsed: 132.0,
         duration: 252.0,
         volume: 0.32,
-        current_song: None,
-        artwork: None,
     };
 
     while ui.window.open() {
@@ -777,16 +787,6 @@ fn main() {
                 .sum();
         }
 
-        if library.update_controls {
-            let albums = db.albums_by_artist(library.artist);
-            controls.current_song = library.playing_song.map(|(a, s)| &albums[a].songs[s]);
-            //Artwork is only loaded on the first song 😅
-            controls.artwork = library
-                .playing_song
-                .and_then(|(a, _)| albums[a].songs.first())
-                .and_then(|song| song.artwork.as_ref());
-        }
-
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
             let width = ui.animate_f32(target, 0.15, Ease::OutCubic) as i32;
@@ -808,6 +808,7 @@ fn main() {
                     db.albums_by_artist(library.artist),
                     &mut library,
                     &mut player,
+                    &mut controls,
                     ui,
                 ),
                 "Queue" => {}
@@ -816,7 +817,7 @@ fn main() {
                 _ => unreachable!(),
             }
 
-            draw_controls(&mut controls, ui);
+            draw_controls(&mut controls, &db, ui);
         });
     }
 }
