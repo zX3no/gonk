@@ -670,12 +670,9 @@ fn draw_controls<'a>(
                     ui.text(duration, t.align_left());
 
                     ui.paint_rect(
-                        Rect::new(
-                            track.bounds.x,
-                            track.bounds.y,
+                        track.bounds.width(
                             (track.bounds.width as f32 * controls.elapsed / controls.duration)
                                 as i32,
-                            track.bounds.height,
                         ),
                         bg(ACCENT).radius(2),
                     );
@@ -694,6 +691,12 @@ fn draw_controls<'a>(
             let volume = ui.fmt(format_args!("{}", controls.volume));
             ui.text(volume, style().w(24).font_size(13).fg(TEXT_MUTED));
             let slider = ui.rect(style().w(96).h(4).radius(2).bg(TRACK_EMPTY));
+            ui.paint_rect(
+                slider
+                    .bounds
+                    .width((slider.bounds.width as f32 * controls.volume as f32 / 100.0) as i32),
+                bg(ACCENT).radius(2),
+            );
             let outset = slider.bounds.outer(0, 12);
             if let Some(pos) = ui.drag_percentage_x(outset) {
                 controls.volume = ((pos * 100.0) as u8).clamp(0, 100);
@@ -806,9 +809,6 @@ fn main() {
     let (mut db, artists) = db.join().unwrap();
 
     let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
-    if let Some(albums) = db.btree.get("Duster").cloned() {
-        artwork_task = Some(spawn_load_artwork("Duster".into(), albums));
-    }
 
     println!("Loaded {}ms", now.elapsed().as_millis());
 
@@ -817,7 +817,7 @@ fn main() {
         selected_artist: "Duster",
         artists: &artists,
         artist_scroll: Scroll::new(),
-        update_library: false,
+        update_library: true,
         active: true,
         selected_mode: "Library",
         current_letter: None,
