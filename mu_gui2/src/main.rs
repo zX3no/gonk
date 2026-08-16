@@ -33,10 +33,6 @@ const PLAY_HOVER: u32 = hex("#BAB5AF");
 // const ROW_ACTIVE: u32 = hex("#ece9e41a");
 const ROW_SELECTED: u32 = hex("#201F20");
 
-const CLOSE_HOVER: u32 = hex("#c42b1c");
-
-const TITLEBAR: i32 = 36;
-
 const ACCENT: u32 = hex("#9b84d9");
 const ACCENT_HOVER: u32 = hex("#ad98e2");
 const ACCENT_PRESSED: u32 = hex("#8871c6");
@@ -63,10 +59,6 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             "Shuffle"  => &[[4,7,13,2,0], [7,15,13,2,0]],
             "Pause"    => &[[7,4,4,16,0], [13,4,4,16,0]],
             "Volume"   => &[[3,9,4,6,0], [14,9,2,6,1]],
-            "Minimize" => &[[4,12,16,1,0]],
-            "Maximize" => &[[4,4,16,1,0], [4,19,16,1,0], [4,4,1,16,0], [19,4,1,16,0]],
-            "Restore"  => &[[4,8,12,1,0], [4,19,12,1,0], [4,8,1,12,0], [15,8,1,12,0],
-                            [8,4,12,1,0], [19,4,1,12,0]],
             _ => &[],
         };
 
@@ -96,12 +88,6 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
                 tri(ui, (2, 3), (2, 21), (12, 12));
             }
             "Volume" => tri(ui, (11, 3), (11, 21), (6, 12)),
-            "Close" => {
-                tri(ui, (4, 6), (6, 4), (20, 18));
-                tri(ui, (4, 6), (20, 18), (18, 20));
-                tri(ui, (18, 4), (20, 6), (6, 20));
-                tri(ui, (18, 4), (6, 20), (4, 18));
-            }
             "Repeat" => {
                 let ring = Rect::new(x + u(3), y + u(3), u(18), u(18));
                 let stroke = Style::default()
@@ -119,82 +105,6 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             _ => {}
         }
     })
-}
-
-struct Titlebar {
-    bounds: Rect,
-    close: bool,
-    toggle_sidebar: bool,
-}
-
-fn draw_titlebar(titlebar: &mut Titlebar, ui: &mut FrameContext) {
-    ui.paint_rect(
-        titlebar.bounds,
-        bg(SIDEBAR).border(BORDER_DIM).border_side(BOTTOM),
-    );
-
-    let mut panel = Rect::default();
-
-    ui.flow_right(
-        bounds(titlebar.bounds)
-            .padl(11)
-            .align_flow(AlignFlow::Center)
-            .clip(true),
-        |ui| {
-            //Sits over the middle of the collapsed rail so it stays put as the sidebar animates.
-            let toggle = icon(
-                ui,
-                "Panel",
-                style()
-                    .w(34)
-                    .h(28)
-                    .padlr(11)
-                    .padtb(8)
-                    .radius(6)
-                    .fg(TEXT_TERTIARY)
-                    .hover(ROW_HOVER),
-            );
-            if toggle.clicked {
-                titlebar.toggle_sidebar = true;
-            }
-            panel = toggle.bounds;
-
-            ui.gap(10);
-            ui.text("mu", style().font_size(14).fg(TEXT_TERTIARY));
-        },
-    );
-
-    let maximized = ui.window.maximized();
-    let btn = style()
-        .w(46)
-        .h(TITLEBAR)
-        .padlr(15)
-        .padtb(10)
-        .fg(TEXT_SECONDARY)
-        .hover(ROW_HOVER);
-
-    let mut buttons = [panel; 4];
-
-    ui.flow_left(bounds(titlebar.bounds), |ui| {
-        let close = icon(ui, "Close", btn.hover(CLOSE_HOVER));
-        if close.clicked {
-            titlebar.close = true;
-        }
-
-        let restore = icon(ui, if maximized { "Restore" } else { "Maximize" }, btn);
-        if restore.clicked {
-            ui.window.toggle_maximize();
-        }
-
-        let minimize = icon(ui, "Minimize", btn);
-        if minimize.clicked {
-            ui.window.minimize();
-        }
-
-        buttons = [panel, close.bounds, restore.bounds, minimize.bounds];
-    });
-
-    ui.window.custom_titlebar(TITLEBAR, &buttons);
 }
 
 struct Sidebar<'a> {
@@ -227,6 +137,12 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
                 .hover(ROW_HOVER)
                 .selected(ROW_SELECTED);
 
+            if icon(ui, "Panel", btn.fg(TEXT_TERTIARY)).clicked {
+                sidebar.active = true;
+            }
+
+            ui.gap(6);
+
             for mode in ["Library", "Queue", "Playlist", "Settings"] {
                 let selected = mode == sidebar.selected_mode;
                 let btn = btn
@@ -251,7 +167,26 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
             .border(BORDER_DIM)
             .border_side(RIGHT),
         |ui| {
-            ui.gap(12);
+            ui.flow_right(
+                sb.padtb(20)
+                    .padl(18)
+                    .padr(10)
+                    .height(48)
+                    .align_flow(AlignFlow::Center),
+                |ui| {
+                    ui.text("mu", sb);
+                    ui.gap(-28);
+                    let btn = style()
+                        .wh(30)
+                        .pad(5)
+                        .radius(6)
+                        .hover(ROW_HOVER)
+                        .fg(TEXT_TERTIARY);
+                    if icon(ui, "Panel", btn).clicked {
+                        sidebar.active = false;
+                    }
+                },
+            );
 
             ui.flow_down(sb.gap(2).padlr(8), |ui| {
                 let mut item = |t: &'static str, i: &'static str| {
@@ -902,12 +837,6 @@ fn main() {
         selected_song: None,
     };
 
-    let mut titlebar = Titlebar {
-        bounds: Rect::default(),
-        close: false,
-        toggle_sidebar: false,
-    };
-
     let mut controls = Controls {
         song: None,
         bounds: Rect::default(),
@@ -921,14 +850,8 @@ fn main() {
     };
 
     while ui.window.open() {
-        if ui.window.pressed(Key::Escape) || titlebar.close {
+        if ui.window.pressed(Key::Escape) {
             ui.window.close();
-            break;
-        }
-
-        if titlebar.toggle_sidebar {
-            titlebar.toggle_sidebar = false;
-            sidebar.active = !sidebar.active;
         }
 
         for key in ui.window.pressed_keys() {
@@ -1043,13 +966,9 @@ fn main() {
         controls.elapsed = player.elapsed().as_secs_f32();
 
         ui.frame(|ui| {
-            let (bar, rest) = ui.split_v(TITLEBAR);
-            titlebar.bounds = bar;
-            draw_titlebar(&mut titlebar, ui);
-
             let target = if sidebar.active { 280.0 } else { 56.0 };
             let width = ui.animate_f32(target, 0.15, Ease::OutCubic) as i32;
-            let (sb, body) = ui.split_rect_h(rest, width);
+            let (sb, body) = ui.split_h(width);
             sidebar.bounds = sb;
 
             if width > 168 {
