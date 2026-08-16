@@ -21,36 +21,78 @@ pub enum Action {
     },
 }
 
-pub fn load_covers(db: &mut Database, artist: &str) -> Vec<Option<Image>> {
+pub fn load_covers(db: &mut Database, artist: &str) {
     mini::profile!();
     let Some(albums) = db.btree.get_mut(artist) else {
-        return Vec::new();
+        return;
     };
     albums
         .par_iter_mut()
         //This should really by async.
-        .map(|album| {
-            let song = album.songs.first_mut()?;
-            if song.artwork.is_none() {
-                if let Ok(meta) = onmi::metadata(&song.path, false, true) {
-                    song.artwork = meta.artwork;
+        .for_each(|album| {
+            let Some(song) = album.songs.first_mut() else {
+                return;
+            };
+            match &song.artwork {
+                Some(mu_core::db::Artwork::Decoded(..)) => {}
+                Some(mu_core::db::Artwork::Compressed(art)) => {
+                    if let Ok((pixels, width, height)) = neoui::image::decode(&art.data) {
+                        let pixels = if width == COVER_PX && height == COVER_PX {
+                            pixels
+                        } else {
+                            neoui::image::resize(
+                                Image {
+                                    pixels: &pixels,
+                                    width,
+                                    height,
+                                },
+                                COVER_PX,
+                                COVER_PX,
+                            )
+                        };
+                        song.artwork = Some(mu_core::db::Artwork::Decoded(
+                            pixels.into_boxed_slice(),
+                            COVER_PX,
+                            COVER_PX,
+                        ));
+                    }
+                }
+                None => {
+                    if let Ok(meta) = onmi::metadata(&song.path, false, true) {
+                        if let Some(art) = meta.artwork {
+                            if let Ok((pixels, width, height)) = neoui::image::decode(&art.data) {
+                                let pixels = if width == COVER_PX && height == COVER_PX {
+                                    pixels
+                                } else {
+                                    neoui::image::resize(
+                                        Image {
+                                            pixels: &pixels,
+                                            width,
+                                            height,
+                                        },
+                                        COVER_PX,
+                                        COVER_PX,
+                                    )
+                                };
+                                song.artwork = Some(mu_core::db::Artwork::Decoded(
+                                    pixels.into_boxed_slice(),
+                                    COVER_PX,
+                                    COVER_PX,
+                                ));
+                            }
+                        }
+                    }
                 }
             }
-            let art = song.artwork.as_ref()?;
-            Image::decode(&art.data)
-                .ok()
-                .map(|img| img.thumbnail(COVER_PX))
-        })
-        .collect()
+        });
 }
 
 pub fn draw<'a>(
     ui: &mut FrameContext<'_, 'a>,
     rect: Rect,
-    db: &Database,
+    db: &'a Database,
     artists: &[String],
     artist: &str,
-    covers: &'a [Option<Image>],
     playing_path: Option<&str>,
     selection: &mut PathSelection,
     menu: &mut ContextMenu,
@@ -131,12 +173,16 @@ pub fn draw<'a>(
                 |ui| {
                     let layout = ui.walk_layout(COVER, COVER, 0);
                     let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
-                    if let Some(Some(img)) = covers.get(i) {
-                        ui.paint_image(
-                            cover_rect,
-                            img,
-                            style().image_fit(ImageFit::Stretch).radius(8),
-                        );
+                    if let Some(first) = album.songs.first()
+                        && let Some(mu_core::db::Artwork::Decoded(pixels, width, height)) =
+                            &first.artwork
+                    {
+                        let img = Image {
+                            pixels,
+                            width: *width,
+                            height: *height,
+                        };
+                        ui.paint_image(cover_rect, img, style().radius(8));
                     } else {
                         paint_cover(ui, cover_rect, 8);
                     }

@@ -3,7 +3,7 @@ use mu_core::{vdb::*, *};
 use neoui::*;
 use onmi::{OutputDevices, Player};
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     fs,
     time::{Duration, Instant},
 };
@@ -545,7 +545,7 @@ fn main() {
     let mut context_menu = ContextMenu::new();
     let mut toast: Option<Toast> = None;
     let mut selected_artist: Option<String> = None;
-    let mut cover_cache: HashMap<String, Vec<Option<Image>>> = HashMap::new();
+    let mut cover_cache: HashSet<String> = HashSet::new();
     let mut selection = PathSelection::new();
     let mut artist_scroll = Scroll::new();
     let mut main_scroll = Scroll::new();
@@ -931,9 +931,9 @@ fn main() {
         }
 
         if let Mode::Artist { name } = &mode {
-            if !cover_cache.contains_key(name) {
-                let covers = artist::load_covers(&mut db, name);
-                cover_cache.insert(name.clone(), covers);
+            if !cover_cache.contains(name) {
+                artist::load_covers(&mut db, name);
+                cover_cache.insert(name.clone());
             }
         }
 
@@ -1052,14 +1052,12 @@ fn main() {
                     }
                 }
                 Mode::Artist { name } => {
-                    let covers = cover_cache.get(name).map(|c| c.as_slice()).unwrap_or(&[]);
                     if let Some(action) = artist::draw(
                         ui,
                         main_rect,
                         &db,
                         &artists,
                         name,
-                        covers,
                         playing_path.as_deref(),
                         &mut selection,
                         &mut context_menu,
