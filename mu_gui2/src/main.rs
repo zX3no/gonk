@@ -532,7 +532,7 @@ struct Controls {
     muted: bool,
     elapsed: f32,
     duration: f32,
-    volume: f32,
+    volume: u8,
 }
 
 fn time(t: f32) -> String {
@@ -645,9 +645,22 @@ fn draw_controls<'a>(
                         style()
                             .w(Size::FillMinus(46))
                             .h(4)
-                            .radius(2)
-                            .bg(TRACK_EMPTY),
+                            .bg(TRACK_EMPTY)
+                            .radius(2),
                     );
+
+                    //Outset the seekbar verticall so it's easier to drag.
+                    let outset = track.bounds.outer(0, 12);
+                    if controls.playing
+                        && let Some(p) = ui.drag_percentage_x(outset)
+                    {
+                        let pos = player.duration().as_secs_f32() * p;
+                        //Don't spam seek at the same time index.
+                        if pos.round() != player.elapsed().as_secs_f32().round() {
+                            player.seek_to(Duration::from_secs_f32(pos));
+                        }
+                    }
+
                     ui.text(time(controls.duration), t.align_left());
 
                     ui.paint_rect(
@@ -672,10 +685,8 @@ fn draw_controls<'a>(
             .clip(true)
             .align_flow(AlignFlow::Center),
         |ui| {
-            ui.text(
-                format!("{}", (controls.volume * 100.0).clamp(0.0, 100.0).round()),
-                style().w(24).font_size(13).fg(TEXT_MUTED),
-            );
+            let volume = ui.fmt(format_args!("{}", controls.volume));
+            ui.text(volume, style().w(24).font_size(13).fg(TEXT_MUTED));
             ui.rect(style().w(96).h(4).radius(2).bg(TRACK_EMPTY));
             icon(ui, "Volume", btn);
         },
@@ -789,7 +800,7 @@ fn main() {
         muted: false,
         elapsed: 0.0,
         duration: 0.0,
-        volume: 0.32,
+        volume: 10,
     };
 
     while ui.window.open() {
@@ -804,6 +815,11 @@ fn main() {
                 Key::Char('3') => sidebar.selected_mode = "Playlist",
                 Key::Char('4') => sidebar.selected_mode = "Settings",
                 Key::Tab => sidebar.active = !sidebar.active,
+                Key::Char('W') => player.volume_up(),
+                Key::Char('S') => player.volume_down(),
+                Key::Char('E') => player.seek_forward(10.0),
+                Key::Char('Q') => player.seek_backward(10.0),
+                Key::Space => {player.toggle_playback(); controls.playing = !controls.playing},
                 _ => {}
             }
         }
@@ -818,6 +834,7 @@ fn main() {
         //It's not as immediate, but easier than passing in db and library into sidebar.
         if sidebar.update_library {
             sidebar.update_library = false;
+            sidebar.selected_mode = "Library";
             library.playing_song = None;
             library.selected_song = None;
 
@@ -845,6 +862,7 @@ fn main() {
 
         controls.duration = player.duration().as_secs_f32();
         controls.elapsed = player.elapsed().as_secs_f32();
+        controls.volume = player.volume();
 
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
