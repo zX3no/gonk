@@ -871,6 +871,44 @@ fn main() {
                 }
                 Key::Char('E') => player.seek_forward(10.0),
                 Key::Char('Q') => player.seek_backward(10.0),
+                //TODO: Remove this an add to a proper queue :)
+                Key::Char('A') if let Some((artist, ai, si)) = &mut controls.song => {
+                    if *si > 0 {
+                        *si = si.saturating_sub(1);
+                    } else if *ai > 0 {
+                        *ai = ai.saturating_sub(1);
+                        *si = db.albums_by_artist(artist)[*ai]
+                            .songs
+                            .len()
+                            .saturating_sub(1);
+                    }
+
+                    let song = &db.albums_by_artist(artist)[*ai].songs[*si];
+                    player.play_song(&song.path, Some(song.gain), true);
+                    if library.artist == artist {
+                        library.playing_song = Some((*ai, *si));
+                    }
+                }
+                Key::Char('D') if let Some((artist, ai, si)) = &mut controls.song => {
+                    let current_len = db.albums_by_artist(artist)[*ai]
+                        .songs
+                        .len()
+                        .saturating_sub(1);
+                    let album_len = db.albums_by_artist(artist).len();
+
+                    if *si < current_len {
+                        *si += 1;
+                    } else if *ai < album_len {
+                        *ai += 1;
+                        *si = 0;
+                    }
+
+                    let song = &db.albums_by_artist(artist)[*ai].songs[*si];
+                    player.play_song(&song.path, Some(song.gain), true);
+                    if library.artist == artist {
+                        library.playing_song = Some((*ai, *si));
+                    }
+                }
                 Key::Space => {
                     player.toggle_playback();
                     controls.playing = !controls.playing
