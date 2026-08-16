@@ -386,8 +386,19 @@ fn draw_library<'a, 'b: 'a>(
         let scroll_style = style().elastic(true);
 
         ui.scroll(scroll_style, &mut library.scroll, |ui| {
+            let title_height = ui.measure_text("A", Font::default(), 24, None).height;
+            let mut rendered = 0;
+
             for (ai, album) in albums.iter().enumerate() {
-                ui.flow_right(style(), |ui| {
+                let rows = album.songs.len() as i32;
+                let row_gap = 2;
+                let row_height = 36;
+                let title_gap = 12;
+                let height =
+                    (title_height + title_gap + rows * row_height + (rows - 1) * row_gap).max(148);
+
+                ui.flow_right(style().height(height).fill_width(), |ui| {
+                    rendered += 1;
                     //In terms of API, images are always user retained.
                     //It's a bit painful to deal with for the current use case.
                     //Each library page can have an unbounded number of images.
@@ -425,10 +436,10 @@ fn draw_library<'a, 'b: 'a>(
                                 text(&album.title, style().font_size(24).padr(12)),
                                 text(year, style().font_size(16).fg(TEXT_MUTED)),
                             ],
-                            style(),
+                            style().height(title_height),
                         );
 
-                        ui.gap(12);
+                        ui.gap(title_gap);
 
                         let s = style()
                             .align_left()
@@ -450,32 +461,35 @@ fn draw_library<'a, 'b: 'a>(
                                 s
                             };
 
-                            let song_row = ui.flow_right(style.hover(ROW_HOVER), |ui| {
-                                let track_number = ui.fmt(format_args!("{:02}", song.track_number));
+                            let song_row =
+                                ui.flow_right(style.hover(ROW_HOVER).height(row_height), |ui| {
+                                    let track_number =
+                                        ui.fmt(format_args!("{:02}", song.track_number));
 
-                                let number_color = if playing { ACCENT } else { TEXT_MUTED };
-                                ui.text(track_number, s.fg(number_color));
+                                    let number_color = if playing { ACCENT } else { TEXT_MUTED };
+                                    ui.text(track_number, s.fg(number_color));
 
-                                let title_style = if playing { s } else { s.fg(TEXT_SECONDARY) };
-                                ui.text(&song.title, title_style);
+                                    let title_style =
+                                        if playing { s } else { s.fg(TEXT_SECONDARY) };
+                                    ui.text(&song.title, title_style);
 
-                                let duration = Duration::from_secs_f32(song.duration);
-                                let total_secs = duration.as_secs();
-                                let hours = total_secs / 3600;
-                                let minutes = (total_secs % 3600) / 60;
-                                let seconds = total_secs % 60;
+                                    let duration = Duration::from_secs_f32(song.duration);
+                                    let total_secs = duration.as_secs();
+                                    let hours = total_secs / 3600;
+                                    let minutes = (total_secs % 3600) / 60;
+                                    let seconds = total_secs % 60;
 
-                                let duration = if hours > 0 {
-                                    ui.fmt(format_args!(
-                                        "{:02}:{:02}:{:02}",
-                                        hours, minutes, seconds
-                                    ))
-                                } else {
-                                    ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
-                                };
+                                    let duration = if hours > 0 {
+                                        ui.fmt(format_args!(
+                                            "{:02}:{:02}:{:02}",
+                                            hours, minutes, seconds
+                                        ))
+                                    } else {
+                                        ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
+                                    };
 
-                                ui.text(duration, s.fg(TEXT_MUTED).fill_width().align_right());
-                            });
+                                    ui.text(duration, s.fg(TEXT_MUTED).fill_width().align_right());
+                                });
 
                             if song_row.clicked {
                                 library.selected_song = Some((ai, si));
@@ -490,8 +504,8 @@ fn draw_library<'a, 'b: 'a>(
                                 controls.playing = true;
                             }
 
-                            if (ai + 1) < album.songs.len() {
-                                ui.gap(2)
+                            if (si + 1) < album.songs.len() {
+                                ui.gap(row_gap)
                             }
                         }
                     });
@@ -502,6 +516,7 @@ fn draw_library<'a, 'b: 'a>(
                     ui.rect(style().fill_width().bg(BORDER_DIM).h(1));
                     ui.gap(24);
                 }
+                // println!("rendered {}/{} albums", rendered, albums.len());
             }
         });
     });
