@@ -27,6 +27,7 @@ const TRACK_FILL: u32 = hex("#ece9e4a6");
 const KNOB: u32 = hex("#ece9e4");
 
 const ROW_HOVER: u32 = hex("#ece9e409");
+const PLAY_HOVER: u32 = hex("#BAB5AF");
 // const ROW_PLAYING: u32 = hex("#ece9e40a");
 // const ROW_SELECTED: u32 = hex("#ece9e412");
 // const ROW_ACTIVE: u32 = hex("#ece9e41a");
@@ -617,7 +618,7 @@ fn draw_controls<'a>(
                     if icon(
                         ui,
                         if controls.playing { "Pause" } else { "Play" },
-                        btn.bg(TEXT).fg(SIDEBAR).radius(16),
+                        btn.bg(TEXT).hover(PLAY_HOVER).fg(SIDEBAR).radius(16),
                     )
                     .clicked
                     {
@@ -687,7 +688,12 @@ fn draw_controls<'a>(
         |ui| {
             let volume = ui.fmt(format_args!("{}", controls.volume));
             ui.text(volume, style().w(24).font_size(13).fg(TEXT_MUTED));
-            ui.rect(style().w(96).h(4).radius(2).bg(TRACK_EMPTY));
+            let slider = ui.rect(style().w(96).h(4).radius(2).bg(TRACK_EMPTY));
+            let outset = slider.bounds.outer(0, 12);
+            if let Some(pos) = ui.drag_percentage_x(outset) {
+                controls.volume = ((pos * 100.0) as u8).clamp(0, 100);
+                player.set_volume(controls.volume);
+            }
             icon(ui, "Volume", btn);
         },
     );
@@ -800,7 +806,7 @@ fn main() {
         muted: false,
         elapsed: 0.0,
         duration: 0.0,
-        volume: 10,
+        volume: player.volume(),
     };
 
     while ui.window.open() {
@@ -815,11 +821,20 @@ fn main() {
                 Key::Char('3') => sidebar.selected_mode = "Playlist",
                 Key::Char('4') => sidebar.selected_mode = "Settings",
                 Key::Tab => sidebar.active = !sidebar.active,
-                Key::Char('W') => player.volume_up(),
-                Key::Char('S') => player.volume_down(),
+                Key::Char('W') => {
+                    player.volume_up();
+                    controls.volume = player.volume();
+                }
+                Key::Char('S') => {
+                    player.volume_down();
+                    controls.volume = player.volume()
+                }
                 Key::Char('E') => player.seek_forward(10.0),
                 Key::Char('Q') => player.seek_backward(10.0),
-                Key::Space => {player.toggle_playback(); controls.playing = !controls.playing},
+                Key::Space => {
+                    player.toggle_playback();
+                    controls.playing = !controls.playing
+                }
                 _ => {}
             }
         }
@@ -862,7 +877,6 @@ fn main() {
 
         controls.duration = player.duration().as_secs_f32();
         controls.elapsed = player.elapsed().as_secs_f32();
-        controls.volume = player.volume();
 
         ui.frame(|ui| {
             let target = if sidebar.active { 280.0 } else { 56.0 };
