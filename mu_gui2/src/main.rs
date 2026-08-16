@@ -536,11 +536,11 @@ struct Controls {
     volume: u8,
 }
 
-fn time(t: f32) -> String {
+fn time<'a>(t: f32, ui: &mut FrameContext<'_, 'a>) -> &'a str {
     let total_seconds = t.max(0.0) as u32;
     let minutes = total_seconds / 60;
     let seconds = total_seconds % 60;
-    format!("{:02}:{:02}", minutes, seconds)
+    ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
 }
 
 fn draw_controls<'a>(
@@ -641,7 +641,8 @@ fn draw_controls<'a>(
                     .gap(10)
                     .align_flow(AlignFlow::Center),
                 |ui| {
-                    ui.text(time(controls.elapsed), t.align_right());
+                    let elapsed = time(controls.elapsed, ui);
+                    ui.text(elapsed, t.align_right());
                     let track = ui.rect(
                         style()
                             .w(Size::FillMinus(46))
@@ -662,7 +663,8 @@ fn draw_controls<'a>(
                         }
                     }
 
-                    ui.text(time(controls.duration), t.align_left());
+                    let duration = time(controls.duration, ui);
+                    ui.text(duration, t.align_left());
 
                     ui.paint_rect(
                         Rect::new(
@@ -701,35 +703,54 @@ fn draw_controls<'a>(
 
 fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(String, Vec<Album>)> {
     std::thread::spawn(move || {
-        for a in albums.iter_mut() {
-            //Use the first song for the whole album.
-            //Technically each track can have a different album cover.
-            if let Some(first) = a.songs.first_mut() {
-                if first.artwork.is_none()
-                    && let Ok(s) = onmi::metadata(&first.path, false, true)
-                {
-                    if let Some(artwork) = s.artwork {
-                        //TODO: The point of the thumbnails is to allow users to cache a downscaled version
-                        //Currently even though the image is being rendered at 120x120px.
-                        //We need a high resolution version stored ???
-                        if let Ok((pixels, width, height)) = image::decode(&artwork.data) {
-                            let size = 512;
-                            let pixels = image::resize(
-                                Image {
-                                    pixels: &pixels,
-                                    width,
-                                    height,
-                                },
-                                size,
-                                size,
-                            );
-                            first.artwork =
-                                Some(Artwork::Decoded(pixels.into_boxed_slice(), size, size));
+        let now = Instant::now();
+        // let threads = std::thread::available_parallelism().map_or(16, |n| n.get());
+        let threads = 16;
+        let chunk = albums.len().div_ceil(threads).max(1);
+
+        std::thread::scope(|scope| {
+            for albums in albums.chunks_mut(chunk) {
+                scope.spawn(move || {
+                    for a in albums {
+                        //Use the first song for the whole album.
+                        //Technically each track can have a different album cover.
+                        if let Some(first) = a.songs.first_mut() {
+                            if first.artwork.is_none()
+                                && let Ok(s) = onmi::metadata(&first.path, false, true)
+                            {
+                                if let Some(artwork) = s.artwork {
+                                    //TODO: The point of the thumbnails is to allow users to cache a downscaled version
+                                    //Currently even though the image is being rendered at 120x120px.
+                                    //We need a high resolution version stored ???
+                                    if let Ok((pixels, width, height)) =
+                                        image::decode(&artwork.data)
+                                    {
+                                        let size = 512;
+                                        let pixels = image::resize(
+                                            Image {
+                                                pixels: &pixels,
+                                                width,
+                                                height,
+                                            },
+                                            size,
+                                            size,
+                                        );
+                                        first.artwork = Some(Artwork::Decoded(
+                                            pixels.into_boxed_slice(),
+                                            size,
+                                            size,
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
-                }
+                });
             }
-        }
+        });
+
+        println!("Loaded {artist} in {}ms", now.elapsed().as_millis());
+
         (artist, albums)
     })
 }
