@@ -861,6 +861,8 @@ fn main() {
                 Key::Char('3') => sidebar.selected_mode = "Playlist",
                 Key::Char('4') => sidebar.selected_mode = "Settings",
                 Key::Tab => sidebar.active = !sidebar.active,
+                //TODO: Should only trigger when library is focused.
+                //Sidebar jumps on alphabet key press.
                 Key::Char('W') => {
                     player.volume_up();
                     controls.volume = player.volume();
