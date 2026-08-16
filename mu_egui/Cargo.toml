@@ -1,0 +1,16 @@
+[package]
+name = "mu_egui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mu_core = { version = "0.4.0", path = "../mu_core" }
+
+eframe = "0.36"
+egui = "0.36"
+zune-core = "0.5.1"
+zune-jpeg = "0.5.15"
+zune-png = "0.5.2"
+
+mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
+onmi = { git = "https://github.com/zfphex/onmi", version = "0.1.0" }
