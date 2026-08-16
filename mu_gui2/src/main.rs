@@ -576,7 +576,7 @@ fn draw_controls<'a>(
                         height: *height,
                         pixels,
                     };
-                    ui.image(image, style().radius(4).wh(48));
+                    ui.image(image, style().radius(6).wh(48));
                 } else {
                     //TODO: Better placeholder
                     ui.rect(style().wh(48).radius(4).bg(gray()));
@@ -653,14 +653,17 @@ fn draw_controls<'a>(
 
                     //Outset the seekbar verticall so it's easier to drag.
                     let outset = track.bounds.outer(0, 12);
+
+                    //TODO: Dragged only works with released mouse input
+                    //So we have to duplicate the logic here.
                     if controls.playing
-                        && let Some(p) = ui.drag_percentage_x(outset)
+                        && let Some(release) = ui.left_mouse_release
+                        && release.intersects(ui.hit(outset))
                     {
-                        let pos = player.duration().as_secs_f32() * p;
-                        //Don't spam seek at the same time index.
-                        if pos.round() != player.elapsed().as_secs_f32().round() {
-                            player.seek_to(Duration::from_secs_f32(pos));
-                        }
+                        let x = ui.mouse_position().x.saturating_sub(outset.x);
+                        let pos = (x as f32 / outset.width as f32).clamp(0.0, 1.0);
+                        let pos = player.duration().as_secs_f32() * pos;
+                        player.seek_to(Duration::from_secs_f32(pos));
                     }
 
                     let duration = time(controls.duration, ui);
@@ -767,17 +770,23 @@ fn main() {
 
     let now = Instant::now();
     let player = std::thread::spawn(move || {
+        let now = Instant::now();
         let outputs = onmi::OutputDevices::new();
-        onmi::Player::new(outputs.default_device())
+        let player = onmi::Player::new(outputs.default_device());
+        println!("Loaded Player in {}ms", now.elapsed().as_millis());
+        player
     });
 
-    let font = std::thread::spawn(|| {
+    let mut font = Some(std::thread::spawn(|| {
+        let now = Instant::now();
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fonts")
             .join("NotoSansCJK-Subset.otf");
         let font = std::fs::read(path).unwrap();
-        fontdue::Font::from_bytes(font, fontdue::FontSettings::default()).unwrap()
-    });
+        let f = fontdue::Font::from_bytes(font, fontdue::FontSettings::default()).unwrap();
+        println!("Loaded Font in {}ms", now.elapsed().as_millis());
+        f
+    }));
 
     let db = std::thread::spawn(|| {
         let now = Instant::now();
@@ -785,6 +794,7 @@ fn main() {
         let db = mu_core::vdb::Database::new(&config.database);
         let mut artists: Vec<String> = db.btree.keys().cloned().collect();
         artists.sort_by_key(|a| a.to_ascii_lowercase());
+        println!("Loaded DB in {}ms", now.elapsed().as_millis());
         (db, artists)
     });
 
@@ -794,15 +804,13 @@ fn main() {
 
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
-    let font = font.join().unwrap();
-    ui.add_font_fallback(font);
 
     let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
     if let Some(albums) = db.btree.get("Duster").cloned() {
         artwork_task = Some(spawn_load_artwork("Duster".into(), albums));
     }
 
-    println!("Loaded in {}ms", now.elapsed().as_millis());
+    println!("Loaded {}ms", now.elapsed().as_millis());
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
@@ -875,6 +883,13 @@ fn main() {
             if handle.is_finished() {
                 let (artist, albums) = artwork_task.take().unwrap().join().unwrap();
                 db.btree.insert(artist, albums);
+            }
+        }
+
+        if let Some(f) = &font {
+            if f.is_finished() {
+                let font = font.take().unwrap().join().unwrap();
+                ui.add_font_fallback(font);
             }
         }
 
