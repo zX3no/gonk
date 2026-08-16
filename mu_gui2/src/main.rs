@@ -750,6 +750,14 @@ fn main() {
         onmi::Player::new(outputs.default_device())
     });
 
+    let font = std::thread::spawn(|| {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join("NotoSansCJK-Subset.otf");
+        let font = std::fs::read(path).unwrap();
+        fontdue::Font::from_bytes(font, fontdue::FontSettings::default()).unwrap()
+    });
+
     let db = std::thread::spawn(|| {
         let now = Instant::now();
         let config = mu_core::config_paths();
@@ -765,6 +773,8 @@ fn main() {
 
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
+    let font = font.join().unwrap();
+    ui.add_font_fallback(font);
 
     let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
     if let Some(albums) = db.btree.get("Duster").cloned() {
