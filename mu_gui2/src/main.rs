@@ -412,7 +412,7 @@ fn draw_library<'a, 'b: 'a>(
                             height: *height,
                             pixels,
                         };
-                        ui.image(image, style().wh(148));
+                        ui.image(image, style().radius(8).wh(148));
                     } else {
                         //TODO: Better placeholder
                         ui.rect(style().wh(148).bg(BORDER_DIM));
@@ -576,7 +576,7 @@ fn draw_controls<'a>(
                         height: *height,
                         pixels,
                     };
-                    ui.image(image, style().wh(48));
+                    ui.image(image, style().radius(4).wh(48));
                 } else {
                     //TODO: Better placeholder
                     ui.rect(style().wh(48).radius(4).bg(gray()));
@@ -713,17 +713,18 @@ fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(Str
                         //Currently even though the image is being rendered at 120x120px.
                         //We need a high resolution version stored ???
                         if let Ok((pixels, width, height)) = image::decode(&artwork.data) {
+                            let size = 512;
                             let pixels = image::resize(
                                 Image {
                                     pixels: &pixels,
                                     width,
                                     height,
                                 },
-                                512,
-                                512,
+                                size,
+                                size,
                             );
                             first.artwork =
-                                Some(Artwork::Decoded(pixels.into_boxed_slice(), 512, 512));
+                                Some(Artwork::Decoded(pixels.into_boxed_slice(), size, size));
                         }
                     }
                 }
