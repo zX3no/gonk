@@ -14,18 +14,5 @@ strip = true
 panic = "abort"
 codegen-units = 1
 
-[profile.dev.package.zune-core]
+[profile.dev.package."*"]
 opt-level = 3
-
-[profile.dev.package.zune-jpeg]
-opt-level = 3
-
-[profile.dev.package.zune-png]
-opt-level = 3
-
-[profile.dev.package.zune-inflate]
-opt-level = 3
-
-[profile.dev.package.simd-adler32]
-opt-level = 3
-
