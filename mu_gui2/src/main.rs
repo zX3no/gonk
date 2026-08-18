@@ -8,6 +8,11 @@ use std::{
 use mu_core::{Album, db::Artwork};
 use neoui::*;
 
+pub mod settings;
+pub use settings::*;
+pub mod queue;
+pub use queue::*;
+
 const BODY: u32 = hex("#0b0b0c");
 const SIDEBAR: u32 = hex("#101011");
 
@@ -366,7 +371,7 @@ fn draw_library<'a, 'b: 'a>(
     controls: &mut Controls,
     ui: &mut FrameContext<'_, 'a>,
 ) {
-    ui.flow_down(bounds(library.bounds).padlr(36).bg(BODY), |ui| {
+    ui.flow_down(bounds(library.bounds).padtb(12).padlr(36).bg(BODY), |ui| {
         ui.text(library.artist, style().font_size(42));
         //TODO: Add letter spacing?
         ui.gap(4);
@@ -536,7 +541,7 @@ struct Controls {
     volume: u8,
 }
 
-fn time<'a>(t: f32, ui: &mut FrameContext<'_, 'a>) -> &'a str {
+fn time<'a>(ui: &mut FrameContext<'_, 'a>, t: f32) -> &'a str {
     let total_seconds = t.max(0.0) as u32;
     let minutes = total_seconds / 60;
     let seconds = total_seconds % 60;
@@ -554,7 +559,7 @@ fn draw_controls<'a>(
         bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
     );
 
-    let [info, center, extras] = ui.split_cols(controls.bounds, [0.28, 0.44, 0.28]);
+    let [info, center, extras] = ui.split_hs(controls.bounds, [0.28, 0.44, 0.28]);
     if let Some((artist, ai, si)) = &controls.song {
         let albums = db.albums_by_artist(artist);
         let song = &albums[*ai].songs[*si];
@@ -641,7 +646,7 @@ fn draw_controls<'a>(
                     .gap(10)
                     .align_flow(AlignFlow::Center),
                 |ui| {
-                    let elapsed = time(controls.elapsed, ui);
+                    let elapsed = time(ui, controls.elapsed);
                     ui.text(elapsed, t.align_right());
                     let track = ui.rect(
                         style()
@@ -666,7 +671,7 @@ fn draw_controls<'a>(
                         player.seek_to(Duration::from_secs_f32(pos));
                     }
 
-                    let duration = time(controls.duration, ui);
+                    let duration = time(ui, controls.duration);
                     ui.text(duration, t.align_left());
 
                     ui.paint_rect(
@@ -817,9 +822,11 @@ fn main() {
         selected_artist: "Duster",
         artists: &artists,
         artist_scroll: Scroll::new(),
-        update_library: true,
         active: true,
-        selected_mode: "Library",
+        // update_library: true,
+        // selected_mode: "Library",
+        update_library: false,
+        selected_mode: "Queue",
         current_letter: None,
         jump_to_letter: None,
     };
@@ -847,6 +854,13 @@ fn main() {
         elapsed: 0.0,
         duration: 0.0,
         volume: player.volume(),
+    };
+
+    let mut queue = Queue {
+        songs: db.albums_by_artist("Duster")[0].songs.clone(),
+        playing_song: None,
+        bounds: Rect::default(),
+        scroll: Scroll::new(),
     };
 
     while ui.window.open() {
@@ -979,6 +993,7 @@ fn main() {
 
             let (body, con) = ui.split_rect_v(body, -84);
             library.bounds = body;
+            queue.bounds = body;
             controls.bounds = con;
 
             match sidebar.selected_mode {
@@ -989,7 +1004,7 @@ fn main() {
                     &mut controls,
                     ui,
                 ),
-                "Queue" => {}
+                "Queue" => draw_queue(ui, &mut queue),
                 "Playlist" => {}
                 "Settings" => {}
                 _ => unreachable!(),
