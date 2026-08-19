@@ -13,44 +13,70 @@ pub use settings::*;
 pub mod queue;
 pub use queue::*;
 
-const BODY: u32 = hex("#0b0b0c");
-const SIDEBAR: u32 = hex("#101011");
+pub const GRAY_50: u32 = hex("#f9f6f4");
+pub const GRAY_100: u32 = hex("#ede9e5");
+pub const GRAY_200: u32 = hex("#cbc7c4");
+pub const GRAY_300: u32 = hex("#aaa6a2");
+pub const GRAY_400: u32 = hex("#827f7c");
+pub const GRAY_500: u32 = hex("#5c5957");
+pub const GRAY_600: u32 = hex("#403f3e");
+pub const GRAY_700: u32 = hex("#2a2929");
+pub const GRAY_800: u32 = hex("#1b1b1c");
+pub const GRAY_850: u32 = hex("#201f20");
+pub const GRAY_900: u32 = hex("#101011");
+pub const GRAY_950: u32 = hex("#0b0b0c");
 
-const TEXT: u32 = hex("#EDE9E5");
-const TEXT_SECONDARY: u32 = hex("#CAC8C4");
-const TEXT_TERTIARY: u32 = hex("#ece9e499");
-const TEXT_MUTED: u32 = hex("#555454");
-const TEXT_FAINT: u32 = hex("#40403F");
+pub const ACCENT_50: u32 = hex("#f6f3ff");
+pub const ACCENT_100: u32 = hex("#e6e0fd");
+pub const ACCENT_200: u32 = hex("#cdc2f4");
+pub const ACCENT_300: u32 = hex("#b9a8ee");
+pub const ACCENT_400: u32 = hex("#ad98e2");
+pub const ACCENT_500: u32 = hex("#9b84d9");
+pub const ACCENT_600: u32 = hex("#8871c6");
+pub const ACCENT_700: u32 = hex("#69559b");
+pub const ACCENT_800: u32 = hex("#463968");
+pub const ACCENT_900: u32 = hex("#261f39");
+pub const ACCENT_950: u32 = hex("#100d1b");
 
-const BORDER: u32 = hex("#ece9e41a");
-const BORDER_SUBTLE: u32 = hex("#ece9e412");
+pub const GRAY_100_A4: u32 = hex("#ede9e509");
+pub const GRAY_100_A8: u32 = hex("#ede9e512");
+pub const GRAY_100_A10: u32 = hex("#ede9e51a");
+pub const GRAY_100_A15: u32 = hex("#ede9e51f");
+pub const GRAY_100_A60: u32 = hex("#ede9e599");
+pub const GRAY_100_A65: u32 = hex("#ede9e5a6");
+pub const ACCENT_A22: u32 = hex("#9b84d938");
 
-const BORDER_DIM: u32 = hex("#1B1B1C");
+pub const BODY: u32 = GRAY_950;
+pub const SIDEBAR: u32 = GRAY_900;
+pub const ROW_SELECTED: u32 = GRAY_850;
+pub const BORDER_DIM: u32 = GRAY_800;
+pub const TEXT_FAINT: u32 = GRAY_600;
+pub const TEXT_MUTED: u32 = GRAY_500;
+pub const TEXT_TERTIARY: u32 = GRAY_100_A60;
+pub const PLAY_HOVER: u32 = GRAY_300;
+pub const TEXT_SECONDARY: u32 = GRAY_200;
+pub const TEXT: u32 = GRAY_100;
+pub const KNOB: u32 = GRAY_100;
 
-const TRACK_EMPTY: u32 = hex("#ece9e41f");
-const TRACK_FILL: u32 = hex("#ece9e4a6");
-const KNOB: u32 = hex("#ece9e4");
+pub const BORDER: u32 = GRAY_100_A10;
+pub const BORDER_SUBTLE: u32 = GRAY_100_A8;
+pub const TRACK_EMPTY: u32 = GRAY_100_A15;
+pub const TRACK_FILL: u32 = GRAY_100_A65;
+pub const ROW_HOVER: u32 = GRAY_100_A4;
 
-const ROW_HOVER: u32 = hex("#ece9e409");
-const PLAY_HOVER: u32 = hex("#BAB5AF");
-// const ROW_PLAYING: u32 = hex("#ece9e40a");
-// const ROW_SELECTED: u32 = hex("#ece9e412");
-// const ROW_ACTIVE: u32 = hex("#ece9e41a");
-const ROW_SELECTED: u32 = hex("#201F20");
-
-const ACCENT: u32 = hex("#9b84d9");
-const ACCENT_HOVER: u32 = hex("#ad98e2");
-const ACCENT_PRESSED: u32 = hex("#8871c6");
-const ACCENT_SOFT: u32 = hex("#9b84d938");
+pub const ACCENT: u32 = ACCENT_500;
+pub const ACCENT_HOVER: u32 = ACCENT_400;
+pub const ACCENT_PRESSED: u32 = ACCENT_600;
+pub const ACCENT_SOFT: u32 = ACCENT_A22;
 
 const ALPHABET: &[&str] = &[
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
     "T", "U", "V", "W", "X", "Y", "Z",
 ];
 
-fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
-    ui.widget(24, 24, style, |ui, r, _, depth| {
-        let fill = style.fg.unwrap_or(white());
+fn icon(ui: &mut FrameContext, kind: &str, style: RectStyle) -> State {
+    ui.widget(24, 24, &style.layout, &style.paint, |ui, r, _, depth| {
+        let fill = style.paint.fg.unwrap_or(white());
         let palette = [fill, with_alpha(fill, 110), SIDEBAR];
         let u = |v: i32| v * r.width / 24;
 
@@ -68,14 +94,14 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
         };
 
         for &[x, y, w, h, c] in bars {
-            let rect = Rect::new(r.x + u(x), r.y + u(y), u(w).max(1), u(h).max(1));
-            ui.paint_rect(rect, bg(palette[c as usize]).radius(1).depth(depth));
+            let bar = Rect::new(r.x + u(x), r.y + u(y), u(w).max(1), u(h).max(1));
+            ui.paint_rect(bar, rect().bg(palette[c as usize]).radius(1).depth(depth));
         }
 
         let (x, y) = (r.x, r.y);
         let tri = |ui: &mut FrameContext, a: (i32, i32), b: (i32, i32), c: (i32, i32)| {
             let p = |(px, py): (i32, i32)| (x + u(px), y + u(py));
-            ui.paint_triangle(p(a), p(b), p(c), bg(fill).depth(depth));
+            ui.paint_triangle(p(a), p(b), p(c), rect().bg(fill).depth(depth));
         };
         match kind {
             "Queue" => tri(ui, (15, 11), (15, 20), (22, 15)),
@@ -95,7 +121,7 @@ fn icon(ui: &mut FrameContext, kind: &str, style: Style) -> State {
             "Volume" => tri(ui, (11, 3), (11, 21), (6, 12)),
             "Repeat" => {
                 let ring = Rect::new(x + u(3), y + u(3), u(18), u(18));
-                let stroke = Style::default()
+                let stroke = rect()
                     .border(fill)
                     .border_thickness(u(2).max(1) as usize)
                     .radius(u(9).max(1) as usize)
@@ -127,7 +153,8 @@ struct Sidebar<'a> {
 
 fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     ui.flow_down(
-        bounds(sidebar.bounds)
+        flow()
+            .bounds(sidebar.bounds)
             .bg(SIDEBAR)
             .border(BORDER_DIM)
             .border_side(RIGHT)
@@ -135,7 +162,7 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
             .padlr(11)
             .gap(4),
         |ui| {
-            let btn = style()
+            let btn = rect()
                 .wh(34)
                 .pad(7)
                 .radius(8)
@@ -159,29 +186,31 @@ fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
             }
 
             ui.gap(10);
-            ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
+            ui.rect(rect().height(1).width(Size::Fill).bg(BORDER_DIM));
         },
     );
 }
 
 fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_, 'a>) {
-    let sb = style().fg(TEXT).font_size(16);
+    let sb = text().fg(TEXT).font_size(16);
     let state = ui.flow_down(
-        bounds(sidebar.bounds)
+        flow()
+            .bounds(sidebar.bounds)
             .bg(SIDEBAR)
             .border(BORDER_DIM)
             .border_side(RIGHT),
         |ui| {
             ui.flow_right(
-                sb.padtb(20)
+                flow()
+                    .padtb(20)
                     .padl(18)
                     .padr(10)
                     .height(48)
-                    .align_flow(AlignFlow::Center),
+                    .children_center(),
                 |ui| {
                     ui.text("mu", sb);
                     ui.gap(-28);
-                    let btn = style()
+                    let btn = rect()
                         .wh(30)
                         .pad(5)
                         .radius(6)
@@ -193,18 +222,18 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
                 },
             );
 
-            ui.flow_down(sb.gap(2).padlr(8), |ui| {
+            ui.flow_down(flow().gap(2).padlr(8), |ui| {
                 let mut item = |t: &'static str, i: &'static str| {
                     //TODO: Should use impl IntoColor to allow for Option or u32.
                     // sel.bg(if s { Some(ROW_SELECTED) } else { None });
                     let selected = t == sidebar.selected_mode;
-                    let mut sel = sb.padlr(12).padtb(8).radius(6).hover(ROW_HOVER);
-                    sel.bg = if selected { Some(ROW_SELECTED) } else { None };
+                    let mut sel = flow().padlr(12).padtb(8).radius(6).hover(ROW_HOVER);
+                    sel.paint.bg = if selected { Some(ROW_SELECTED) } else { None };
                     let text = sb.fg(if selected { TEXT } else { TEXT_TERTIARY });
                     let ntext = sb
                         .fg(if selected { TEXT_MUTED } else { TEXT_FAINT })
-                        .fill_width()
-                        .align_right();
+                        .fillw()
+                        .content_right();
 
                     if ui
                         .flow_right(sel, |ui| {
@@ -224,7 +253,7 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
                 ui.gap(8);
             });
 
-            ui.rect(style().height(1).width(Size::Fill).bg(BORDER_DIM));
+            ui.rect(rect().height(1).width(Size::Fill).bg(BORDER_DIM));
 
             let (artist, mut alphabet) = ui.split_h(-30);
             let selected_artist = sidebar.selected_artist;
@@ -233,7 +262,7 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
             let mut jump_offset = None;
 
             let scroll_state = ui.scroll(
-                bounds(artist).padlr(8).elastic(true),
+                flow().bounds(artist).padlr(8).elastic(true),
                 &mut sidebar.artist_scroll,
                 |ui| {
                     //Assuming artists is pre sorted alphabetically.
@@ -244,8 +273,8 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
                         .padlr(12)
                         .padtb(8)
                         .radius(6)
-                        .align_left()
-                        .fill_width()
+                        .content_left()
+                        .fillw()
                         .hover(ROW_HOVER);
                     let selected_text = text.bg(ROW_SELECTED);
 
@@ -285,7 +314,7 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
                 sidebar.artist_scroll.jump(offset);
             }
 
-            ui.paint_rect(alphabet, style().border(BORDER_DIM).border_side(LEFT));
+            ui.paint_rect(alphabet, rect().border(BORDER_DIM).border_side(LEFT));
 
             if let Some(raw_pct) = ui.drag_percentage_y(alphabet) {
                 let pct = ((raw_pct - 0.03) / 0.90).clamp(0.0, 1.0);
@@ -299,9 +328,9 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
             let my = ui.mouse_position().y;
             let glow = |a: f32| rgba(155, 132, 217, (a * fade * 255.0) as u8);
             if fade > 0.0 {
-                ui.place_down(bounds(alphabet).clip(true), |ui| {
+                ui.place_down(flow().bounds(alphabet).clip(true), |ui| {
                     ui.gradient(
-                        style()
+                        rect()
                             .x(alphabet.x)
                             .y(my.saturating_sub(55))
                             .width(alphabet.width)
@@ -314,14 +343,14 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
                     .stop(0.79, glow(0.11))
                     .stop(1.0, glow(0.0));
 
-                    ui.gradient(style().x(alphabet.x).y(my - 70).width(1).height(140), 180.0)
+                    ui.gradient(rect().x(alphabet.x).y(my - 70).width(1).height(140), 180.0)
                         .stop(0.0, glow(0.0))
                         .stop(0.5, rgba(199, 183, 240, (0.75 * fade * 255.0) as u8))
                         .stop(1.0, glow(0.0));
                 });
             }
             alphabet.x += 12;
-            ui.flow_down(bounds(alphabet), |ui| {
+            ui.flow_down(flow().bounds(alphabet), |ui| {
                 let row = ui.measure_text("A", Font::default(), 10, None).height;
                 ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
 
@@ -371,104 +400,113 @@ fn draw_library<'a, 'b: 'a>(
     controls: &mut Controls,
     ui: &mut FrameContext<'_, 'a>,
 ) {
-    ui.flow_down(bounds(library.bounds).padtb(12).padlr(36).bg(BODY), |ui| {
-        ui.text(library.artist, style().font_size(42));
-        //TODO: Add letter spacing?
-        ui.gap(4);
-        let header = ui.fmt(format_args!(
-            "{} ALBUMS · {} TRACKS",
-            albums.len(),
-            library.total_tracks,
-        ));
-        ui.text(header, style().font_size(12).fg(TEXT_MUTED));
-        ui.gap(12);
-        ui.rect(style().fill_width().height(1).bg(BORDER_DIM));
-        ui.gap(12);
+    ui.flow_down(
+        flow().bounds(library.bounds).padtb(12).padlr(36).bg(BODY),
+        |ui| {
+            ui.text(library.artist, text().font_size(42));
+            //TODO: Add letter spacing?
+            ui.gap(4);
+            let header = ui.fmt(format_args!(
+                "{} ALBUMS · {} TRACKS",
+                albums.len(),
+                library.total_tracks,
+            ));
+            ui.text(header, text().font_size(12).fg(TEXT_MUTED));
+            ui.gap(12);
+            ui.rect(rect().fillw().height(1).bg(BORDER_DIM));
+            ui.gap(12);
 
-        //TODO: Make mouse scroll better on elastic so it doesn't need to be disabled.
-        let scroll_style = style();
+            //TODO: Make mouse scroll better on elastic so it doesn't need to be disabled.
+            let scroll_style = flow();
 
-        // #[cfg(not(target_os = "windows"))]
-        let scroll_style = style().elastic(true);
+            // #[cfg(not(target_os = "windows"))]
+            let scroll_style = flow().elastic(true);
 
-        ui.scroll(scroll_style, &mut library.scroll, |ui| {
-            let title_height = ui.measure_text("A", Font::default(), 24, None).height;
-            let mut rendered = 0;
+            ui.scroll(scroll_style, &mut library.scroll, |ui| {
+                let title_height = ui.measure_text("A", Font::default(), 24, None).height;
+                let mut rendered = 0;
 
-            for (ai, album) in albums.iter().enumerate() {
-                let rows = album.songs.len() as i32;
-                let row_gap = 2;
-                let row_height = 36;
-                let title_gap = 12;
-                let height =
-                    (title_height + title_gap + rows * row_height + (rows - 1) * row_gap).max(148);
+                for (ai, album) in albums.iter().enumerate() {
+                    let rows = album.songs.len() as i32;
+                    let row_gap = 2;
+                    let row_height = 36;
+                    let title_gap = 12;
+                    let height =
+                        (title_height + title_gap + rows * row_height + (rows - 1) * row_gap)
+                            .max(148);
 
-                ui.flow_right(style().height(height).fill_width(), |ui| {
-                    rendered += 1;
-                    //In terms of API, images are always user retained.
-                    //It's a bit painful to deal with for the current use case.
-                    //Each library page can have an unbounded number of images.
+                    ui.flow_right(flow().height(height).fillw(), |ui| {
+                        rendered += 1;
+                        //In terms of API, images are always user retained.
+                        //It's a bit painful to deal with for the current use case.
+                        //Each library page can have an unbounded number of images.
 
-                    if let Some(first) = &album.songs.first()
-                        && let Some(Artwork::Decoded(pixels, width, height)) = &first.artwork
-                    {
-                        let image = Image {
-                            width: *width,
-                            height: *height,
-                            pixels,
-                        };
-                        ui.image(image, style().radius(8).wh(148));
-                    } else {
-                        //TODO: Better placeholder
-                        ui.rect(style().wh(148).bg(BORDER_DIM));
-                    }
-
-                    ui.gap(24);
-
-                    ui.flow_down(style(), |ui| {
-                        let tracks = if album.songs.len() > 1 {
-                            "tracks"
-                        } else {
-                            "track"
-                        };
-                        let year = ui.fmt(format_args!(
-                            "{} · {} {}",
-                            album.year(),
-                            album.songs.len(),
-                            tracks
-                        ));
-                        ui.lines(
-                            [
-                                text(&album.title, style().font_size(24).padr(12)),
-                                text(year, style().font_size(16).fg(TEXT_MUTED)),
-                            ],
-                            style().height(title_height),
-                        );
-
-                        ui.gap(title_gap);
-
-                        let s = style()
-                            .align_left()
-                            .font_size(16)
-                            .radius(12)
-                            .padlr(6)
-                            .padtb(4);
-
-                        for (si, song) in album.songs.iter().enumerate() {
-                            let playing = Some((ai, si)) == library.playing_song;
-                            let selected = Some((ai, si)) == library.selected_song;
-
-                            let style = if playing {
-                                s.bg(ROW_SELECTED)
-                            } else if selected {
-                                //TODO: Maybe a dimmer version of this?
-                                s.bg(ROW_SELECTED)
-                            } else {
-                                s
+                        if let Some(first) = &album.songs.first()
+                            && let Some(Artwork::Decoded(pixels, width, height)) = &first.artwork
+                        {
+                            let img = Image {
+                                width: *width,
+                                height: *height,
+                                pixels,
                             };
+                            ui.image(img, image().radius(8).wh(148));
+                        } else {
+                            //TODO: Better placeholder
+                            ui.rect(rect().wh(148).bg(BORDER_DIM));
+                        }
 
-                            let song_row =
-                                ui.flow_right(style.hover(ROW_HOVER).height(row_height), |ui| {
+                        ui.gap(24);
+
+                        ui.flow_down(flow(), |ui| {
+                            let tracks = if album.songs.len() > 1 {
+                                "tracks"
+                            } else {
+                                "track"
+                            };
+                            let year = ui.fmt(format_args!(
+                                "{} · {} {}",
+                                album.year(),
+                                album.songs.len(),
+                                tracks
+                            ));
+                            ui.lines(
+                                [
+                                    line(&album.title, text().font_size(24).padr(12)),
+                                    line(year, text().font_size(16).fg(TEXT_MUTED)),
+                                ],
+                                text().height(title_height),
+                            );
+
+                            ui.gap(title_gap);
+
+                            let s = text()
+                                .content_left()
+                                .font_size(16)
+                                .radius(12)
+                                .padlr(6)
+                                .padtb(4);
+
+                            let row = flow()
+                                .radius(12)
+                                .padlr(6)
+                                .padtb(4)
+                                .hover(ROW_HOVER)
+                                .height(row_height);
+
+                            for (si, song) in album.songs.iter().enumerate() {
+                                let playing = Some((ai, si)) == library.playing_song;
+                                let selected = Some((ai, si)) == library.selected_song;
+
+                                let row = if playing {
+                                    row.bg(ROW_SELECTED)
+                                } else if selected {
+                                    //TODO: Maybe a dimmer version of this?
+                                    row.bg(ROW_SELECTED)
+                                } else {
+                                    row
+                                };
+
+                                let song_row = ui.flow_right(row, |ui| {
                                     let track_number =
                                         ui.fmt(format_args!("{:02}", song.track_number));
 
@@ -494,38 +532,39 @@ fn draw_library<'a, 'b: 'a>(
                                         ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
                                     };
 
-                                    ui.text(duration, s.fg(TEXT_MUTED).fill_width().align_right());
+                                    ui.text(duration, s.fg(TEXT_MUTED).fillw().content_right());
                                 });
 
-                            if song_row.clicked {
-                                library.selected_song = Some((ai, si));
-                            }
+                                if song_row.clicked {
+                                    library.selected_song = Some((ai, si));
+                                }
 
-                            if song_row.double_clicked {
-                                player.play_song(&song.path, Some(song.gain), true);
-                                library.playing_song = Some((ai, si));
-                                //Library can change the selected artist so must clone here.
-                                //Also db is used mutabled so cannot borrow outside of the frame.
-                                controls.song = Some((library.artist.to_string(), ai, si));
-                                controls.playing = true;
-                            }
+                                if song_row.double_clicked {
+                                    player.play_song(&song.path, Some(song.gain), true);
+                                    library.playing_song = Some((ai, si));
+                                    //Library can change the selected artist so must clone here.
+                                    //Also db is used mutabled so cannot borrow outside of the frame.
+                                    controls.song = Some((library.artist.to_string(), ai, si));
+                                    controls.playing = true;
+                                }
 
-                            if (si + 1) < album.songs.len() {
-                                ui.gap(row_gap)
+                                if (si + 1) < album.songs.len() {
+                                    ui.gap(row_gap)
+                                }
                             }
-                        }
+                        });
                     });
-                });
 
-                if (ai + 1) < albums.len() {
-                    ui.gap(24);
-                    ui.rect(style().fill_width().bg(BORDER_DIM).h(1));
-                    ui.gap(24);
+                    if (ai + 1) < albums.len() {
+                        ui.gap(24);
+                        ui.rect(rect().fillw().bg(BORDER_DIM).h(1));
+                        ui.gap(24);
+                    }
+                    // println!("rendered {}/{} albums", rendered, albums.len());
                 }
-                // println!("rendered {}/{} albums", rendered, albums.len());
-            }
-        });
-    });
+            });
+        },
+    );
 }
 
 struct Controls {
@@ -556,7 +595,7 @@ fn draw_controls<'a>(
 ) {
     ui.paint_rect(
         controls.bounds,
-        bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
+        rect().bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
     );
 
     let [info, center, extras] = ui.split_hs(controls.bounds, [0.28, 0.44, 0.28]);
@@ -569,34 +608,35 @@ fn draw_controls<'a>(
             .and_then(|song| song.artwork.as_ref());
 
         ui.flow_right(
-            bounds(info)
+            flow()
+                .bounds(info)
                 .padlr(16)
                 .gap(12)
-                .align_flow(AlignFlow::Center)
+                .children_center()
                 .clip(true),
             |ui| {
                 if let Some(Artwork::Decoded(pixels, width, height)) = artwork {
-                    let image = Image {
+                    let img = Image {
                         width: *width,
                         height: *height,
                         pixels,
                     };
-                    ui.image(image, style().radius(6).wh(48));
+                    ui.image(img, image().radius(6).wh(48));
                 } else {
                     //TODO: Better placeholder
-                    ui.rect(style().wh(48).radius(4).bg(gray()));
+                    ui.rect(rect().wh(48).radius(4).bg(gray()));
                 }
-                ui.flow_down(style().height(40), |ui| {
-                    ui.text(&song.title, style().fg(TEXT));
+                ui.flow_down(flow().height(40), |ui| {
+                    ui.text(&song.title, text().fg(TEXT));
                     let txt = ui.fmt(format_args!("{} · {}", song.artist, song.album));
-                    ui.text(txt, style().font_size(14).fg(TEXT_MUTED));
+                    ui.text(txt, text().font_size(14).fg(TEXT_MUTED));
                 });
             },
         );
     }
 
-    let t = style().w(36).font_size(13).fg(TEXT_MUTED);
-    let btn = style()
+    let t = text().w(36).font_size(13).fg(TEXT_MUTED);
+    let btn = rect()
         .wh(32)
         .pad(4)
         .radius(8)
@@ -604,19 +644,15 @@ fn draw_controls<'a>(
         .fg(TEXT_TERTIARY);
 
     ui.flow_down(
-        bounds(center)
+        flow()
+            .bounds(center)
             .padtb(12)
             .gap(4)
-            .align_flow(AlignFlow::Center)
+            .children_center()
             .clip(true),
         |ui| {
             ui.flow_right(
-                style()
-                    .w(200)
-                    .clip(true)
-                    .h(36)
-                    .gap(10)
-                    .align_flow(AlignFlow::Center),
+                flow().w(200).clip(true).h(36).gap(10).children_center(),
                 |ui| {
                     icon(ui, "Shuffle", btn);
                     icon(ui, "Rewind", btn);
@@ -639,68 +675,55 @@ fn draw_controls<'a>(
                 },
             );
 
-            ui.flow_right(
-                style()
-                    .clip(true)
-                    .h(20)
-                    .gap(10)
-                    .align_flow(AlignFlow::Center),
-                |ui| {
-                    let elapsed = time(ui, controls.elapsed);
-                    ui.text(elapsed, t.align_right());
-                    let track = ui.rect(
-                        style()
-                            .w(Size::FillMinus(46))
-                            .h(4)
-                            .bg(TRACK_EMPTY)
-                            .radius(2),
-                    );
+            ui.flow_right(flow().clip(true).h(20).gap(10).children_center(), |ui| {
+                let elapsed = time(ui, controls.elapsed);
+                ui.text(elapsed, t.content_right());
+                let track = ui.rect(rect().w(Size::FillMinus(46)).h(4).bg(TRACK_EMPTY).radius(2));
 
-                    //Outset the seekbar verticall so it's easier to drag.
-                    let outset = track.bounds.outer(0, 12);
+                //Outset the seekbar verticall so it's easier to drag.
+                let outset = track.bounds.outer(0, 12);
 
-                    //TODO: Dragged only works with released mouse input
-                    //So we have to duplicate the logic here.
-                    if controls.playing
-                        && let Some(release) = ui.left_mouse_release
-                        && release.intersects(ui.hit(outset))
-                    {
-                        let x = ui.mouse_position().x.saturating_sub(outset.x);
-                        let pos = (x as f32 / outset.width as f32).clamp(0.0, 1.0);
-                        let pos = player.duration().as_secs_f32() * pos;
-                        player.seek_to(Duration::from_secs_f32(pos));
-                    }
+                //TODO: Dragged only works with released mouse input
+                //So we have to duplicate the logic here.
+                if controls.playing
+                    && let Some(release) = ui.left_mouse_release
+                    && release.intersects(ui.hit(outset))
+                {
+                    let x = ui.mouse_position().x.saturating_sub(outset.x);
+                    let pos = (x as f32 / outset.width as f32).clamp(0.0, 1.0);
+                    let pos = player.duration().as_secs_f32() * pos;
+                    player.seek_to(Duration::from_secs_f32(pos));
+                }
 
-                    let duration = time(ui, controls.duration);
-                    ui.text(duration, t.align_left());
+                let duration = time(ui, controls.duration);
+                ui.text(duration, t.content_left());
 
-                    ui.paint_rect(
-                        track.bounds.width(
-                            (track.bounds.width as f32 * controls.elapsed / controls.duration)
-                                as i32,
-                        ),
-                        bg(ACCENT).radius(2),
-                    );
-                },
-            );
+                ui.paint_rect(
+                    track.bounds.width(
+                        (track.bounds.width as f32 * controls.elapsed / controls.duration) as i32,
+                    ),
+                    rect().bg(ACCENT).radius(2),
+                );
+            });
         },
     );
 
     ui.flow_left(
-        bounds(extras)
+        flow()
+            .bounds(extras)
             .padlr(16)
             .gap(10)
             .clip(true)
-            .align_flow(AlignFlow::Center),
+            .children_center(),
         |ui| {
             let volume = ui.fmt(format_args!("{}", controls.volume));
-            ui.text(volume, style().w(24).font_size(13).fg(TEXT_MUTED));
-            let slider = ui.rect(style().w(96).h(4).radius(2).bg(TRACK_EMPTY));
+            ui.text(volume, text().w(24).font_size(13).fg(TEXT_MUTED));
+            let slider = ui.rect(rect().w(96).h(4).radius(2).bg(TRACK_EMPTY));
             ui.paint_rect(
                 slider
                     .bounds
                     .width((slider.bounds.width as f32 * controls.volume as f32 / 100.0) as i32),
-                bg(ACCENT).radius(2),
+                rect().bg(ACCENT).radius(2),
             );
             let outset = slider.bounds.outer(0, 12);
             if let Some(pos) = ui.drag_percentage_x(outset) {
@@ -814,6 +837,10 @@ fn main() {
     let (mut db, artists) = db.join().unwrap();
 
     let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
+
+    if let Some(albums) = db.btree.get("Duster").cloned() {
+        artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums));
+    }
 
     println!("Loaded {}ms", now.elapsed().as_millis());
 
