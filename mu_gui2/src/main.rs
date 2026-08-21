@@ -1003,6 +1003,29 @@ fn main() {
                 .sum();
         }
 
+        if player.is_finished()
+            && let Some((artist, ai, si)) = &mut controls.song
+        {
+            let current_len = db.albums_by_artist(artist)[*ai]
+                .songs
+                .len()
+                .saturating_sub(1);
+            let album_len = db.albums_by_artist(artist).len();
+
+            if *si < current_len {
+                *si += 1;
+            } else if *ai < album_len {
+                *ai += 1;
+                *si = 0;
+            }
+
+            let song = &db.albums_by_artist(artist)[*ai].songs[*si];
+            player.play_song(&song.path, Some(song.gain), true);
+            if library.artist == artist {
+                library.playing_song = Some((*ai, *si));
+            }
+        }
+
         controls.duration = player.duration().as_secs_f32();
         controls.elapsed = player.elapsed().as_secs_f32();
 
