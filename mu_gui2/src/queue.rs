@@ -24,11 +24,7 @@ pub struct Queue {
     pub drag: Option<Drag>,
 }
 
-pub fn draw_queue<'a>(
-    ui: &mut FrameContext<'_, 'a>,
-    queue: &mut Queue,
-    img: &'a mu_core::vdb::ImageCache,
-) {
+ pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a mu_core::vdb::Database) {
     ui.flow_down(
         flow().bounds(queue.bounds).padlr(36).padtb(12).bg(BODY),
         |ui| {
@@ -140,9 +136,7 @@ pub fn draw_queue<'a>(
                                         ui.fmt(format_args!("{:02}", song.track_number)),
                                         text().w(20).fg(TEXT_FAINT),
                                     );
-                                    if let Some((pixels, width, height)) =
-                                        img.get(&song.artist, &song.album)
-                                    {
+                                    if let Some((pixels, width, height)) = db.artwork(song) {
                                         ui.image(
                                             Image {
                                                 width,

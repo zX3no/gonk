@@ -5,11 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use mu_core::{
-    Album,
-    db::Artwork,
-    vdb::{ImageCache, compute_key},
-};
+use mu_core::{Album, db::Artwork};
 use neoui::*;
 
 pub mod settings;
@@ -402,7 +398,6 @@ fn draw_library<'a, 'b: 'a>(
     library: &mut Library<'b>,
     player: &mut onmi::Player,
     controls: &mut Controls,
-    img: &'a ImageCache,
     ui: &mut FrameContext<'_, 'a>,
 ) {
     ui.flow_down(
@@ -446,10 +441,14 @@ fn draw_library<'a, 'b: 'a>(
                         //It's a bit painful to deal with for the current use case.
                         //Each library page can have an unbounded number of images.
 
-                        if let Some((pixels, width, height)) = img.get(&album.artist, &album.title)
+                        if let Some(first) = &album.songs.first()
+                            && let Some(Artwork::Decoded(pixels, width, height)) = &first.artwork
                         {
-                            #[rustfmt::skip]
-                            let img = Image { width, height, pixels };
+                            let img = Image {
+                                width: *width,
+                                height: *height,
+                                pixels,
+                            };
                             ui.image(img, image().radius(8).wh(148));
                         } else {
                             //TODO: Better placeholder
@@ -736,40 +735,57 @@ fn draw_controls<'a>(
     );
 }
 
-fn spawn_load_artwork(
-    artist: String,
-    mut albums: Vec<Album>,
-) -> JoinHandle<Vec<(u64, Box<[u32]>, usize, usize)>> {
-    use rayon::prelude::*;
-
+fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(String, Vec<Album>)> {
     std::thread::spawn(move || {
         let now = Instant::now();
-        let covers: Vec<_> = albums
-            .par_iter()
-            .filter_map(|a| {
-                let first = a.songs.first()?;
-                let s = onmi::metadata(&first.path, false, true).ok()?;
-                let (pixels, width, height) = image::decode(&s.artwork?.data).ok()?;
-                let size = 512;
-                let pixels = image::resize(
-                    Image {
-                        pixels: &pixels,
-                        width,
-                        height,
-                    },
-                    size,
-                    size,
-                );
-                let key = compute_key(&s.artist, &s.album);
-                Some((key, pixels.into_boxed_slice(), size, size))
-            })
-            .collect();
-        println!(
-            "Loaded {artist} in {}ms ({} images)",
-            now.elapsed().as_millis(),
-            covers.len()
-        );
-        covers
+        // let threads = std::thread::available_parallelism().map_or(16, |n| n.get());
+        let threads = 16;
+        let chunk = albums.len().div_ceil(threads).max(1);
+
+        std::thread::scope(|scope| {
+            for albums in albums.chunks_mut(chunk) {
+                scope.spawn(move || {
+                    for a in albums {
+                        //Use the first song for the whole album.
+                        //Technically each track can have a different album cover.
+                        if let Some(first) = a.songs.first_mut() {
+                            if first.artwork.is_none()
+                                && let Ok(s) = onmi::metadata(&first.path, false, true)
+                            {
+                                if let Some(artwork) = s.artwork {
+                                    //TODO: The point of the thumbnails is to allow users to cache a downscaled version
+                                    //Currently even though the image is being rendered at 120x120px.
+                                    //We need a high resolution version stored ???
+                                    if let Ok((pixels, width, height)) =
+                                        image::decode(&artwork.data)
+                                    {
+                                        let size = 512;
+                                        let pixels = image::resize(
+                                            Image {
+                                                pixels: &pixels,
+                                                width,
+                                                height,
+                                            },
+                                            size,
+                                            size,
+                                        );
+                                        first.artwork = Some(Artwork::Decoded(
+                                            pixels.into_boxed_slice(),
+                                            size,
+                                            size,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        println!("Loaded {artist} in {}ms", now.elapsed().as_millis());
+
+        (artist, albums)
     })
 }
 
@@ -820,15 +836,13 @@ fn main() {
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
 
-    let mut artwork_task: Option<JoinHandle<_>> = None;
+    let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
 
     if let Some(albums) = db.btree.get("Duster").cloned() {
         artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums));
     }
 
     println!("Loaded {}ms", now.elapsed().as_millis());
-
-    let mut image_cache = ImageCache::default();
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
@@ -955,12 +969,8 @@ fn main() {
 
         if let Some(handle) = &artwork_task {
             if handle.is_finished() {
-                for cover in artwork_task.take().unwrap().join().unwrap() {
-                    let (key, pixels, width, height) = cover;
-                    let index = image_cache.images.len();
-                    image_cache.images.push((pixels, width, height));
-                    image_cache.index.insert(key, index);
-                }
+                let (artist, albums) = artwork_task.take().unwrap().join().unwrap();
+                db.btree.insert(artist, albums);
             }
         }
 
@@ -987,17 +997,7 @@ fn main() {
                 }
             }
 
-            let albums: Vec<_> = db
-                .albums_by_artist(&artist)
-                .iter()
-                .filter(|a| {
-                    let key = compute_key(&artist, &a.title);
-                    !image_cache.index.contains_key(&key)
-                })
-                .cloned()
-                .collect();
-
-            if !albums.is_empty() {
+            if let Some(albums) = db.btree.get(&artist).cloned() {
                 artwork_task = Some(spawn_load_artwork(artist, albums));
             }
 
@@ -1059,10 +1059,9 @@ fn main() {
                     &mut library,
                     &mut player,
                     &mut controls,
-                    &image_cache,
                     ui,
                 ),
-                "Queue" => draw_queue(ui, &mut queue, &image_cache),
+                "Queue" => draw_queue(ui, &mut queue, &db),
                 "Playlist" => {}
                 "Settings" => {}
                 _ => unreachable!(),
