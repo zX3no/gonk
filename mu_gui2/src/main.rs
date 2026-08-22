@@ -884,10 +884,17 @@ fn main() {
     };
 
     let mut queue = Queue {
-        songs: db.albums_by_artist("Duster")[0].songs.clone(),
+        // songs: db.albums_by_artist("Duster")[0].songs.clone(),
+        songs: db
+            .albums_by_artist("Duster")
+            .iter()
+            .map(|a| a.songs.clone())
+            .flatten()
+            .collect(),
         playing_song: None,
         bounds: Rect::default(),
         scroll: Scroll::new(),
+        drag: None,
     };
 
     while ui.window.open() {
@@ -1054,7 +1061,7 @@ fn main() {
                     &mut controls,
                     ui,
                 ),
-                "Queue" => draw_queue(ui, &mut queue),
+                "Queue" => draw_queue(ui, &mut queue, &db),
                 "Playlist" => {}
                 "Settings" => {}
                 _ => unreachable!(),

@@ -4,9 +4,15 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
-use crate::db::{Album, Song};
+use crate::db::{Album, Artwork, Song};
 use crate::{Deserialize, strsim};
-use std::{cmp::Ordering, collections::BTreeMap, fs, path::Path, str::from_utf8_unchecked};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    fs,
+    path::Path,
+    str::from_utf8_unchecked,
+};
 use unicode_normalization::UnicodeNormalization;
 use unicode_normalization::char::is_combining_mark;
 
@@ -87,9 +93,43 @@ fn item_rank(item: &Item) -> u8 {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct ImageCache {
+    pub images: Vec<(Box<[u32]>, usize, usize)>,
+    pub index: HashMap<u64, usize>,
+}
+
+#[inline]
+fn compute_key(artist: &str, album: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::hash::DefaultHasher::new();
+    artist.hash(&mut hasher);
+    album.hash(&mut hasher);
+    hasher.finish()
+}
+
+impl ImageCache {
+    #[inline]
+    pub fn get(&self, artist: &str, album: &str) -> Option<(&[u32], usize, usize)> {
+        let key = compute_key(artist, album);
+        let index = self.index.get(&key)?;
+        let (pixels, width, height) = self.images.get(*index)?;
+        Some((&pixels, *width, *height))
+    }
+
+    #[inline]
+    pub fn insert(&mut self, artist: &str, album: &str, image: (Box<[u32]>, usize, usize)) {
+        let key = compute_key(artist, album);
+        let index = self.images.len();
+        self.images.push(image);
+        self.index.insert(key, index);
+    }
+}
+
 //I feel like Box<[String, Box<Album>]> might have been a better choice.
 pub struct Database {
     pub btree: BTreeMap<String, Vec<Album>>,
+    pub image_cache: ImageCache,
     pub len: usize,
 }
 
@@ -144,7 +184,11 @@ impl Database {
             albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
         });
 
-        Self { btree, len }
+        Self {
+            btree,
+            len,
+            image_cache: ImageCache::default(),
+        }
     }
 
     ///Get all artist names.
@@ -249,5 +293,20 @@ impl Database {
         }
 
         results.into_iter().map(|(item, _)| item).collect()
+    }
+
+    //TODO: Ahh, yeah, so this kind of lookup on every single song render is a bit questionable.
+    pub fn artwork(&self, song: &Song) -> Option<(&[u32], usize, usize)> {
+        let album = self.album(&song.artist, &song.album);
+        if let Some(song) = album.songs.first()
+            && let Some(artwork) = &song.artwork
+        {
+            return match artwork {
+                Artwork::Decoded(pixels, width, height) => Some((pixels, *width, *height)),
+                Artwork::Compressed(_) => None,
+            };
+        }
+
+        None
     }
 }
