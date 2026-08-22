@@ -748,34 +748,27 @@ fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(Str
                     for a in albums {
                         //Use the first song for the whole album.
                         //Technically each track can have a different album cover.
-                        if let Some(first) = a.songs.first_mut() {
-                            if first.artwork.is_none()
-                                && let Ok(s) = onmi::metadata(&first.path, false, true)
-                            {
-                                if let Some(artwork) = s.artwork {
-                                    //TODO: The point of the thumbnails is to allow users to cache a downscaled version
-                                    //Currently even though the image is being rendered at 120x120px.
-                                    //We need a high resolution version stored ???
-                                    if let Ok((pixels, width, height)) =
-                                        image::decode(&artwork.data)
-                                    {
-                                        let size = 512;
-                                        let pixels = image::resize(
-                                            Image {
-                                                pixels: &pixels,
-                                                width,
-                                                height,
-                                            },
-                                            size,
-                                            size,
-                                        );
-                                        first.artwork = Some(Artwork::Decoded(
-                                            pixels.into_boxed_slice(),
-                                            size,
-                                            size,
-                                        ));
-                                    }
-                                }
+                        if let Some(first) = a.songs.first_mut()
+                            && first.artwork.is_none()
+                            && let Ok(s) = onmi::metadata(&first.path, false, true)
+                            && let Some(artwork) = s.artwork
+                        {
+                            //TODO: The point of the thumbnails is to allow users to cache a downscaled version
+                            //Currently even though the image is being rendered at 120x120px.
+                            //We need a high resolution version stored ???
+                            if let Ok((pixels, width, height)) = image::decode(&artwork.data) {
+                                let size = 512;
+                                let pixels = image::resize(
+                                    Image {
+                                        pixels: &pixels,
+                                        width,
+                                        height,
+                                    },
+                                    size,
+                                    size,
+                                );
+                                first.artwork =
+                                    Some(Artwork::Decoded(pixels.into_boxed_slice(), size, size));
                             }
                         }
                     }
