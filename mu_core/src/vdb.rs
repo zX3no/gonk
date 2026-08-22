@@ -100,7 +100,7 @@ pub struct ImageCache {
 }
 
 #[inline]
-fn compute_key(artist: &str, album: &str) -> u64 {
+pub fn compute_key(artist: &str, album: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::hash::DefaultHasher::new();
     artist.hash(&mut hasher);
@@ -129,7 +129,6 @@ impl ImageCache {
 //I feel like Box<[String, Box<Album>]> might have been a better choice.
 pub struct Database {
     pub btree: BTreeMap<String, Vec<Album>>,
-    pub image_cache: ImageCache,
     pub len: usize,
 }
 
@@ -174,9 +173,9 @@ impl Database {
         //Add albums to artists.
         for ((artist, title), songs) in albums {
             btree
-                .entry(artist)
+                .entry(artist.clone())
                 .or_default()
-                .push(Album { title, songs });
+                .push(Album { title, artist, songs });
         }
 
         //Sort albums.
@@ -187,7 +186,6 @@ impl Database {
         Self {
             btree,
             len,
-            image_cache: ImageCache::default(),
         }
     }
 
