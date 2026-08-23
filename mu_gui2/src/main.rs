@@ -941,8 +941,11 @@ fn main() {
 
                     if *si < current_len {
                         *si += 1;
-                    } else if *ai < album_len {
+                    } else if *ai < album_len.saturating_sub(1) {
                         *ai += 1;
+                        *si = 0;
+                    } else {
+                        *ai = 0;
                         *si = 0;
                     }
 
@@ -1014,8 +1017,11 @@ fn main() {
 
             if *si < current_len {
                 *si += 1;
-            } else if *ai < album_len {
+            } else if *ai < album_len.saturating_sub(1) {
                 *ai += 1;
+                *si = 0;
+            } else {
+                *ai = 0;
                 *si = 0;
             }
 
