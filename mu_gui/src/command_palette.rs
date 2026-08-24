@@ -154,14 +154,15 @@ pub fn draw(
 
     // Overlay the main body so the panel is cross-aligned to that region's center.
     ui.place_down(
-        bounds(body)
-            .align_flow(AlignFlow::Center)
+        flow()
+            .bounds(body)
+            .children_center()
             .depth(DEPTH)
             .padt(panel_top as usize),
         |ui| {
             // Chrome at full panel size (padding must not shrink the painted panel).
             let chrome = ui.rect(
-                style()
+                rect()
                     .width(panel_w)
                     .height(panel_h)
                     .bg(colors::PANEL_RAISED)
@@ -170,11 +171,11 @@ pub fn draw(
             );
             panel = chrome.bounds;
 
-            ui.place_down(bounds(chrome.bounds).pad(8), |ui| {
+            ui.place_down(flow().bounds(chrome.bounds).pad(8), |ui| {
                 ui.text(
                     display,
-                    style()
-                        .fill_width()
+                    text()
+                        .fillw()
                         .height(INPUT_H - 8)
                         .padlr(12)
                         .bg(colors::PANEL)
@@ -186,7 +187,7 @@ pub fn draw(
                             colors::TEXT
                         })
                         .font_size(14)
-                        .align(Alignment::Left),
+                        .content(Alignment::Left),
                 );
 
                 ui.gap(4);
@@ -201,13 +202,13 @@ pub fn draw(
                     };
                     ui.text(
                         hint,
-                        style()
-                            .fill_width()
+                        text()
+                            .fillw()
                             .height(ROW_H)
                             .padl(12)
                             .fg(colors::TEXT_DIM)
                             .font_size(13)
-                            .align(Alignment::Left),
+                            .content(Alignment::Left),
                     );
                     return;
                 }
@@ -217,8 +218,8 @@ pub fn draw(
                     .saturating_sub(MAX_VISIBLE as usize - 1)
                     .min(entries.len().saturating_sub(visible as usize));
 
-                let row = style()
-                    .fill_width()
+                let row = rect()
+                    .fillw()
                     .height(ROW_H - 2)
                     .radius(6)
                     .hover(colors::HOVER)
@@ -233,7 +234,7 @@ pub fn draw(
                     let (title, subtitle) = entry_labels(entry);
                     let state = ui.rect(row.is_selected(selected));
 
-                    ui.place_down(bounds(state.bounds).padl(12).padr(12), |ui| {
+                    ui.place_down(flow().bounds(state.bounds).padlr(12), |ui| {
                         let title_h = if subtitle.is_empty() {
                             state.bounds.height
                         } else {
@@ -241,8 +242,8 @@ pub fn draw(
                         };
                         ui.text(
                             title,
-                            style()
-                                .fill_width()
+                            text()
+                                .fillw()
                                 .height(title_h)
                                 .fg(if selected {
                                     colors::ACCENT_BRIGHT
@@ -250,17 +251,17 @@ pub fn draw(
                                     colors::TEXT
                                 })
                                 .font_size(13)
-                                .align(Alignment::Left),
+                                .content(Alignment::Left),
                         );
                         if !subtitle.is_empty() {
                             ui.text(
                                 subtitle,
-                                style()
-                                    .fill_width()
+                                text()
+                                    .fillw()
                                     .height(state.bounds.height / 2)
                                     .fg(colors::TEXT_MUTED)
                                     .font_size(11)
-                                    .align(Alignment::Left),
+                                    .content(Alignment::Left),
                             );
                         }
                     });

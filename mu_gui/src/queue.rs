@@ -23,17 +23,17 @@ pub fn draw(
     let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
 
-    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(flow().bounds(rect).bg(colors::BG), scroll, |ui| {
         ui.text(
             "Queue",
-            style()
+            text()
                 .fg(colors::TEXT)
                 .font_size(28)
                 .padl(40)
                 .padt(34)
                 .padb(4)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
         let txt = ui.fmt(format_args!(
             "{} track{}  ·  right-click a song for actions",
@@ -42,46 +42,45 @@ pub fn draw(
         ));
         ui.text(
             txt,
-            style()
+            text()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
                 .padl(40)
                 .padb(16)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
 
         if queue.is_empty() {
             ui.text(
                 "Queue is empty.",
-                style()
+                text()
                     .fg(colors::TEXT_DIM)
                     .font_size(14)
                     .padl(40)
                     .padt(4)
-                    .fill_width()
-                    .align(Alignment::Left),
+                    .fillw()
+                    .content(Alignment::Left),
             );
             ui.text(
                 "Right-click songs in the library and choose Add to queue.",
-                style()
+                text()
                     .fg(colors::TEXT_DIM)
                     .font_size(13)
                     .padl(40)
                     .padt(6)
-                    .fill_width()
-                    .align(Alignment::Left),
+                    .fillw()
+                    .content(Alignment::Left),
             );
             return;
         }
 
-        let row = style()
+        let row = text()
             .pad(8)
-            .padl(40)
-            .padr(40)
-            .fill_width()
+            .padlr(40)
+            .fillw()
             .radius(6)
-            .align(Alignment::Left)
+            .content(Alignment::Left)
             .hover(colors::HOVER)
             .fg(colors::TEXT)
             .selected(colors::ACCENT_DIM);
@@ -99,7 +98,7 @@ pub fn draw(
                 song.album
             ));
 
-            let state = ui.item(label, row.is_selected(is_selected));
+            let state = ui.text(label, row.is_selected(is_selected));
             if state.double_clicked {
                 selection.select_only(song.path.clone());
                 action = Some(Action::PlayIndex(i));

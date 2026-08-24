@@ -24,22 +24,21 @@ pub fn draw(
     let (brand_rect, rest) = ui.split_rect_v(rect, brand_h);
     let (nav_rect, list_rect) = ui.split_rect_v(rest, nav_h);
 
-    ui.paint_rect(rect, style().bg(colors::PANEL));
+    ui.paint_rect(rect, neoui::rect().bg(colors::PANEL));
     ui.paint_rect(
         Rect::new(rect.right() - 1, rect.y, 1, rect.height),
-        style().bg(colors::LINE),
+        neoui::rect().bg(colors::LINE),
     );
 
-    ui.place_down(bounds(brand_rect), |ui| {
+    ui.place_down(flow().bounds(brand_rect), |ui| {
         ui.text(
             "mu",
-            style()
+            text()
                 .fg(colors::TEXT)
                 .font_size(18)
                 .padl(20)
-                .fill_width()
-                .fill_height()
-                .align(Alignment::Left),
+                .fill()
+                .content(Alignment::Left),
         );
     });
 
@@ -59,7 +58,7 @@ pub fn draw(
         (Mode::Settings, icons::SETTINGS, "Settings", None),
     ];
 
-    ui.place_down(bounds(nav_rect).padlr(10).padt(4), |ui| {
+    ui.place_down(flow().bounds(nav_rect).padlr(10).padt(4), |ui| {
         for (item, icon, label, badge) in nav_items {
             let active = matches!(
                 (mode, &item),
@@ -79,8 +78,8 @@ pub fn draw(
             };
 
             let row = ui.rect(
-                style()
-                    .fill_width()
+                neoui::rect()
+                    .fillw()
                     .height(40)
                     .radius(7)
                     .bg(colors::PANEL)
@@ -90,14 +89,14 @@ pub fn draw(
             );
 
             ui.place_right(
-                bounds(row.bounds)
-                    .padl(10)
-                    .padr(10)
-                    .align_flow(AlignFlow::Center),
+                flow()
+                    .bounds(row.bounds)
+                    .padlr(10)
+                    .children_center(),
                 |ui| {
                     ui.text(
                         icon,
-                        style()
+                        text()
                             .font(icon_font)
                             .font_size(17)
                             .fg(icon_color)
@@ -111,17 +110,17 @@ pub fn draw(
                     };
                     ui.text(
                         label,
-                        style()
+                        text()
                             .fg(text_color)
                             .font_size(14)
                             .width(label_w)
                             .height(40)
-                            .align(Alignment::Left),
+                            .content(Alignment::Left),
                     );
                     if let Some(badge) = badge {
                         ui.text(
                             badge,
-                            style()
+                            text()
                                 .fg(colors::ACCENT_BRIGHT)
                                 .bg(colors::ACCENT_DIM)
                                 .font_size(11)
@@ -140,15 +139,15 @@ pub fn draw(
         }
 
         ui.gap(8);
-        ui.rect(style().fill_width().height(1).bg(colors::LINE));
+        ui.rect(neoui::rect().fillw().height(1).bg(colors::LINE));
     });
 
-    let row_style = style()
+    let row_style = text()
         .padlr(12)
         .padtb(7)
-        .fill_width()
+        .fillw()
         .radius(7)
-        .align(Alignment::Left)
+        .content(Alignment::Left)
         .fg(colors::TEXT)
         .hover(colors::HOVER)
         .selected(colors::ACCENT_DIM);
@@ -157,7 +156,7 @@ pub fn draw(
     let selected = selected_artist.map(|s| s.to_string());
     let mut artist_click = None;
 
-    ui.scroll(bounds(list_rect).bg(colors::PANEL), artist_scroll, |ui| {
+    ui.scroll(flow().bounds(list_rect).bg(colors::PANEL), artist_scroll, |ui| {
         let mut last_letter: Option<char> = None;
         for name in artists {
             let letter = name
@@ -169,20 +168,20 @@ pub fn draw(
                 last_letter = Some(letter);
                 ui.text(
                     letter.to_string(),
-                    style()
+                    text()
                         .fg(colors::TEXT_MUTED)
                         .font_size(11)
                         .padl(12)
                         .padt(6)
                         .padb(2)
-                        .fill_width()
-                        .align(Alignment::Left)
+                        .fillw()
+                        .content(Alignment::Left)
                         .bg(colors::PANEL),
                 );
             }
             let active = selected.as_deref() == Some(name.as_str());
             if ui
-                .item(format!("  {name}"), row_style.is_selected(active))
+                .text(format!("  {name}"), row_style.is_selected(active))
                 .clicked
             {
                 artist_click = Some(name.clone());
@@ -197,15 +196,14 @@ pub fn draw(
             list_rect.width,
             ARTIST_LETTER_H as i32,
         );
-        ui.place_down(bounds(pin).bg(colors::PANEL).padl(12), |ui| {
+        ui.place_down(flow().bounds(pin).bg(colors::PANEL).padl(12), |ui| {
             ui.text(
                 letter.to_string(),
-                style()
+                text()
                     .fg(colors::TEXT_MUTED)
                     .font_size(11)
-                    .fill_width()
-                    .fill_height()
-                    .align(Alignment::Left),
+                    .fill()
+                    .content(Alignment::Left),
             );
         });
     }

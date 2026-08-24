@@ -115,22 +115,25 @@ pub fn draw<'a>(
         .collect();
 
     let get_all_songs = || -> Vec<Song> {
-        albums.iter().flat_map(|a| a.songs.iter().cloned()).collect()
+        albums
+            .iter()
+            .flat_map(|a| a.songs.iter().cloned())
+            .collect()
     };
 
     let (header_rect, list_rect) = ui.split_rect_v(rect, HEADER_H);
 
-    ui.place_down(bounds(header_rect).bg(colors::BG), |ui| {
+    ui.place_down(flow().bounds(header_rect).bg(colors::BG), |ui| {
         ui.text(
             artist.to_string(),
-            style()
+            text()
                 .fg(colors::TEXT)
                 .font_size(32)
                 .padl(40)
                 .padt(28)
                 .padb(4)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
         let txt = ui.fmt(format_args!(
             "{} album{} · {} track{}",
@@ -141,21 +144,21 @@ pub fn draw<'a>(
         ));
         ui.text(
             txt,
-            style()
+            text()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
                 .padl(40)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
     });
 
     ui.paint_rect(
         Rect::new(list_rect.x, list_rect.y, list_rect.width, 1),
-        style().bg(colors::LINE),
+        neoui::rect().bg(colors::LINE),
     );
 
-    ui.scroll(bounds(list_rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(flow().bounds(list_rect).bg(colors::BG), scroll, |ui| {
         ui.gap(16);
 
         for (i, album) in albums.iter().enumerate() {
@@ -168,137 +171,133 @@ pub fn draw<'a>(
                 ui.fmt(format_args!("{} tracks", album.songs.len()))
             };
 
-            ui.flow_right(
-                style().padl(40).padr(40).height(card_h).fill_width(),
-                |ui| {
-                    let layout = ui.walk_layout(COVER, COVER, 0);
-                    let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
-                    if let Some(first) = album.songs.first()
-                        && let Some(mu_core::db::Artwork::Decoded(pixels, width, height)) =
-                            &first.artwork
+            ui.flow_right(flow().padlr(40).height(card_h).fillw(), |ui| {
+                let layout = ui.walk_layout(COVER, COVER, 0, None);
+                let cover_rect = Rect::new(layout.paint_x, layout.paint_y, COVER, COVER);
+                if let Some(first) = album.songs.first()
+                    && let Some(mu_core::db::Artwork::Decoded(pixels, width, height)) =
+                        &first.artwork
+                {
+                    let img = Image {
+                        pixels,
+                        width: *width,
+                        height: *height,
+                    };
+                    ui.paint_image(cover_rect, img, image().radius(8));
+                } else {
+                    paint_cover(ui, cover_rect, 8);
+                }
+                if ui.double_clicked(cover_rect) && !album.songs.is_empty() {
+                    if let Some(index) =
+                        ordered_paths.iter().position(|p| *p == album.songs[0].path)
                     {
-                        let img = Image {
-                            pixels,
-                            width: *width,
-                            height: *height,
+                        action = Some(Action::PlayDiscography {
+                            songs: get_all_songs(),
+                            index,
+                        });
+                    }
+                }
+                // Right-click cover → album menu.
+                if let Some((mx, my)) = context_menu::right_click_at(ui, cover_rect) {
+                    if let Some(first) = album.songs.first() {
+                        let index = ordered_paths
+                            .iter()
+                            .position(|p| *p == first.path)
+                            .unwrap_or(0);
+                        menu.open_at(
+                            mx,
+                            my,
+                            vec![
+                                (
+                                    "Play from album".into(),
+                                    MenuCommand::Play {
+                                        songs: get_all_songs(),
+                                        index,
+                                    },
+                                ),
+                                (
+                                    "Add album to queue".into(),
+                                    MenuCommand::AddToQueue(album.songs.clone()),
+                                ),
+                            ],
+                        );
+                    }
+                }
+                ui.gap(26);
+
+                ui.flow_down(flow().fillw().height(card_h), |ui| {
+                    ui.text(
+                        album.title.to_string(),
+                        text()
+                            .fg(colors::TEXT)
+                            .font_size(20)
+                            .padb(2)
+                            .fillw()
+                            .content(Alignment::Left),
+                    );
+                    ui.text(
+                        subtext,
+                        text()
+                            .fg(colors::TEXT_DIM)
+                            .font_size(12)
+                            .padb(8)
+                            .padt(2)
+                            .fillw()
+                            .content(Alignment::Left),
+                    );
+
+                    let row_style = text()
+                        .padlr(8)
+                        .padtb(5)
+                        .fillw()
+                        .radius(6)
+                        .content(Alignment::Left)
+                        .hover(colors::HOVER)
+                        .fg(colors::TEXT)
+                        .selected(colors::ACCENT_DIM);
+
+                    for song in album.songs.iter() {
+                        let is_playing = playing_path == Some(song.path.as_str());
+                        let is_selected = selection.contains(&song.path);
+                        // ASCII only — default UI font has no ♪ glyph (rendered as ?).
+                        let label = if is_playing {
+                            ui.fmt(format_args!(">  {}.  {}", song.track_number, song.title))
+                        } else {
+                            ui.fmt(format_args!("   {}.  {}", song.track_number, song.title))
                         };
-                        ui.paint_image(cover_rect, img, style().radius(8));
-                    } else {
-                        paint_cover(ui, cover_rect, 8);
-                    }
-                    if ui.double_clicked(cover_rect) && !album.songs.is_empty() {
-                        if let Some(index) =
-                            ordered_paths.iter().position(|p| *p == album.songs[0].path)
-                        {
-                            action = Some(Action::PlayDiscography {
-                                songs: get_all_songs(),
-                                index,
-                            });
+                        let state = ui.text(label, row_style.is_selected(is_selected));
+                        if state.double_clicked {
+                            selection.select_only(song.path.clone());
+                            if let Some(index) = ordered_paths.iter().position(|p| *p == song.path)
+                            {
+                                action = Some(Action::PlayDiscography {
+                                    songs: get_all_songs(),
+                                    index,
+                                });
+                            }
+                        } else if state.clicked {
+                            selection.click(&ordered_paths, song.path.clone(), shift, ctrl);
                         }
-                    }
-                    // Right-click cover → album menu.
-                    if let Some((mx, my)) = context_menu::right_click_at(ui, cover_rect) {
-                        if let Some(first) = album.songs.first() {
-                            let index = ordered_paths
-                                .iter()
-                                .position(|p| *p == first.path)
-                                .unwrap_or(0);
-                            menu.open_at(
+                        if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
+                            open_song_menu(
+                                menu,
+                                selection,
+                                &ordered_paths,
+                                &get_all_songs(),
+                                &album.songs,
+                                &song.path,
                                 mx,
                                 my,
-                                vec![
-                                    (
-                                        "Play from album".into(),
-                                        MenuCommand::Play {
-                                            songs: get_all_songs(),
-                                            index,
-                                        },
-                                    ),
-                                    (
-                                        "Add album to queue".into(),
-                                        MenuCommand::AddToQueue(album.songs.clone()),
-                                    ),
-                                ],
                             );
                         }
                     }
-                    ui.gap(26);
-
-                    ui.flow_down(style().fill_width().height(card_h), |ui| {
-                        ui.text(
-                            album.title.to_string(),
-                            style()
-                                .fg(colors::TEXT)
-                                .font_size(20)
-                                .padb(2)
-                                .fill_width()
-                                .align(Alignment::Left),
-                        );
-                        ui.text(
-                            subtext,
-                            style()
-                                .fg(colors::TEXT_DIM)
-                                .font_size(12)
-                                .padb(8)
-                                .padt(2)
-                                .fill_width()
-                                .align(Alignment::Left),
-                        );
-
-                        let row_style = style()
-                            .padlr(8)
-                            .padtb(5)
-                            .fill_width()
-                            .radius(6)
-                            .align(Alignment::Left)
-                            .hover(colors::HOVER)
-                            .fg(colors::TEXT)
-                            .selected(colors::ACCENT_DIM);
-
-                        for song in album.songs.iter() {
-                            let is_playing = playing_path == Some(song.path.as_str());
-                            let is_selected = selection.contains(&song.path);
-                            // ASCII only — default UI font has no ♪ glyph (rendered as ?).
-                            let label = if is_playing {
-                                ui.fmt(format_args!(">  {}.  {}", song.track_number, song.title))
-                            } else {
-                                ui.fmt(format_args!("   {}.  {}", song.track_number, song.title))
-                            };
-                            let state = ui.item(label, row_style.is_selected(is_selected));
-                            if state.double_clicked {
-                                selection.select_only(song.path.clone());
-                                if let Some(index) =
-                                    ordered_paths.iter().position(|p| *p == song.path)
-                                {
-                                    action = Some(Action::PlayDiscography {
-                                        songs: get_all_songs(),
-                                        index,
-                                    });
-                                }
-                            } else if state.clicked {
-                                selection.click(&ordered_paths, song.path.clone(), shift, ctrl);
-                            }
-                            if let Some((mx, my)) = context_menu::right_click_at(ui, state.bounds) {
-                                open_song_menu(
-                                    menu,
-                                    selection,
-                                    &ordered_paths,
-                                    &get_all_songs(),
-                                    &album.songs,
-                                    &song.path,
-                                    mx,
-                                    my,
-                                );
-                            }
-                        }
-                    });
-                },
-            );
+                });
+            });
 
             if i + 1 < albums.len() {
                 ui.gap(ALBUM_GAP);
-                ui.flow_right(style().padl(40).padr(40).fill_width().height(1), |ui| {
-                    ui.rect(style().fill_width().height(1).bg(colors::LINE));
+                ui.flow_right(flow().padlr(40).fillw().height(1), |ui| {
+                    ui.rect(neoui::rect().fillw().height(1).bg(colors::LINE));
                 });
                 ui.gap(ALBUM_GAP);
             } else {

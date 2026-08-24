@@ -982,7 +982,7 @@ fn main() {
                 }
             }
 
-            ui.paint_rect(main_rect, style().bg(colors::BG));
+            ui.paint_rect(main_rect, rect().bg(colors::BG));
             let playing_path = playback.selected().map(|s| s.path.clone());
 
             match &mode.clone() {

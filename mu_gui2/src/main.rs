@@ -351,7 +351,7 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
             }
             alphabet.x += 12;
             ui.flow_down(flow().bounds(alphabet), |ui| {
-                let row = ui.measure_text("A", Font::default(), 10, None).height;
+                let row = ui.measure_text("A", Font::default(), 10, None, i32::MAX).height;
                 ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
 
                 let Some(current_letter) = sidebar.current_letter else {
@@ -423,7 +423,7 @@ fn draw_library<'a, 'b: 'a>(
             let scroll_style = flow().elastic(true);
 
             ui.scroll(scroll_style, &mut library.scroll, |ui| {
-                let title_height = ui.measure_text("A", Font::default(), 24, None).height;
+                let title_height = ui.measure_text("A", Font::default(), 24, None, i32::MAX).height;
                 let mut rendered = 0;
 
                 for (ai, album) in albums.iter().enumerate() {

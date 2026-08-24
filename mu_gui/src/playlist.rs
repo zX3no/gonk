@@ -25,49 +25,48 @@ pub fn draw_list(
 ) -> Option<Action> {
     let mut action = None;
 
-    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(flow().bounds(rect).bg(colors::BG), scroll, |ui| {
         ui.text(
             "Playlists",
-            style()
+            text()
                 .fg(colors::TEXT)
                 .font_size(28)
                 .padl(40)
                 .padt(34)
                 .padb(8)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
         ui.text(
             "Saved lists · right-click to play, queue, or delete",
-            style()
+            text()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
                 .padl(40)
                 .padb(16)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
 
         if lists.is_empty() {
             ui.text(
                 "No playlists yet. Right-click the queue and choose Save as playlist.",
-                style()
+                text()
                     .fg(colors::TEXT_DIM)
                     .font_size(14)
                     .padl(40)
-                    .fill_width()
-                    .align(Alignment::Left),
+                    .fillw()
+                    .content(Alignment::Left),
             );
             return;
         }
 
-        let row = style()
+        let row = text()
             .pad(12)
-            .padl(40)
-            .padr(40)
-            .fill_width()
+            .padlr(40)
+            .fillw()
             .radius(7)
-            .align(Alignment::Left)
+            .content(Alignment::Left)
             .hover(colors::HOVER)
             .fg(colors::TEXT);
 
@@ -75,7 +74,7 @@ pub fn draw_list(
             let name = p.name();
             let count = p.songs.len();
             let label = ui.fmt(format_args!("{name}  ·  {count} songs"));
-            let state = ui.item(label, row);
+            let state = ui.text(label, row);
             if state.clicked {
                 action = Some(Action::OpenDetail(name.to_string()));
             }
@@ -129,16 +128,16 @@ pub fn draw_detail(
     let ctrl = ui.window.modifiers().ctrl;
     let mut action = None;
 
-    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(flow().bounds(rect).bg(colors::BG), scroll, |ui| {
         if ui
-            .item(
+            .text(
                 "← Back",
-                style()
+                text()
                     .padl(40)
                     .padt(20)
                     .fg(colors::TEXT_MUTED)
                     .hover(colors::HOVER)
-                    .align(Alignment::Left),
+                    .content(Alignment::Left),
             )
             .clicked
         {
@@ -147,34 +146,33 @@ pub fn draw_detail(
 
         ui.text(
             name.to_string(),
-            style()
+            text()
                 .fg(colors::TEXT)
                 .font_size(28)
                 .padl(40)
                 .padt(12)
                 .padb(2)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
         let txt = ui.fmt(format_args!("{} songs · right-click a track", songs.len()));
         ui.text(
             txt,
-            style()
+            text()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
                 .padl(40)
                 .padb(16)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
 
-        let row = style()
+        let row = text()
             .pad(8)
-            .padl(40)
-            .padr(40)
-            .fill_width()
+            .padlr(40)
+            .fillw()
             .radius(6)
-            .align(Alignment::Left)
+            .content(Alignment::Left)
             .hover(colors::HOVER)
             .fg(colors::TEXT)
             .selected(colors::ACCENT_DIM);
@@ -188,7 +186,7 @@ pub fn draw_detail(
                 "{mark}{}  ·  {}  ·  {}",
                 song.title, song.artist, song.album
             ));
-            let state = ui.item(label, row.is_selected(is_selected));
+            let state = ui.text(label, row.is_selected(is_selected));
             if state.double_clicked {
                 selection.select_only(song.path.clone());
                 action = Some(Action::Play {

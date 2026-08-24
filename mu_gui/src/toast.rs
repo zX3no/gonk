@@ -44,41 +44,42 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, toast: &'_ Toast, above_y: i32, windo
     let (bar, body) = ui.split_rect_h(rect, 4);
 
     // Accent strip is outside the place frame, so depth must be set explicitly.
-    ui.paint_rect(bar, bg(colors::ACCENT).depth(2));
+    ui.paint_rect(bar, neoui::rect().bg(colors::ACCENT).depth(2));
 
     ui.place_right(
-        bounds(body)
+        flow()
+            .bounds(body)
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
-            .align_flow(AlignFlow::Center)
+            .children_center()
             .depth(2),
         |ui| {
             let content_h = if detail.is_empty() { 20 } else { 44 };
-            let content = ui.rect(style().fill_width().height(content_h)).bounds;
+            let content = ui.rect(neoui::rect().fillw().height(content_h)).bounds;
 
-            ui.place_down(bounds(content), |ui| {
+            ui.place_down(flow().bounds(content), |ui| {
                 ui.text(
                     message,
-                    style()
+                    text()
                         .padl(12)
                         .fg(colors::TEXT)
                         .font_size(14)
-                        .fill_width()
+                        .fillw()
                         .height(20)
-                        .align(Alignment::Left),
+                        .content(Alignment::Left),
                 );
 
                 if !detail.is_empty() {
                     ui.gap(4);
                     ui.text(
                         detail,
-                        style()
+                        text()
                             .padl(12)
                             .fg(colors::TEXT_MUTED)
                             .font_size(12)
-                            .fill_width()
+                            .fillw()
                             .height(18)
-                            .align(Alignment::Left),
+                            .content(Alignment::Left),
                     );
                 }
             });

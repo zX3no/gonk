@@ -139,19 +139,20 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
     let panel = menu.panel_rect(win_w, win_h);
     let _ = ui.hovered_depth(panel, DEPTH);
 
-    let row = style()
-        .fill_width()
+    let row = text()
+        .fillw()
         .height(ROW_H - 2)
         .padlr(12)
         .radius(5)
         .hover(colors::HOVER)
         .fg(colors::TEXT)
         .font_size(13)
-        .align(Alignment::Left);
+        .content(Alignment::Left);
 
     let mut chosen = None;
     ui.place_down(
-        bounds(panel)
+        flow()
+            .bounds(panel)
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
             .radius(8)
@@ -161,10 +162,10 @@ pub fn draw(ui: &mut FrameContext<'_, '_>, menu: &mut ContextMenu) -> Option<Men
             for (i, entry) in menu.entries.iter().enumerate() {
                 if entry.separator_before && i > 0 {
                     ui.gap(4);
-                    ui.rect(style().fill_width().height(1).bg(colors::LINE));
+                    ui.rect(rect().fillw().height(1).bg(colors::LINE));
                     ui.gap(4);
                 }
-                if ui.item(entry.label.clone(), row).clicked {
+                if ui.text(entry.label.clone(), row).clicked {
                     chosen = Some(entry.command.clone());
                 }
                 ui.gap(2);

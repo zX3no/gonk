@@ -19,36 +19,35 @@ pub fn draw(
     let folder = music_folder.to_string();
     let mut action = None;
 
-    ui.scroll(bounds(rect).bg(colors::BG), scroll, |ui| {
+    ui.scroll(flow().bounds(rect).bg(colors::BG), scroll, |ui| {
         ui.text(
             "Settings",
-            style()
+            text()
                 .fg(colors::TEXT)
                 .font_size(28)
                 .padl(40)
                 .padt(34)
                 .padb(20)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
         ui.text(
             "Output device",
-            style()
+            text()
                 .fg(colors::TEXT_DIM)
                 .font_size(12)
                 .padl(40)
                 .padb(8)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
 
-        let row = style()
+        let row = text()
             .pad(10)
-            .padl(40)
-            .padr(40)
-            .fill_width()
+            .padlr(40)
+            .fillw()
             .radius(7)
-            .align(Alignment::Left)
+            .content(Alignment::Left)
             .hover(colors::HOVER)
             .fg(colors::TEXT)
             .selected(colors::ACCENT_DIM);
@@ -60,7 +59,7 @@ pub fn draw(
             } else {
                 format!("   {name}")
             };
-            if ui.item(label, row.is_selected(active)).clicked {
+            if ui.text(label, row.is_selected(active)).clicked {
                 action = Some(Action::SelectDevice(i));
             }
         }
@@ -68,22 +67,22 @@ pub fn draw(
         ui.gap(24);
         ui.text(
             format!("Music folder: {folder}"),
-            style()
+            text()
                 .fg(colors::TEXT_MUTED)
                 .font_size(13)
                 .padl(40)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
         ui.text(
             "Scan: U · Ctrl+P → Rescan · Ctrl+F song search (or CLI: mu_gui add <path>)",
-            style()
+            text()
                 .fg(colors::TEXT_DIM)
                 .font_size(12)
                 .padl(40)
                 .padt(8)
-                .fill_width()
-                .align(Alignment::Left),
+                .fillw()
+                .content(Alignment::Left),
         );
     });
     action

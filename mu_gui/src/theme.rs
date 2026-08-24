@@ -44,7 +44,7 @@ pub fn format_time(secs: f32) -> String {
 pub fn paint_cover(ui: &mut FrameContext<'_, '_>, rect: Rect, radius: usize) {
     ui.paint_rect(
         rect,
-        style()
+        neoui::rect()
             .bg(colors::PANEL_RAISED)
             .border(colors::LINE)
             .radius(radius),
@@ -53,7 +53,7 @@ pub fn paint_cover(ui: &mut FrameContext<'_, '_>, rect: Rect, radius: usize) {
     if inner.width > 0 && inner.height > 0 {
         ui.paint_rect(
             inner,
-            style()
+            neoui::rect()
                 .bg(colors::ACCENT_DIM)
                 .radius(radius.saturating_sub(2)),
         );

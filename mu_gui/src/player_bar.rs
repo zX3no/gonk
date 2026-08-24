@@ -44,10 +44,10 @@ pub fn draw(
     let has_track = songs.selected().is_some();
     let mut action = None;
 
-    ui.paint_rect(rect, style().bg(colors::PANEL));
+    ui.paint_rect(rect, neoui::rect().bg(colors::PANEL));
     ui.paint_rect(
         Rect::new(rect.x, rect.y, rect.width, 1),
-        style().bg(colors::LINE),
+        neoui::rect().bg(colors::LINE),
     );
 
     // Now playing
@@ -60,24 +60,24 @@ pub fn draw(
         let info_x = art_rect.right() + 12;
         let info_w = left.right() - info_x - 8;
         let info = Rect::new(info_x, left.y + left.height / 2 - 16, info_w, 36);
-        ui.place_down(bounds(info), |ui| {
+        ui.place_down(flow().bounds(info), |ui| {
             ui.text(
                 title,
-                style()
+                text()
                     .fg(colors::TEXT)
                     .font_size(13)
-                    .fill_width()
+                    .fillw()
                     .height(18)
-                    .align(Alignment::Left),
+                    .content(Alignment::Left),
             );
             ui.text(
                 artist,
-                style()
+                text()
                     .fg(colors::TEXT_MUTED)
                     .font_size(12)
-                    .fill_width()
+                    .fillw()
                     .height(16)
-                    .align(Alignment::Left),
+                    .content(Alignment::Left),
             );
         });
 
@@ -109,9 +109,9 @@ pub fn draw(
             ),
         ];
 
-        ui.place_right(bounds(transport).align_flow(AlignFlow::Center), |ui| {
+        ui.place_right(flow().bounds(transport).children_center(), |ui| {
             for (i, (icon, on, is_play)) in labels.iter().enumerate() {
-                let mut s = style()
+                let mut s = text()
                     .font(icon_font)
                     .font_size(if *is_play { 16 } else { 18 })
                     .width(btn)
@@ -206,15 +206,14 @@ fn draw_seekbar(
         return;
     }
 
-    let time = style()
+    let time = text()
         .fg(colors::TEXT_DIM)
         .font_size(11)
-        .fill_width()
-        .fill_height();
-    ui.place_down(bounds(left), |ui| {
+        .fill();
+    ui.place_down(flow().bounds(left), |ui| {
         ui.text(format_time(display_elapsed), time);
     });
-    ui.place_down(bounds(right), |ui| {
+    ui.place_down(flow().bounds(right), |ui| {
         ui.text(
             format_time(if duration.is_finite() { duration } else { 0.0 }),
             time,
@@ -224,11 +223,11 @@ fn draw_seekbar(
     let track_h = 4;
     let track = Rect::new(
         track_area.x,
-        track_area.y + (track_area.height - track_h) / 2,
+        track_area.y + track_area.height / 2 - 2,
         track_area.width,
         track_h,
     );
-    ui.paint_rect(track, style().bg(colors::LINE).radius(2));
+    ui.paint_rect(track, neoui::rect().bg(colors::LINE).radius(2));
 
     let head_travel = (track.width - head_d).max(0);
     let head_x = track.x + ((head_travel as f32) * ratio).round() as i32;
@@ -236,7 +235,7 @@ fn draw_seekbar(
     if fill_w > 0 {
         ui.paint_rect(
             Rect::new(track.x, track.y, fill_w, track.height),
-            style().bg(colors::ACCENT_BRIGHT).radius(2),
+            neoui::rect().bg(colors::ACCENT_BRIGHT).radius(2),
         );
     }
     ui.paint_rect(
@@ -246,7 +245,7 @@ fn draw_seekbar(
             head_d,
             head_d,
         ),
-        style().bg(colors::TEXT).radius((head_d / 2) as usize),
+        neoui::rect().bg(colors::TEXT).radius((head_d / 2) as usize),
     );
 
     let hit = Rect::new(track.x, track_area.y, track.width, track_area.height);
@@ -299,15 +298,14 @@ fn draw_volume(
     let icon_w = 28;
     let (icon_rect, track_area) = ui.split_rect_h(rect, icon_w);
 
-    ui.place_down(bounds(icon_rect), |ui| {
+    ui.place_down(flow().bounds(icon_rect), |ui| {
         ui.text(
             icons::VOLUME,
-            style()
+            text()
                 .font(icon_font)
                 .font_size(16)
                 .fg(colors::TEXT_MUTED)
-                .fill_width()
-                .fill_height(),
+                .fill(),
         );
     });
 
@@ -317,7 +315,7 @@ fn draw_volume(
         track_area.width,
         4,
     );
-    ui.paint_rect(track, style().bg(colors::LINE).radius(2));
+    ui.paint_rect(track, neoui::rect().bg(colors::LINE).radius(2));
 
     let vol = if mute {
         0.0
@@ -328,7 +326,7 @@ fn draw_volume(
     if fill_w > 0 {
         ui.paint_rect(
             Rect::new(track.x, track.y, fill_w, track.height),
-            style().bg(colors::ACCENT_BRIGHT).radius(2),
+            neoui::rect().bg(colors::ACCENT_BRIGHT).radius(2),
         );
     }
 
