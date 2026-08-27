@@ -9,7 +9,7 @@ profile = ["neoui/profile"]
 [dependencies]
 mu_core = { version = "0.4.0", path = "../mu_core" }
 
-neoui = { version = "0.1.0", path = "../../neoui", features = ["image"] }
+neoui = { version = "0.1.0", path = "../../neoui", features = ["image", "parallel"] }
 # neoui = { git = "https://github.com/zfphex/neoui", version = "0.1.0" }
 
 mini = { git = "https://github.com/zfphex/mini", version = "0.1.0" }
