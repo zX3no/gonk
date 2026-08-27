@@ -16,7 +16,34 @@ pub struct Drag {
     pub grab: i32,
 }
 
-pub struct Queue {
+//TODO: Find the position in the database.
+//TBH I think I should swap to a flat arena db.
+//Where basically artists / albums are just stored as ranges.
+//That way I can get a full artist / album in a single slice.
+//It makes passing song information trival because you can just index the db.
+//Rescans would invalidate all ids though, probably not a huge issue.
+// controls.song = Some(song.artist.clone(), )
+pub fn next(current: usize, queue: &mut Queue, player: &mut onmi::Player) {
+    let next = (current + 1) % queue.songs.len();
+    queue.playing_song = Some(next);
+    let song = &queue.songs[next];
+    player.play_song(&song.path, Some(song.gain), true);
+}
+
+pub fn prev(current: usize, queue: &mut Queue, player: &mut onmi::Player) {
+    let len = queue.songs.len();
+    let prev = (current + len - 1 % len) % len;
+    queue.playing_song = Some(prev);
+    let song = &queue.songs[prev];
+    player.play_song(&song.path, Some(song.gain), true);
+}
+
+pub struct Queue<'a> {
+    /// Queuing playlists and artists have different behaviour.
+    /// Since the user can play different songs inside the library album view.
+    /// We don't want to update the queue everytime the user plays a new song
+    /// only when the user changes the artist.
+    pub playing_artist: Option<&'a str>,
     pub songs: Vec<Song>,
     pub playing_song: Option<usize>,
     pub bounds: Rect,
@@ -24,7 +51,11 @@ pub struct Queue {
     pub drag: Option<Drag>,
 }
 
- pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a mu_core::vdb::Database) {
+pub fn draw_queue<'a>(
+    ui: &mut FrameContext<'_, 'a>,
+    queue: &mut Queue,
+    db: &'a mu_core::vdb::Database,
+) {
     ui.flow_down(
         flow().bounds(queue.bounds).padlr(36).padtb(12).bg(BODY),
         |ui| {

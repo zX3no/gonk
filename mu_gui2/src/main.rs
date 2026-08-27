@@ -351,7 +351,9 @@ fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_,
             }
             alphabet.x += 12;
             ui.flow_down(flow().bounds(alphabet), |ui| {
-                let row = ui.measure_text("A", Font::default(), 10, None, i32::MAX).height;
+                let row = ui
+                    .measure_text("A", Font::default(), 10, None, i32::MAX)
+                    .height;
                 ui.gap((ui.current_frame_bounds().height - row * 26) / 2);
 
                 let Some(current_letter) = sidebar.current_letter else {
@@ -391,13 +393,13 @@ struct Library<'a> {
     ///(Album, Song)
     selected_song: Option<(usize, usize)>,
     scroll: Scroll,
+    update_playing: bool,
 }
 
 fn draw_library<'a, 'b: 'a>(
     albums: &'a [mu_core::Album],
     library: &mut Library<'b>,
-    player: &mut onmi::Player,
-    controls: &mut Controls,
+    // controls: &mut Controls,
     ui: &mut FrameContext<'_, 'a>,
 ) {
     ui.flow_down(
@@ -423,7 +425,9 @@ fn draw_library<'a, 'b: 'a>(
             let scroll_style = flow().elastic(true);
 
             ui.scroll(scroll_style, &mut library.scroll, |ui| {
-                let title_height = ui.measure_text("A", Font::default(), 24, None, i32::MAX).height;
+                let title_height = ui
+                    .measure_text("A", Font::default(), 24, None, i32::MAX)
+                    .height;
                 let mut rendered = 0;
 
                 for (ai, album) in albums.iter().enumerate() {
@@ -540,12 +544,8 @@ fn draw_library<'a, 'b: 'a>(
                                 }
 
                                 if song_row.double_clicked {
-                                    player.play_song(&song.path, Some(song.gain), true);
+                                    library.update_playing = true;
                                     library.playing_song = Some((ai, si));
-                                    //Library can change the selected artist so must clone here.
-                                    //Also db is used mutabled so cannot borrow outside of the frame.
-                                    controls.song = Some((library.artist.to_string(), ai, si));
-                                    controls.playing = true;
                                 }
 
                                 if (si + 1) < album.songs.len() {
@@ -862,6 +862,7 @@ fn main() {
         artist: "Duster",
         playing_song: None,
         selected_song: None,
+        update_playing: false,
     };
 
     let mut controls = Controls {
@@ -888,6 +889,7 @@ fn main() {
         bounds: Rect::default(),
         scroll: Scroll::new(),
         drag: None,
+        playing_artist: Some("Duster"),
     };
 
     while ui.window.open() {
@@ -914,46 +916,11 @@ fn main() {
                 }
                 Key::Char('E') => player.seek_forward(10.0),
                 Key::Char('Q') => player.seek_backward(10.0),
-                //TODO: Remove this an add to a proper queue :)
-                Key::Char('A') if let Some((artist, ai, si)) = &mut controls.song => {
-                    if *si > 0 {
-                        *si = si.saturating_sub(1);
-                    } else if *ai > 0 {
-                        *ai = ai.saturating_sub(1);
-                        *si = db.albums_by_artist(artist)[*ai]
-                            .songs
-                            .len()
-                            .saturating_sub(1);
-                    }
-
-                    let song = &db.albums_by_artist(artist)[*ai].songs[*si];
-                    player.play_song(&song.path, Some(song.gain), true);
-                    if library.artist == artist {
-                        library.playing_song = Some((*ai, *si));
-                    }
+                Key::Char('A') if let Some(current) = queue.playing_song => {
+                    prev(current, &mut queue, &mut player);
                 }
-                Key::Char('D') if let Some((artist, ai, si)) = &mut controls.song => {
-                    let current_len = db.albums_by_artist(artist)[*ai]
-                        .songs
-                        .len()
-                        .saturating_sub(1);
-                    let album_len = db.albums_by_artist(artist).len();
-
-                    if *si < current_len {
-                        *si += 1;
-                    } else if *ai < album_len.saturating_sub(1) {
-                        *ai += 1;
-                        *si = 0;
-                    } else {
-                        *ai = 0;
-                        *si = 0;
-                    }
-
-                    let song = &db.albums_by_artist(artist)[*ai].songs[*si];
-                    player.play_song(&song.path, Some(song.gain), true);
-                    if library.artist == artist {
-                        library.playing_song = Some((*ai, *si));
-                    }
+                Key::Char('D') if let Some(current) = queue.playing_song => {
+                    next(current, &mut queue, &mut player);
                 }
                 Key::Space => {
                     player.toggle_playback();
@@ -975,6 +942,33 @@ fn main() {
                 let font = font.take().unwrap().join().unwrap();
                 ui.add_font_fallback(font);
             }
+        }
+
+        if library.update_playing {
+            library.update_playing = false;
+
+            let (ai, si) = library.selected_song.unwrap();
+            let albums = db.albums_by_artist(library.artist);
+
+            // How can we unify / simplify this a bit more?
+            // queue.playing_song = todo!();
+
+            //User is playing a different artist now.
+            if queue.playing_artist != Some(library.artist) {
+                queue.playing_artist = Some(library.artist);
+                queue.songs = albums
+                    .iter()
+                    .flat_map(|a| a.songs.iter().cloned())
+                    .collect();
+            }
+
+            let song = albums.get(ai).map(|a| a.songs.get(si)).flatten().unwrap();
+            player.play_song(&song.path, Some(song.gain), true);
+
+            //Library can change the selected artist so must clone here.
+            //Also db is used mutabled so cannot borrow outside of the frame.
+            controls.song = Some((library.artist.to_string(), ai, si));
+            controls.playing = true;
         }
 
         //It's not as immediate, but easier than passing in db and library into sidebar.
@@ -1053,13 +1047,7 @@ fn main() {
             controls.bounds = con;
 
             match sidebar.selected_mode {
-                "Library" => draw_library(
-                    db.albums_by_artist(library.artist),
-                    &mut library,
-                    &mut player,
-                    &mut controls,
-                    ui,
-                ),
+                "Library" => draw_library(db.albums_by_artist(library.artist), &mut library, ui),
                 "Queue" => draw_queue(ui, &mut queue, &db),
                 "Playlist" => {}
                 "Settings" => {}
