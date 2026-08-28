@@ -361,6 +361,13 @@ fn main() {
         }
 
         //Update the queue, library and controls.
+
+        //Currently the queue and library can store the same artist list.
+        //But it's fractured, one loops albums from the db the other has a cloned list of songs.
+        //Not sure how I can unify this to simplify the program structure...?
+        //I will probably just rewrite the database to be linear.
+        //We need to invalidate playback when rebuilding the database anyway.
+        //Unless we want to append changes, which...I should probably implement that too.
         if library.update_playing {
             library.update_playing = false;
 
@@ -383,8 +390,13 @@ fn main() {
             let mut song = album.songs[si].clone();
             player.play_song(&song.path, Some(song.gain), true);
 
-            //Assume first track artwork is preloaded.
-            song.artwork = album.songs[0].artwork.clone();
+            //Update the active queue song.
+            let idx = queue.songs.iter().position(|s| s == &song).unwrap();
+            queue.playing_song = Some(idx);
+
+            // Assume first track artwork is preloaded.
+            // TODO: Right now we iterate the db everytime instead.
+            // song.artwork = album.songs[0].artwork.clone();
 
             controls.song = Some((song, ai, si));
             controls.playing = true;
@@ -453,7 +465,7 @@ fn main() {
                 _ => unreachable!(),
             }
 
-            draw_controls(&mut controls, &mut player,  ui);
+            draw_controls(&mut controls, &mut player, ui, &db);
         });
     }
 }

@@ -13,7 +13,12 @@ pub struct Controls {
     pub volume: u8,
 }
 
-pub fn draw_controls(controls: &mut Controls, player: &mut onmi::Player, ui: &mut FrameContext) {
+pub fn draw_controls<'a>(
+    controls: &mut Controls,
+    player: &mut onmi::Player,
+    ui: &mut FrameContext<'_, 'a>,
+    db: &'a mu_core::vdb::Database,
+) {
     ui.paint_rect(
         controls.bounds,
         rect().bg(SIDEBAR).border(BORDER_DIM).border_side(TOP),
@@ -29,19 +34,20 @@ pub fn draw_controls(controls: &mut Controls, player: &mut onmi::Player, ui: &mu
                 .children_center()
                 .clip(true),
             |ui| {
-                if let Some(Artwork::Decoded(pixels, width, height)) = &song.artwork {
+                if let Some((pixels, width, height)) = db.artwork(song) {
                     let img = Image {
-                        width: *width,
-                        height: *height,
+                        width,
+                        height,
                         pixels,
                     };
                     ui.image(img, image().radius(6).wh(48));
                 } else {
                     //TODO: Better placeholder
-                    ui.rect(rect().wh(48).radius(4).bg(gray()));
+                    ui.rect(rect().wh(48).radius(4).bg(BORDER_DIM));
                 }
                 ui.flow_down(flow().height(40), |ui| {
-                    ui.text(&song.title, text().fg(TEXT));
+                    let title = ui.fmt(format_args!("{}", song.title));
+                    ui.text(title, text().fg(TEXT));
                     let txt = ui.fmt(format_args!("{} · {}", song.artist, song.album));
                     ui.text(txt, text().font_size(14).fg(TEXT_MUTED));
                 });

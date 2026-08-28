@@ -158,8 +158,8 @@ pub fn draw_library<'a, 'b: 'a>(
                                 }
 
                                 if song_row.double_clicked {
-                                    library.update_playing = true;
                                     library.playing_song = Some((ai, si));
+                                    library.update_playing = true;
                                 }
 
                                 if (si + 1) < album.songs.len() {
