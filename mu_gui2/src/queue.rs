@@ -118,7 +118,7 @@ pub fn draw_queue<'a>(
             let songs = &queue.songs;
             let scroll = queue.scroll.offset + queue.scroll.stretch;
 
-            ui.flow_scroll(flow().gap(ROW_GAP), &mut queue.scroll, |ui| {
+            ui.flow_scroll(flow().elastic(true).gap(ROW_GAP), &mut queue.scroll, |ui| {
                 for (i, song) in songs.iter().enumerate() {
                     let dragging = drag.as_ref().is_some_and(|d| d.index == i);
                     let slot = ui.with_id(song.path.as_str(), |ui| {
