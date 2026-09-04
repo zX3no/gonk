@@ -169,20 +169,14 @@ impl Song {
     }
 }
 
+pub fn album_year(songs: &[Song]) -> u16 {
+    songs.iter().map(|s| s.year).find(|&y| y != 0).unwrap_or(0)
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Album {
     pub title: String,
     pub songs: Vec<Song>,
-}
-
-impl Album {
-    pub fn year(&self) -> u16 {
-        self.songs
-            .iter()
-            .map(|s| s.year)
-            .find(|&y| y != 0)
-            .unwrap_or(0)
-    }
 }
 
 #[derive(Debug, Default)]

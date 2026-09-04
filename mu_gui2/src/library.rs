@@ -1,3 +1,5 @@
+use mu_core::db::album_year;
+
 use crate::*;
 pub struct Library<'a> {
     pub bounds: Rect,
@@ -12,7 +14,7 @@ pub struct Library<'a> {
 }
 
 pub fn draw_library<'a, 'b: 'a>(
-    albums: &'a [mu_core::Album],
+    albums: &'a [mu_core::Song],
     library: &mut Library<'b>,
     ui: &mut FrameContext<'_, 'a>,
 ) {
@@ -44,8 +46,14 @@ pub fn draw_library<'a, 'b: 'a>(
                     .height;
                 let mut rendered = 0;
 
-                for (ai, album) in albums.iter().enumerate() {
-                    let rows = album.songs.len() as i32;
+                let albums = albums
+                    .chunk_by(|a, b| a.album == b.album)
+                    .map(|chunk| (&chunk[0].album, chunk))
+                    .enumerate();
+
+                // let mut total_albums = 0;
+                for (ai, (album, songs)) in albums {
+                    let rows = songs.len() as i32;
                     let row_gap = 2;
                     let row_height = 36;
                     let title_gap = 12;
@@ -59,7 +67,7 @@ pub fn draw_library<'a, 'b: 'a>(
                         //It's a bit painful to deal with for the current use case.
                         //Each library page can have an unbounded number of images.
 
-                        if let Some(first) = &album.songs.first()
+                        if let Some(first) = &songs.first()
                             && let Some(Artwork::Decoded(pixels, width, height)) = &first.artwork
                         {
                             let img = Image {
@@ -76,20 +84,16 @@ pub fn draw_library<'a, 'b: 'a>(
                         ui.gap(24);
 
                         ui.flow_down(flow(), |ui| {
-                            let tracks = if album.songs.len() > 1 {
-                                "tracks"
-                            } else {
-                                "track"
-                            };
+                            let tracks = if songs.len() > 1 { "tracks" } else { "track" };
                             let year = ui.fmt(format_args!(
                                 "{} · {} {}",
-                                album.year(),
-                                album.songs.len(),
+                                album_year(songs),
+                                songs.len(),
                                 tracks
                             ));
                             ui.lines(
                                 [
-                                    line(&album.title, text().font_size(24).padr(12)),
+                                    line(album, text().font_size(24).padr(12)),
                                     line(year, text().font_size(16).fg(TEXT_MUTED)),
                                 ],
                                 text().height(title_height),
@@ -111,7 +115,7 @@ pub fn draw_library<'a, 'b: 'a>(
                                 .hover(ROW_HOVER)
                                 .height(row_height);
 
-                            for (si, song) in album.songs.iter().enumerate() {
+                            for (si, song) in songs.iter().enumerate() {
                                 let playing = Some((ai, si)) == library.playing_song;
                                 let selected = Some((ai, si)) == library.selected_song;
 
@@ -162,18 +166,19 @@ pub fn draw_library<'a, 'b: 'a>(
                                     library.update_playing = true;
                                 }
 
-                                if (si + 1) < album.songs.len() {
+                                if (si + 1) < songs.len() {
                                     ui.gap(row_gap)
                                 }
                             }
                         });
                     });
 
-                    if (ai + 1) < albums.len() {
-                        ui.gap(24);
-                        ui.rect(rect().fillw().bg(BORDER_DIM).h(1));
-                        ui.gap(24);
-                    }
+                    //TODO: How to get album lengths without running lazy iter twice.
+                    // if (ai + 1) < total_albums {
+                    //     ui.gap(24);
+                    //     ui.rect(rect().fillw().bg(BORDER_DIM).h(1));
+                    //     ui.gap(24);
+                    // }
                     // println!("rendered {}/{} albums", rendered, albums.len());
                 }
             });

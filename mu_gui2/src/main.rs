@@ -232,7 +232,7 @@ fn main() {
         let now = Instant::now();
         let config = mu_core::config_paths();
         let db = mu_core::vdb::Database::new(&config.database);
-        let mut artists: Vec<String> = db.btree.keys().cloned().collect();
+        let mut artists = db.get_artists();
         artists.sort_by_key(|a| a.to_ascii_lowercase());
         println!("Loaded DB in {}ms", now.elapsed().as_millis());
         (db, artists)
@@ -247,8 +247,8 @@ fn main() {
 
     let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
 
-    if let Some(albums) = db.btree.get("Duster").cloned() {
-        artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums));
+    if let Some(albums) = db.get_artist_albums("Duster") {
+        // artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums));
     }
 
     println!("Loaded {}ms", now.elapsed().as_millis());
@@ -270,11 +270,7 @@ fn main() {
     let mut library = Library {
         scroll: Scroll::new(),
         bounds: Rect::default(),
-        total_tracks: db
-            .albums_by_artist("Duster")
-            .iter()
-            .map(|a| a.songs.len())
-            .sum(),
+        total_tracks: db.get_artist_songs("Duster").unwrap().len(),
         artist: "Duster",
         playing_song: None,
         selected_song: None,
@@ -294,13 +290,7 @@ fn main() {
     };
 
     let mut queue = Queue {
-        // songs: db.albums_by_artist("Duster")[0].songs.clone(),
-        songs: db
-            .albums_by_artist("Duster")
-            .iter()
-            .map(|a| a.songs.clone())
-            .flatten()
-            .collect(),
+        songs: db.get_artist_songs("Duster").unwrap().to_vec(),
         playing_song: None,
         bounds: Rect::default(),
         scroll: Scroll::new(),
@@ -349,7 +339,7 @@ fn main() {
         if let Some(handle) = &artwork_task {
             if handle.is_finished() {
                 let (artist, albums) = artwork_task.take().unwrap().join().unwrap();
-                db.btree.insert(artist, albums);
+                // db.btree.insert(artist, albums);
             }
         }
 
@@ -372,7 +362,7 @@ fn main() {
             library.update_playing = false;
 
             let (ai, si) = library.selected_song.unwrap();
-            let albums = db.albums_by_artist(library.artist);
+            // let albums = db.albums_by_artist(library.artist);
 
             // How can we unify / simplify this a bit more?
             // queue.playing_song = todo!();
@@ -380,26 +370,26 @@ fn main() {
             //User is playing a different artist now.
             if queue.playing_artist != Some(library.artist) {
                 queue.playing_artist = Some(library.artist);
-                queue.songs = albums
-                    .iter()
-                    .flat_map(|a| a.songs.iter().cloned())
-                    .collect();
+                // queue.songs = albums
+                //     .iter()
+                //     .flat_map(|a| a.songs.iter().cloned())
+                //     .collect();
             }
 
-            let album = &albums[ai];
-            let mut song = album.songs[si].clone();
-            player.play_song(&song.path, Some(song.gain), true);
+            // let album = &albums[ai];
+            // let mut song = album.songs[si].clone();
+            // player.play_song(&song.path, Some(song.gain), true);
 
             //Update the active queue song.
-            let idx = queue.songs.iter().position(|s| s == &song).unwrap();
-            queue.playing_song = Some(idx);
+            // let idx = queue.songs.iter().position(|s| s == &song).unwrap();
+            // queue.playing_song = Some(idx);
 
             // Assume first track artwork is preloaded.
             // TODO: Right now we iterate the db everytime instead.
             // song.artwork = album.songs[0].artwork.clone();
 
-            controls.song = Some((song, ai, si));
-            controls.playing = true;
+            // controls.song = Some((song, ai, si));
+            // controls.playing = true;
         }
 
         //It's not as immediate, but easier than passing in db and library into sidebar.
@@ -418,17 +408,13 @@ fn main() {
                 library.playing_song = Some((*ai, *si));
             }
 
-            if let Some(albums) = db.btree.get(&artist).cloned() {
-                artwork_task = Some(spawn_load_artwork(artist, albums));
-            }
+            // if let Some(albums) = db.btree.get(&artist).cloned() {
+            //     artwork_task = Some(spawn_load_artwork(artist, albums));
+            // }
 
             library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
-            library.total_tracks = db
-                .albums_by_artist(sidebar.selected_artist)
-                .iter()
-                .map(|a| a.songs.len())
-                .sum();
+            library.total_tracks = db.get_artist_albums(sidebar.selected_artist).unwrap().len();
         }
 
         if player.is_finished()
@@ -458,7 +444,11 @@ fn main() {
             controls.bounds = con;
 
             match sidebar.selected_mode {
-                "Library" => draw_library(db.albums_by_artist(library.artist), &mut library, ui),
+                "Library" => draw_library(
+                    db.get_artist_songs(library.artist).unwrap(),
+                    &mut library,
+                    ui,
+                ),
                 "Queue" => draw_queue(ui, &mut queue, &db),
                 "Playlist" => {}
                 "Settings" => {}

@@ -4,13 +4,10 @@
 //!
 //! Also contains code for querying artists, albums and songs.
 //!
-use crate::db::{Album, Artwork, Song};
+use crate::db::{Artwork, Song};
 use crate::{Deserialize, strsim};
-use std::{cmp::Ordering, collections::BTreeMap, fs, path::Path, str::from_utf8_unchecked};
-use unicode_normalization::UnicodeNormalization;
-use unicode_normalization::char::is_combining_mark;
-
-const MIN_ACCURACY: f64 = 0.70;
+use std::ops::Range;
+use std::{cmp::Ordering, fs, path::Path, str::from_utf8_unchecked};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Item {
@@ -22,63 +19,6 @@ pub enum Item {
     Artist(String),
 }
 
-fn normalize_for_search(s: &str) -> String {
-    s.nfd()
-        .filter(|c| !is_combining_mark(*c))
-        .flat_map(char::to_lowercase)
-        .collect()
-}
-
-fn score_match(query: &str, text: &str) -> f64 {
-    let text = normalize_for_search(text);
-    if query.is_empty() || text.is_empty() {
-        return 0.0;
-    }
-    if text == query {
-        return 1.0;
-    }
-
-    if text.starts_with(query) {
-        let coverage = query.len() as f64 / text.len() as f64;
-        return 0.95 + 0.05 * coverage;
-    }
-
-    let mut best_fuzzy = strsim::jaro_winkler(query, &text);
-    for word in text
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty())
-    {
-        if word == query {
-            return 0.94;
-        }
-        if word.starts_with(query) {
-            let coverage = query.len() as f64 / word.len() as f64;
-            return 0.90 + 0.04 * coverage;
-        }
-        best_fuzzy = best_fuzzy.max(strsim::jaro_winkler(query, word));
-    }
-
-    if text.contains(query) {
-        return 0.88;
-    }
-
-    best_fuzzy
-}
-
-fn jaro(query: &str, input: Item) -> Result<(Item, f64), (Item, f64)> {
-    let text = match input {
-        Item::Artist(ref artist) => artist.as_str(),
-        Item::Album((_, ref album)) => album.as_str(),
-        Item::Song((_, _, ref song, _, _)) => song.as_str(),
-    };
-    let acc = score_match(query, text);
-    if acc > MIN_ACCURACY {
-        Ok((input, acc))
-    } else {
-        Err((input, acc))
-    }
-}
-
 fn item_rank(item: &Item) -> u8 {
     match item {
         Item::Artist(_) => 0,
@@ -87,10 +27,79 @@ fn item_rank(item: &Item) -> u8 {
     }
 }
 
-//I feel like Box<[String, Box<Album>]> might have been a better choice.
+// fn normalize_for_search(s: &str) -> String {
+// use unicode_normalization::UnicodeNormalization;
+// use unicode_normalization::char::is_combining_mark;
+//     s.nfd()
+//         .filter(|c| !is_combining_mark(*c))
+//         .flat_map(char::to_lowercase)
+//         .collect()
+// }
+
+const MIN_ACCURACY: f64 = 0.7;
+
+pub fn jaro_score(query: &str, raw_text: &str) -> Option<f64> {
+    // let text = normalize_for_search(raw_text);
+    let text = raw_text;
+
+    if query.is_empty() || text.is_empty() {
+        return None;
+    }
+
+    if text == query {
+        return Some(1.0);
+    }
+
+    if text.starts_with(query) {
+        let coverage = query.len() as f64 / text.len() as f64;
+        return Some(0.95 + 0.05 * coverage);
+    }
+
+    let mut best_fuzzy = strsim::jaro_winkler(query, &text);
+    for word in text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+    {
+        if word == query {
+            return Some(0.94);
+        }
+
+        if word.starts_with(query) {
+            let coverage = query.len() as f64 / word.len() as f64;
+            return Some(0.90 + 0.04 * coverage);
+        }
+
+        best_fuzzy = best_fuzzy.max(strsim::jaro_winkler(query, word));
+    }
+
+    if text.contains(query) {
+        best_fuzzy = best_fuzzy.max(0.88);
+    }
+
+    if best_fuzzy > MIN_ACCURACY {
+        Some(best_fuzzy)
+    } else {
+        None
+    }
+}
+
+#[derive(Debug)]
+pub struct ArtistEntry {
+    pub name: String,
+    pub albums: Range<usize>,
+}
+
+#[derive(Debug)]
+pub struct AlbumEntry {
+    pub title: String,
+    pub songs: Range<usize>,
+}
+
+#[derive(Debug)]
 pub struct Database {
-    pub btree: BTreeMap<String, Vec<Album>>,
-    pub len: usize,
+    pub songs: Vec<Song>,
+    pub albums: Vec<AlbumEntry>,
+    pub artists: Vec<ArtistEntry>,
 }
 
 impl Database {
@@ -103,131 +112,145 @@ impl Database {
                 _ => panic!("{error}"),
             },
         };
-        let songs: Vec<Song> = unsafe { from_utf8_unchecked(&bytes) }
+
+        let mut songs: Vec<Song> = unsafe { from_utf8_unchecked(&bytes) }
             .lines()
             .flat_map(Song::deserialize)
             .collect();
 
-        let len = songs.len();
-        let mut btree: BTreeMap<String, Vec<Album>> = BTreeMap::new();
-        let mut albums: BTreeMap<(String, String), Vec<Song>> = BTreeMap::new();
+        songs.sort_unstable_by(|a, b| {
+            a.artist
+                .cmp(&b.artist)
+                .then_with(|| a.album.cmp(&b.album))
+                .then_with(|| a.title.cmp(&b.title))
+        });
 
-        //Add songs to albums.
-        for song in songs.into_iter() {
-            albums
-                .entry((song.artist.clone(), song.album.clone()))
-                .or_default()
-                .push(song);
-        }
+        let mut albums = Vec::new();
+        let mut artists = Vec::new();
 
-        //Sort songs.
-        albums.iter_mut().for_each(|(_, album)| {
-            album.sort_unstable_by(|a, b| {
-                if a.disc_number == b.disc_number {
-                    a.track_number.cmp(&b.track_number)
-                } else {
-                    a.disc_number.cmp(&b.disc_number)
-                }
+        let mut song_cursor = 0;
+        let mut album_cursor = 0;
+
+        for artist_songs in songs.chunk_by(|a, b| a.artist == b.artist) {
+            let artist_first_album = album_cursor;
+
+            for album_songs in artist_songs.chunk_by(|a, b| a.album == b.album) {
+                song_cursor += album_songs.len();
+                albums.push(AlbumEntry {
+                    title: album_songs[0].album.clone(),
+                    songs: song_cursor..song_cursor + album_songs.len(),
+                });
+                album_cursor += 1;
+            }
+
+            artists.push(ArtistEntry {
+                name: artist_songs[0].artist.clone(),
+                albums: artist_first_album..album_cursor,
             });
-        });
-
-        //Add albums to artists.
-        for ((artist, title), songs) in albums {
-            btree
-                .entry(artist)
-                .or_default()
-                .push(Album { title, songs });
         }
 
-        //Sort albums.
-        btree.iter_mut().for_each(|(_, albums)| {
-            albums.sort_unstable_by_key(|album| album.title.to_ascii_lowercase());
-        });
-
-        Self { btree, len }
-    }
-
-    ///Get all artist names.
-    pub fn artists(&self) -> Vec<&String> {
-        let mut v: Vec<_> = self.btree.keys().collect();
-        v.sort_unstable_by_key(|artist| artist.to_ascii_lowercase());
-        v
-    }
-
-    ///Get all albums by an artist.
-    pub fn albums_by_artist(&self, artist: &str) -> &[Album] {
-        self.btree.get(artist).unwrap()
-    }
-
-    ///Get an album by artist and album name.
-    pub fn album(&self, artist: &str, album: &str) -> &Album {
-        if let Some(albums) = self.btree.get(artist) {
-            for al in albums {
-                if album == al.title {
-                    return al;
-                }
-            }
+        Self {
+            songs,
+            artists,
+            albums,
         }
-        panic!("Could not find album {} {}", artist, album);
     }
 
-    ///Get an individual song in the database.
-    pub fn song(&self, artist: &str, album: &str, disc: u8, number: u8) -> &Song {
-        for al in self.btree.get(artist).unwrap() {
-            if al.title == album {
-                for song in &al.songs {
-                    if song.disc_number == disc && song.track_number == number {
-                        return song;
-                    }
-                }
-            }
+    pub fn get_artists(&self) -> Vec<String> {
+        self.artists.iter().map(|a| a.name.clone()).collect()
+    }
+
+    pub fn get_album_songs(&self, artist: &str, album: &str) -> Option<&[Song]> {
+        let artist_idx = self
+            .artists
+            .binary_search_by_key(&artist, |a| a.name.as_str())
+            .ok()?;
+        let artist_albums = &self.albums[self.artists[artist_idx].albums.clone()];
+        let album_idx = artist_albums
+            .binary_search_by_key(&album, |alb| alb.title.as_str())
+            .ok()?;
+        Some(&self.songs[artist_albums[album_idx].songs.clone()])
+    }
+
+    pub fn get_artist_songs(&self, artist_name: &str) -> Option<&[Song]> {
+        let artist_idx = self
+            .artists
+            .binary_search_by_key(&artist_name, |a| a.name.as_str())
+            .ok()?;
+
+        let artist = &self.artists[artist_idx];
+        if artist.albums.is_empty() {
+            return Some(&[]);
         }
-        unreachable!();
+
+        let first_album = &self.albums[artist.albums.start];
+        let last_album = &self.albums[artist.albums.end - 1];
+
+        Some(&self.songs[first_album.songs.start..last_album.songs.end])
+    }
+
+    pub fn get_artist_albums(&self, artist: &str) -> Option<&[AlbumEntry]> {
+        let artist_idx = self
+            .artists
+            .binary_search_by_key(&artist, |a| a.name.as_str())
+            .ok()?;
+        Some(&self.albums[self.artists[artist_idx].albums.clone()])
     }
 
     ///Search the database and return the 25 most accurate matches.
     pub fn search(&self, query: &str) -> Vec<Item> {
         const MAX: usize = 40;
-
-        let query = normalize_for_search(query);
-        let mut results = Vec::new();
-
-        for (artist, albums) in self.btree.iter() {
-            for album in albums.iter() {
-                for song in album.songs.iter() {
-                    results.push(jaro(
-                        &query,
-                        Item::Song((
-                            song.artist.clone(),
-                            song.album.clone(),
-                            song.title.clone(),
-                            song.disc_number,
-                            song.track_number,
-                        )),
-                    ));
-                }
-                results.push(jaro(
-                    &query,
-                    Item::Album((artist.clone(), album.title.clone())),
-                ));
-            }
-            results.push(jaro(&query, Item::Artist(artist.clone())));
-        }
+        // let query = normalize_for_search(query);
 
         if query.is_empty() {
-            return results
-                .into_iter()
+            return self
+                .songs
+                .iter()
                 .take(MAX)
-                .map(|item| match item {
-                    Ok((item, _)) => item,
-                    Err((item, _)) => item,
+                .map(|song| {
+                    Item::Song((
+                        song.artist.clone(),
+                        song.album.clone(),
+                        song.title.clone(),
+                        song.disc_number,
+                        song.track_number,
+                    ))
                 })
                 .collect();
         }
 
-        let mut results: Vec<(Item, f64)> = results.into_iter().flatten().collect();
+        let mut results: Vec<(Item, f64)> = Vec::new();
 
-        // Highest score first, on ties prefer Artist > Album > Song, then track order.
+        for artist in &self.artists {
+            if let Some(score) = jaro_score(&query, &artist.name) {
+                results.push((Item::Artist(artist.name.clone()), score));
+            }
+
+            for album in &self.albums[artist.albums.clone()] {
+                if let Some(score) = jaro_score(&query, &album.title) {
+                    results.push((
+                        Item::Album((artist.name.clone(), album.title.clone())),
+                        score,
+                    ));
+                }
+
+                for song in &self.songs[album.songs.clone()] {
+                    if let Some(score) = jaro_score(&query, &song.title) {
+                        results.push((
+                            Item::Song((
+                                song.artist.clone(),
+                                song.album.clone(),
+                                song.title.clone(),
+                                song.disc_number,
+                                song.track_number,
+                            )),
+                            score,
+                        ));
+                    }
+                }
+            }
+        }
+
         results.sort_unstable_by(|(item_1, score_1), (item_2, score_2)| {
             match score_2.partial_cmp(score_1).unwrap_or(Ordering::Equal) {
                 Ordering::Equal => match item_rank(item_1).cmp(&item_rank(item_2)) {
@@ -251,18 +274,13 @@ impl Database {
         results.into_iter().map(|(item, _)| item).collect()
     }
 
-    //TODO: Ahh, yeah, so this kind of lookup on every single song render is a bit questionable.
     pub fn artwork(&self, song: &Song) -> Option<(&[u32], usize, usize)> {
-        let album = self.album(&song.artist, &song.album);
-        if let Some(song) = album.songs.first()
-            && let Some(artwork) = &song.artwork
-        {
-            return match artwork {
-                Artwork::Decoded(pixels, width, height) => Some((pixels, *width, *height)),
-                Artwork::Compressed(_) => None,
-            };
-        }
+        let songs = self.get_album_songs(&song.artist, &song.album)?;
+        let first = songs.first()?;
 
-        None
+        match first.artwork.as_ref()? {
+            Artwork::Decoded(pixels, width, height) => Some((pixels, *width, *height)),
+            Artwork::Compressed(_) => None,
+        }
     }
 }
