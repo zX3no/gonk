@@ -1,23 +1,24 @@
-use mu_core::db::album_year;
-
 use crate::*;
+use mu_core::{Database, SongId};
+
 pub struct Library<'a> {
     pub bounds: Rect,
     pub artist: &'a str,
     pub total_tracks: usize,
-    ///(Album, Song)
-    pub playing_song: Option<(usize, usize)>,
-    ///(Album, Song)
-    pub selected_song: Option<(usize, usize)>,
+    pub playing_song: Option<SongId>,
+    pub selected_song: Option<SongId>,
     pub scroll: Scroll,
     pub update_playing: bool,
 }
 
 pub fn draw_library<'a, 'b: 'a>(
-    albums: &'a [mu_core::Song],
+    db: &'a Database,
     library: &mut Library<'b>,
     ui: &mut FrameContext<'_, 'a>,
 ) {
+    let artist_entry = db.artist_by_name(library.artist).unwrap();
+    let total_albums = artist_entry.albums.len();
+
     ui.flow_down(
         flow().bounds(library.bounds).padtb(12).padlr(36).bg(BODY),
         |ui| {
@@ -26,18 +27,13 @@ pub fn draw_library<'a, 'b: 'a>(
             ui.gap(4);
             let header = ui.fmt(format_args!(
                 "{} ALBUMS · {} TRACKS",
-                albums.len(),
-                library.total_tracks,
+                total_albums, library.total_tracks,
             ));
             ui.text(header, text().font_size(12).fg(TEXT_MUTED));
             ui.gap(12);
             ui.rect(rect().fillw().height(1).bg(BORDER_DIM));
             ui.gap(12);
 
-            //TODO: Make mouse scroll better on elastic so it doesn't need to be disabled.
-            let scroll_style = flow();
-
-            // #[cfg(not(target_os = "windows"))]
             let scroll_style = flow().elastic(true);
 
             ui.scroll(scroll_style, &mut library.scroll, |ui| {
@@ -45,16 +41,8 @@ pub fn draw_library<'a, 'b: 'a>(
                     .measure_text("A", Font::default(), 24, None, i32::MAX)
                     .height;
                 let mut rendered = 0;
-
-                let total_albums = albums.chunk_by(|a, b| a.album == b.album).count();
-
-                let albums = albums
-                    .chunk_by(|a, b| a.album == b.album)
-                    .map(|chunk| (&chunk[0].album, chunk))
-                    .enumerate();
-
-                // let mut total_albums = 0;
-                for (ai, (album, songs)) in albums {
+                for (ai, album) in db.artist_albums(library.artist).unwrap().enumerate() {
+                    let songs = album.songs;
                     let rows = songs.len() as i32;
                     let row_gap = 2;
                     let row_height = 36;
@@ -87,15 +75,11 @@ pub fn draw_library<'a, 'b: 'a>(
 
                         ui.flow_down(flow(), |ui| {
                             let tracks = if songs.len() > 1 { "tracks" } else { "track" };
-                            let year = ui.fmt(format_args!(
-                                "{} · {} {}",
-                                album_year(songs),
-                                songs.len(),
-                                tracks
-                            ));
+                            let year =
+                                ui.fmt(format_args!("{} · {} {}", album.year, songs.len(), tracks));
                             ui.lines(
                                 [
-                                    line(album, text().font_size(24).padr(12)),
+                                    line(album.title, text().font_size(24).padr(12)),
                                     line(year, text().font_size(16).fg(TEXT_MUTED)),
                                 ],
                                 text().height(title_height),
@@ -118,8 +102,9 @@ pub fn draw_library<'a, 'b: 'a>(
                                 .height(row_height);
 
                             for (si, song) in songs.iter().enumerate() {
-                                let playing = Some((ai, si)) == library.playing_song;
-                                let selected = Some((ai, si)) == library.selected_song;
+                                let global_id = album.song_start + si;
+                                let playing = Some(global_id) == library.playing_song;
+                                let selected = Some(global_id) == library.selected_song;
 
                                 let row = if playing {
                                     row.bg(ROW_SELECTED)
@@ -160,11 +145,11 @@ pub fn draw_library<'a, 'b: 'a>(
                                 });
 
                                 if song_row.clicked {
-                                    library.selected_song = Some((ai, si));
+                                    library.selected_song = Some(global_id);
                                 }
 
                                 if song_row.double_clicked {
-                                    library.playing_song = Some((ai, si));
+                                    library.playing_song = Some(global_id);
                                     library.update_playing = true;
                                 }
 

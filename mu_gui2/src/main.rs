@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use mu_core::{Album, db::Artwork};
+use mu_core::{Database, SongId, db::Artwork};
 use neoui::*;
 
 pub mod sidebar;
@@ -151,53 +151,52 @@ fn time<'a>(ui: &mut FrameContext<'_, 'a>, t: f32) -> &'a str {
     ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
 }
 
-fn spawn_load_artwork(
-    artist: String,
-    mut albums: Vec<mu_core::Song>,
-) -> JoinHandle<(String, Vec<mu_core::Song>)> {
+fn target_artwork(db: &Database, artist: &str) -> Vec<(usize, String)> {
+    let mut targets = Vec::new();
+    let artist = db.artist_by_name(artist).unwrap();
+    for alb in &db.albums[artist.albums.clone()] {
+        let first_song = &db.songs[alb.songs.start];
+        if first_song.artwork.is_none() {
+            targets.push((alb.songs.start, first_song.path.clone()));
+        }
+    }
+    targets
+}
+
+fn spawn_load_artwork(targets: Vec<(usize, String)>) -> JoinHandle<Vec<(usize, Artwork)>> {
     std::thread::spawn(move || {
+        use rayon::prelude::*;
         let now = Instant::now();
-        // let threads = std::thread::available_parallelism().map_or(16, |n| n.get());
-        let threads = 16;
-        let chunk = albums.len().div_ceil(threads).max(1);
+        let loaded: Vec<(usize, Artwork)> = targets
+            .into_par_iter()
+            .filter_map(|(idx, path)| {
+                if let Ok(s) = onmi::metadata(&path, false, true)
+                    && let Some(artwork) = s.artwork
+                    && let Ok((pixels, width, height)) = image::decode(&artwork.data)
+                {
+                    let size = 512;
+                    let pixels = image::resize(
+                        Image {
+                            pixels: &pixels,
+                            width,
+                            height,
+                        },
+                        size,
+                        size,
+                    );
+                    Some((idx, Artwork::Decoded(pixels.into_boxed_slice(), size, size)))
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        std::thread::scope(|scope| {
-            for albums in albums.chunks_mut(chunk) {
-                scope.spawn(move || {
-                    for songs in albums.chunk_by_mut(|a, b| a.album == b.album) {
-                        //Use the first song for the whole album.
-                        //Technically each track can have a different album cover.
-                        if let Some(first) = songs.first_mut()
-                            && first.artwork.is_none()
-                            && let Ok(s) = onmi::metadata(&first.path, false, true)
-                            && let Some(artwork) = s.artwork
-                        {
-                            //TODO: The point of the thumbnails is to allow users to cache a downscaled version
-                            //Currently even though the image is being rendered at 120x120px.
-                            //We need a high resolution version stored ???
-                            if let Ok((pixels, width, height)) = image::decode(&artwork.data) {
-                                let size = 512;
-                                let pixels = image::resize(
-                                    Image {
-                                        pixels: &pixels,
-                                        width,
-                                        height,
-                                    },
-                                    size,
-                                    size,
-                                );
-                                first.artwork =
-                                    Some(Artwork::Decoded(pixels.into_boxed_slice(), size, size));
-                            }
-                        }
-                    }
-                });
-            }
-        });
-
-        println!("Loaded {artist} in {}ms", now.elapsed().as_millis());
-
-        (artist, albums)
+        println!(
+            "Loaded {} artworks in {}ms",
+            loaded.len(),
+            now.elapsed().as_millis()
+        );
+        loaded
     })
 }
 
@@ -248,32 +247,35 @@ fn main() {
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
 
-    let mut artwork_task: Option<JoinHandle<(String, Vec<mu_core::Song>)>> = None;
-
-    if let Some(albums) = db.get_artist_songs("Duster") {
-        artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums.to_vec()));
+    let mut artwork_task: Option<JoinHandle<Vec<(usize, Artwork)>>> = None;
+    let initial_targets = target_artwork(&db, "Duster");
+    if !initial_targets.is_empty() {
+        artwork_task = Some(spawn_load_artwork(initial_targets));
     }
 
     println!("Loaded {}ms", now.elapsed().as_millis());
 
     let mut sidebar = Sidebar {
         bounds: Rect::default(),
-        selected_artist: "Duster",
         artists: &artists,
+        selected_artist: "Duster",
         artist_scroll: Scroll::new(),
         active: true,
-        // update_library: true,
-        // selected_mode: "Library",
         update_library: false,
         selected_mode: "Queue",
         current_letter: None,
         jump_to_letter: None,
     };
 
+    let initial_songs = db
+        .artist_by_name("Duster")
+        .map(|a| a.songs.clone())
+        .unwrap();
+
     let mut library = Library {
         scroll: Scroll::new(),
         bounds: Rect::default(),
-        total_tracks: db.get_artist_songs("Duster").unwrap().len(),
+        total_tracks: initial_songs.len(),
         artist: "Duster",
         playing_song: None,
         selected_song: None,
@@ -281,7 +283,7 @@ fn main() {
     };
 
     let mut controls = Controls {
-        song: None,
+        current_song: None,
         bounds: Rect::default(),
         playing: false,
         shuffle: false,
@@ -293,7 +295,7 @@ fn main() {
     };
 
     let mut queue = Queue {
-        songs: db.get_artist_songs("Duster").unwrap().to_vec(),
+        songs: initial_songs.collect(),
         playing_song: None,
         bounds: Rect::default(),
         scroll: Scroll::new(),
@@ -326,10 +328,20 @@ fn main() {
                 Key::Char('E') => player.seek_forward(10.0),
                 Key::Char('Q') => player.seek_backward(10.0),
                 Key::Char('A') if let Some(current) = queue.playing_song => {
-                    prev(current, &mut queue, &mut player);
+                    prev(current, &mut queue, &db, &mut player);
+                    if let Some(idx) = queue.playing_song {
+                        let song_id = queue.songs[idx];
+                        controls.current_song = Some(song_id);
+                        library.playing_song = Some(song_id);
+                    }
                 }
                 Key::Char('D') if let Some(current) = queue.playing_song => {
-                    next(current, &mut queue, &mut player);
+                    next(current, &mut queue, &db, &mut player);
+                    if let Some(idx) = queue.playing_song {
+                        let song_id = queue.songs[idx];
+                        controls.current_song = Some(song_id);
+                        library.playing_song = Some(song_id);
+                    }
                 }
                 Key::Space => {
                     player.toggle_playback();
@@ -339,10 +351,14 @@ fn main() {
             }
         }
 
-        if let Some(handle) = &artwork_task {
-            if handle.is_finished() {
-                let (artist, albums) = artwork_task.take().unwrap().join().unwrap();
-                // db.btree.insert(artist, albums);
+        if let Some(handle) = &artwork_task
+            && handle.is_finished()
+        {
+            let loaded = artwork_task.take().unwrap().join().unwrap();
+            for (song_idx, artwork) in loaded {
+                if let Some(song) = db.songs.get_mut(song_idx) {
+                    song.artwork = Some(artwork);
+                }
             }
         }
 
@@ -353,77 +369,60 @@ fn main() {
             }
         }
 
-        //Update the queue, library and controls.
-
-        //Currently the queue and library can store the same artist list.
-        //But it's fractured, one loops albums from the db the other has a cloned list of songs.
-        //Not sure how I can unify this to simplify the program structure...?
-        //I will probably just rewrite the database to be linear.
-        //We need to invalidate playback when rebuilding the database anyway.
-        //Unless we want to append changes, which...I should probably implement that too.
         if library.update_playing {
             library.update_playing = false;
+            let Some(song_id) = library.playing_song else {
+                break;
+            };
+            let Some(song) = db.song(song_id) else {
+                break;
+            };
 
-            let (ai, si) = library.selected_song.unwrap();
-            // let albums = db.albums_by_artist(library.artist);
+            player.play_song(&song.path, Some(song.gain), true);
+            controls.current_song = Some(song_id);
+            controls.playing = true;
 
-            // How can we unify / simplify this a bit more?
-            // queue.playing_song = todo!();
-
-            //User is playing a different artist now.
             if queue.playing_artist != Some(library.artist) {
                 queue.playing_artist = Some(library.artist);
-                // queue.songs = albums
-                //     .iter()
-                //     .flat_map(|a| a.songs.iter().cloned())
-                //     .collect();
+                let artist_entry = db.artist_by_name(library.artist).unwrap();
+                queue.songs = artist_entry.songs.clone().collect();
             }
-
-            // let album = &albums[ai];
-            // let mut song = album.songs[si].clone();
-            // player.play_song(&song.path, Some(song.gain), true);
-
-            //Update the active queue song.
-            // let idx = queue.songs.iter().position(|s| s == &song).unwrap();
-            // queue.playing_song = Some(idx);
-
-            // Assume first track artwork is preloaded.
-            // TODO: Right now we iterate the db everytime instead.
-            // song.artwork = album.songs[0].artwork.clone();
-
-            // controls.song = Some((song, ai, si));
-            // controls.playing = true;
+            queue.playing_song = queue.songs.iter().position(|&id| id == song_id);
         }
 
-        //It's not as immediate, but easier than passing in db and library into sidebar.
         if sidebar.update_library {
             sidebar.update_library = false;
             sidebar.selected_mode = "Library";
             library.playing_song = None;
             library.selected_song = None;
 
-            let artist = sidebar.selected_artist.to_string();
-
-            //Restore the playing song in the library when going back to an artist.
-            if let Some((song, ai, si)) = &controls.song
-                && song.artist == artist
-            {
-                library.playing_song = Some((*ai, *si));
-            }
-
-            if let Some(albums) = db.get_artist_songs(&artist) {
-                artwork_task = Some(spawn_load_artwork(artist, albums.to_vec()));
-            }
-
+            let artist = sidebar.selected_artist;
+            let artist_entry = db.artist_by_name(artist).unwrap();
+            library.artist = artist;
+            library.total_tracks = artist_entry.songs.len();
             library.scroll = Scroll::new();
-            library.artist = sidebar.selected_artist;
-            library.total_tracks = db.get_albums(sidebar.selected_artist).unwrap().len();
+
+            if let Some(current_id) = controls.current_song {
+                if artist_entry.songs.contains(&current_id) {
+                    library.playing_song = Some(current_id);
+                }
+            }
+
+            let targets = target_artwork(&db, artist);
+            if !targets.is_empty() {
+                artwork_task = Some(spawn_load_artwork(targets));
+            }
         }
 
         if player.is_finished()
             && let Some(current) = queue.playing_song
         {
-            next(current, &mut queue, &mut player);
+            next(current, &mut queue, &db, &mut player);
+            if let Some(idx) = queue.playing_song {
+                let song_id = queue.songs[idx];
+                controls.current_song = Some(song_id);
+                library.playing_song = Some(song_id);
+            }
         }
 
         controls.duration = player.duration().as_secs_f32();
@@ -447,11 +446,7 @@ fn main() {
             controls.bounds = con;
 
             match sidebar.selected_mode {
-                "Library" => draw_library(
-                    db.get_artist_songs(library.artist).unwrap(),
-                    &mut library,
-                    ui,
-                ),
+                "Library" => draw_library(&db, &mut library, ui),
                 "Queue" => draw_queue(ui, &mut queue, &db),
                 "Playlist" => {}
                 "Settings" => {}

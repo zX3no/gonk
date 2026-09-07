@@ -1,5 +1,5 @@
 use crate::*;
-use mu_core::Song;
+use mu_core::{Database, SongId};
 
 pub const ROW_HEIGHT: i32 = 60;
 pub const ROW_GAP: i32 = 4;
@@ -16,26 +16,29 @@ pub struct Drag {
     pub grab: i32,
 }
 
-//TODO: Find the position in the database.
-//TBH I think I should swap to a flat arena db.
-//Where basically artists / albums are just stored as ranges.
-//That way I can get a full artist / album in a single slice.
-//It makes passing song information trival because you can just index the db.
-//Rescans would invalidate all ids though, probably not a huge issue.
-// controls.song = Some(song.artist.clone(), )
-pub fn next(current: usize, queue: &mut Queue, player: &mut onmi::Player) {
+pub fn next(current: usize, queue: &mut Queue, db: &Database, player: &mut onmi::Player) {
+    if queue.songs.is_empty() {
+        return;
+    }
     let next = (current + 1) % queue.songs.len();
     queue.playing_song = Some(next);
-    let song = &queue.songs[next];
-    player.play_song(&song.path, Some(song.gain), true);
+    let song_id = queue.songs[next];
+    if let Some(song) = db.song(song_id) {
+        player.play_song(&song.path, Some(song.gain), true);
+    }
 }
 
-pub fn prev(current: usize, queue: &mut Queue, player: &mut onmi::Player) {
+pub fn prev(current: usize, queue: &mut Queue, db: &Database, player: &mut onmi::Player) {
+    if queue.songs.is_empty() {
+        return;
+    }
     let len = queue.songs.len();
-    let prev = (current + len - 1 % len) % len;
+    let prev = (current + len - 1) % len;
     queue.playing_song = Some(prev);
-    let song = &queue.songs[prev];
-    player.play_song(&song.path, Some(song.gain), true);
+    let song_id = queue.songs[prev];
+    if let Some(song) = db.song(song_id) {
+        player.play_song(&song.path, Some(song.gain), true);
+    }
 }
 
 pub struct Queue<'a> {
@@ -44,27 +47,32 @@ pub struct Queue<'a> {
     /// We don't want to update the queue everytime the user plays a new song
     /// only when the user changes the artist.
     pub playing_artist: Option<&'a str>,
-    pub songs: Vec<Song>,
+    pub songs: Vec<SongId>,
     pub playing_song: Option<usize>,
     pub bounds: Rect,
     pub scroll: Scroll,
     pub drag: Option<Drag>,
 }
 
-pub fn draw_queue<'a>(
-    ui: &mut FrameContext<'_, 'a>,
-    queue: &mut Queue,
-    db: &'a mu_core::vdb::Database,
-) {
+pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a Database) {
     ui.flow_down(
         flow().bounds(queue.bounds).padlr(36).padtb(12).bg(BODY),
         |ui| {
             ui.text("Queue", text().font_size(42));
 
-            let subtext = ui.fmt(format_args!(
-                "{} tracks · 34 min remaining",
-                queue.songs.len()
-            ));
+            // let remaining_secs: f32 = queue
+            //     .songs
+            //     .iter()
+            //     .skip(queue.playing_song.unwrap_or(0))
+            //     .filter_map(|&id| db.song(id).map(|s| s.duration))
+            //     .sum();
+            // let remaining_mins = (remaining_secs / 60.0).round() as u32;
+            // let subtext = ui.fmt(format_args!(
+            //     "{} tracks · {} min remaining",
+            //     queue.songs.len(),
+            //     remaining_mins
+            // ));
+            let subtext = ui.fmt(format_args!("{} tracks", queue.songs.len(),));
             ui.text(subtext, text().font_size(14).fg(TEXT_MUTED));
 
             ui.gap(12);
@@ -103,8 +111,17 @@ pub fn draw_queue<'a>(
                         let last = queue.songs.len().saturating_sub(1) as i32;
                         let target = (centre / ROW_STEP).clamp(0, last) as usize;
                         if target != d.index {
-                            let song = queue.songs.remove(d.index);
-                            queue.songs.insert(target, song);
+                            let song_id = queue.songs.remove(d.index);
+                            queue.songs.insert(target, song_id);
+                            if queue.playing_song == Some(d.index) {
+                                queue.playing_song = Some(target);
+                            } else if let Some(cur) = queue.playing_song {
+                                if d.index < cur && target >= cur {
+                                    queue.playing_song = Some(cur - 1);
+                                } else if d.index > cur && target <= cur {
+                                    queue.playing_song = Some(cur + 1);
+                                }
+                            }
                             d.index = target;
                         }
                     }
@@ -119,9 +136,12 @@ pub fn draw_queue<'a>(
             let scroll = queue.scroll.offset + queue.scroll.stretch;
 
             ui.flow_scroll(flow().elastic(true).gap(ROW_GAP), &mut queue.scroll, |ui| {
-                for (i, song) in songs.iter().enumerate() {
+                for (i, &song_id) in songs.iter().enumerate() {
+                    let Some(song) = db.song(song_id) else {
+                        continue;
+                    };
                     let dragging = drag.as_ref().is_some_and(|d| d.index == i);
-                    let slot = ui.with_id(song.path.as_str(), |ui| {
+                    let slot = ui.with_id(song_id, |ui| {
                         ui.animate_f32(
                             if dragging { carried } else { i as f32 },
                             if dragging { 0.0 } else { SLIDE },

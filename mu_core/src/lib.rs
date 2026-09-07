@@ -18,6 +18,7 @@ use std::{
 pub use crate::{
     db::{Album, Artist, Song},
     playlist::Playlist,
+    vdb::{AlbumEntry, AlbumView, ArtistEntry, Database, SongId},
 };
 pub use index::*;
 

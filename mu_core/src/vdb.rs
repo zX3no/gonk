@@ -83,16 +83,32 @@ pub fn jaro_score(query: &str, raw_text: &str) -> Option<f64> {
     }
 }
 
-#[derive(Debug)]
+pub type SongId = usize;
+pub type AlbumId = usize;
+pub type ArtistId = usize;
+
+#[derive(Debug, Clone)]
 pub struct ArtistEntry {
     pub name: String,
     pub albums: Range<usize>,
+    pub songs: Range<usize>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AlbumEntry {
     pub title: String,
+    pub artist_idx: usize,
+    pub year: u16,
     pub songs: Range<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlbumView<'a> {
+    pub id: usize,
+    pub title: &'a str,
+    pub year: u16,
+    pub songs: &'a [Song],
+    pub song_start: usize,
 }
 
 #[derive(Debug)]
@@ -134,12 +150,25 @@ impl Database {
 
         for artist_songs in songs.chunk_by(|a, b| a.artist == b.artist) {
             let artist_first_album = album_cursor;
+            let artist_first_song = song_cursor;
+            let artist_idx = artists.len();
 
             for album_songs in artist_songs.chunk_by(|a, b| a.album == b.album) {
+                let album_start = song_cursor;
                 song_cursor += album_songs.len();
+                let album_end = song_cursor;
+
+                let year = album_songs
+                    .iter()
+                    .map(|s| s.year)
+                    .find(|&y| y != 0)
+                    .unwrap_or(0);
+
                 albums.push(AlbumEntry {
                     title: album_songs[0].album.clone(),
-                    songs: song_cursor..song_cursor + album_songs.len(),
+                    artist_idx,
+                    year,
+                    songs: album_start..album_end,
                 });
                 album_cursor += 1;
             }
@@ -147,6 +176,7 @@ impl Database {
             artists.push(ArtistEntry {
                 name: artist_songs[0].artist.clone(),
                 albums: artist_first_album..album_cursor,
+                songs: artist_first_song..song_cursor,
             });
         }
 
@@ -157,16 +187,39 @@ impl Database {
         }
     }
 
+    pub fn song(&self, id: SongId) -> Option<&Song> {
+        self.songs.get(id)
+    }
+
+    pub fn album(&self, id: AlbumId) -> Option<&AlbumEntry> {
+        self.albums.get(id)
+    }
+
+    pub fn artist(&self, id: ArtistId) -> Option<&ArtistEntry> {
+        self.artists.get(id)
+    }
+
+    pub fn artist_by_name(&self, name: &str) -> Option<&ArtistEntry> {
+        let idx = self
+            .artists
+            .binary_search_by_key(&name, |a| a.name.as_str())
+            .ok()?;
+        Some(&self.artists[idx])
+    }
+
+    pub fn artist_idx(&self, name: &str) -> Option<ArtistId> {
+        self.artists
+            .binary_search_by_key(&name, |a| a.name.as_str())
+            .ok()
+    }
+
     pub fn get_artists(&self) -> Vec<String> {
         self.artists.iter().map(|a| a.name.clone()).collect()
     }
 
     pub fn get_album_songs(&self, artist: &str, album: &str) -> Option<&[Song]> {
-        let artist_idx = self
-            .artists
-            .binary_search_by_key(&artist, |a| a.name.as_str())
-            .ok()?;
-        let artist_albums = &self.albums[self.artists[artist_idx].albums.clone()];
+        let artist_entry = self.artist_by_name(artist)?;
+        let artist_albums = &self.albums[artist_entry.albums.clone()];
         let album_idx = artist_albums
             .binary_search_by_key(&album, |alb| alb.title.as_str())
             .ok()?;
@@ -174,37 +227,50 @@ impl Database {
     }
 
     pub fn get_artist_songs(&self, artist_name: &str) -> Option<&[Song]> {
-        let artist_idx = self
-            .artists
-            .binary_search_by_key(&artist_name, |a| a.name.as_str())
-            .ok()?;
-
-        let artist = &self.artists[artist_idx];
-        if artist.albums.is_empty() {
-            return Some(&[]);
-        }
-
-        let first_album = &self.albums[artist.albums.start];
-        let last_album = &self.albums[artist.albums.end - 1];
-
-        Some(&self.songs[first_album.songs.start..last_album.songs.end])
+        let artist = self.artist_by_name(artist_name)?;
+        Some(&self.songs[artist.songs.clone()])
     }
 
     pub fn get_albums(&self, artist: &str) -> Option<&[AlbumEntry]> {
-        let artist_idx = self
-            .artists
-            .binary_search_by_key(&artist, |a| a.name.as_str())
-            .ok()?;
-        Some(&self.albums[self.artists[artist_idx].albums.clone()])
+        let artist = self.artist_by_name(artist)?;
+        Some(&self.albums[artist.albums.clone()])
+    }
+
+    pub fn artist_albums(&self, artist_name: &str) -> Option<impl Iterator<Item = AlbumView<'_>>> {
+        let artist = self.artist_by_name(artist_name)?;
+        let start_album_idx = artist.albums.start;
+        let albums_slice = &self.albums[artist.albums.clone()];
+        let songs = &self.songs;
+        Some(albums_slice.iter().enumerate().map(move |(offset, alb)| AlbumView {
+            id: start_album_idx + offset,
+            title: &alb.title,
+            year: alb.year,
+            songs: &songs[alb.songs.clone()],
+            song_start: alb.songs.start,
+        }))
+    }
+
+    pub fn artist_albums_by_idx(&self, artist_idx: usize) -> Option<impl Iterator<Item = AlbumView<'_>>> {
+        let artist = self.artists.get(artist_idx)?;
+        let start_album_idx = artist.albums.start;
+        let albums_slice = &self.albums[artist.albums.clone()];
+        let songs = &self.songs;
+        Some(albums_slice.iter().enumerate().map(move |(offset, alb)| AlbumView {
+            id: start_album_idx + offset,
+            title: &alb.title,
+            year: alb.year,
+            songs: &songs[alb.songs.clone()],
+            song_start: alb.songs.start,
+        }))
     }
 
     pub fn get_albums_entry(&self, albums: &[AlbumEntry]) -> Option<&[Song]> {
-        // let first_album = &self.albums[artist.albums.start];
-        // let last_album = &self.albums[artist.albums.end - 1];
-        todo!();
+        let first = albums.first()?;
+        let last = albums.last()?;
+        Some(&self.songs[first.songs.start..last.songs.end])
     }
 
-    pub fn get_album_entry(&self, album: AlbumEntry) -> Option<&[Song]> {
+    pub fn get_album_entry(&self, album: &AlbumEntry) -> Option<&[Song]> {
         Some(&self.songs[album.songs.clone()])
     }
 
@@ -285,7 +351,7 @@ impl Database {
         results.into_iter().map(|(item, _)| item).collect()
     }
 
-    pub fn artwork(&self, song: &Song) -> Option<(&[u32], usize, usize)> {
+    pub fn artwork<'a>(&'a self, song: &Song) -> Option<(&'a [u32], usize, usize)> {
         let songs = self.get_album_songs(&song.artist, &song.album)?;
         let first = songs.first()?;
 
@@ -293,5 +359,138 @@ impl Database {
             Artwork::Decoded(pixels, width, height) => Some((pixels, *width, *height)),
             Artwork::Compressed(_) => None,
         }
+    }
+
+    pub fn song_artwork(&self, song_id: SongId) -> Option<(&[u32], usize, usize)> {
+        let song = self.song(song_id)?;
+        self.artwork(song)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_song(artist: &str, album: &str, title: &str, track: u8, year: u16) -> Song {
+        Song {
+            title: title.to_string(),
+            album: album.to_string(),
+            artist: artist.to_string(),
+            disc_number: 1,
+            track_number: track,
+            path: format!("/{artist}/{album}/{title}.mp3"),
+            gain: 0.0,
+            year,
+            duration: 180.0,
+            artwork: None,
+        }
+    }
+
+    #[test]
+    fn test_flat_database_ranges() {
+        let raw_songs = vec![
+            dummy_song("Artist B", "Album 1", "Track 1", 1, 2020),
+            dummy_song("Artist A", "Album 1", "Track 1", 1, 2010),
+            dummy_song("Artist A", "Album 1", "Track 2", 2, 2010),
+            dummy_song("Artist A", "Album 2", "Track 1", 1, 2012),
+        ];
+
+        // Simulate new() logic without reading from disk
+        let mut songs = raw_songs;
+        songs.sort_unstable_by(|a, b| {
+            a.artist
+                .cmp(&b.artist)
+                .then_with(|| a.album.cmp(&b.album))
+                .then_with(|| a.disc_number.cmp(&b.disc_number))
+                .then_with(|| a.track_number.cmp(&b.track_number))
+        });
+
+        let mut albums = Vec::new();
+        let mut artists = Vec::new();
+
+        let mut song_cursor = 0;
+        let mut album_cursor = 0;
+
+        for artist_songs in songs.chunk_by(|a, b| a.artist == b.artist) {
+            let artist_first_album = album_cursor;
+            let artist_first_song = song_cursor;
+            let artist_idx = artists.len();
+
+            for album_songs in artist_songs.chunk_by(|a, b| a.album == b.album) {
+                let album_start = song_cursor;
+                song_cursor += album_songs.len();
+                let album_end = song_cursor;
+
+                let year = album_songs
+                    .iter()
+                    .map(|s| s.year)
+                    .find(|&y| y != 0)
+                    .unwrap_or(0);
+
+                albums.push(AlbumEntry {
+                    title: album_songs[0].album.clone(),
+                    artist_idx,
+                    year,
+                    songs: album_start..album_end,
+                });
+                album_cursor += 1;
+            }
+
+            artists.push(ArtistEntry {
+                name: artist_songs[0].artist.clone(),
+                albums: artist_first_album..album_cursor,
+                songs: artist_first_song..song_cursor,
+            });
+        }
+
+        let db = Database {
+            songs,
+            artists,
+            albums,
+        };
+
+        // Check artists
+        assert_eq!(db.artists.len(), 2);
+        assert_eq!(db.artists[0].name, "Artist A");
+        assert_eq!(db.artists[0].albums, 0..2);
+        assert_eq!(db.artists[0].songs, 0..3);
+
+        assert_eq!(db.artists[1].name, "Artist B");
+        assert_eq!(db.artists[1].albums, 2..3);
+        assert_eq!(db.artists[1].songs, 3..4);
+
+        // Check albums
+        assert_eq!(db.albums.len(), 3);
+        assert_eq!(db.albums[0].title, "Album 1");
+        assert_eq!(db.albums[0].songs, 0..2);
+        assert_eq!(db.albums[0].year, 2010);
+
+        assert_eq!(db.albums[1].title, "Album 2");
+        assert_eq!(db.albums[1].songs, 2..3);
+        assert_eq!(db.albums[1].year, 2012);
+
+        assert_eq!(db.albums[2].title, "Album 1");
+        assert_eq!(db.albums[2].songs, 3..4);
+        assert_eq!(db.albums[2].year, 2020);
+
+        // Check artist_albums views
+        let artist_a_albums: Vec<_> = db.artist_albums("Artist A").unwrap().collect();
+        assert_eq!(artist_a_albums.len(), 2);
+        assert_eq!(artist_a_albums[0].title, "Album 1");
+        assert_eq!(artist_a_albums[0].year, 2010);
+        assert_eq!(artist_a_albums[0].songs.len(), 2);
+        assert_eq!(artist_a_albums[0].song_start, 0);
+
+        assert_eq!(artist_a_albums[1].title, "Album 2");
+        assert_eq!(artist_a_albums[1].year, 2012);
+        assert_eq!(artist_a_albums[1].songs.len(), 1);
+        assert_eq!(artist_a_albums[1].song_start, 2);
+
+        // Check artist_songs
+        let songs = db.get_artist_songs("Artist A").unwrap();
+        assert_eq!(songs.len(), 3);
+        assert_eq!(songs[0].title, "Track 1");
+        assert_eq!(songs[1].title, "Track 2");
+        assert_eq!(songs[2].title, "Track 1");
     }
 }

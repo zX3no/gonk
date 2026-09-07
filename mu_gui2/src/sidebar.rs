@@ -2,7 +2,6 @@ use crate::*;
 
 pub struct Sidebar<'a> {
     pub bounds: Rect,
-    // panel_left: &'a Image,
     pub artists: &'a [String],
     pub selected_artist: &'a str,
     pub selected_mode: &'a str,
@@ -53,7 +52,10 @@ pub fn draw_rail(sidebar: &mut Sidebar, ui: &mut FrameContext) {
     );
 }
 
-pub fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext<'_, 'a>) {
+pub fn draw_sidebar<'a, 'b: 'a>(
+    sidebar: &mut Sidebar<'b>,
+    ui: &mut FrameContext<'_, 'a>,
+) {
     let sb = text().fg(TEXT).font_size(16);
     let state = ui.flow_down(
         flow()
@@ -78,7 +80,7 @@ pub fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext
                         .radius(6)
                         .hover(ROW_HOVER)
                         .fg(TEXT_TERTIARY);
-                    if icon(ui, "Panel", btn).clicked {
+                    if icon(ui, "Panel", btn.fg(TEXT_TERTIARY)).clicked {
                         sidebar.active = false;
                     }
                 },
@@ -159,7 +161,7 @@ pub fn draw_sidebar<'a, 'b: 'a>(sidebar: &mut Sidebar<'b>, ui: &mut FrameContext
                             }
                             ui.text(first_letter.to_string(), l);
                         }
-                        let sel = *artist == selected_artist;
+                        let sel = artist.as_str() == selected_artist;
                         let state = ui.text(artist, if sel { selected_text } else { text });
                         if state.clicked {
                             sidebar.selected_artist = artist;

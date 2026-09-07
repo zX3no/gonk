@@ -1,8 +1,8 @@
 use crate::*;
+use mu_core::{Database, SongId};
 
 pub struct Controls {
-    ///Song with artwork copied into it. (Album, Song)
-    pub song: Option<(mu_core::Song, usize, usize)>,
+    pub current_song: Option<SongId>,
     pub bounds: Rect,
     pub playing: bool,
     pub shuffle: bool,
@@ -17,7 +17,7 @@ pub fn draw_controls<'a>(
     controls: &mut Controls,
     player: &mut onmi::Player,
     ui: &mut FrameContext<'_, 'a>,
-    db: &'a mu_core::vdb::Database,
+    db: &'a Database,
 ) {
     ui.paint_rect(
         controls.bounds,
@@ -25,7 +25,9 @@ pub fn draw_controls<'a>(
     );
 
     let [info, center, extras] = ui.split_hs(controls.bounds, [0.28, 0.44, 0.28]);
-    if let Some((song, _, _)) = &controls.song {
+    if let Some(song_id) = controls.current_song
+        && let Some(song) = db.song(song_id)
+    {
         ui.flow_right(
             flow()
                 .bounds(info)
