@@ -333,6 +333,7 @@ fn main() {
                         let song_id = queue.songs[idx];
                         controls.current_song = Some(song_id);
                         library.playing_song = Some(song_id);
+                        // queue.playing_song = Some(song_id);
                     }
                 }
                 Key::Char('D') if let Some(current) = queue.playing_song => {
@@ -341,6 +342,7 @@ fn main() {
                         let song_id = queue.songs[idx];
                         controls.current_song = Some(song_id);
                         library.playing_song = Some(song_id);
+                        // queue.playing_song = Some(song_id);
                     }
                 }
                 Key::Space => {
@@ -387,6 +389,7 @@ fn main() {
                 let artist_entry = db.artist_by_name(library.artist).unwrap();
                 queue.songs = artist_entry.songs.clone().collect();
             }
+
             queue.playing_song = queue.songs.iter().position(|&id| id == song_id);
         }
 

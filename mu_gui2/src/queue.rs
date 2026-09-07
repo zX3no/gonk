@@ -22,8 +22,7 @@ pub fn next(current: usize, queue: &mut Queue, db: &Database, player: &mut onmi:
     }
     let next = (current + 1) % queue.songs.len();
     queue.playing_song = Some(next);
-    let song_id = queue.songs[next];
-    if let Some(song) = db.song(song_id) {
+    if let Some(song) = db.song(queue.songs[next]) {
         player.play_song(&song.path, Some(song.gain), true);
     }
 }
@@ -35,8 +34,7 @@ pub fn prev(current: usize, queue: &mut Queue, db: &Database, player: &mut onmi:
     let len = queue.songs.len();
     let prev = (current + len - 1) % len;
     queue.playing_song = Some(prev);
-    let song_id = queue.songs[prev];
-    if let Some(song) = db.song(song_id) {
+    if let Some(song) = db.song(queue.songs[prev]) {
         player.play_song(&song.path, Some(song.gain), true);
     }
 }
@@ -48,6 +46,7 @@ pub struct Queue<'a> {
     /// only when the user changes the artist.
     pub playing_artist: Option<&'a str>,
     pub songs: Vec<SongId>,
+    /// songs[index]
     pub playing_song: Option<usize>,
     pub bounds: Rect,
     pub scroll: Scroll,
@@ -172,6 +171,8 @@ pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a 
                             .depth(if dragging { 1 } else { 0 })
                             .children_center(),
                         |ui| {
+                            let selected =
+                                Some(song_id) == queue.playing_song.map(|s| queue.songs[s]);
                             ui.flow_right(
                                 flow()
                                     .radius(8)
@@ -180,7 +181,7 @@ pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a 
                                     .height(ROW_HEIGHT)
                                     .children_center()
                                     .padlr(12)
-                                    .bg(BODY)
+                                    .bg(if selected { ROW_SELECTED } else { BODY })
                                     .hover(if drag.is_some() { BODY } else { ROW_SELECTED }),
                                 |ui| {
                                     ui.text(
