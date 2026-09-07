@@ -163,7 +163,7 @@ pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a 
                         );
                     }
 
-                    ui.flow_right(
+                    let song = ui.flow_right(
                         flow()
                             .y(y)
                             .fillw()
@@ -258,6 +258,11 @@ pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a 
                             }
                         },
                     );
+
+                    if song.double_clicked {
+                        queue.playing_song = queue.songs.iter().position(|&id| id == song_id);
+                        //TODO: Play the song and update the library position.
+                    }
                 }
             });
         },
