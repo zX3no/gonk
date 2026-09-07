@@ -58,19 +58,6 @@ pub fn draw_queue<'a>(ui: &mut FrameContext<'_, 'a>, queue: &mut Queue, db: &'a 
         flow().bounds(queue.bounds).padlr(36).padtb(12).bg(BODY),
         |ui| {
             ui.text("Queue", text().font_size(42));
-
-            // let remaining_secs: f32 = queue
-            //     .songs
-            //     .iter()
-            //     .skip(queue.playing_song.unwrap_or(0))
-            //     .filter_map(|&id| db.song(id).map(|s| s.duration))
-            //     .sum();
-            // let remaining_mins = (remaining_secs / 60.0).round() as u32;
-            // let subtext = ui.fmt(format_args!(
-            //     "{} tracks · {} min remaining",
-            //     queue.songs.len(),
-            //     remaining_mins
-            // ));
             let subtext = ui.fmt(format_args!("{} tracks", queue.songs.len(),));
             ui.text(subtext, text().font_size(14).fg(TEXT_MUTED));
 

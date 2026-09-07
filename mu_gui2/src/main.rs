@@ -333,7 +333,6 @@ fn main() {
                         let song_id = queue.songs[idx];
                         controls.current_song = Some(song_id);
                         library.playing_song = Some(song_id);
-                        // queue.playing_song = Some(song_id);
                     }
                 }
                 Key::Char('D') if let Some(current) = queue.playing_song => {
@@ -342,7 +341,6 @@ fn main() {
                         let song_id = queue.songs[idx];
                         controls.current_song = Some(song_id);
                         library.playing_song = Some(song_id);
-                        // queue.playing_song = Some(song_id);
                     }
                 }
                 Key::Space => {
