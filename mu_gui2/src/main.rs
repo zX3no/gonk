@@ -151,7 +151,10 @@ fn time<'a>(ui: &mut FrameContext<'_, 'a>, t: f32) -> &'a str {
     ui.fmt(format_args!("{:02}:{:02}", minutes, seconds))
 }
 
-fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(String, Vec<Album>)> {
+fn spawn_load_artwork(
+    artist: String,
+    mut albums: Vec<mu_core::Song>,
+) -> JoinHandle<(String, Vec<mu_core::Song>)> {
     std::thread::spawn(move || {
         let now = Instant::now();
         // let threads = std::thread::available_parallelism().map_or(16, |n| n.get());
@@ -161,10 +164,10 @@ fn spawn_load_artwork(artist: String, mut albums: Vec<Album>) -> JoinHandle<(Str
         std::thread::scope(|scope| {
             for albums in albums.chunks_mut(chunk) {
                 scope.spawn(move || {
-                    for a in albums {
+                    for songs in albums.chunk_by_mut(|a, b| a.album == b.album) {
                         //Use the first song for the whole album.
                         //Technically each track can have a different album cover.
-                        if let Some(first) = a.songs.first_mut()
+                        if let Some(first) = songs.first_mut()
                             && first.artwork.is_none()
                             && let Ok(s) = onmi::metadata(&first.path, false, true)
                             && let Some(artwork) = s.artwork
@@ -245,10 +248,10 @@ fn main() {
     let mut player = player.join().unwrap();
     let (mut db, artists) = db.join().unwrap();
 
-    let mut artwork_task: Option<JoinHandle<(String, Vec<Album>)>> = None;
+    let mut artwork_task: Option<JoinHandle<(String, Vec<mu_core::Song>)>> = None;
 
-    if let Some(albums) = db.get_artist_albums("Duster") {
-        // artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums));
+    if let Some(albums) = db.get_artist_songs("Duster") {
+        artwork_task = Some(spawn_load_artwork("Duster".to_string(), albums.to_vec()));
     }
 
     println!("Loaded {}ms", now.elapsed().as_millis());
@@ -408,13 +411,13 @@ fn main() {
                 library.playing_song = Some((*ai, *si));
             }
 
-            // if let Some(albums) = db.btree.get(&artist).cloned() {
-            //     artwork_task = Some(spawn_load_artwork(artist, albums));
-            // }
+            if let Some(albums) = db.get_artist_songs(&artist) {
+                artwork_task = Some(spawn_load_artwork(artist, albums.to_vec()));
+            }
 
             library.scroll = Scroll::new();
             library.artist = sidebar.selected_artist;
-            library.total_tracks = db.get_artist_albums(sidebar.selected_artist).unwrap().len();
+            library.total_tracks = db.get_albums(sidebar.selected_artist).unwrap().len();
         }
 
         if player.is_finished()

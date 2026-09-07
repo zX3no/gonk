@@ -122,7 +122,8 @@ impl Database {
             a.artist
                 .cmp(&b.artist)
                 .then_with(|| a.album.cmp(&b.album))
-                .then_with(|| a.title.cmp(&b.title))
+                .then_with(|| a.disc_number.cmp(&b.disc_number))
+                .then_with(|| a.track_number.cmp(&b.track_number))
         });
 
         let mut albums = Vec::new();
@@ -189,12 +190,22 @@ impl Database {
         Some(&self.songs[first_album.songs.start..last_album.songs.end])
     }
 
-    pub fn get_artist_albums(&self, artist: &str) -> Option<&[AlbumEntry]> {
+    pub fn get_albums(&self, artist: &str) -> Option<&[AlbumEntry]> {
         let artist_idx = self
             .artists
             .binary_search_by_key(&artist, |a| a.name.as_str())
             .ok()?;
         Some(&self.albums[self.artists[artist_idx].albums.clone()])
+    }
+
+    pub fn get_albums_entry(&self, albums: &[AlbumEntry]) -> Option<&[Song]> {
+        // let first_album = &self.albums[artist.albums.start];
+        // let last_album = &self.albums[artist.albums.end - 1];
+        todo!();
+    }
+
+    pub fn get_album_entry(&self, album: AlbumEntry) -> Option<&[Song]> {
+        Some(&self.songs[album.songs.clone()])
     }
 
     ///Search the database and return the 25 most accurate matches.

@@ -46,6 +46,8 @@ pub fn draw_library<'a, 'b: 'a>(
                     .height;
                 let mut rendered = 0;
 
+                let total_albums = albums.chunk_by(|a, b| a.album == b.album).count();
+
                 let albums = albums
                     .chunk_by(|a, b| a.album == b.album)
                     .map(|chunk| (&chunk[0].album, chunk))
@@ -173,12 +175,11 @@ pub fn draw_library<'a, 'b: 'a>(
                         });
                     });
 
-                    //TODO: How to get album lengths without running lazy iter twice.
-                    // if (ai + 1) < total_albums {
-                    //     ui.gap(24);
-                    //     ui.rect(rect().fillw().bg(BORDER_DIM).h(1));
-                    //     ui.gap(24);
-                    // }
+                    if (ai + 1) < total_albums {
+                        ui.gap(24);
+                        ui.rect(rect().fillw().bg(BORDER_DIM).h(1));
+                        ui.gap(24);
+                    }
                     // println!("rendered {}/{} albums", rendered, albums.len());
                 }
             });
